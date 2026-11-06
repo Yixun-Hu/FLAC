@@ -6,8 +6,8 @@ Gates before any write, under the global publication lock: the publisher checkou
 run checkout at the artifacts' pin (H36_I) and the exp-25 worktree at its expected HEAD; the destination the plain YAW
 farm directory of the exp-25 worktree, opened once (every later operation relative to that fd); the YAW replay's
 verdict ``equal`` at the pin AND re-computed identically; the set's cells verified, dump-free, receipt 2 sdpa, under
-the verdict's campaign digest; none of the set's destinations (metrics JSON + stream sidecar; never the replay, never a
-``.cell.json``) present. Each file is written to a temp named by the publication's transaction id, fsynced,
+the verdict's campaign digest, each WITH its dump (receipt evidence, offline); none of the set's destinations (metrics
+JSON + stream sidecar; never the replay, never a ``.cell.json``, never a dump) present. Each file is written to a temp named by the publication's transaction id, fsynced,
 hard-linked to its final name (no replace) and re-hashed; the publication manifest (created exclusively, replaced only
 while authenticated) records sources, destinations, hashes, receipts, the pin, the digest, the exp-25 HEAD, the archived
 reference and the publisher. A stop part-way is ``partial``; ``resume`` authenticates the prior manifest, accepts only
@@ -39,7 +39,7 @@ CELLS24 = [f"exp25_YAW_C4_S40000_K{k}_s{s}_th{d}" for k in (1, 8) for s in (43, 
 def pub(world, tmp_path):
     """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
     for name in CELLS24:
-        T.write_cell(world["new"], _row(name), pin=H36, dump=False)
+        T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
     status, verdict = check(world)
     assert status == "equal", verdict["reasons"]
     path = tmp_path / "verdict.json"
@@ -119,7 +119,8 @@ GATES = [
                                _rel(_row(CELLS24[3]), "metrics"), False, "c" * 40), CELLS24[3]),
     (lambda p: _edit_json(p["new"] / _rel(_row(CELLS24[0]), "receipt"), lambda d: d.update(
         campaign_digest="e" * 64, spawn_digest="e" * 64, post_digest="e" * 64)), CELLS24[0]),
-    (lambda p: os.makedirs(p["new"] / "dumps" / os.path.basename(_rel(_row(CELLS24[9]), "metrics"))[:-5]), CELLS24[9]),
+    (lambda p: _edit_json(p["new"] / _rel(_row(CELLS24[9]), "receipt"), lambda d: d["dump_evidence"].update(
+        marker="0" * 64 + "\n")), CELLS24[9]),                                          # every cell dumps (addendum)
     (lambda p: open(p["out"], "w").close(), "publication manifest"),
 ]
 
@@ -238,7 +239,7 @@ YAWOFF = [f"exp25_YAW_C4_S40000_K{k}_s42_th{d}" for k in (1, 8) for d in (135, 2
 def pub_off(world, tmp_path):
     """The replay world + the 6 YAW off-orbit cells (chain I) + an equal YAW verdict on disk."""
     for name in YAWOFF:
-        T.write_cell(world["new"], _row(name), pin=H36, dump=False)
+        T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
     status, verdict = check(world)
     assert status == "equal", verdict["reasons"]
     path = tmp_path / "verdict.json"

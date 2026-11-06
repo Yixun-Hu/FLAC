@@ -45,10 +45,11 @@ def _rel(r, kind):
 
 
 def _plan(new, digest=T.DIGEST, dump_root=None, **edit):
-    """The replay runner's plan JSON as depth_canon_collect.py --plan writes it (one entry: the replay, dump-free)."""
+    """The replay runner's plan JSON as depth_canon_collect.py --plan writes it (one entry: the replay, WITH its dump --
+    the Planner's addendum: every exp_36 cell dumps, like its template)."""
     dump_root = dump_root or str(new / "dumps")
     entry = C.plan_cells(MANIFEST, [_row(REPLAY)], farm_root=T.FARM, dump_root=dump_root, canon_index=None,
-                         no_dump_blocks=["YAW-C4S"])[0]
+                         no_dump_blocks=[])[0]
     entry.update(edit)
     path = new / "plan.json"
     path.write_text(json.dumps({"schema_version": 1, "campaign_digest": digest, "farm_root": T.FARM,
@@ -56,19 +57,35 @@ def _plan(new, digest=T.DIGEST, dump_root=None, **edit):
     return str(path)
 
 
+def dump_pins(receipt_path):
+    """The reference's dump evidence as its receipt binds it: the dump manifest's and the waveforms' sha256."""
+    ev = json.loads(open(receipt_path).read())["dump_evidence"]
+    return {"dump_manifest_sha256": ev["manifest_sha256"], "waveform_sha256": ev["manifest"]["sha256"]}
+
+
+def replay(w, root=None, **kw):
+    """(Re)publish the replay WITH its dump under a fresh dump root (a dump directory is never overwritten) and
+    re-plan it there."""
+    w["n"] = w.get("n", 0) + 1
+    w["root"] = root or str(w["new"] / f"dumps{w['n']}")
+    T.write_cell(w["new"], _row(REPLAY), pin=H36, dump=True, dump_root=w["root"], **kw)
+    w["plan"] = _plan(w["new"], dump_root=w["root"])
+
+
 @pytest.fixture()
 def world(tmp_path):
-    """The archived reference (pin d6ca307a, dump, receipt 1, its fallback log) and the replay (H36, dump-free,
+    """The archived reference (pin d6ca307a, dump, receipt 1, its fallback log) and the replay (H36, WITH its dump,
     receipt 2 + its backend log), each in its own worktree-like dir; the reference pins are the synthetic files'."""
     ref, new = tmp_path / "exp25", tmp_path / "exp36"
     T.write_cell(ref, _row(TEMPLATE), pin=EXP25_PIN)
     (ref / "logs").mkdir()
     (ref / "logs" / "x.log").write_text(FALLBACK)
-    T.write_cell(new, _row(REPLAY), pin=H36, dump=False)
     pins = {f"{k}_sha256": _sha(ref / _rel(_row(TEMPLATE), k)) for k in ("metrics", "stream", "receipt")}
-    pins.update(log_sha256=_sha(ref / "logs" / "x.log"),
-                loaded=[MANIFEST["arms"]["YAW"]["ckpt"]["sha256"], T.CKPT_BYTES])
-    return {"ref": ref, "new": new, "pins": pins, "plan": _plan(new)}
+    pins.update(log_sha256=_sha(ref / "logs" / "x.log"), loaded=[MANIFEST["arms"]["YAW"]["ckpt"]["sha256"], T.CKPT_BYTES],
+                **dump_pins(ref / _rel(_row(TEMPLATE), "receipt")))
+    w = {"ref": ref, "new": new, "pins": pins}
+    replay(w)
+    return w
 
 
 def check(w, **kw):
@@ -93,11 +110,17 @@ def test_the_replay_equal_to_the_archived_cell(world):
     assert new["files"]["log"] == {"path": "logs/x.log", "sha256": _sha(world["new"] / "logs" / "x.log")}
     assert new["receipt_schema"] == 2 and {k: new[k] for k in C.RECEIPT_V2_KEYS} == C.backend_fields()
     assert v["loaded"] == world["pins"]["loaded"] and json.loads(json.dumps(v)) == v
+    assert ref["files"]["dump"] == {"manifest_sha256": world["pins"]["dump_manifest_sha256"],
+                                    "waveform_sha256": world["pins"]["waveform_sha256"]}
+    assert (new["dump"], new["files"]["dump"]["waveform_sha256"]) == (True, world["pins"]["waveform_sha256"])
+    assert new["files"]["dump"]["dir"] == C.cell_paths(_row(REPLAY), f"{T.FARM}/YAW/epoch=8-step=40000.ckpt",
+                                                       world["root"]).dump_dir
+    assert any("dump" in x for x in v["compared"])
 
 
 def _rewrite(w, **kw):
-    """The replay re-published with a changed evaluator output (its receipt rebuilt, so it still verifies)."""
-    T.write_cell(w["new"], _row(REPLAY), pin=H36, dump=False, **kw)
+    """The replay re-published with a changed evaluator output (receipt + dump rebuilt, so it still verifies)."""
+    replay(w, **kw)
 
 
 MISMATCH = [
@@ -108,7 +131,10 @@ MISMATCH = [
 ]
 
 
-@pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene"])
+MISMATCH.append((dict(waves=T.waveforms_for(_row(REPLAY)) * 0.5), "dump waveform sha256"))   # the addendum
+
+
+@pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene", "waveforms"])
 def test_a_different_replay_is_a_mismatch(world, kw, needle):
     _rewrite(world, **kw)
     status, v = check(world)
@@ -122,7 +148,8 @@ def test_equality_is_type_strict(world, tmp_path):
     (ref / "logs").mkdir()
     (ref / "logs" / "x.log").write_text(FALLBACK)
     world["ref"] = ref
-    world["pins"].update({f"{k}_sha256": _sha(ref / _rel(_row(TEMPLATE), k)) for k in ("metrics", "stream", "receipt")})
+    world["pins"].update({f"{k}_sha256": _sha(ref / _rel(_row(TEMPLATE), k)) for k in ("metrics", "stream", "receipt")},
+                         **dump_pins(ref / _rel(_row(TEMPLATE), "receipt")))
     _rewrite(world, metrics=dict(m, T60=8))
     status, v = check(world)
     assert status == "mismatch" and any("type int != float" in x for x in v["reasons"]), v["reasons"]
@@ -138,13 +165,20 @@ def test_the_loaded_checkpoint_must_be_the_pinned_one(world):
     assert status == "mismatch" and sum("loaded checkpoint" in x for x in v["reasons"]) == 4, v["reasons"]
 
 
-def test_a_different_stream_sidecar_is_a_mismatch(world):
-    path = world["new"] / _rel(_row(REPLAY), "stream")
-    path.write_text(json.dumps(json.loads(path.read_text()), indent=1))           # same content, other bytes
-    rel_metrics = _rel(_row(REPLAY), "metrics")
-    T.write_receipt(world["new"], _row(REPLAY), f"{T.FARM}/YAW/epoch=8-step=40000.ckpt", rel_metrics, False, H36)
+def test_the_raw_stream_sidecar_must_be_the_archived_one(world):
+    """With a dump a re-serialized stream cannot verify (the dump manifest binds the stream's bytes), so the raw
+    comparison is exercised through the pin: any other archived stream digest is a mismatch."""
+    world["pins"]["stream_sha256"] = "0" * 64
     status, v = check(world)
     assert status == "mismatch" and any("stream sidecar sha256" in x for x in v["reasons"]), v["reasons"]
+
+
+def test_the_dump_checks_are_ctl_style(world):
+    """The exp_35 CTL checks against the archived dump evidence: the waveforms' sha256 and the COMPLETE marker equal the
+    pinned reference's, n / dtype / shape and the input hash equal the reference dump manifest's."""
+    world["pins"]["waveform_sha256"] = "0" * 64
+    status, v = check(world)
+    assert status == "refused" and any("dump evidence" in x for x in v["reasons"]), v["reasons"]   # the ref pin
 
 
 def _tamper(path, data=b" "):
@@ -162,10 +196,13 @@ REFUSED = [
      (w["ref"] / "logs" / "x.log").write_text(FALLBACK.replace("No module", "Module")), "fallback"),
     (lambda w: os.unlink(w["new"] / _rel(_row(REPLAY), "metrics")), "replay does not verify"),
     (lambda w: os.unlink(w["new"] / "logs" / "x.log"), "replay does not verify"),
-    (lambda w: w.update(plan=_plan(w["new"], digest="e" * 64)), "replay does not verify"),
-    (lambda w: w.update(plan=_plan(w["new"], dump=True)), "replay run plan"),
-    (lambda w: w.update(plan=_plan(w["new"], cell=TEMPLATE)), "replay run plan"),
-    (lambda w: w.update(plan=_plan(w["new"], digest="nope")), "replay run plan"),
+    (lambda w: w.update(plan=_plan(w["new"], digest="e" * 64, dump_root=w["root"])), "replay does not verify"),
+    (lambda w: w.update(plan=_plan(w["new"], dump=False, dump_root=w["root"])), "replay run plan"),
+    (lambda w: w.update(plan=_plan(w["new"], cell=TEMPLATE, dump_root=w["root"])), "replay run plan"),
+    (lambda w: w.update(plan=_plan(w["new"], digest="nope", dump_root=w["root"])), "replay run plan"),
+    (lambda w: w.update(plan=_plan(w["new"], dump_root=w["root"] + "_other")), "replay does not verify"),
+    (lambda w: __import__("shutil").rmtree(C.cell_paths(_row(REPLAY), f"{T.FARM}/YAW/epoch=8-step=40000.ckpt",
+                                                         w["root"]).dump_dir), "replay does not verify"),
     (lambda w: w.update(plan=str(w["new"] / "absent.json")), "replay run plan"),
 ]
 
@@ -181,13 +218,13 @@ def test_an_undecidable_comparison_is_refused(world, edit, needle):
     assert status == "refused" and v["result"] == "refused" and any(needle in x for x in v["reasons"]), v["reasons"]
 
 
-def test_a_replay_run_with_a_dump_or_a_schema1_receipt_is_refused(world):
-    T.write_cell(world["new"], _row(REPLAY), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+def test_a_replay_run_without_a_dump_or_with_a_schema1_receipt_is_refused(world):
+    T.write_cell(world["new"], _row(REPLAY), pin=H36, dump=False, dump_root=str(world["new"] / "nodump"))
+    world["plan"] = _plan(world["new"], dump_root=str(world["new"] / "nodump"))
     status, v = check(world)
     assert status == "refused" and any("replay does not verify" in x for x in v["reasons"]), v["reasons"]
-    T.write_cell(world["new"], _row(REPLAY), pin=H36, dump=False, dump_root=str(world["new"] / "d2"))
-    world["plan"] = _plan(world["new"], dump_root=str(world["new"] / "d2"))
-    assert check(world)[0] == "equal"                                            # a clean dump root: equal again
+    replay(world)
+    assert check(world)[0] == "equal"                                            # with its dump: equal again
     receipt = world["new"] / _rel(_row(REPLAY), "receipt")
     doc = {k: v for k, v in json.loads(receipt.read_text()).items() if k not in C.RECEIPT_V2_KEYS}
     receipt.write_text(json.dumps(dict(doc, schema_version=1)))

@@ -1,0 +1,2732 @@
+RED, cycle 14 (the Planner's addendum after review II: every exp_36 cell DUMPS -- the chain without --no-dump-blocks and a dump-collision preflight before each runner step; the replay verified WITH its dump plus the exp_35 CTL-style dump checks against each reference's pinned dump evidence; the publication's sources verified with their dumps) at HEAD b1f6194b3495787dd8d751abd1417459d2a91d56 + the uncommitted tests
+FFFFFFFFFFFFFFFFFFFFFFFFFFFF..FF.F.F..FFFFFFFFFFFFFFEEEEEEEEEEEEEEEEEEEE [ 46%]
+EEEEFF.........EEE.E.EEEEEEEEEEEEEEEEEEE.....FFFFFFFFFF.....FFFFFFFFFFFF [ 92%]
+FF.........                                                              [100%]
+==================================== ERRORS ====================================
+________ ERROR at setup of test_the_48_files_are_published_and_recorded ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_48_files_are_publishe0/exp25'), 'new': PosixPath('/tmp/...889404ed2124d9e4', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_48_files_are_publishe0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_the_48_files_are_publishe0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+______ ERROR at setup of test_any_present_destination_refuses_everything _______
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_any_present_destination_r0/exp25'), 'new': PosixPath('/tmp/...1e41d738f0008caf', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_any_present_destination_r0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_any_present_destination_r0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+________ ERROR at setup of test_every_gate_refuses_before_any_write[g0] ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before0/exp25'), 'new': PosixPath('/tmp/...c2940c59d67103a0', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+________ ERROR at setup of test_every_gate_refuses_before_any_write[g1] ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before1/exp25'), 'new': PosixPath('/tmp/...63a4133ca325fb16', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before1')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before1/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+________ ERROR at setup of test_every_gate_refuses_before_any_write[g2] ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before2/exp25'), 'new': PosixPath('/tmp/...e4eb9ffc07560e94', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before2')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before2/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+________ ERROR at setup of test_every_gate_refuses_before_any_write[g3] ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before3/exp25'), 'new': PosixPath('/tmp/...990596c7a16c890f', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before3')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before3/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+________ ERROR at setup of test_every_gate_refuses_before_any_write[g4] ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before4/exp25'), 'new': PosixPath('/tmp/...2a6bf9d6581d6ddd', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before4')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before4/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+________ ERROR at setup of test_every_gate_refuses_before_any_write[g5] ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before5/exp25'), 'new': PosixPath('/tmp/...26339c95a4d9a9e9', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before5')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before5/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+________ ERROR at setup of test_every_gate_refuses_before_any_write[g6] ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before6/exp25'), 'new': PosixPath('/tmp/...12481c7ff045ea91', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before6')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before6/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+________ ERROR at setup of test_every_gate_refuses_before_any_write[g7] ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before7/exp25'), 'new': PosixPath('/tmp/...af7c8907ed7b7b3c', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before7')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before7/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+________ ERROR at setup of test_every_gate_refuses_before_any_write[g8] ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before8/exp25'), 'new': PosixPath('/tmp/...38194be24015bcf1', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before8')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before8/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+________ ERROR at setup of test_every_gate_refuses_before_any_write[g9] ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before9/exp25'), 'new': PosixPath('/tmp/...263b44a12d3643b8', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before9')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before9/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+_______ ERROR at setup of test_every_gate_refuses_before_any_write[g10] ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before10/exp25'), 'new': PosixPath('/tmp...83a605657b739897', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before10')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before10/exp36/plan.json' is not a p..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+_______ ERROR at setup of test_every_gate_refuses_before_any_write[g11] ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before11/exp25'), 'new': PosixPath('/tmp...378ceb6d83e62683', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before11')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before11/exp36/plan.json' is not a p..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+_______ ERROR at setup of test_every_gate_refuses_before_any_write[g12] ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before12/exp25'), 'new': PosixPath('/tmp...09b4885b70e6ab55', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before12')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_every_gate_refuses_before12/exp36/plan.json' is not a p..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+__________ ERROR at setup of test_a_symlinked_destination_is_refused ___________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_symlinked_destination_i0/exp25'), 'new': PosixPath('/tmp/...4f59237d8872190f', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_symlinked_destination_i0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_symlinked_destination_i0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+__ ERROR at setup of test_a_stop_part_way_is_partial_and_resume_completes_it ___
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_stop_part_way_is_partia0/exp25'), 'new': PosixPath('/tmp/...af6ed8f4bb0c6e56', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_stop_part_way_is_partia0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_stop_part_way_is_partia0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+___ ERROR at setup of test_resume_refuses_a_foreign_destination_or_temp_file ___
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_resume_refuses_a_foreign_0/exp25'), 'new': PosixPath('/tmp/...284c0e9672ea1e2c', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_resume_refuses_a_foreign_0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_resume_refuses_a_foreign_0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+________________ ERROR at setup of test_cli_publish_needs_a_set ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_publish_needs_a_set0/exp25'), 'new': PosixPath('/tmp/py...0d29880cdffbdd09', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_publish_needs_a_set0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_cli_publish_needs_a_set0/exp36/plan.json' is not a plan..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+________________ ERROR at setup of test_cli_publish_exit_codes _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_publish_exit_codes0/exp25'), 'new': PosixPath('/tmp/pyt...9c9c54981e4dc4e6', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_publish_exit_codes0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_cli_publish_exit_codes0/exp36/plan.json' is not a plan ..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+_______ ERROR at setup of test_cli_a_crashed_publication_exits_3_never_0 _______
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_a_crashed_publication0/exp25'), 'new': PosixPath('/tmp/...078314915fb13b51', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_a_crashed_publication0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_cli_a_crashed_publication0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+________ ERROR at setup of test_the_off_set_publishes_its_12_files_only ________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_off_set_publishes_its0/exp25'), 'new': PosixPath('/tmp/...9bf00b335ee04ccc', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_off_set_publishes_its0')
+
+    @pytest.fixture()
+    def pub_off(world, tmp_path):
+        """The replay world + the 6 YAW off-orbit cells (chain I) + an equal YAW verdict on disk."""
+        for name in YAWOFF:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_the_off_set_publishes_its0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:244: AssertionError
+___ ERROR at setup of test_each_set_needs_its_own_cells_and_the_yaw_verdict ____
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_each_set_needs_its_own_ce0/exp25'), 'new': PosixPath('/tmp/...91683348b9e7d60b', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_each_set_needs_its_own_ce0')
+
+    @pytest.fixture()
+    def pub_off(world, tmp_path):
+        """The replay world + the 6 YAW off-orbit cells (chain I) + an equal YAW verdict on disk."""
+        for name in YAWOFF:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_each_set_needs_its_own_ce0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:244: AssertionError
+________ ERROR at setup of test_a_verdict_of_another_replay_is_refused _________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_verdict_of_another_repl0/exp25'), 'new': PosixPath('/tmp/...fee5a776c09dd731', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_verdict_of_another_repl0')
+
+    @pytest.fixture()
+    def pub_off(world, tmp_path):
+        """The replay world + the 6 YAW off-orbit cells (chain I) + an equal YAW verdict on disk."""
+        for name in YAWOFF:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_verdict_of_another_repl0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:244: AssertionError
+_ ERROR at setup of test_a_refused_publisher_refuses_the_publication_before_any_write _
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_refused_publisher_refus0/exp25'), 'new': PosixPath('/tmp/...dfda2eac8812ac91', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_refused_publisher_refus0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_refused_publisher_refus0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+_ ERROR at setup of test_the_cli_requires_the_publisher_pin_and_the_collectors_own_cells _
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_cli_requires_the_publ0/exp25'), 'new': PosixPath('/tmp/...c4eac609fc6541d1', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_cli_requires_the_publ0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_the_cli_requires_the_publ0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+_ ERROR at setup of test_the_parsed_cli_routes_each_set_to_its_own_default_manifest _
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_parsed_cli_routes_eac0/exp25'), 'new': PosixPath('/tmp/...fdb5f67db63b3b53', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_parsed_cli_routes_eac0')
+
+    @pytest.fixture()
+    def both(world, tmp_path):
+        """The replay world + BOTH sets' cells (the 24 + the 6) + an equal YAW verdict on disk."""
+        for name in CELLS24 + YAWOFF:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_the_parsed_cli_routes_eac0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish_publisher.py:122: AssertionError
+____ ERROR at setup of test_cli_publishes_the_off_set_into_its_own_manifest ____
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_publishes_the_off_set0/exp25'), 'new': PosixPath('/tmp/...abd9bd739709fd52', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_publishes_the_off_set0')
+
+    @pytest.fixture()
+    def pub_off(world, tmp_path):
+        """The replay world + the 6 YAW off-orbit cells (chain I) + an equal YAW verdict on disk."""
+        for name in YAWOFF:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_cli_publishes_the_off_set0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:244: AssertionError
+_ ERROR at setup of test_the_manifest_keeps_the_artifact_pin_apart_from_the_publishing_head _
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_manifest_keeps_the_ar0/exp25'), 'new': PosixPath('/tmp/...70474e6624b53534', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_manifest_keeps_the_ar0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_the_manifest_keeps_the_ar0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+_ ERROR at setup of test_a_held_lock_refuses_before_anything_and_the_lock_spans_every_write _
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_held_lock_refuses_befor0/exp25'), 'new': PosixPath('/tmp/...3a56dad222ab1a06', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_held_lock_refuses_befor0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_held_lock_refuses_befor0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+_________ ERROR at setup of test_two_concurrent_same_set_publications __________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_two_concurrent_same_set_p0/exp25'), 'new': PosixPath('/tmp/...82c2232d679dee38', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_two_concurrent_same_set_p0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_two_concurrent_same_set_p0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+___________ ERROR at setup of test_concurrent_a_and_off_publications ___________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_concurrent_a_and_off_publ0/exp25'), 'new': PosixPath('/tmp/...e93544c4a7e28c41', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_concurrent_a_and_off_publ0')
+
+    @pytest.fixture()
+    def both(world, tmp_path):
+        """The replay world + BOTH sets' cells (the 24 + the 6) + an equal YAW verdict on disk."""
+        for name in CELLS24 + YAWOFF:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_concurrent_a_and_off_publ0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish_publisher.py:122: AssertionError
+___ ERROR at setup of test_a_destination_path_swap_cannot_redirect_the_owner ___
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_destination_path_swap_c0/exp25'), 'new': PosixPath('/tmp/...1bd47ec538d40688', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_destination_path_swap_c0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_destination_path_swap_c0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+_ ERROR at setup of test_temps_are_named_by_the_transaction_and_a_resume_removes_only_those _
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_temps_are_named_by_the_tr0/exp25'), 'new': PosixPath('/tmp/...a25aa12b8a4a1068', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_temps_are_named_by_the_tr0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_temps_are_named_by_the_tr0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+____ ERROR at setup of test_a_resume_authenticates_the_prior_manifest[none] ____
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th0/exp25'), 'new': PosixPath('/tmp/...9d85f8549200f927', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+____ ERROR at setup of test_a_resume_authenticates_the_prior_manifest[json] ____
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th1/exp25'), 'new': PosixPath('/tmp/...18c42898d7dafa11', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th1')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th1/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+____ ERROR at setup of test_a_resume_authenticates_the_prior_manifest[file] ____
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th2/exp25'), 'new': PosixPath('/tmp/...c8197a7987e39989', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th2')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th2/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+__ ERROR at setup of test_a_resume_authenticates_the_prior_manifest[symlink] ___
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th3/exp25'), 'new': PosixPath('/tmp/...07b08b7c74a1d835', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th3')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th3/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+_ ERROR at setup of test_a_resume_authenticates_the_prior_manifest[other_set] __
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th4/exp25'), 'new': PosixPath('/tmp/...5c3b40c1fd8fbe96', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th4')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th4/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+__ ERROR at setup of test_a_resume_authenticates_the_prior_manifest[verdict] ___
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th5/exp25'), 'new': PosixPath('/tmp/...89b2b60f64a2393f', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th5')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th5/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+__ ERROR at setup of test_a_resume_authenticates_the_prior_manifest[entries] ___
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th6/exp25'), 'new': PosixPath('/tmp/...3bc0db805382dc93', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th6')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th6/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+___ ERROR at setup of test_a_resume_authenticates_the_prior_manifest[source] ___
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th7/exp25'), 'new': PosixPath('/tmp/...0a73ff1e5ca999e3', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th7')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th7/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+__ ERROR at setup of test_a_resume_authenticates_the_prior_manifest[complete] __
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th8/exp25'), 'new': PosixPath('/tmp/...660592139110bdaf', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th8')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th8/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+____ ERROR at setup of test_a_resume_authenticates_the_prior_manifest[txid] ____
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th9/exp25'), 'new': PosixPath('/tmp/...01710fa7b74415fb', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th9')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th9/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+_ ERROR at setup of test_a_resume_authenticates_the_prior_manifest[writer_temp] _
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th10/exp25'), 'new': PosixPath('/tmp...8a88cc2091370268', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th10')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_resume_authenticates_th10/exp36/plan.json' is not a p..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+______ ERROR at setup of test_the_initial_manifest_is_created_exclusively ______
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_initial_manifest_is_c0/exp25'), 'new': PosixPath('/tmp/...51428f3494e3941c', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_initial_manifest_is_c0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_the_initial_manifest_is_c0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+_ ERROR at setup of test_an_update_never_replaces_a_manifest_it_did_not_write __
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_update_never_replaces_0/exp25'), 'new': PosixPath('/tmp/...50599e3692447faf', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_update_never_replaces_0')
+
+    @pytest.fixture()
+    def pub(world, tmp_path):
+        """The world of the replay check + the 24 cells published in the exp_36 dir + an equal verdict on disk."""
+        for name in CELLS24:
+            T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+        status, verdict = check(world)
+>       assert status == "equal", verdict["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_an_update_never_replaces_0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_publish.py:44: AssertionError
+=================================== FAILURES ===================================
+______________________ test_absent_dump_directories_pass _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_absent_dump_directories_p0')
+
+    def test_absent_dump_directories_pass(tmp_path):
+        (tmp_path / "nas").mkdir()
+>       assert preflight(tmp_path) == []
+
+src/tests/test_exp36_dump_preflight.py:37: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_absent_dump_directories_p0')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+
+    def preflight(tmp, names=NAMES):
+>       return C.exp36_dump_preflight(MANIFEST, names, base_dir=str(tmp), dump_root=str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_dump_preflight'
+
+src/tests/test_exp36_dump_preflight.py:31: AttributeError
+_ test_a_foreign_dump_directory_refuses_everything[exp36_YAW_C4_S40000_K8_s42_th90] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_foreign_dump_directory_0')
+name = 'exp36_YAW_C4_S40000_K8_s42_th90'
+
+    @pytest.mark.parametrize("name", NAMES)
+    def test_a_foreign_dump_directory_refuses_everything(tmp_path, name):
+        os.makedirs(_paths(_row(name), str(tmp_path / "nas")).dump_dir)
+>       reasons = preflight(tmp_path)
+
+src/tests/test_exp36_dump_preflight.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_foreign_dump_directory_0')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+
+    def preflight(tmp, names=NAMES):
+>       return C.exp36_dump_preflight(MANIFEST, names, base_dir=str(tmp), dump_root=str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_dump_preflight'
+
+src/tests/test_exp36_dump_preflight.py:31: AttributeError
+_ test_a_foreign_dump_directory_refuses_everything[exp36_CANON_C4_S40000_K8_s42_th90] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_foreign_dump_directory_1')
+name = 'exp36_CANON_C4_S40000_K8_s42_th90'
+
+    @pytest.mark.parametrize("name", NAMES)
+    def test_a_foreign_dump_directory_refuses_everything(tmp_path, name):
+        os.makedirs(_paths(_row(name), str(tmp_path / "nas")).dump_dir)
+>       reasons = preflight(tmp_path)
+
+src/tests/test_exp36_dump_preflight.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_foreign_dump_directory_1')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+
+    def preflight(tmp, names=NAMES):
+>       return C.exp36_dump_preflight(MANIFEST, names, base_dir=str(tmp), dump_root=str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_dump_preflight'
+
+src/tests/test_exp36_dump_preflight.py:31: AttributeError
+_ test_a_foreign_dump_directory_refuses_everything[exp35_BF_OFF_S40000_K1_s42_th315] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_foreign_dump_directory_2')
+name = 'exp35_BF_OFF_S40000_K1_s42_th315'
+
+    @pytest.mark.parametrize("name", NAMES)
+    def test_a_foreign_dump_directory_refuses_everything(tmp_path, name):
+        os.makedirs(_paths(_row(name), str(tmp_path / "nas")).dump_dir)
+>       reasons = preflight(tmp_path)
+
+src/tests/test_exp36_dump_preflight.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_foreign_dump_directory_2')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+
+    def preflight(tmp, names=NAMES):
+>       return C.exp36_dump_preflight(MANIFEST, names, base_dir=str(tmp), dump_root=str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_dump_preflight'
+
+src/tests/test_exp36_dump_preflight.py:31: AttributeError
+_ test_a_foreign_dump_directory_refuses_everything[exp25_YAW_C4_S40000_K1_s43_th90] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_foreign_dump_directory_3')
+name = 'exp25_YAW_C4_S40000_K1_s43_th90'
+
+    @pytest.mark.parametrize("name", NAMES)
+    def test_a_foreign_dump_directory_refuses_everything(tmp_path, name):
+        os.makedirs(_paths(_row(name), str(tmp_path / "nas")).dump_dir)
+>       reasons = preflight(tmp_path)
+
+src/tests/test_exp36_dump_preflight.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_foreign_dump_directory_3')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+
+    def preflight(tmp, names=NAMES):
+>       return C.exp36_dump_preflight(MANIFEST, names, base_dir=str(tmp), dump_root=str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_dump_preflight'
+
+src/tests/test_exp36_dump_preflight.py:31: AttributeError
+_______________________ test_a_staging_leftover_refuses ________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_staging_leftover_refuse0')
+
+    def test_a_staging_leftover_refuses(tmp_path):
+        d = _paths(_row(NAMES[1]), str(tmp_path / "nas")).dump_dir
+        os.makedirs(d + ".staging-4242")
+>       reasons = preflight(tmp_path)
+
+src/tests/test_exp36_dump_preflight.py:50: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_staging_leftover_refuse0')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+
+    def preflight(tmp, names=NAMES):
+>       return C.exp36_dump_preflight(MANIFEST, names, base_dir=str(tmp), dump_root=str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_dump_preflight'
+
+src/tests/test_exp36_dump_preflight.py:31: AttributeError
+_________ test_a_dump_of_this_checkouts_own_cell_is_left_to_the_runner _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_of_this_checkouts_0')
+
+    def test_a_dump_of_this_checkouts_own_cell_is_left_to_the_runner(tmp_path):
+        r = _row(NAMES[0])
+        T.write_cell(tmp_path, r, pin="b" * 40, dump=True, dump_root=str(tmp_path / "nas"))   # dump + its receipt
+        assert os.path.isdir(_paths(r, str(tmp_path / "nas")).dump_dir)
+>       assert preflight(tmp_path) == []
+
+src/tests/test_exp36_dump_preflight.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_of_this_checkouts_0')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+
+    def preflight(tmp, names=NAMES):
+>       return C.exp36_dump_preflight(MANIFEST, names, base_dir=str(tmp), dump_root=str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_dump_preflight'
+
+src/tests/test_exp36_dump_preflight.py:31: AttributeError
+____________ test_an_unknown_cell_or_an_empty_selection_is_refused _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_unknown_cell_or_an_emp0')
+
+    def test_an_unknown_cell_or_an_empty_selection_is_refused(tmp_path):
+        (tmp_path / "nas").mkdir()
+>       assert preflight(tmp_path, ["exp36_nope"]) and preflight(tmp_path, [])
+
+src/tests/test_exp36_dump_preflight.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_unknown_cell_or_an_emp0')
+names = ['exp36_nope']
+
+    def preflight(tmp, names=NAMES):
+>       return C.exp36_dump_preflight(MANIFEST, names, base_dir=str(tmp), dump_root=str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_dump_preflight'
+
+src/tests/test_exp36_dump_preflight.py:31: AttributeError
+_____________________________ test_cli_exit_codes ______________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_exit_codes0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x722f1409d870>
+capsys = <_pytest.capture.CaptureFixture object at 0x722f1409cfd0>
+
+    def test_cli_exit_codes(tmp_path, monkeypatch, capsys):
+        cells = tmp_path / "cells.json"
+        cells.write_text(json.dumps(MANIFEST))
+        index = tmp_path / "canon.sha256"
+        index.write_text("".join(f"{sha}  {path}\n" for _, (path, sha) in sorted(T.canon_index().items())))
+        argv = ["--exp36-dump-preflight", "--only", ",".join(NAMES), "--cells", str(cells), "--base-dir", str(tmp_path),
+                "--dump-root", str(tmp_path / "nas"), "--canon-ckpt-manifest", str(index)]
+        (tmp_path / "nas").mkdir()
+>       assert C.main(argv) == 0 and "EXP36 DUMP PREFLIGHT OK: 4 cell(s)" in capsys.readouterr().out
+
+src/tests/test_exp36_dump_preflight.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:2898: in main
+    args = ap.parse_args(argv)
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:1836: in parse_args
+    self.error(msg % ' '.join(argv))
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:2594: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='__main__.py', usage=None, description='exp_25 depth_canon -- the cell verifier and results collec...(plan_depth_canon.md v9 §1', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = '__main__.py: error: unrecognized arguments: --exp36-dump-preflight\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:2581: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: __main__.py [-h] [--verify-cell STEM] [--pin PIN] [--cells CELLS]
+                   [--farm-root FARM_ROOT] [--dump-root DUMP_ROOT]
+                   [--base-dir BASE_DIR]
+                   [--canon-ckpt-manifest CANON_CKPT_MANIFEST]
+                   [--dump-check {full,manifest,receipt}] [--no-dump]
+                   [--no-link-check] [--plan OUT] [--blocks BLOCKS]
+                   [--only ONLY] [--limit LIMIT]
+                   [--no-dump-blocks NO_DUMP_BLOCKS] [--write-receipt CELL]
+                   [--plan-json PLAN_JSON] [--lane LANE] [--log LOG] [--rc RC]
+                   [--ckpt-sha CKPT_SHA] [--ckpt-bytes CKPT_BYTES]
+                   [--campaign-digest CAMPAIGN_DIGEST]
+                   [--spawn-digest SPAWN_DIGEST] [--post-digest POST_DIGEST]
+                   [--collect] [--nas-retention-audit] [--partial]
+                   [--probe-json PROBE_JSON] [--tie-audit-json TIE_AUDIT_JSON]
+                   [--out-md OUT_MD] [--out-json OUT_JSON] [--verify-after]
+                   [--check-backend-log LOG] [--finalize-bf-probe JSON]
+                   [--probe-log PROBE_LOG] [--exp35-ctl-check K] [--exp35-e2]
+                   [--a6-csv A6_CSV] [--exp35] [--exp35-out EXP35_OUT]
+                   [--exp25-base-dir EXP25_BASE_DIR]
+                   [--exp25-dump-root EXP25_DUMP_ROOT]
+                   [--bf-probe-json BF_PROBE_JSON] [--count-no-flash]
+                   [--backend-target BACKEND_TARGET]
+                   [--attention-backend ATTENTION_BACKEND]
+                   [--no-flash-overlay-sha256 NO_FLASH_OVERLAY_SHA256]
+                   [--no-flash-launcher-sha256 NO_FLASH_LAUNCHER_SHA256]
+                   [--exp36-replay-check] [--verdict-out VERDICT_OUT]
+                   [--exp36-replay EXP36_REPLAY]
+                   [--exp36-ref-dir EXP36_REF_DIR] [--exp36-publish]
+                   [--exp36-verdict EXP36_VERDICT] [--exp36-set {A,OFF}]
+                   [--publisher-pin PUBLISHER_PIN] [--exp36-publish-resume]
+__main__.py: error: unrecognized arguments: --exp36-dump-preflight
+__________________ test_the_replay_equal_to_the_archived_cell __________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_replay_equal_to_the_a0/exp25'), 'new': PosixPath('/tmp/...0cef3ae2776cf806', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+
+    def test_the_replay_equal_to_the_archived_cell(world):
+        status, v = check(world)
+>       assert status == "equal" and v["result"] == "equal" and v["reasons"] == [], v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_the_replay_equal_to_the_a0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'equal'
+E         
+E         - equal
+E         + refused)
+
+src/tests/test_exp36_replay_check.py:100: AssertionError
+__________________ test_a_different_replay_is_a_mismatch[T60] __________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_different_replay_is_a_m0/exp25'), 'new': PosixPath('/tmp/...bcafe3dc8c3ac6d6', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 2, ...}
+kw = {'metrics': {'T60': 7.5, 'C50': 9.6, 'EDT': 9.7, 'FD': 9.8, ...}}
+needle = 'metrics'
+
+    @pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene", "waveforms"])
+    def test_a_different_replay_is_a_mismatch(world, kw, needle):
+        _rewrite(world, **kw)
+        status, v = check(world)
+>       assert status == "mismatch" and v["result"] == "mismatch" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_different_replay_is_a_m0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'mismatch'
+E         
+E         - mismatch
+E         + refused)
+
+src/tests/test_exp36_replay_check.py:141: AssertionError
+________________ test_a_different_replay_is_a_mismatch[C50_int] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_different_replay_is_a_m1/exp25'), 'new': PosixPath('/tmp/...173e12ea66e6d508', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 2, ...}
+kw = {'metrics': {'T60': 9.5, 'C50': 1, 'EDT': 9.7, 'FD': 9.8, ...}}
+needle = 'metrics'
+
+    @pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene", "waveforms"])
+    def test_a_different_replay_is_a_mismatch(world, kw, needle):
+        _rewrite(world, **kw)
+        status, v = check(world)
+>       assert status == "mismatch" and v["result"] == "mismatch" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_different_replay_is_a_m1/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'mismatch'
+E         
+E         - mismatch
+E         + refused)
+
+src/tests/test_exp36_replay_check.py:141: AssertionError
+_______________ test_a_different_replay_is_a_mismatch[by_scene] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_different_replay_is_a_m2/exp25'), 'new': PosixPath('/tmp/...2989067839c352fb', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 2, ...}
+kw = {'by_scene': {'Apartments': {'T60': 9.5, 'C50': 9.6, 'EDT': 40.0, 'FD': 9.8, ...}, 'Auditorium': {'T60': 9.5, 'C50': 9...9.5, 'C50': 9.6, 'EDT': 42.0, 'FD': 9.8, ...}, 'Bedrooms': {'T60': 9.5, 'C50': 9.6, 'EDT': 43.0, 'FD': 9.8, ...}, ...}}
+needle = 'by_scene'
+
+    @pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene", "waveforms"])
+    def test_a_different_replay_is_a_mismatch(world, kw, needle):
+        _rewrite(world, **kw)
+        status, v = check(world)
+>       assert status == "mismatch" and v["result"] == "mismatch" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_different_replay_is_a_m2/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'mismatch'
+E         
+E         - mismatch
+E         + refused)
+
+src/tests/test_exp36_replay_check.py:141: AssertionError
+_______________ test_a_different_replay_is_a_mismatch[waveforms] _______________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_different_replay_is_a_m3/exp25'), 'new': PosixPath('/tmp/...57ffc857379f7c68', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 2, ...}
+kw = {'waves': tensor([[[ 0.1171,  0.1584, -0.2606,  0.4832,  0.4744,  0.3650,  0.4713,
+           0.2794,  0.4019,  0.4909...1470, -0.0040,
+           0.2196,  0.1196, -0.1393,  0.1297, -0.4482, -0.0951, -0.0029,
+          -0.1349, -0.3750]]])}
+needle = 'dump waveform sha256'
+
+    @pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene", "waveforms"])
+    def test_a_different_replay_is_a_mismatch(world, kw, needle):
+        _rewrite(world, **kw)
+        status, v = check(world)
+>       assert status == "mismatch" and v["result"] == "mismatch" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_different_replay_is_a_m3/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'mismatch'
+E         
+E         - mismatch
+E         + refused)
+
+src/tests/test_exp36_replay_check.py:141: AssertionError
+_________________________ test_equality_is_type_strict _________________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_equality_is_type_strict0/exp25b'), 'new': PosixPath('/tmp/p...a3e4cb2bac542a59', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 2, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_equality_is_type_strict0')
+
+    def test_equality_is_type_strict(world, tmp_path):
+        """8 is not 8.0: a reference published with T60 = 8.0, the replay with T60 = 8 (then 8.0: equal)."""
+        m, ref = T.default_metrics(_row(TEMPLATE)), tmp_path / "exp25b"
+        T.write_cell(ref, _row(TEMPLATE), pin=EXP25_PIN, metrics=dict(m, T60=8.0))
+        (ref / "logs").mkdir()
+        (ref / "logs" / "x.log").write_text(FALLBACK)
+        world["ref"] = ref
+        world["pins"].update({f"{k}_sha256": _sha(ref / _rel(_row(TEMPLATE), k)) for k in ("metrics", "stream", "receipt")},
+                             **dump_pins(ref / _rel(_row(TEMPLATE), "receipt")))
+        _rewrite(world, metrics=dict(m, T60=8))
+        status, v = check(world)
+>       assert status == "mismatch" and any("type int != float" in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_equality_is_type_strict0/exp36/plan.json' is not a plan..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'mismatch'
+E         
+E         - mismatch
+E         + refused)
+
+src/tests/test_exp36_replay_check.py:155: AssertionError
+______________ test_the_loaded_checkpoint_must_be_the_pinned_one _______________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_loaded_checkpoint_mus0/exp25'), 'new': PosixPath('/tmp/...81e024bdd427d847', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+
+    def test_the_loaded_checkpoint_must_be_the_pinned_one(world):
+        """A verified cell's loaded digest + length already equal its receipt's (the runner refuses otherwise); the
+        comparison binds both records and both receipts to the pinned (sha256, bytes) of the archived load."""
+        world["pins"]["loaded"] = [world["pins"]["loaded"][0], T.CKPT_BYTES + 1]
+        status, v = check(world)
+>       assert status == "mismatch" and sum("loaded checkpoint" in x for x in v["reasons"]) == 4, v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_the_loaded_checkpoint_mus0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'mismatch'
+E         
+E         - mismatch
+E         + refused)
+
+src/tests/test_exp36_replay_check.py:165: AssertionError
+_____________ test_the_raw_stream_sidecar_must_be_the_archived_one _____________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_raw_stream_sidecar_mu0/exp25'), 'new': PosixPath('/tmp/...23ab0c941f458156', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+
+    def test_the_raw_stream_sidecar_must_be_the_archived_one(world):
+        """With a dump a re-serialized stream cannot verify (the dump manifest binds the stream's bytes), so the raw
+        comparison is exercised through the pin: any other archived stream digest is a mismatch."""
+        world["pins"]["stream_sha256"] = "0" * 64
+        status, v = check(world)
+>       assert status == "mismatch" and any("stream sidecar sha256" in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_the_raw_stream_sidecar_mu0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'mismatch'
+E         
+E         - mismatch
+E         + refused)
+
+src/tests/test_exp36_replay_check.py:173: AssertionError
+______________________ test_the_dump_checks_are_ctl_style ______________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_dump_checks_are_ctl_s0/exp25'), 'new': PosixPath('/tmp/...62dcf350ab30f63e', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+
+    def test_the_dump_checks_are_ctl_style(world):
+        """The exp_35 CTL checks against the archived dump evidence: the waveforms' sha256 and the COMPLETE marker equal the
+        pinned reference's, n / dtype / shape and the input hash equal the reference dump manifest's."""
+        world["pins"]["waveform_sha256"] = "0" * 64
+        status, v = check(world)
+>       assert status == "refused" and any("dump evidence" in x for x in v["reasons"]), v["reasons"]   # the ref pin
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_the_dump_checks_are_ctl_s0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_the_dump_checks_are_ctl_style.<locals>.<genexpr> at 0x722f20159a80>)
+
+src/tests/test_exp36_replay_check.py:181: AssertionError
+________________ test_an_undecidable_comparison_is_refused[r0] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison0/exp25'), 'new': PosixPath('/tmp/...5e8d6cd22ac51079', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+edit = <function <lambda> at 0x722f20537be0>
+needle = 'archived reference metrics'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+        status, v = check(world)
+>       assert status == "refused" and v["result"] == "refused" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and 'refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_an_undecidable_comparison_is_refused.<locals>.<genexpr> at 0x722f2015a2d0>)
+
+src/tests/test_exp36_replay_check.py:218: AssertionError
+________________ test_an_undecidable_comparison_is_refused[r1] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison1/exp25'), 'new': PosixPath('/tmp/...f870e65ab485c9b9', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+edit = <function <lambda> at 0x722f20537c70>
+needle = 'archived reference stream'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+        status, v = check(world)
+>       assert status == "refused" and v["result"] == "refused" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison1/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and 'refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_an_undecidable_comparison_is_refused.<locals>.<genexpr> at 0x722f2015a3b0>)
+
+src/tests/test_exp36_replay_check.py:218: AssertionError
+________________ test_an_undecidable_comparison_is_refused[r2] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison2/exp25'), 'new': PosixPath('/tmp/...31cfd32e35ec9e77', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+edit = <function <lambda> at 0x722f20537d00>
+needle = 'archived reference receipt'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+        status, v = check(world)
+>       assert status == "refused" and v["result"] == "refused" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison2/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and 'refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_an_undecidable_comparison_is_refused.<locals>.<genexpr> at 0x722f2015a420>)
+
+src/tests/test_exp36_replay_check.py:218: AssertionError
+________________ test_an_undecidable_comparison_is_refused[r3] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison3/exp25'), 'new': PosixPath('/tmp/...34f617aeedae03e5', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+edit = <function <lambda> at 0x722f20537d90>, needle = 'archived evaluator log'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+        status, v = check(world)
+>       assert status == "refused" and v["result"] == "refused" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison3/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and 'refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_an_undecidable_comparison_is_refused.<locals>.<genexpr> at 0x722f2015b140>)
+
+src/tests/test_exp36_replay_check.py:218: AssertionError
+________________ test_an_undecidable_comparison_is_refused[r4] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison4/exp25'), 'new': PosixPath('/tmp/...4fd8377565ad4b21', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+edit = <function <lambda> at 0x722f20537e20>, needle = 'archived evaluator log'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+        status, v = check(world)
+>       assert status == "refused" and v["result"] == "refused" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison4/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and 'refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_an_undecidable_comparison_is_refused.<locals>.<genexpr> at 0x722f2015a7a0>)
+
+src/tests/test_exp36_replay_check.py:218: AssertionError
+________________ test_an_undecidable_comparison_is_refused[r5] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison5/exp25'), 'new': PosixPath('/tmp/...4781c002a8576a89', 'log_sha256': 'bdf113757fc542473f0de535fa267f64470337b14d4d6caf9e1a73c87d827689', ...}, 'n': 1, ...}
+edit = <function <lambda> at 0x722f20537eb0>, needle = 'fallback'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+        status, v = check(world)
+>       assert status == "refused" and v["result"] == "refused" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison5/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and 'refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_an_undecidable_comparison_is_refused.<locals>.<genexpr> at 0x722f2015ad50>)
+
+src/tests/test_exp36_replay_check.py:218: AssertionError
+________________ test_an_undecidable_comparison_is_refused[r6] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison6/exp25'), 'new': PosixPath('/tmp/...15b3583f29206bed', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+edit = <function <lambda> at 0x722f20537f40>, needle = 'replay does not verify'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+        status, v = check(world)
+>       assert status == "refused" and v["result"] == "refused" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison6/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and 'refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_an_undecidable_comparison_is_refused.<locals>.<genexpr> at 0x722f2015bae0>)
+
+src/tests/test_exp36_replay_check.py:218: AssertionError
+________________ test_an_undecidable_comparison_is_refused[r7] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison7/exp25'), 'new': PosixPath('/tmp/...3da05000e4b3d71b', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+edit = <function <lambda> at 0x722f20574040>, needle = 'replay does not verify'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+        status, v = check(world)
+>       assert status == "refused" and v["result"] == "refused" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison7/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and 'refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_an_undecidable_comparison_is_refused.<locals>.<genexpr> at 0x722f2015bbc0>)
+
+src/tests/test_exp36_replay_check.py:218: AssertionError
+________________ test_an_undecidable_comparison_is_refused[r8] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison8/exp25'), 'new': PosixPath('/tmp/...128bbc674c355637', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+edit = <function <lambda> at 0x722f205740d0>, needle = 'replay does not verify'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+        status, v = check(world)
+>       assert status == "refused" and v["result"] == "refused" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison8/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and 'refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_an_undecidable_comparison_is_refused.<locals>.<genexpr> at 0x722f2015bf40>)
+
+src/tests/test_exp36_replay_check.py:218: AssertionError
+________________ test_an_undecidable_comparison_is_refused[r9] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison9/exp25'), 'new': PosixPath('/tmp/...6928a109a7e6dd54', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+edit = <function <lambda> at 0x722f20574160>, needle = 'replay run plan'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+        status, v = check(world)
+>       assert status == "refused" and v["result"] == "refused" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ['the replay does not verify at bbbbbbbbbbbb: receipt dump: got True, expected False', "the replay does not verify at ...rison9/exp36/dumps1/epoch=8-step=40000_metrics_1_1.0_exp36_YAW_C4_S40000_K8_s42_th90_rot90 for a cell run without one']
+E       assert ('refused' == 'refused'
+E         
+E           refused and 'refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_an_undecidable_comparison_is_refused.<locals>.<genexpr> at 0x722f2015bed0>)
+
+src/tests/test_exp36_replay_check.py:218: AssertionError
+________________ test_an_undecidable_comparison_is_refused[r12] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison12/exp25'), 'new': PosixPath('/tmp...7e76fbbbfc1a22b5', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+edit = <function <lambda> at 0x722f20574310>, needle = 'replay does not verify'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+        status, v = check(world)
+>       assert status == "refused" and v["result"] == "refused" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison12/exp36/plan.json' is not a p..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and 'refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_an_undecidable_comparison_is_refused.<locals>.<genexpr> at 0x722f2015b530>)
+
+src/tests/test_exp36_replay_check.py:218: AssertionError
+________________ test_an_undecidable_comparison_is_refused[r13] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison13/exp25'), 'new': PosixPath('/tmp...b2ae40d2018f2378', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+edit = <function <lambda> at 0x722f205743a0>, needle = 'replay does not verify'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+        status, v = check(world)
+>       assert status == "refused" and v["result"] == "refused" and any(needle in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_an_undecidable_comparison13/exp36/plan.json' is not a p..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and 'refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_an_undecidable_comparison_is_refused.<locals>.<genexpr> at 0x722f141bc820>)
+
+src/tests/test_exp36_replay_check.py:218: AssertionError
+____ test_a_replay_run_without_a_dump_or_with_a_schema1_receipt_is_refused _____
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_replay_run_without_a_du0/exp25'), 'new': PosixPath('/tmp/...7ea79586a59c094b', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+
+    def test_a_replay_run_without_a_dump_or_with_a_schema1_receipt_is_refused(world):
+        T.write_cell(world["new"], _row(REPLAY), pin=H36, dump=False, dump_root=str(world["new"] / "nodump"))
+        world["plan"] = _plan(world["new"], dump_root=str(world["new"] / "nodump"))
+        status, v = check(world)
+>       assert status == "refused" and any("replay does not verify" in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_a_replay_run_without_a_du0/exp36/plan.json' is not a pl..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_a_replay_run_without_a_dump_or_with_a_schema1_receipt_is_refused.<locals>.<genexpr> at 0x722f2015b920>)
+
+src/tests/test_exp36_replay_check.py:225: AssertionError
+___________________ test_cli_exit_codes_and_the_verdict_file ___________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_exit_codes_and_the_ve0/exp25'), 'new': PosixPath('/tmp/...1738303fb00f3935', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_exit_codes_and_the_ve0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x722f14253730>
+capsys = <_pytest.capture.CaptureFixture object at 0x722f20376ec0>
+
+    def test_cli_exit_codes_and_the_verdict_file(world, tmp_path, monkeypatch, capsys):
+        out = tmp_path / "verdict.json"
+>       assert _cli(world, tmp_path, monkeypatch, "--verdict-out", str(out)) == 0
+E       AssertionError: assert 2 == 0
+E        +  where 2 = _cli({'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_exit_codes_and_the_ve0/exp25'), 'new': PosixPath('/tmp/...1738303fb00f3935', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}, PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_exit_codes_and_the_ve0'), <_pytest.monkeypatch.MonkeyPatch object at 0x722f14253730>, '--verdict-out', '/tmp/pytest-of-yixunhu/pytest-6634/test_cli_exit_codes_and_the_ve0/verdict.json')
+E        +    where '/tmp/pytest-of-yixunhu/pytest-6634/test_cli_exit_codes_and_the_ve0/verdict.json' = str(PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_cli_exit_codes_and_the_ve0/verdict.json'))
+
+src/tests/test_exp36_replay_check.py:252: AssertionError
+----------------------------- Captured stdout call -----------------------------
+EXP36 REPLAY REFUSED
+  - the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_cli_exit_codes_and_the_ve0/exp36/plan.json' is not a plan of dump-free no-flash registered replays holding exp36_YAW_C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')
+verdict: /tmp/pytest-of-yixunhu/pytest-6634/test_cli_exit_codes_and_the_ve0/verdict.json (sha256 d526c2252c18c9d181d91dcd983048b9dfc781ba4f0601c16f896a3a26d89563)
+_____ test_the_registry_holds_the_four_replays_with_the_amendment_digests ______
+
+    def test_the_registry_holds_the_four_replays_with_the_amendment_digests():
+        assert list(C.EXP36_REPLAYS) == [f"exp36_{a}_{C4}" for a in ("YAW", "P1", "BF", "CANON")]
+        for arm, (metrics, receipt, canon) in REAL.items():
+            e = C.EXP36_REPLAYS[f"exp36_{arm}_{C4}"]
+>           assert (e["dump_manifest_sha256"], e["waveform_sha256"]) == DUMPS[arm]
+E           KeyError: 'dump_manifest_sha256'
+
+src/tests/test_exp36_a1_replays.py:95: KeyError
+_________________ test_each_replay_equal_to_its_reference[P1] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_each_replay_equal_to_its_0')
+arm = 'P1'
+
+    @pytest.mark.parametrize("arm", ["P1", "BF", "CANON"])
+    def test_each_replay_equal_to_its_reference(tmp_path, arm):
+        w = make(tmp_path, arm)
+        status, v = check(w)
+>       assert status == "equal" and v["reasons"] == [], v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_each_replay_equal_to_its_0/new_P1/plan.json' is not a p..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'equal'
+E         
+E         - equal
+E         + refused)
+
+src/tests/test_exp36_a1_replays.py:108: AssertionError
+_________________ test_each_replay_equal_to_its_reference[BF] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_each_replay_equal_to_its_1')
+arm = 'BF'
+
+    @pytest.mark.parametrize("arm", ["P1", "BF", "CANON"])
+    def test_each_replay_equal_to_its_reference(tmp_path, arm):
+        w = make(tmp_path, arm)
+        status, v = check(w)
+>       assert status == "equal" and v["reasons"] == [], v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_each_replay_equal_to_its_1/new_BF/plan.json' is not a p..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'equal'
+E         
+E         - equal
+E         + refused)
+
+src/tests/test_exp36_a1_replays.py:108: AssertionError
+________________ test_each_replay_equal_to_its_reference[CANON] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_each_replay_equal_to_its_2')
+arm = 'CANON'
+
+    @pytest.mark.parametrize("arm", ["P1", "BF", "CANON"])
+    def test_each_replay_equal_to_its_reference(tmp_path, arm):
+        w = make(tmp_path, arm)
+        status, v = check(w)
+>       assert status == "equal" and v["reasons"] == [], v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_each_replay_equal_to_its_2/new_CANON/plan.json' is not ..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'equal'
+E         
+E         - equal
+E         + refused)
+
+src/tests/test_exp36_a1_replays.py:108: AssertionError
+______________ test_a_plan_of_the_four_replays_serves_each_check _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_plan_of_the_four_replay0')
+
+    def test_a_plan_of_the_four_replays_serves_each_check(tmp_path):
+        names = [f"exp36_{a}_{C4}" for a in ("YAW", "P1", "BF", "CANON")]
+        for arm in ("P1", "CANON"):
+            w = make(tmp_path, arm, replays=names)
+>           assert check(w)[0] == "equal"
+E           AssertionError: assert 'refused' == 'equal'
+E             
+E             - equal
+E             + refused
+
+src/tests/test_exp36_a1_replays.py:120: AssertionError
+_____________ test_the_raw_canon_sidecar_must_be_the_archived_one ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_raw_canon_sidecar_mus0')
+
+    def test_the_raw_canon_sidecar_must_be_the_archived_one(tmp_path):
+        """The dump manifest binds the canon sidecar's bytes, so the raw comparison is exercised through the pin."""
+        w = make(tmp_path, "CANON")
+>       assert check(w)[0] == "equal"
+E       AssertionError: assert 'refused' == 'equal'
+E         
+E         - equal
+E         + refused
+
+src/tests/test_exp36_a1_replays.py:131: AssertionError
+_________ test_each_replay_must_reproduce_its_references_waveforms[P1] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_each_replay_must_reproduc0')
+arm = 'P1'
+
+    @pytest.mark.parametrize("arm", ["P1", "BF", "CANON"])
+    def test_each_replay_must_reproduce_its_references_waveforms(tmp_path, arm):
+        """The CTL-style dump checks: other waveforms (a consistent replay whose dump differs) are a mismatch."""
+        w = make(tmp_path, arm)
+        r = _row(w["replay"])
+        T.write_cell(w["new"], r, pin=H36, dump=True, dump_root=str(w["new"] / "dumps2"), waves=T.waveforms_for(r) * 0.25)
+        w["plan"] = _plan2(w["new"], [w["replay"]], str(w["new"] / "dumps2"))
+        status, v = check(w)
+>       assert status == "mismatch" and any("dump waveform sha256" in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_each_replay_must_reproduc0/new_P1/plan2.json' is not a ..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'mismatch'
+E         
+E         - mismatch
+E         + refused)
+
+src/tests/test_exp36_a1_replays.py:153: AssertionError
+_________ test_each_replay_must_reproduce_its_references_waveforms[BF] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_each_replay_must_reproduc1')
+arm = 'BF'
+
+    @pytest.mark.parametrize("arm", ["P1", "BF", "CANON"])
+    def test_each_replay_must_reproduce_its_references_waveforms(tmp_path, arm):
+        """The CTL-style dump checks: other waveforms (a consistent replay whose dump differs) are a mismatch."""
+        w = make(tmp_path, arm)
+        r = _row(w["replay"])
+        T.write_cell(w["new"], r, pin=H36, dump=True, dump_root=str(w["new"] / "dumps2"), waves=T.waveforms_for(r) * 0.25)
+        w["plan"] = _plan2(w["new"], [w["replay"]], str(w["new"] / "dumps2"))
+        status, v = check(w)
+>       assert status == "mismatch" and any("dump waveform sha256" in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_each_replay_must_reproduc1/new_BF/plan2.json' is not a ..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'mismatch'
+E         
+E         - mismatch
+E         + refused)
+
+src/tests/test_exp36_a1_replays.py:153: AssertionError
+_______ test_each_replay_must_reproduce_its_references_waveforms[CANON] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_each_replay_must_reproduc2')
+arm = 'CANON'
+
+    @pytest.mark.parametrize("arm", ["P1", "BF", "CANON"])
+    def test_each_replay_must_reproduce_its_references_waveforms(tmp_path, arm):
+        """The CTL-style dump checks: other waveforms (a consistent replay whose dump differs) are a mismatch."""
+        w = make(tmp_path, arm)
+        r = _row(w["replay"])
+        T.write_cell(w["new"], r, pin=H36, dump=True, dump_root=str(w["new"] / "dumps2"), waves=T.waveforms_for(r) * 0.25)
+        w["plan"] = _plan2(w["new"], [w["replay"]], str(w["new"] / "dumps2"))
+        status, v = check(w)
+>       assert status == "mismatch" and any("dump waveform sha256" in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_each_replay_must_reproduc2/new_CANON/plan2.json' is not..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'mismatch'
+E         
+E         - mismatch
+E         + refused)
+
+src/tests/test_exp36_a1_replays.py:153: AssertionError
+________________ test_the_backend_proof_of_each_reference_kind _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_backend_proof_of_each0')
+
+    def test_the_backend_proof_of_each_reference_kind(tmp_path):
+        w = make(tmp_path, "BF")                                         # the launcher's sentinel, re-validated
+        text = (w["ref"] / "logs" / "x.log").read_text()
+        (w["ref"] / "logs" / "x.log").write_text(text.replace("EXP35_NO_FLASH_LAUNCHER", "SOMETHING_ELSE"))
+        w["pins"]["log_sha256"] = _sha(w["ref"] / "logs" / "x.log")
+        status, v = check(w)
+>       assert status == "refused" and any("sentinel" in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ["the replay run plan '/tmp/pytest-of-yixunhu/pytest-6634/test_the_backend_proof_of_each0/new_BF/plan.json' is not a p..._C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_the_backend_proof_of_each_reference_kind.<locals>.<genexpr> at 0x722f141bdbd0>)
+
+src/tests/test_exp36_a1_replays.py:172: AssertionError
+________________ test_the_real_archived_references_verify[YAW] _________________
+
+arm = 'YAW'
+
+    @pytest.mark.parametrize("arm", ["YAW", "P1", "BF", "CANON"])
+    def test_the_real_archived_references_verify(arm):
+        """Read-only: each archived reference hashes to the amendment's digests, proves its backend and verifies offline
+        at its pin (CANON with the tracked launcher checkpoint manifest)."""
+        e = C.EXP36_REPLAYS[f"exp36_{arm}_{C4}"]
+        real = C.load_cells(C.CELLS_JSON)
+        p = C.cell_paths(next(c for c in real["cells"] if c["cell"] == e["reference"]),
+                         os.path.join(real["farm_root"], arm, "epoch=8-step=40000.ckpt"), real["dump_root"])
+        if not os.path.isfile(os.path.join(e["worktree"], p.receipt)):
+            pytest.skip(f"the archived {arm} reference is not on this machine")
+        index = C.load_canon_index(C.find_canon_manifest(), real["arms"]["CANON"]["ckpt"]["run_ns"])
+        files, reasons = C.exp36_reference(real, replay=f"exp36_{arm}_{C4}", canon_index=index)
+        assert reasons == [], reasons
+        assert (files["metrics"]["sha256"], files["receipt"]["sha256"], files["stream"]["sha256"]) == (
+            REAL[arm][0], REAL[arm][1], STREAM)
+        assert files.get("canon", {}).get("sha256") == REAL[arm][2]
+>       assert files["dump"] == {"manifest_sha256": DUMPS[arm][0], "waveform_sha256": DUMPS[arm][1]}
+E       KeyError: 'dump'
+
+src/tests/test_exp36_a1_replays.py:196: KeyError
+_________________ test_the_real_archived_references_verify[P1] _________________
+
+arm = 'P1'
+
+    @pytest.mark.parametrize("arm", ["YAW", "P1", "BF", "CANON"])
+    def test_the_real_archived_references_verify(arm):
+        """Read-only: each archived reference hashes to the amendment's digests, proves its backend and verifies offline
+        at its pin (CANON with the tracked launcher checkpoint manifest)."""
+        e = C.EXP36_REPLAYS[f"exp36_{arm}_{C4}"]
+        real = C.load_cells(C.CELLS_JSON)
+        p = C.cell_paths(next(c for c in real["cells"] if c["cell"] == e["reference"]),
+                         os.path.join(real["farm_root"], arm, "epoch=8-step=40000.ckpt"), real["dump_root"])
+        if not os.path.isfile(os.path.join(e["worktree"], p.receipt)):
+            pytest.skip(f"the archived {arm} reference is not on this machine")
+        index = C.load_canon_index(C.find_canon_manifest(), real["arms"]["CANON"]["ckpt"]["run_ns"])
+        files, reasons = C.exp36_reference(real, replay=f"exp36_{arm}_{C4}", canon_index=index)
+        assert reasons == [], reasons
+        assert (files["metrics"]["sha256"], files["receipt"]["sha256"], files["stream"]["sha256"]) == (
+            REAL[arm][0], REAL[arm][1], STREAM)
+        assert files.get("canon", {}).get("sha256") == REAL[arm][2]
+>       assert files["dump"] == {"manifest_sha256": DUMPS[arm][0], "waveform_sha256": DUMPS[arm][1]}
+E       KeyError: 'dump'
+
+src/tests/test_exp36_a1_replays.py:196: KeyError
+_________________ test_the_real_archived_references_verify[BF] _________________
+
+arm = 'BF'
+
+    @pytest.mark.parametrize("arm", ["YAW", "P1", "BF", "CANON"])
+    def test_the_real_archived_references_verify(arm):
+        """Read-only: each archived reference hashes to the amendment's digests, proves its backend and verifies offline
+        at its pin (CANON with the tracked launcher checkpoint manifest)."""
+        e = C.EXP36_REPLAYS[f"exp36_{arm}_{C4}"]
+        real = C.load_cells(C.CELLS_JSON)
+        p = C.cell_paths(next(c for c in real["cells"] if c["cell"] == e["reference"]),
+                         os.path.join(real["farm_root"], arm, "epoch=8-step=40000.ckpt"), real["dump_root"])
+        if not os.path.isfile(os.path.join(e["worktree"], p.receipt)):
+            pytest.skip(f"the archived {arm} reference is not on this machine")
+        index = C.load_canon_index(C.find_canon_manifest(), real["arms"]["CANON"]["ckpt"]["run_ns"])
+        files, reasons = C.exp36_reference(real, replay=f"exp36_{arm}_{C4}", canon_index=index)
+        assert reasons == [], reasons
+        assert (files["metrics"]["sha256"], files["receipt"]["sha256"], files["stream"]["sha256"]) == (
+            REAL[arm][0], REAL[arm][1], STREAM)
+        assert files.get("canon", {}).get("sha256") == REAL[arm][2]
+>       assert files["dump"] == {"manifest_sha256": DUMPS[arm][0], "waveform_sha256": DUMPS[arm][1]}
+E       KeyError: 'dump'
+
+src/tests/test_exp36_a1_replays.py:196: KeyError
+_______________ test_the_real_archived_references_verify[CANON] ________________
+
+arm = 'CANON'
+
+    @pytest.mark.parametrize("arm", ["YAW", "P1", "BF", "CANON"])
+    def test_the_real_archived_references_verify(arm):
+        """Read-only: each archived reference hashes to the amendment's digests, proves its backend and verifies offline
+        at its pin (CANON with the tracked launcher checkpoint manifest)."""
+        e = C.EXP36_REPLAYS[f"exp36_{arm}_{C4}"]
+        real = C.load_cells(C.CELLS_JSON)
+        p = C.cell_paths(next(c for c in real["cells"] if c["cell"] == e["reference"]),
+                         os.path.join(real["farm_root"], arm, "epoch=8-step=40000.ckpt"), real["dump_root"])
+        if not os.path.isfile(os.path.join(e["worktree"], p.receipt)):
+            pytest.skip(f"the archived {arm} reference is not on this machine")
+        index = C.load_canon_index(C.find_canon_manifest(), real["arms"]["CANON"]["ckpt"]["run_ns"])
+        files, reasons = C.exp36_reference(real, replay=f"exp36_{arm}_{C4}", canon_index=index)
+        assert reasons == [], reasons
+        assert (files["metrics"]["sha256"], files["receipt"]["sha256"], files["stream"]["sha256"]) == (
+            REAL[arm][0], REAL[arm][1], STREAM)
+        assert files.get("canon", {}).get("sha256") == REAL[arm][2]
+>       assert files["dump"] == {"manifest_sha256": DUMPS[arm][0], "waveform_sha256": DUMPS[arm][1]}
+E       KeyError: 'dump'
+
+src/tests/test_exp36_a1_replays.py:196: KeyError
+___________ test_a_relative_plan_path_resolves_against_the_base_dir ____________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_relative_plan_path_reso0/exp25'), 'new': PosixPath('/tmp/...ad1488c8d0ae244c', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_relative_plan_path_reso0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x722f205fa4d0>
+
+    def test_a_relative_plan_path_resolves_against_the_base_dir(world, tmp_path, monkeypatch):
+        """The chain passes the runner's plan path relative to the checkout; the publish re-runs the check from another
+        cwd (--base-dir = the run worktree) -- the plan resolves against the base dir, never the cwd."""
+        rel = os.path.relpath(world["plan"], world["new"])
+        monkeypatch.chdir(tmp_path)
+        status, v = check(world, plan_json=rel)
+>       assert status == "equal" and v["plan_json"] == rel, v["reasons"]
+E       AssertionError: ["the replay run plan 'plan.json' is not a plan of dump-free no-flash registered replays holding exp36_YAW_C4_S40000_K8_s42_th90 under one campaign digest ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')"]
+E       assert ('refused' == 'equal'
+E         
+E         - equal
+E         + refused)
+
+/home/yixunhu/codespace/exp-36-yaw-c4-spread/src/tests/test_exp36_publish.py:286: AssertionError
+____ test_the_final_collector_reproduces_a_verdict_of_the_chain_i_collector ____
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_final_collector_repro0/exp25'), 'new': PosixPath('/tmp/...249f6509fc414775', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_the_final_collector_repro0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x722f2071fd00>
+
+    def test_the_final_collector_reproduces_a_verdict_of_the_chain_i_collector(world, tmp_path, monkeypatch):
+        """The publication re-computes the replay verdict and requires PARSED-DICT equality with the recorded one. Chain I
+        records it with the collector at H36_I 461c58e0, run in the run checkout with the runner's RELATIVE plan path; the
+        publication re-computes it with this collector from another cwd, the same relative string resolved against
+        --base-dir (review II NIT 2: both conditions in one test)."""
+        import subprocess
+        import types
+        path = os.path.join(T.EXPDIR, "depth_canon_collect.py")
+        src = subprocess.run(["git", "-C", T.REPO, "show", f"461c58e0:{os.path.relpath(path, T.REPO)}"], check=True,
+                             capture_output=True, text=True).stdout
+        old = types.ModuleType("depth_canon_collect_at_461c58e0")
+        old.__file__ = path
+        exec(compile(src, f"{path}@461c58e0", "exec"), old.__dict__)
+        rel = os.path.relpath(world["plan"], world["new"])
+        kw = dict(pin=H36, plan_json=rel, manifest=MANIFEST, base_dir=str(world["new"]), ref_base_dir=str(world["ref"]),
+                  ref_dump_root=str(world["ref"] / "dumps"), reference=world["pins"], canon_index=T.canon_index())
+        monkeypatch.chdir(world["new"])                                   # chain I: the comparator runs in the run checkout
+        recorded = json.loads(json.dumps(old.exp36_replay_check(**kw)[1]))
+        monkeypatch.chdir(tmp_path)                                       # the publication: another cwd, same string
+        status, again = C.exp36_replay_check(**kw)
+>       assert recorded["result"] == status == "equal" and recorded["plan_json"] == rel and again == recorded
+E       AssertionError: assert ('refused' == 'equal'
+E         
+E         - equal
+E         + refused)
+
+/home/yixunhu/codespace/exp-36-yaw-c4-spread/src/tests/test_exp36_publish.py:309: AssertionError
+___________ test_chain_ii_runs_the_yaw_replay_its_check_then_the_24 ____________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_chain_ii_runs_the_yaw_rep0/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+
+    def test_chain_ii_runs_the_yaw_replay_its_check_then_the_24(clone, ch):
+        rc, out = chain(clone, ch, env={"ALLOW_SHARED_GPU": "0"})
+        assert rc == 0 and "CHAIN COMPLETE" in out, out
+>       (p1, _, pa1), (k1, e1, a1), (k2, e2, a2), (p3, _, pa3), (k3, e3, a3) = calls(ch)
+E       ValueError: not enough values to unpack (expected 5, got 3)
+
+src/tests/test_exp36_chain.py:178: ValueError
+___ test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_chain_i_runs_the_4_replay0/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+
+    def test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells(clone, ch):
+        rc, out = chain(clone, ch, args=("offorbit",))
+        assert rc == 0 and "CHAIN COMPLETE" in out, out
+        got = calls(ch)
+>       assert [k for k, _, _ in got] == ["PREFLIGHT", "RUNNER"] + ["COLLECT"] * 4 + ["PREFLIGHT", "RUNNER"]
+E       AssertionError: assert ['RUNNER', 'C...CT', 'RUNNER'] == ['PREFLIGHT',...COLLECT', ...]
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains 2 more items, first extra item: 'PREFLIGHT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:200: AssertionError
+______________ test_chain_i_stops_at_the_first_failed_check[1-4] _______________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_chain_i_stops_at_the_firs0/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+n = 1, rc_want = 4
+
+    @pytest.mark.parametrize("n, rc_want", [(1, 4), (2, 4), (3, 5), (4, 5)])
+    def test_chain_i_stops_at_the_first_failed_check(clone, ch, n, rc_want):
+        rc, out = chain(clone, ch, env={f"STUB_CHECK_RC_{n}": "1" if rc_want == 4 else "2"}, args=("offorbit",))
+        assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == ["PREFLIGHT", "RUNNER"] + ["COLLECT"] * n     # nothing past it
+E       AssertionError: assert ['RUNNER', 'COLLECT'] == ['PREFLIGHT',...R', 'COLLECT']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'COLLECT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:217: AssertionError
+______________ test_chain_i_stops_at_the_first_failed_check[2-4] _______________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_chain_i_stops_at_the_firs1/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+n = 2, rc_want = 4
+
+    @pytest.mark.parametrize("n, rc_want", [(1, 4), (2, 4), (3, 5), (4, 5)])
+    def test_chain_i_stops_at_the_first_failed_check(clone, ch, n, rc_want):
+        rc, out = chain(clone, ch, env={f"STUB_CHECK_RC_{n}": "1" if rc_want == 4 else "2"}, args=("offorbit",))
+        assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == ["PREFLIGHT", "RUNNER"] + ["COLLECT"] * n     # nothing past it
+E       AssertionError: assert ['RUNNER', 'C...T', 'COLLECT'] == ['PREFLIGHT',...T', 'COLLECT']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'COLLECT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:217: AssertionError
+______________ test_chain_i_stops_at_the_first_failed_check[3-5] _______________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_chain_i_stops_at_the_firs2/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+n = 3, rc_want = 5
+
+    @pytest.mark.parametrize("n, rc_want", [(1, 4), (2, 4), (3, 5), (4, 5)])
+    def test_chain_i_stops_at_the_first_failed_check(clone, ch, n, rc_want):
+        rc, out = chain(clone, ch, env={f"STUB_CHECK_RC_{n}": "1" if rc_want == 4 else "2"}, args=("offorbit",))
+        assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == ["PREFLIGHT", "RUNNER"] + ["COLLECT"] * n     # nothing past it
+E       AssertionError: assert ['RUNNER', 'C...T', 'COLLECT'] == ['PREFLIGHT',...T', 'COLLECT']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'COLLECT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:217: AssertionError
+______________ test_chain_i_stops_at_the_first_failed_check[4-5] _______________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_chain_i_stops_at_the_firs3/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+n = 4, rc_want = 5
+
+    @pytest.mark.parametrize("n, rc_want", [(1, 4), (2, 4), (3, 5), (4, 5)])
+    def test_chain_i_stops_at_the_first_failed_check(clone, ch, n, rc_want):
+        rc, out = chain(clone, ch, env={f"STUB_CHECK_RC_{n}": "1" if rc_want == 4 else "2"}, args=("offorbit",))
+        assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == ["PREFLIGHT", "RUNNER"] + ["COLLECT"] * n     # nothing past it
+E       AssertionError: assert ['RUNNER', 'C...T', 'COLLECT'] == ['PREFLIGHT',...T', 'COLLECT']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'COLLECT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:217: AssertionError
+___ test_a_dump_collision_stops_the_chain_before_its_runner_step[1-kinds0-A] ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th0/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+mode = 'A', n = 1, kinds = ['PREFLIGHT']
+
+    @pytest.mark.parametrize("mode", ["A", "offorbit"])
+    @pytest.mark.parametrize("n, kinds", [(1, ["PREFLIGHT"]), (2, None)])
+    def test_a_dump_collision_stops_the_chain_before_its_runner_step(clone, ch, mode, n, kinds):
+        """The addendum: every cell dumps; a target dump directory this checkout did not publish stops the chain before
+        the runner step it would collide in (the replays' or the production cells')."""
+        rc, out = chain(clone, ch, env={f"STUB_PREFLIGHT_RC_{n}": "2"}, args=(mode,))
+>       assert rc == 2 and "DUMP PREFLIGHT REFUSED" in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: === exp_36 yaw_c4_spread chain A -- 2026-11-06_17-55-22 -- HEAD 516a33f92045f4e630c8d6b608c4704745730186 -- dry_run=0 -- harness=true ===
+E         --- step 1/3: the replay(s) exp36_YAW_C4_S40000_K8_s42_th90 on GPUs 0,1, dumps off ---
+E         + ALLOW_SHARED_GPU=0 DRY_RUN=0 EXPECT_HEAD=516a33f92045f4e630c8d6b608c4704745730186 bash /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th0/ch/stub_runner.sh --only exp36_YAW_C4_S40000_K8_s42_th90 --no-dump-blocks YAW-C4S
+E         === exp_25 depth_canon eval campaign -- 2026-11-06_20-00-01 -- HEAD x -- dry_run=0 -- harness=false ===
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th0/ch/plan_1.json
+E         replay run plan /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th0/ch/plan_1.json (sha256 ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356); runner records: worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_20-00-01_{eval_run.log,no_flash_preflight.log,eval_<cell>.log}
+E         --- step 2/3: the replay check of exp36_YAW_C4_S40000_K8_s42_th90 (a hard stop) ---
+E         EXP36 REPLAY EQUAL
+E         replay check EQUAL: exp36_YAW_C4_S40000_K8_s42_th90, verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th0/ch/yaw_c4_spread_2026-11-06_17-55-22_A_verdict_exp36_YAW_C4_S40000_K8_s42_th90.json (sha256 808b02c7487cb61da4ac593e8bde3583764a84aacf07d1de14509ce5291fc7e5)
+E         --- step 3/3: the production cells (A) on GPUs 0,1, dumps off ---
+E         + ALLOW_SHARED_GPU=0 DRY_RUN=0 EXPECT_HEAD=516a33f92045f4e630c8d6b608c4704745730186 bash /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th0/ch/stub_runner.sh --only exp25_YAW_C4_S40000_K1_s43_th90,exp25_YAW_C4_S40000_K1_s43_th180,exp25_YAW_C4_S40000_K1_s43_th270,exp25_YAW_C4_S40000_K1_s44_th90,exp25_YAW_C4_S40000_K1_s44_th180,exp25_YAW_C4_S40000_K1_s44_th270,exp25_YAW_C4_S40000_K1_s45_th90,exp25_YAW_C4_S40000_K1_s45_th180,exp25_YAW_C4_S40000_K1_s45_th270,exp25_YAW_C4_S40000_K1_s46_th90,exp25_YAW_C4_S40000_K1_s46_th180,exp25_YAW_C4_S40000_K1_s46_th270,exp25_YAW_C4_S40000_K8_s43_th90,exp25_YAW_C4_S40000_K8_s43_th180,exp25_YAW_C4_S40000_K8_s43_th270,exp25_YAW_C4_S40000_K8_s44_th90,exp25_YAW_C4_S40000_K8_s44_th180,exp25_YAW_C4_S40000_K8_s44_th270,exp25_YAW_C4_S40000_K8_s45_th90,exp25_YAW_C4_S40000_K8_s45_th180,exp25_YAW_C4_S40000_K8_s45_th270,exp25_YAW_C4_S40000_K8_s46_th90,exp25_YAW_C4_S40000_K8_s46_th180,exp25_YAW_C4_S40000_K8_s46_th270 --no-dump-blocks YAW-C4S
+E         === exp_25 depth_canon eval campaign -- 2026-11-06_20-00-02 -- HEAD x -- dry_run=0 -- harness=false ===
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th0/ch/plan_2.json
+E         === CHAIN COMPLETE (A): every replay EQUAL, the production cells complete and verified. Publication of the YAW
+E             cells into the exp-25 worktree is a SEPARATE command:
+E             CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 /home/yixunhu/miniconda3/envs/flac/bin/python /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th0/ch/stub_collect.py --exp36-publish --exp36-set A --pin 516a33f92045f4e630c8d6b608c4704745730186 --exp36-verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th0/ch/yaw_c4_spread_2026-11-06_17-55-22_A_verdict_exp36_YAW_C4_S40000_K8_s42_th90.json
+E         
+E       assert (0 == 2)
+
+src/tests/test_exp36_chain.py:226: AssertionError
+_ test_a_dump_collision_stops_the_chain_before_its_runner_step[1-kinds0-offorbit] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th1/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+mode = 'offorbit', n = 1, kinds = ['PREFLIGHT']
+
+    @pytest.mark.parametrize("mode", ["A", "offorbit"])
+    @pytest.mark.parametrize("n, kinds", [(1, ["PREFLIGHT"]), (2, None)])
+    def test_a_dump_collision_stops_the_chain_before_its_runner_step(clone, ch, mode, n, kinds):
+        """The addendum: every cell dumps; a target dump directory this checkout did not publish stops the chain before
+        the runner step it would collide in (the replays' or the production cells')."""
+        rc, out = chain(clone, ch, env={f"STUB_PREFLIGHT_RC_{n}": "2"}, args=(mode,))
+>       assert rc == 2 and "DUMP PREFLIGHT REFUSED" in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: === exp_36 yaw_c4_spread chain offorbit -- 2026-11-06_17-55-22 -- HEAD 516a33f92045f4e630c8d6b608c4704745730186 -- dry_run=0 -- harness=true ===
+E         --- step 1/3: the replay(s) exp36_YAW_C4_S40000_K8_s42_th90,exp36_P1_C4_S40000_K8_s42_th90,exp36_BF_C4_S40000_K8_s42_th90,exp36_CANON_C4_S40000_K8_s42_th90 on GPUs 0,1, dumps off ---
+E         + ALLOW_SHARED_GPU=0 DRY_RUN=0 EXPECT_HEAD=516a33f92045f4e630c8d6b608c4704745730186 bash /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th1/ch/stub_runner.sh --only exp36_YAW_C4_S40000_K8_s42_th90,exp36_P1_C4_S40000_K8_s42_th90,exp36_BF_C4_S40000_K8_s42_th90,exp36_CANON_C4_S40000_K8_s42_th90 --no-dump-blocks YAW-C4S,RPL-S42
+E         === exp_25 depth_canon eval campaign -- 2026-11-06_20-00-01 -- HEAD x -- dry_run=0 -- harness=false ===
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th1/ch/plan_1.json
+E         replay run plan /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th1/ch/plan_1.json (sha256 ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356); runner records: worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_20-00-01_{eval_run.log,no_flash_preflight.log,eval_<cell>.log}
+E         --- step 2/3: the replay check of exp36_YAW_C4_S40000_K8_s42_th90 (a hard stop) ---
+E         EXP36 REPLAY EQUAL
+E         replay check EQUAL: exp36_YAW_C4_S40000_K8_s42_th90, verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th1/ch/yaw_c4_spread_2026-11-06_17-55-22_offorbit_verdict_exp36_YAW_C4_S40000_K8_s42_th90.json (sha256 808b02c7487cb61da4ac593e8bde3583764a84aacf07d1de14509ce5291fc7e5)
+E         --- step 2/3: the replay check of exp36_P1_C4_S40000_K8_s42_th90 (a hard stop) ---
+E         EXP36 REPLAY EQUAL
+E         replay check EQUAL: exp36_P1_C4_S40000_K8_s42_th90, verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th1/ch/yaw_c4_spread_2026-11-06_17-55-22_offorbit_verdict_exp36_P1_C4_S40000_K8_s42_th90.json (sha256 808b02c7487cb61da4ac593e8bde3583764a84aacf07d1de14509ce5291fc7e5)
+E         --- step 2/3: the replay check of exp36_BF_C4_S40000_K8_s42_th90 (a hard stop) ---
+E         EXP36 REPLAY EQUAL
+E         replay check EQUAL: exp36_BF_C4_S40000_K8_s42_th90, verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th1/ch/yaw_c4_spread_2026-11-06_17-55-22_offorbit_verdict_exp36_BF_C4_S40000_K8_s42_th90.json (sha256 808b02c7487cb61da4ac593e8bde3583764a84aacf07d1de14509ce5291fc7e5)
+E         --- step 2/3: the replay check of exp36_CANON_C4_S40000_K8_s42_th90 (a hard stop) ---
+E         EXP36 REPLAY EQUAL
+E         replay check EQUAL: exp36_CANON_C4_S40000_K8_s42_th90, verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th1/ch/yaw_c4_spread_2026-11-06_17-55-22_offorbit_verdict_exp36_CANON_C4_S40000_K8_s42_th90.json (sha256 808b02c7487cb61da4ac593e8bde3583764a84aacf07d1de14509ce5291fc7e5)
+E         --- step 3/3: the production cells (offorbit) on GPUs 0,1, dumps off ---
+E         + ALLOW_SHARED_GPU=0 DRY_RUN=0 EXPECT_HEAD=516a33f92045f4e630c8d6b608c4704745730186 bash /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th1/ch/stub_runner.sh --only exp35_P1_OFF_S40000_K1_s42_th135,exp35_P1_OFF_S40000_K1_s42_th225,exp35_P1_OFF_S40000_K8_s42_th135,exp35_P1_OFF_S40000_K8_s42_th225,exp35_BF_OFF_S40000_K1_s42_th135,exp35_BF_OFF_S40000_K1_s42_th225,exp35_BF_OFF_S40000_K8_s42_th135,exp35_BF_OFF_S40000_K8_s42_th225,exp35_CANON_OFF_S40000_K1_s42_th135,exp35_CANON_OFF_S40000_K1_s42_th225,exp35_CANON_OFF_S40000_K8_s42_th135,exp35_CANON_OFF_S40000_K8_s42_th225,exp35_P1_OFF_S40000_K1_s42_th315,exp35_P1_OFF_S40000_K8_s42_th315,exp35_BF_OFF_S40000_K1_s42_th315,exp35_BF_OFF_S40000_K8_s42_th315,exp35_CANON_OFF_S40000_K1_s42_th315,exp35_CANON_OFF_S40000_K8_s42_th315,exp25_YAW_C4_S40000_K1_s42_th135,exp25_YAW_C4_S40000_K1_s42_th225,exp25_YAW_C4_S40000_K1_s42_th315,exp25_YAW_C4_S40000_K8_s42_th135,exp25_YAW_C4_S40000_K8_s42_th225,exp25_YAW_C4_S40000_K8_s42_th315 --no-dump-blocks OFF-P1,OFF-BF,OFF-CANON,OFF-S42
+E         === exp_25 depth_canon eval campaign -- 2026-11-06_20-00-02 -- HEAD x -- dry_run=0 -- harness=false ===
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th1/ch/plan_2.json
+E         === CHAIN COMPLETE (offorbit): every replay EQUAL, the production cells complete and verified. Publication of the YAW
+E             cells into the exp-25 worktree is a SEPARATE command:
+E             CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 /home/yixunhu/miniconda3/envs/flac/bin/python /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th1/ch/stub_collect.py --exp36-publish --exp36-set OFF --pin 516a33f92045f4e630c8d6b608c4704745730186 --exp36-verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th1/ch/yaw_c4_spread_2026-11-06_17-55-22_offorbit_verdict_exp36_YAW_C4_S40000_K8_s42_th90.json
+E         
+E       assert (0 == 2)
+
+src/tests/test_exp36_chain.py:226: AssertionError
+____ test_a_dump_collision_stops_the_chain_before_its_runner_step[2-None-A] ____
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th2/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+mode = 'A', n = 2, kinds = None
+
+    @pytest.mark.parametrize("mode", ["A", "offorbit"])
+    @pytest.mark.parametrize("n, kinds", [(1, ["PREFLIGHT"]), (2, None)])
+    def test_a_dump_collision_stops_the_chain_before_its_runner_step(clone, ch, mode, n, kinds):
+        """The addendum: every cell dumps; a target dump directory this checkout did not publish stops the chain before
+        the runner step it would collide in (the replays' or the production cells')."""
+        rc, out = chain(clone, ch, env={f"STUB_PREFLIGHT_RC_{n}": "2"}, args=(mode,))
+>       assert rc == 2 and "DUMP PREFLIGHT REFUSED" in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: === exp_36 yaw_c4_spread chain A -- 2026-11-06_17-55-22 -- HEAD 516a33f92045f4e630c8d6b608c4704745730186 -- dry_run=0 -- harness=true ===
+E         --- step 1/3: the replay(s) exp36_YAW_C4_S40000_K8_s42_th90 on GPUs 0,1, dumps off ---
+E         + ALLOW_SHARED_GPU=0 DRY_RUN=0 EXPECT_HEAD=516a33f92045f4e630c8d6b608c4704745730186 bash /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th2/ch/stub_runner.sh --only exp36_YAW_C4_S40000_K8_s42_th90 --no-dump-blocks YAW-C4S
+E         === exp_25 depth_canon eval campaign -- 2026-11-06_20-00-01 -- HEAD x -- dry_run=0 -- harness=false ===
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th2/ch/plan_1.json
+E         replay run plan /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th2/ch/plan_1.json (sha256 ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356); runner records: worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_20-00-01_{eval_run.log,no_flash_preflight.log,eval_<cell>.log}
+E         --- step 2/3: the replay check of exp36_YAW_C4_S40000_K8_s42_th90 (a hard stop) ---
+E         EXP36 REPLAY EQUAL
+E         replay check EQUAL: exp36_YAW_C4_S40000_K8_s42_th90, verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th2/ch/yaw_c4_spread_2026-11-06_17-55-22_A_verdict_exp36_YAW_C4_S40000_K8_s42_th90.json (sha256 808b02c7487cb61da4ac593e8bde3583764a84aacf07d1de14509ce5291fc7e5)
+E         --- step 3/3: the production cells (A) on GPUs 0,1, dumps off ---
+E         + ALLOW_SHARED_GPU=0 DRY_RUN=0 EXPECT_HEAD=516a33f92045f4e630c8d6b608c4704745730186 bash /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th2/ch/stub_runner.sh --only exp25_YAW_C4_S40000_K1_s43_th90,exp25_YAW_C4_S40000_K1_s43_th180,exp25_YAW_C4_S40000_K1_s43_th270,exp25_YAW_C4_S40000_K1_s44_th90,exp25_YAW_C4_S40000_K1_s44_th180,exp25_YAW_C4_S40000_K1_s44_th270,exp25_YAW_C4_S40000_K1_s45_th90,exp25_YAW_C4_S40000_K1_s45_th180,exp25_YAW_C4_S40000_K1_s45_th270,exp25_YAW_C4_S40000_K1_s46_th90,exp25_YAW_C4_S40000_K1_s46_th180,exp25_YAW_C4_S40000_K1_s46_th270,exp25_YAW_C4_S40000_K8_s43_th90,exp25_YAW_C4_S40000_K8_s43_th180,exp25_YAW_C4_S40000_K8_s43_th270,exp25_YAW_C4_S40000_K8_s44_th90,exp25_YAW_C4_S40000_K8_s44_th180,exp25_YAW_C4_S40000_K8_s44_th270,exp25_YAW_C4_S40000_K8_s45_th90,exp25_YAW_C4_S40000_K8_s45_th180,exp25_YAW_C4_S40000_K8_s45_th270,exp25_YAW_C4_S40000_K8_s46_th90,exp25_YAW_C4_S40000_K8_s46_th180,exp25_YAW_C4_S40000_K8_s46_th270 --no-dump-blocks YAW-C4S
+E         === exp_25 depth_canon eval campaign -- 2026-11-06_20-00-02 -- HEAD x -- dry_run=0 -- harness=false ===
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th2/ch/plan_2.json
+E         === CHAIN COMPLETE (A): every replay EQUAL, the production cells complete and verified. Publication of the YAW
+E             cells into the exp-25 worktree is a SEPARATE command:
+E             CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 /home/yixunhu/miniconda3/envs/flac/bin/python /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th2/ch/stub_collect.py --exp36-publish --exp36-set A --pin 516a33f92045f4e630c8d6b608c4704745730186 --exp36-verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th2/ch/yaw_c4_spread_2026-11-06_17-55-22_A_verdict_exp36_YAW_C4_S40000_K8_s42_th90.json
+E         
+E       assert (0 == 2)
+
+src/tests/test_exp36_chain.py:226: AssertionError
+_ test_a_dump_collision_stops_the_chain_before_its_runner_step[2-None-offorbit] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th3/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+mode = 'offorbit', n = 2, kinds = None
+
+    @pytest.mark.parametrize("mode", ["A", "offorbit"])
+    @pytest.mark.parametrize("n, kinds", [(1, ["PREFLIGHT"]), (2, None)])
+    def test_a_dump_collision_stops_the_chain_before_its_runner_step(clone, ch, mode, n, kinds):
+        """The addendum: every cell dumps; a target dump directory this checkout did not publish stops the chain before
+        the runner step it would collide in (the replays' or the production cells')."""
+        rc, out = chain(clone, ch, env={f"STUB_PREFLIGHT_RC_{n}": "2"}, args=(mode,))
+>       assert rc == 2 and "DUMP PREFLIGHT REFUSED" in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: === exp_36 yaw_c4_spread chain offorbit -- 2026-11-06_17-55-22 -- HEAD 516a33f92045f4e630c8d6b608c4704745730186 -- dry_run=0 -- harness=true ===
+E         --- step 1/3: the replay(s) exp36_YAW_C4_S40000_K8_s42_th90,exp36_P1_C4_S40000_K8_s42_th90,exp36_BF_C4_S40000_K8_s42_th90,exp36_CANON_C4_S40000_K8_s42_th90 on GPUs 0,1, dumps off ---
+E         + ALLOW_SHARED_GPU=0 DRY_RUN=0 EXPECT_HEAD=516a33f92045f4e630c8d6b608c4704745730186 bash /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th3/ch/stub_runner.sh --only exp36_YAW_C4_S40000_K8_s42_th90,exp36_P1_C4_S40000_K8_s42_th90,exp36_BF_C4_S40000_K8_s42_th90,exp36_CANON_C4_S40000_K8_s42_th90 --no-dump-blocks YAW-C4S,RPL-S42
+E         === exp_25 depth_canon eval campaign -- 2026-11-06_20-00-01 -- HEAD x -- dry_run=0 -- harness=false ===
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th3/ch/plan_1.json
+E         replay run plan /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th3/ch/plan_1.json (sha256 ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356); runner records: worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_20-00-01_{eval_run.log,no_flash_preflight.log,eval_<cell>.log}
+E         --- step 2/3: the replay check of exp36_YAW_C4_S40000_K8_s42_th90 (a hard stop) ---
+E         EXP36 REPLAY EQUAL
+E         replay check EQUAL: exp36_YAW_C4_S40000_K8_s42_th90, verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th3/ch/yaw_c4_spread_2026-11-06_17-55-22_offorbit_verdict_exp36_YAW_C4_S40000_K8_s42_th90.json (sha256 808b02c7487cb61da4ac593e8bde3583764a84aacf07d1de14509ce5291fc7e5)
+E         --- step 2/3: the replay check of exp36_P1_C4_S40000_K8_s42_th90 (a hard stop) ---
+E         EXP36 REPLAY EQUAL
+E         replay check EQUAL: exp36_P1_C4_S40000_K8_s42_th90, verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th3/ch/yaw_c4_spread_2026-11-06_17-55-22_offorbit_verdict_exp36_P1_C4_S40000_K8_s42_th90.json (sha256 808b02c7487cb61da4ac593e8bde3583764a84aacf07d1de14509ce5291fc7e5)
+E         --- step 2/3: the replay check of exp36_BF_C4_S40000_K8_s42_th90 (a hard stop) ---
+E         EXP36 REPLAY EQUAL
+E         replay check EQUAL: exp36_BF_C4_S40000_K8_s42_th90, verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th3/ch/yaw_c4_spread_2026-11-06_17-55-22_offorbit_verdict_exp36_BF_C4_S40000_K8_s42_th90.json (sha256 808b02c7487cb61da4ac593e8bde3583764a84aacf07d1de14509ce5291fc7e5)
+E         --- step 2/3: the replay check of exp36_CANON_C4_S40000_K8_s42_th90 (a hard stop) ---
+E         EXP36 REPLAY EQUAL
+E         replay check EQUAL: exp36_CANON_C4_S40000_K8_s42_th90, verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th3/ch/yaw_c4_spread_2026-11-06_17-55-22_offorbit_verdict_exp36_CANON_C4_S40000_K8_s42_th90.json (sha256 808b02c7487cb61da4ac593e8bde3583764a84aacf07d1de14509ce5291fc7e5)
+E         --- step 3/3: the production cells (offorbit) on GPUs 0,1, dumps off ---
+E         + ALLOW_SHARED_GPU=0 DRY_RUN=0 EXPECT_HEAD=516a33f92045f4e630c8d6b608c4704745730186 bash /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th3/ch/stub_runner.sh --only exp35_P1_OFF_S40000_K1_s42_th135,exp35_P1_OFF_S40000_K1_s42_th225,exp35_P1_OFF_S40000_K8_s42_th135,exp35_P1_OFF_S40000_K8_s42_th225,exp35_BF_OFF_S40000_K1_s42_th135,exp35_BF_OFF_S40000_K1_s42_th225,exp35_BF_OFF_S40000_K8_s42_th135,exp35_BF_OFF_S40000_K8_s42_th225,exp35_CANON_OFF_S40000_K1_s42_th135,exp35_CANON_OFF_S40000_K1_s42_th225,exp35_CANON_OFF_S40000_K8_s42_th135,exp35_CANON_OFF_S40000_K8_s42_th225,exp35_P1_OFF_S40000_K1_s42_th315,exp35_P1_OFF_S40000_K8_s42_th315,exp35_BF_OFF_S40000_K1_s42_th315,exp35_BF_OFF_S40000_K8_s42_th315,exp35_CANON_OFF_S40000_K1_s42_th315,exp35_CANON_OFF_S40000_K8_s42_th315,exp25_YAW_C4_S40000_K1_s42_th135,exp25_YAW_C4_S40000_K1_s42_th225,exp25_YAW_C4_S40000_K1_s42_th315,exp25_YAW_C4_S40000_K8_s42_th135,exp25_YAW_C4_S40000_K8_s42_th225,exp25_YAW_C4_S40000_K8_s42_th315 --no-dump-blocks OFF-P1,OFF-BF,OFF-CANON,OFF-S42
+E         === exp_25 depth_canon eval campaign -- 2026-11-06_20-00-02 -- HEAD x -- dry_run=0 -- harness=false ===
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th3/ch/plan_2.json
+E         === CHAIN COMPLETE (offorbit): every replay EQUAL, the production cells complete and verified. Publication of the YAW
+E             cells into the exp-25 worktree is a SEPARATE command:
+E             CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 /home/yixunhu/miniconda3/envs/flac/bin/python /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th3/ch/stub_collect.py --exp36-publish --exp36-set OFF --pin 516a33f92045f4e630c8d6b608c4704745730186 --exp36-verdict /tmp/pytest-of-yixunhu/pytest-6634/test_a_dump_collision_stops_th3/ch/yaw_c4_spread_2026-11-06_17-55-22_offorbit_verdict_exp36_YAW_C4_S40000_K8_s42_th90.json
+E         
+E       assert (0 == 2)
+
+src/tests/test_exp36_chain.py:226: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env0-4-REPLAY MISMATCH-kinds0] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_other_outcome_is_a_0/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+env = {'STUB_CHECK_RC': '1'}, rc_want = 4, needle = 'REPLAY MISMATCH'
+kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", [_P, _R]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", [_P, _R]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", [_P, _R]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", [_P, _R, _C, _P, _R]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", [_P, _R, _C, _P, _R]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),                  # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),              # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+        assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert ['RUNNER', 'COLLECT'] == ['PREFLIGHT',...R', 'COLLECT']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'COLLECT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:268: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env1-5-REPLAY CHECK REFUSED-kinds1] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_other_outcome_is_a_1/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+env = {'STUB_CHECK_RC': '2'}, rc_want = 5, needle = 'REPLAY CHECK REFUSED'
+kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", [_P, _R]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", [_P, _R]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", [_P, _R]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", [_P, _R, _C, _P, _R]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", [_P, _R, _C, _P, _R]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),                  # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),              # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+        assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert ['RUNNER', 'COLLECT'] == ['PREFLIGHT',...R', 'COLLECT']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'COLLECT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:268: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env2-5-REPLAY CHECK REFUSED-kinds2] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_other_outcome_is_a_2/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+env = {'STUB_CHECK_RC': '3'}, rc_want = 5, needle = 'REPLAY CHECK REFUSED'
+kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", [_P, _R]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", [_P, _R]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", [_P, _R]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", [_P, _R, _C, _P, _R]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", [_P, _R, _C, _P, _R]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),                  # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),              # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+        assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert ['RUNNER', 'COLLECT'] == ['PREFLIGHT',...R', 'COLLECT']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'COLLECT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:268: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env3-3-the replay run exited 2-kinds3] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_other_outcome_is_a_3/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+env = {'STUB_RUNNER_RC_1': '2'}, rc_want = 3, needle = 'the replay run exited 2'
+kinds = ['PREFLIGHT', 'RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", [_P, _R]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", [_P, _R]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", [_P, _R]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", [_P, _R, _C, _P, _R]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", [_P, _R, _C, _P, _R]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),                  # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),              # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+        assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert ['RUNNER'] == ['PREFLIGHT', 'RUNNER']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'RUNNER'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:268: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env4-3-the replay run exited 1-kinds4] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_other_outcome_is_a_4/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+env = {'STUB_RUNNER_RC_1': '1'}, rc_want = 3, needle = 'the replay run exited 1'
+kinds = ['PREFLIGHT', 'RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", [_P, _R]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", [_P, _R]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", [_P, _R]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", [_P, _R, _C, _P, _R]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", [_P, _R, _C, _P, _R]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),                  # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),              # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+        assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert ['RUNNER'] == ['PREFLIGHT', 'RUNNER']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'RUNNER'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:268: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env5-3-no single plan-kinds5] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_other_outcome_is_a_5/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+env = {'STUB_NO_PLAN': '1'}, rc_want = 3, needle = 'no single plan'
+kinds = ['PREFLIGHT', 'RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", [_P, _R]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", [_P, _R]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", [_P, _R]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", [_P, _R, _C, _P, _R]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", [_P, _R, _C, _P, _R]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),                  # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),              # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+        assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert ['RUNNER'] == ['PREFLIGHT', 'RUNNER']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'RUNNER'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:268: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env6-6-re-run this chain to resume-kinds6] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_other_outcome_is_a_6/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+env = {'STUB_RUNNER_RC_2': '1'}, rc_want = 6
+needle = 're-run this chain to resume'
+kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT', 'PREFLIGHT', 'RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", [_P, _R]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", [_P, _R]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", [_P, _R]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", [_P, _R, _C, _P, _R]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", [_P, _R, _C, _P, _R]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),                  # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),              # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+        assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert ['RUNNER', 'C...CT', 'RUNNER'] == ['PREFLIGHT',...HT', 'RUNNER']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains 2 more items, first extra item: 'PREFLIGHT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:268: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env7-6-the production run exited 4-kinds7] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_other_outcome_is_a_7/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+env = {'STUB_RUNNER_RC_2': '4'}, rc_want = 6
+needle = 'the production run exited 4'
+kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT', 'PREFLIGHT', 'RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", [_P, _R]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", [_P, _R]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", [_P, _R]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", [_P, _R, _C, _P, _R]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", [_P, _R, _C, _P, _R]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),                  # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),              # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+        assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert ['RUNNER', 'C...CT', 'RUNNER'] == ['PREFLIGHT',...HT', 'RUNNER']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains 2 more items, first extra item: 'PREFLIGHT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:268: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env8-5-REPLAY CHECK REFUSED-kinds8] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_other_outcome_is_a_8/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+env = {'STUB_VERDICT': 'none'}, rc_want = 5, needle = 'REPLAY CHECK REFUSED'
+kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", [_P, _R]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", [_P, _R]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", [_P, _R]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", [_P, _R, _C, _P, _R]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", [_P, _R, _C, _P, _R]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),                  # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),              # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+        assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert ['RUNNER', 'COLLECT'] == ['PREFLIGHT',...R', 'COLLECT']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'COLLECT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:268: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env9-5-REPLAY CHECK REFUSED-kinds9] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_other_outcome_is_a_9/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+env = {'STUB_VERDICT': 'mismatch'}, rc_want = 5, needle = 'REPLAY CHECK REFUSED'
+kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", [_P, _R]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", [_P, _R]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", [_P, _R]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", [_P, _R, _C, _P, _R]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", [_P, _R, _C, _P, _R]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),                  # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),              # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+        assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert ['RUNNER', 'COLLECT'] == ['PREFLIGHT',...R', 'COLLECT']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'COLLECT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:268: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env10-5-REPLAY CHECK REFUSED-kinds10] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_other_outcome_is_a_10/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+env = {'STUB_CHECK_RC': '1', 'STUB_VERDICT': 'none'}, rc_want = 5
+needle = 'REPLAY CHECK REFUSED', kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", [_P, _R]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", [_P, _R]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", [_P, _R]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", [_P, _R, _C, _P, _R]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", [_P, _R, _C, _P, _R]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),                  # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),              # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+        assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert ['RUNNER', 'COLLECT'] == ['PREFLIGHT',...R', 'COLLECT']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'COLLECT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:268: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env11-5-REPLAY CHECK REFUSED-kinds11] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_every_other_outcome_is_a_11/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+env = {'STUB_CHECK_RC': '1', 'STUB_VERDICT': 'equal'}, rc_want = 5
+needle = 'REPLAY CHECK REFUSED', kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", [_P, _R]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", [_P, _R]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", [_P, _R]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", [_P, _R, _C, _P, _R]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", [_P, _R, _C, _P, _R]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),                  # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),              # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+        assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert ['RUNNER', 'COLLECT'] == ['PREFLIGHT',...R', 'COLLECT']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains one more item: 'COLLECT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:268: AssertionError
+_______ test_dry_run_plans_both_runner_steps_and_never_runs_the_check[A] _______
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_dry_run_plans_both_runner0/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+mode = 'A'
+
+    @pytest.mark.parametrize("mode", ["A", "offorbit"])
+    def test_dry_run_plans_both_runner_steps_and_never_runs_the_check(clone, ch, mode):
+        rc, out = chain(clone, ch, env={"DRY_RUN": "1"}, args=(mode,))
+        assert rc == 0 and "DRY_RUN complete" in out and "step 2/3 (DRY_RUN: not run)" in out, out
+        got = calls(ch)
+        assert [(k, e) for k, e, _ in got if k == "RUNNER"] == [("RUNNER", RUN_ENV.format(1, ch["head"]))] * 2
+>       assert [k for k, _, _ in got] == ["PREFLIGHT", "RUNNER", "PREFLIGHT", "RUNNER"]   # the preflights run in DRY_RUN
+E       AssertionError: assert ['RUNNER', 'RUNNER'] == ['PREFLIGHT',...HT', 'RUNNER']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains 2 more items, first extra item: 'PREFLIGHT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:277: AssertionError
+___ test_dry_run_plans_both_runner_steps_and_never_runs_the_check[offorbit] ____
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6634/test_dry_run_plans_both_runner1/ch'), 'head': '516a33f92045f4e630c8d6b608c4704745730186'}
+mode = 'offorbit'
+
+    @pytest.mark.parametrize("mode", ["A", "offorbit"])
+    def test_dry_run_plans_both_runner_steps_and_never_runs_the_check(clone, ch, mode):
+        rc, out = chain(clone, ch, env={"DRY_RUN": "1"}, args=(mode,))
+        assert rc == 0 and "DRY_RUN complete" in out and "step 2/3 (DRY_RUN: not run)" in out, out
+        got = calls(ch)
+        assert [(k, e) for k, e, _ in got if k == "RUNNER"] == [("RUNNER", RUN_ENV.format(1, ch["head"]))] * 2
+>       assert [k for k, _, _ in got] == ["PREFLIGHT", "RUNNER", "PREFLIGHT", "RUNNER"]   # the preflights run in DRY_RUN
+E       AssertionError: assert ['RUNNER', 'RUNNER'] == ['PREFLIGHT',...HT', 'RUNNER']
+E         
+E         At index 0 diff: 'RUNNER' != 'PREFLIGHT'
+E         Right contains 2 more items, first extra item: 'PREFLIGHT'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:277: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r10]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r11]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r14]
+PASSED src/tests/test_exp36_replay_check.py::test_a_bad_pin_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_the_real_archived_reference_verifies_against_the_pinned_digests
+PASSED src/tests/test_exp36_replay_check.py::test_cli_a_crashed_check_is_refused_never_a_mismatch
+PASSED src/tests/test_exp36_publish_publisher.py::test_a_clean_closure_at_the_pin_is_recorded
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[collector]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[dependency]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[untracked]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[deleted]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[cells]
+PASSED src/tests/test_exp36_publish_publisher.py::test_test_files_and_files_outside_the_closure_do_not_count
+PASSED src/tests/test_exp36_publish_publisher.py::test_a_wrong_or_short_pin_or_a_missing_head_is_refused
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_closure_names_this_collector_and_its_cells_manifest
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_cli_help_names_both_sets
+PASSED src/tests/test_exp36_publish_provenance.py::test_the_default_manifest_paths_differ_per_set
+PASSED src/tests/test_exp36_chain.py::test_the_runner_dry_run_spawns_the_replay_through_the_no_flash_launcher
+PASSED src/tests/test_exp36_chain.py::test_the_runner_runs_yaw_c4s_cells_on_lane_1_without_dumps_and_receipt_2
+PASSED src/tests/test_exp36_chain.py::test_the_runner_dry_run_of_chain_i_plans_the_4_replays_and_the_24_off_orbit_cells
+PASSED src/tests/test_exp36_chain.py::test_the_runner_runs_the_4_replays_on_both_lanes_with_receipt_2_and_their_dumps
+PASSED src/tests/test_exp36_chain.py::test_the_chain_script_is_in_the_relevant_tree_of_a_no_flash_selection
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args0]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args1]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args2]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args3]
+PASSED src/tests/test_exp36_chain.py::test_a_changed_canon_checkpoint_manifest_is_refused
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env0-HEAD PIN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env1-EXPECT_HEAD]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env2-DRY_RUN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env3-ALLOW_SHARED_GPU]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env4-co-tenant]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env5-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env6-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_outside_the_harness_a_test_variable_is_refused
+PASSED src/tests/test_exp36_chain.py::test_an_uncommitted_chain_is_refused
+ERROR src/tests/test_exp36_publish.py::test_the_48_files_are_published_and_recorded
+ERROR src/tests/test_exp36_publish.py::test_any_present_destination_refuses_everything
+ERROR src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g0]
+ERROR src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g1]
+ERROR src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g2]
+ERROR src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g3]
+ERROR src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g4]
+ERROR src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g5]
+ERROR src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g6]
+ERROR src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g7]
+ERROR src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g8]
+ERROR src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g9]
+ERROR src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g10]
+ERROR src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g11]
+ERROR src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g12]
+ERROR src/tests/test_exp36_publish.py::test_a_symlinked_destination_is_refused
+ERROR src/tests/test_exp36_publish.py::test_a_stop_part_way_is_partial_and_resume_completes_it
+ERROR src/tests/test_exp36_publish.py::test_resume_refuses_a_foreign_destination_or_temp_file
+ERROR src/tests/test_exp36_publish.py::test_cli_publish_needs_a_set - Asserti...
+ERROR src/tests/test_exp36_publish.py::test_cli_publish_exit_codes - Assertio...
+ERROR src/tests/test_exp36_publish.py::test_cli_a_crashed_publication_exits_3_never_0
+ERROR src/tests/test_exp36_publish.py::test_the_off_set_publishes_its_12_files_only
+ERROR src/tests/test_exp36_publish.py::test_each_set_needs_its_own_cells_and_the_yaw_verdict
+ERROR src/tests/test_exp36_publish.py::test_a_verdict_of_another_replay_is_refused
+ERROR src/tests/test_exp36_publish_publisher.py::test_a_refused_publisher_refuses_the_publication_before_any_write
+ERROR src/tests/test_exp36_publish_publisher.py::test_the_cli_requires_the_publisher_pin_and_the_collectors_own_cells
+ERROR src/tests/test_exp36_publish_publisher.py::test_the_parsed_cli_routes_each_set_to_its_own_default_manifest
+ERROR src/tests/test_exp36_publish_provenance.py::test_cli_publishes_the_off_set_into_its_own_manifest
+ERROR src/tests/test_exp36_publish_provenance.py::test_the_manifest_keeps_the_artifact_pin_apart_from_the_publishing_head
+ERROR src/tests/test_exp36_publish_concurrency.py::test_a_held_lock_refuses_before_anything_and_the_lock_spans_every_write
+ERROR src/tests/test_exp36_publish_concurrency.py::test_two_concurrent_same_set_publications
+ERROR src/tests/test_exp36_publish_concurrency.py::test_concurrent_a_and_off_publications
+ERROR src/tests/test_exp36_publish_concurrency.py::test_a_destination_path_swap_cannot_redirect_the_owner
+ERROR src/tests/test_exp36_publish_concurrency.py::test_temps_are_named_by_the_transaction_and_a_resume_removes_only_those
+ERROR src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[none]
+ERROR src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[json]
+ERROR src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[file]
+ERROR src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[symlink]
+ERROR src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[other_set]
+ERROR src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[verdict]
+ERROR src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[entries]
+ERROR src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[source]
+ERROR src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[complete]
+ERROR src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[txid]
+ERROR src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[writer_temp]
+ERROR src/tests/test_exp36_publish_concurrency.py::test_the_initial_manifest_is_created_exclusively
+ERROR src/tests/test_exp36_publish_concurrency.py::test_an_update_never_replaces_a_manifest_it_did_not_write
+FAILED src/tests/test_exp36_dump_preflight.py::test_absent_dump_directories_pass
+FAILED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp36_YAW_C4_S40000_K8_s42_th90]
+FAILED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp36_CANON_C4_S40000_K8_s42_th90]
+FAILED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp35_BF_OFF_S40000_K1_s42_th315]
+FAILED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp25_YAW_C4_S40000_K1_s43_th90]
+FAILED src/tests/test_exp36_dump_preflight.py::test_a_staging_leftover_refuses
+FAILED src/tests/test_exp36_dump_preflight.py::test_a_dump_of_this_checkouts_own_cell_is_left_to_the_runner
+FAILED src/tests/test_exp36_dump_preflight.py::test_an_unknown_cell_or_an_empty_selection_is_refused
+FAILED src/tests/test_exp36_dump_preflight.py::test_cli_exit_codes - SystemEx...
+FAILED src/tests/test_exp36_replay_check.py::test_the_replay_equal_to_the_archived_cell
+FAILED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[T60]
+FAILED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[C50_int]
+FAILED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[by_scene]
+FAILED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[waveforms]
+FAILED src/tests/test_exp36_replay_check.py::test_equality_is_type_strict - A...
+FAILED src/tests/test_exp36_replay_check.py::test_the_loaded_checkpoint_must_be_the_pinned_one
+FAILED src/tests/test_exp36_replay_check.py::test_the_raw_stream_sidecar_must_be_the_archived_one
+FAILED src/tests/test_exp36_replay_check.py::test_the_dump_checks_are_ctl_style
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r0]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r1]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r2]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r3]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r4]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r5]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r6]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r7]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r8]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r9]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r12]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r13]
+FAILED src/tests/test_exp36_replay_check.py::test_a_replay_run_without_a_dump_or_with_a_schema1_receipt_is_refused
+FAILED src/tests/test_exp36_replay_check.py::test_cli_exit_codes_and_the_verdict_file
+FAILED src/tests/test_exp36_a1_replays.py::test_the_registry_holds_the_four_replays_with_the_amendment_digests
+FAILED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[P1]
+FAILED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[BF]
+FAILED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[CANON]
+FAILED src/tests/test_exp36_a1_replays.py::test_a_plan_of_the_four_replays_serves_each_check
+FAILED src/tests/test_exp36_a1_replays.py::test_the_raw_canon_sidecar_must_be_the_archived_one
+FAILED src/tests/test_exp36_a1_replays.py::test_each_replay_must_reproduce_its_references_waveforms[P1]
+FAILED src/tests/test_exp36_a1_replays.py::test_each_replay_must_reproduce_its_references_waveforms[BF]
+FAILED src/tests/test_exp36_a1_replays.py::test_each_replay_must_reproduce_its_references_waveforms[CANON]
+FAILED src/tests/test_exp36_a1_replays.py::test_the_backend_proof_of_each_reference_kind
+FAILED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[YAW]
+FAILED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[P1]
+FAILED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[BF]
+FAILED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[CANON]
+FAILED src/tests/test_exp36_publish.py::test_a_relative_plan_path_resolves_against_the_base_dir
+FAILED src/tests/test_exp36_publish.py::test_the_final_collector_reproduces_a_verdict_of_the_chain_i_collector
+FAILED src/tests/test_exp36_chain.py::test_chain_ii_runs_the_yaw_replay_its_check_then_the_24
+FAILED src/tests/test_exp36_chain.py::test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells
+FAILED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[1-4]
+FAILED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[2-4]
+FAILED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[3-5]
+FAILED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[4-5]
+FAILED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[1-kinds0-A]
+FAILED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[1-kinds0-offorbit]
+FAILED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[2-None-A]
+FAILED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[2-None-offorbit]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env0-4-REPLAY MISMATCH-kinds0]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env1-5-REPLAY CHECK REFUSED-kinds1]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env2-5-REPLAY CHECK REFUSED-kinds2]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env3-3-the replay run exited 2-kinds3]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env4-3-the replay run exited 1-kinds4]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env5-3-no single plan-kinds5]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env6-6-re-run this chain to resume-kinds6]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env7-6-the production run exited 4-kinds7]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env8-5-REPLAY CHECK REFUSED-kinds8]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env9-5-REPLAY CHECK REFUSED-kinds9]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env10-5-REPLAY CHECK REFUSED-kinds10]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env11-5-REPLAY CHECK REFUSED-kinds11]
+FAILED src/tests/test_exp36_chain.py::test_dry_run_plans_both_runner_steps_and_never_runs_the_check[A]
+FAILED src/tests/test_exp36_chain.py::test_dry_run_plans_both_runner_steps_and_never_runs_the_check[offorbit]
+72 failed, 36 passed, 3 warnings, 47 errors in 251.66s (0:04:11)

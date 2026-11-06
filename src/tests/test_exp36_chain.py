@@ -64,30 +64,30 @@ def test_the_runner_runs_yaw_c4s_cells_on_lane_1_without_dumps_and_receipt_2(clo
 
 
 def test_the_runner_dry_run_of_chain_i_plans_the_4_replays_and_the_24_off_orbit_cells(clone, harness):
-    rc, out = R.drive(clone, harness, "--only", ",".join(REPLAYS4), "--no-dump-blocks", "YAW-C4S,RPL-S42",
-                      "--lanes", "0,1", env={"DRY_RUN": "1"})
+    """As the chain calls it (addendum: no --no-dump-blocks, every cell dumps into the dump root)."""
+    rc, out = R.drive(clone, harness, "--only", ",".join(REPLAYS4), "--lanes", "0,1", env={"DRY_RUN": "1"})
     assert rc == 0 and "(4 exp_35 cell(s))" in out and out.count("spawned through overlays/no_flash/") == 4, out
-    m, farm = harness["manifest"], harness["dir"] / "farm"
-    want = {n: R.manifest_row(m, n)["eval_args"] + ["--ckpt-path", f"{farm}/{R.manifest_row(m, n)['arm']}/epoch=8-step"
-                                                                      "=40000.ckpt"] for n in REPLAYS4}
-    assert R._dry_argv(out) == want                                                   # dump-free: no dump flag
-    rc, out = R.drive(clone, harness, "--only", ",".join(OFF24), "--no-dump-blocks", "OFF-P1,OFF-BF,OFF-CANON,OFF-S42",
-                      "--lanes", "0,1", env={"DRY_RUN": "1"})
+    m, h = harness["manifest"], harness["dir"]
+    want = {n: R.manifest_row(m, n)["eval_args"] + ["--ckpt-path", f"{h}/farm/{R.manifest_row(m, n)['arm']}/epoch=8-step"
+                                                                      "=40000.ckpt", "--dump-scored-waveforms", f"{h}/dumps"]
+            for n in REPLAYS4}
+    assert R._dry_argv(out) == want and "dump root OK under DRY_RUN" in out
+    rc, out = R.drive(clone, harness, "--only", ",".join(OFF24), "--lanes", "0,1", env={"DRY_RUN": "1"})
     assert rc == 0 and "(24 exp_35 cell(s))" in out and out.count("spawned through overlays/no_flash/") == 24, out
     got = R._dry_argv(out)
-    assert sorted(got) == sorted(OFF24) and all("--dump-scored-waveforms" not in a for a in got.values())
+    assert sorted(got) == sorted(OFF24) and all(a[-2:] == ["--dump-scored-waveforms", f"{h}/dumps"] for a in got.values())
 
 
-def test_the_runner_runs_the_4_replays_on_both_lanes_with_receipt_2(clone, harness):
-    rc, out = R.drive(clone, harness, "--only", ",".join(REPLAYS4), "--no-dump-blocks", "YAW-C4S,RPL-S42",
-                      "--lanes", "0,1")
+def test_the_runner_runs_the_4_replays_on_both_lanes_with_receipt_2_and_their_dumps(clone, harness):
+    rc, out = R.drive(clone, harness, "--only", ",".join(REPLAYS4), "--lanes", "0,1")
     assert rc == 0 and "4/4" in out and sorted(R._ran(harness)) == sorted(REPLAYS4), out
     assert {c["cvd"] for c in R._calls(harness)} == {"0", "1"} and all(c["no_flash"] for c in R._calls(harness))
     for cell in REPLAYS4:
-        rec = json.load(open(R._entry(clone, harness, cell)["receipt"]))
-        assert (rec["schema_version"], rec["attention_backend"], rec["dump"]) == (2, "sdpa", False), cell
-        assert R._verify(clone, harness, cell, expect_dump=False,
-                         backend_target=str(harness["dir"] / "stub_eval.py")) == [], cell
+        e = R._entry(clone, harness, cell)
+        rec = json.load(open(e["receipt"]))
+        assert (rec["schema_version"], rec["attention_backend"], rec["dump"]) == (2, "sdpa", True), cell
+        assert os.path.isfile(os.path.join(e["dump_dir"], "COMPLETE")), cell
+        assert R._verify(clone, harness, cell, backend_target=str(harness["dir"] / "stub_eval.py")) == [], cell
 
 
 def test_the_chain_script_is_in_the_relevant_tree_of_a_no_flash_selection(clone, harness):
@@ -118,10 +118,15 @@ rc_var="STUB_RUNNER_RC_${n}"; exit "${!rc_var:-0}"
 """
 STUB_COLLECT = r"""import json, os, sys
 H, a = os.environ["EXP36_CHAIN_HARNESS"], sys.argv[1:]
+kind = "PREFLIGHT" if "--exp36-dump-preflight" in a else "COLLECT"
 with open(os.path.join(H, "calls.txt"), "a") as f:
-    f.write("COLLECT\nenv CVD=%s\n" % os.environ.get("CUDA_VISIBLE_DEVICES", "unset") + "\n".join(a) + "\nEND\n")
-n = len([x for x in os.listdir(H) if x.startswith("collect.")]) + 1
-open(os.path.join(H, f"collect.{n}"), "w").close()
+    f.write(kind + "\nenv CVD=%s\n" % os.environ.get("CUDA_VISIBLE_DEVICES", "unset") + "\n".join(a) + "\nEND\n")
+n = len([x for x in os.listdir(H) if x.startswith(kind.lower() + ".")]) + 1
+open(os.path.join(H, f"{kind.lower()}.{n}"), "w").close()
+if kind == "PREFLIGHT":
+    rc = int(os.environ.get(f"STUB_PREFLIGHT_RC_{n}", "0"))
+    print("EXP36 DUMP PREFLIGHT " + ("OK" if rc == 0 else "REFUSED"))
+    sys.exit(rc)
 rc = int(os.environ.get(f"STUB_CHECK_RC_{n}", os.environ.get("STUB_CHECK_RC", "0")))
 verdict = os.environ.get("STUB_VERDICT", {0: "equal", 1: "mismatch"}.get(rc, "refused"))
 if verdict != "none":
@@ -170,17 +175,19 @@ def _verdicts(ch):
 def test_chain_ii_runs_the_yaw_replay_its_check_then_the_24(clone, ch):
     rc, out = chain(clone, ch, env={"ALLOW_SHARED_GPU": "0"})
     assert rc == 0 and "CHAIN COMPLETE" in out, out
-    (k1, e1, a1), (k2, e2, a2), (k3, e3, a3) = calls(ch)
-    assert (k1, k2, k3) == ("RUNNER", "COLLECT", "RUNNER")
+    (p1, _, pa1), (k1, e1, a1), (k2, e2, a2), (p3, _, pa3), (k3, e3, a3) = calls(ch)
+    assert (p1, k1, k2, p3, k3) == ("PREFLIGHT", "RUNNER", "COLLECT", "PREFLIGHT", "RUNNER")
     assert e1 == e3 == RUN_ENV.format(0, ch["head"]) and e2 == "env CVD="
     tail = ["--lanes", "0,1", "--canon-ckpt-manifest", CANON_CKPTS]                      # amendment A1: both cards
-    assert a1 == ["--only", REPLAY, "--no-dump-blocks", "YAW-C4S"] + tail
+    assert pa1 == ["--exp36-dump-preflight", "--only", REPLAY, "--canon-ckpt-manifest", CANON_CKPTS]
+    assert pa3 == ["--exp36-dump-preflight", "--only", ",".join(CELLS24), "--canon-ckpt-manifest", CANON_CKPTS]
+    assert a1 == ["--only", REPLAY] + tail                                                # dumps ON (addendum)
     (verdict,) = _verdicts(ch)
     assert verdict.endswith(f"_A_verdict_{REPLAY}.json")
     assert a2 == ["--exp36-replay-check", "--exp36-replay", REPLAY, "--pin", ch["head"], "--plan-json",
                   str(ch["dir"] / "plan_1.json"), "--verdict-out", str(ch["dir"] / verdict),
                   "--canon-ckpt-manifest", CANON_CKPTS]
-    assert a3 == ["--only", ",".join(CELLS24), "--no-dump-blocks", "YAW-C4S"] + tail
+    assert a3 == ["--only", ",".join(CELLS24)] + tail
     assert f"--exp36-publish --exp36-set A --pin {ch['head']} --exp36-verdict {ch['dir'] / verdict}" in out
     logs = [p for p in os.listdir(ch["dir"]) if p.endswith("_A_chain.log")]
     assert len(logs) == 1 and "CHAIN COMPLETE" in (ch["dir"] / logs[0]).read_text()
@@ -190,12 +197,14 @@ def test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells(clo
     rc, out = chain(clone, ch, args=("offorbit",))
     assert rc == 0 and "CHAIN COMPLETE" in out, out
     got = calls(ch)
-    assert [k for k, _, _ in got] == ["RUNNER"] + ["COLLECT"] * 4 + ["RUNNER"]
+    assert [k for k, _, _ in got] == ["PREFLIGHT", "RUNNER"] + ["COLLECT"] * 4 + ["PREFLIGHT", "RUNNER"]
     tail = ["--lanes", "0,1", "--canon-ckpt-manifest", CANON_CKPTS]
-    assert got[0][2] == ["--only", ",".join(REPLAYS4), "--no-dump-blocks", "YAW-C4S,RPL-S42"] + tail
-    assert [a[a.index("--exp36-replay") + 1] for _, _, a in got[1:5]] == REPLAYS4
-    assert all(a[a.index("--plan-json") + 1] == str(ch["dir"] / "plan_1.json") for _, _, a in got[1:5])
-    assert got[5][2] == ["--only", ",".join(OFF24), "--no-dump-blocks", "OFF-P1,OFF-BF,OFF-CANON,OFF-S42"] + tail
+    assert got[0][2] == ["--exp36-dump-preflight", "--only", ",".join(REPLAYS4), "--canon-ckpt-manifest", CANON_CKPTS]
+    assert got[1][2] == ["--only", ",".join(REPLAYS4)] + tail                             # dumps ON (addendum)
+    assert [a[a.index("--exp36-replay") + 1] for _, _, a in got[2:6]] == REPLAYS4
+    assert all(a[a.index("--plan-json") + 1] == str(ch["dir"] / "plan_1.json") for _, _, a in got[2:6])
+    assert got[6][2] == ["--exp36-dump-preflight", "--only", ",".join(OFF24), "--canon-ckpt-manifest", CANON_CKPTS]
+    assert got[7][2] == ["--only", ",".join(OFF24)] + tail
     assert len(_verdicts(ch)) == 4 and all("_offorbit_verdict_" in v for v in _verdicts(ch))
     yaw = [v for v in _verdicts(ch) if REPLAY in v][0]
     assert f"--exp36-publish --exp36-set OFF --pin {ch['head']} --exp36-verdict {ch['dir'] / yaw}" in out
@@ -205,7 +214,18 @@ def test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells(clo
 def test_chain_i_stops_at_the_first_failed_check(clone, ch, n, rc_want):
     rc, out = chain(clone, ch, env={f"STUB_CHECK_RC_{n}": "1" if rc_want == 4 else "2"}, args=("offorbit",))
     assert rc == rc_want and "CHAIN COMPLETE" not in out, out
-    assert [k for k, _, _ in calls(ch)] == ["RUNNER"] + ["COLLECT"] * n                  # nothing past it
+    assert [k for k, _, _ in calls(ch)] == ["PREFLIGHT", "RUNNER"] + ["COLLECT"] * n     # nothing past it
+
+
+@pytest.mark.parametrize("mode", ["A", "offorbit"])
+@pytest.mark.parametrize("n, kinds", [(1, ["PREFLIGHT"]), (2, None)])
+def test_a_dump_collision_stops_the_chain_before_its_runner_step(clone, ch, mode, n, kinds):
+    """The addendum: every cell dumps; a target dump directory this checkout did not publish stops the chain before
+    the runner step it would collide in (the replays' or the production cells')."""
+    rc, out = chain(clone, ch, env={f"STUB_PREFLIGHT_RC_{n}": "2"}, args=(mode,))
+    assert rc == 2 and "DUMP PREFLIGHT REFUSED" in out and "CHAIN COMPLETE" not in out, out
+    checks = ["COLLECT"] * (4 if mode == "offorbit" else 1)
+    assert [k for k, _, _ in calls(ch)] == (kinds or ["PREFLIGHT", "RUNNER", *checks, "PREFLIGHT"])
 
 
 @pytest.mark.parametrize("args", [(), ("B",), ("A", "offorbit"), ("--dry-run",)])
@@ -225,19 +245,22 @@ def test_a_changed_canon_checkpoint_manifest_is_refused(clone, ch):
         path.write_bytes(original)
 
 
+_R, _C, _P = "RUNNER", "COLLECT", "PREFLIGHT"
+
+
 @pytest.mark.parametrize("env, rc_want, needle, kinds", [
-    ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
-    ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
-    ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
-    ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
-    ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
-    ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
-    ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
-    ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
-    ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
-    ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
-    ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
-    ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+    ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", [_P, _R, _C]),
+    ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
+    ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", [_P, _R]),
+    ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", [_P, _R]),
+    ({"STUB_NO_PLAN": "1"}, 3, "no single plan", [_P, _R]),
+    ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", [_P, _R, _C, _P, _R]),
+    ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", [_P, _R, _C, _P, _R]),
+    ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),                  # rc 0 without a verdict
+    ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),              # rc 0, not equal
+    ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),   # a crash
+    ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", [_P, _R, _C]),
 ])
 def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
     rc, out = chain(clone, ch, env=env)
@@ -249,7 +272,9 @@ def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_wan
 def test_dry_run_plans_both_runner_steps_and_never_runs_the_check(clone, ch, mode):
     rc, out = chain(clone, ch, env={"DRY_RUN": "1"}, args=(mode,))
     assert rc == 0 and "DRY_RUN complete" in out and "step 2/3 (DRY_RUN: not run)" in out, out
-    assert [(k, e) for k, e, _ in calls(ch)] == [("RUNNER", RUN_ENV.format(1, ch["head"]))] * 2
+    got = calls(ch)
+    assert [(k, e) for k, e, _ in got if k == "RUNNER"] == [("RUNNER", RUN_ENV.format(1, ch["head"]))] * 2
+    assert [k for k, _, _ in got] == ["PREFLIGHT", "RUNNER", "PREFLIGHT", "RUNNER"]   # the preflights run in DRY_RUN
     assert not _verdicts(ch)
 
 

@@ -117,7 +117,7 @@ def test_the_cli_requires_the_publisher_pin_and_the_collectors_own_cells(pub, tm
 def both(world, tmp_path):
     """The replay world + BOTH sets' cells (the 24 + the 6) + an equal YAW verdict on disk."""
     for name in CELLS24 + YAWOFF:
-        T.write_cell(world["new"], _row(name), pin=H36, dump=False)
+        T.write_cell(world["new"], _row(name), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
     status, verdict = check(world)
     assert status == "equal", verdict["reasons"]
     path = tmp_path / "verdict.json"
