@@ -82,6 +82,30 @@ def is_exp35(row):
     return row["block"] in EXP35_BLOCKS
 
 
+def uses_no_flash(row):
+    """A row spawned through the no-flash launcher (exp_36, Codex plan review B1): every exp_35 block and YAW-C4S.
+    It drives the plan's ``no_flash``, receipt schema 2, the backend-log check, ``build_receipt`` and
+    ``--count-no-flash``; ``is_exp35`` stays the exp_35 identity (names, collection)."""
+    return row["block"] in EXP35_BLOCKS + EXP36_BLOCKS
+
+
+EXP36_REPLAY = "exp36_YAW_C4_S40000_K8_s42_th90"   # = exp25_YAW_C4_S40000_K8_s42_th90 (YAW-pin) under another name
+EXP36_CELLS = tuple(f"exp25_YAW_C4_S40000_K{k}_s{s}_th{d}" for k in (1, 8) for s in (43, 44, 45, 46)
+                    for d in (90, 180, 270))   # the 24 aliases: the YAW-pin C4 rows at seeds 43-46
+
+
+def exp36_name_reasons(row):
+    """Codex B1: a YAW-C4S row is exactly one of the 24 aliases or the replay; those names (and every
+    ``exp36_`` name) belong to YAW-C4S only."""
+    name, ours = row["cell"], row["block"] in EXP36_BLOCKS
+    registered = name in EXP36_CELLS or name == EXP36_REPLAY
+    if ours and not registered:
+        return [f"{name!r} is not one of the 25 registered exp_36 names of block YAW-C4S"]
+    if not ours and (registered or name.startswith("exp36_")):
+        return [f"{name!r} is an exp_36 name in block {row['block']!r} (exp_36 names belong to YAW-C4S only)"]
+    return []
+
+
 def load_cells(path=CELLS_JSON):
     with open(path) as f:
         return json.load(f)
@@ -477,10 +501,10 @@ def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump
     The committed configs must still hash to the manifest's pins."""
     if not isinstance(receipt, dict):
         return ["receipt is not a JSON object"]
-    reasons, keys = [], RECEIPT_KEYS_V2 if is_exp35(row) else RECEIPT_KEYS
+    reasons, keys = [], RECEIPT_KEYS_V2 if uses_no_flash(row) else RECEIPT_KEYS
     if list(receipt) != list(keys):
         reasons.append(f"receipt keys {list(receipt)} != {list(keys)}")
-    want = {"schema_version": RECEIPT_SCHEMA_VERSION_EXP35 if is_exp35(row) else RECEIPT_SCHEMA_VERSION,
+    want = {"schema_version": RECEIPT_SCHEMA_VERSION_EXP35 if uses_no_flash(row) else RECEIPT_SCHEMA_VERSION,
             "cell": row["cell"], "stem": stem,
             "block": row["block"], "arm": row["arm"], "step": row["step"], "ckpt_link": link,
             "ckpt_target": target, "ckpt_sha256": ckpt_sha256, "ckpt_cache": ckpt_cache_path(link, ckpt_sha256),
@@ -489,7 +513,7 @@ def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump
             "dataset_config_sha256": row["dataset_config_sha256"],
             "expected_stream_count": row["expected_stream_count"], "dump": dump,
             "dump_root": dump_root if dump else None, "argv": cell_argv(row, link, dump_root, dump),
-            "expect_head": pin, "rc": 0, **(backend_fields() if is_exp35(row) else {})}
+            "expect_head": pin, "rc": 0, **(backend_fields() if uses_no_flash(row) else {})}
     for key, value in want.items():
         _eq(reasons, f"receipt {key}", receipt.get(key), value)
     d = receipt.get("campaign_digest")
@@ -602,6 +626,8 @@ def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, 
     row = rows[0]
     if is_exp35(row) != row["cell"].startswith("exp35_"):
         return [f"{row['cell']!r}: the name and the block {row['block']!r} name different campaigns"]
+    if exp36_name_reasons(row):
+        return exp36_name_reasons(row)
     try:
         target, sha = expected_checkpoint(row, manifest, canon_index)
     except KeyError as err:
@@ -642,7 +668,7 @@ def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, 
     if isinstance(docs["metrics"], dict) and isinstance(docs["receipt"], dict):   # rB-F2 F2-6: loaded == receipt
         for key in LOAD_KEYS:
             _eq(reasons, f"metrics record {key} vs the receipt's", docs["metrics"].get(key), docs["receipt"].get(key))
-    if is_exp35(row) and isinstance(docs["receipt"], dict):   # exp_35 §3b: its log re-read at every verification
+    if uses_no_flash(row) and isinstance(docs["receipt"], dict):   # exp_35 §3b: its log re-read at every verification
         log = docs["receipt"].get("log")
         reasons += backend_log_file_reasons(at(log) if isinstance(log, str) else None, backend_target)
     if dump_check == "receipt":
@@ -707,7 +733,7 @@ def plan_cells(manifest, selected, *, farm_root, dump_root, canon_index, no_dump
                     "canon": p.canon if row["canonicalize"] else None, "canon_probe": p.canon,
                     "receipt": p.receipt, "dump": dump, "dump_root": dump_root, "dump_dir": p.dump_dir,
                     "stem": p.stem, "expected_stream_count": row["expected_stream_count"],
-                    "argv": cell_argv(row, link, dump_root, dump), **({"no_flash": True} if is_exp35(row) else {})})
+                    "argv": cell_argv(row, link, dump_root, dump), **({"no_flash": True} if uses_no_flash(row) else {})})
     return out
 
 
@@ -721,9 +747,9 @@ def build_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, ckpt
     if ckpt_sha256 != entry["sha256"]:
         raise ValueError(f"{entry['cell']}: measured checkpoint sha256 {ckpt_sha256} != the expected "
                          f"{entry['sha256']}")
-    if backend != (backend_fields() if is_exp35(row) else None):   # exp_35: the runner's backend claim
+    if backend != (backend_fields() if uses_no_flash(row) else None):   # exp_35 / exp_36: the runner's backend claim
         raise ValueError(f"{entry['cell']}: attention backend fields {backend!r} are not "
-                         f"{backend_fields() if is_exp35(row) else None!r} for this cell")
+                         f"{backend_fields() if uses_no_flash(row) else None!r} for this cell")
     if not eval_FLAC._is_sha256_hex(campaign_digest) or {spawn_digest, post_digest} != {campaign_digest}:
         raise ValueError(f"{entry['cell']}: tree digest moved (campaign {campaign_digest}, spawn {spawn_digest}, "
                          f"post {post_digest})")
@@ -2340,7 +2366,7 @@ def main(argv=None):
     ap.add_argument("--exp25-dump-root", default=None, help="--exp35: their dump root (default: the manifest's)")
     ap.add_argument("--bf-probe-json", default=EXP35_PROBE_JSON, help="--exp35: the finalized B-F probe")
     ap.add_argument("--count-no-flash", action="store_true",
-                    help="exp_35: print how many cells of the --blocks / --only / --limit selection are exp_35 cells")
+                    help="exp_35 / exp_36: print how many cells of the --blocks / --only / --limit selection run no-flash")
     ap.add_argument("--backend-target", default=NO_FLASH["target"],
                     help="exp_35: the launcher target the log must name (default eval_FLAC.py)")
     ap.add_argument("--attention-backend", default=None, help="--write-receipt, exp_35 cells: sdpa")
@@ -2403,7 +2429,7 @@ def main(argv=None):
         return {"PASS": 0, "FAIL": 1}.get(res["status"], 2)
     if args.count_no_flash:   # exp_35 (Codex C2 HIGH 2): the runner's RELEVANT tree depends on it
         try:
-            print(sum(is_exp35(c) for c in select_cells(manifest, _csv(args.blocks), _csv(args.only), args.limit)))
+            print(sum(uses_no_flash(c) for c in select_cells(manifest, _csv(args.blocks), _csv(args.only), args.limit)))
         except ValueError as err:
             print(f"SELECTION REFUSED: {err}")
             return 2
