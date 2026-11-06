@@ -7,6 +7,7 @@ it once more, detached, as the wrapper that runs the H35 runner and durably reco
 Part 1a: the registered pins, the durable writers and the pure checks -- the 68-cell selection of the cells manifest
 at H35 and its name digest, the CANON re-pin, the runner's plan JSON re-derived row by row, the lane list.
 Part 1b: the runner's relevant-tree digest, the phase-(i) completion contract and the report evidence.
+Part 1c: the H35 supervisor's complete pure state schema, ported (Codex P2K-1 BLOCKING 2).
 Part 2a: the read-only world (nvidia-smi, lock probes, process scans, his table-job rule, /proc identities).
 Part 2b: the O_EXCL reservation records with their exact authentication, and the one card observation every mode makes.
 Part 3a: the preconditions every mutating mode re-checks -- the kit's self-pin, the report evidence, the run worktree at
@@ -310,37 +311,25 @@ def phase_i_chunks():
 PHASE_I_CHUNKS = phase_i_chunks()
 PHASE_I_KEYS = ("schema_version", "campaign", "h35", "cells_sha256", "supervisor_sha256", "approved_sha256", "baseline",
                 "his_log_anchor", "lane", "reservation", "chunks", "stop_latch", "events")
-GATES = {"E1": ("e1", "equal"), "E2": ("e2", "PASS")}
 
 
-def phase_i_reasons(doc, *, h35, digest, supervisor_sha256):
-    """§15 item 4: [] iff ``doc`` is the supervisor's state of a COMPLETE phase (i) -- schema v1 at H35, the 33 frozen
-    chunks gates_verified with rc 0 (or adopted at a restart), E1 equal, E2 PASS, the probe contract rc 0, ONE
-    campaign digest, no stop latch, no lane and no reservation, the final release event last."""
-    if not isinstance(doc, dict) or list(doc) != list(PHASE_I_KEYS):
-        return [f"the phase-(i) state's keys are not the supervisor's schema-v1 keys {list(PHASE_I_KEYS)}"]
-    out = [f"phase (i) {k} {doc[k]!r} != {v!r}" for k, v in (
-        ("schema_version", 1), ("campaign", "exp35"), ("h35", h35), ("cells_sha256", CELLS_SHA256),
-        ("supervisor_sha256", supervisor_sha256)) if doc[k] != v]
-    ch = doc["chunks"]
-    if not (isinstance(ch, list) and all(isinstance(c, dict) for c in ch)
+def phase_i_reasons(doc, *, h35, digest, supervisor_sha256, reservations):
+    """§15 item 4: [] iff ``doc`` is the supervisor's state of a COMPLETE phase (i). First the H35 supervisor's own
+    complete schema (``supervisor_state_reasons``, with the registered approved-tuple pin and his log path); then the
+    terminal conditions: the 33 frozen chunks gates_verified, E2 PASS, exactly the campaign digest, no stop latch, no
+    lane and no reservation, the final release event last."""
+    out = [f"the H35 supervisor's schema: {x}" for x in supervisor_state_reasons(
+        doc, h35=h35, cells_sha256=CELLS_SHA256, supervisor_sha256=supervisor_sha256, approved_sha256=APPROVED_SHA256,
+        his_log=HIS_LOG, reservations=reservations)]
+    ch = doc.get("chunks") if isinstance(doc, dict) else None
+    if not (isinstance(doc, dict) and list(doc) == list(PHASE_I_KEYS) and isinstance(ch, list)
+            and all(isinstance(c, dict) for c in ch)
             and [tuple(c.get(k) for k in ("n", "kind", "cell", "gate")) for c in ch] == list(PHASE_I_CHUNKS)):
-        return out + ["the phase-(i) chunks are not the frozen 33-chunk order"]
-    for c in ch:
-        n, rc_key = c["n"], "probe_rc" if c["kind"] == "probe" else "runner_rc"
-        if c.get("state") != "gates_verified":
-            out.append(f"chunk {n} is {c.get('state')}, not gates_verified")
-            continue
-        rc, adopted = c.get(rc_key), c.get("adopted_at_restart") is True
-        if not ((type(rc) is int and rc == 0) or (adopted and rc is None)):
-            out.append(f"chunk {n}: {rc_key} {rc!r} (not 0, nor a chunk adopted at a restart)")
-        if c["gate"] in GATES:
-            key, want = GATES[c["gate"]]
-            r = c.get(key) if isinstance(c.get(key), dict) else {}
-            if not (r.get("rc") == 0 and r.get("verdict") == want):
-                out.append(f"chunk {n}: {c['gate']} is {r.get('verdict')!r} (rc {r.get('rc')!r}), not {want}")
-        if c["gate"] == "PROBE" and not (isinstance(c.get("probe_contract"), dict) and c["probe_contract"].get("rc") == 0):
-            out.append(f"chunk {n}: the probe contract is {c.get('probe_contract')!r:.80}, not rc 0")
+        return out or ["the phase-(i) state is not the supervisor's schema-v1 33-chunk state"]
+    out += [f"chunk {c['n']} is {c.get('state')}, not gates_verified" for c in ch if c.get("state") != "gates_verified"]
+    e2 = ch[3].get("e2") if isinstance(ch[3].get("e2"), dict) else {}
+    out += [] if (e2.get("rc"), e2.get("verdict")) == (0, "PASS") else [
+        f"chunk 4: E2 is {e2.get('verdict')!r} (rc {e2.get('rc')!r}), not PASS"]
     digests = sorted({str(c.get("campaign_digest")) for c in ch if c["kind"] == "cell"})
     out += [] if digests == [digest] else [f"the cell chunks carry campaign digests {digests}, not exactly [{digest}]"]
     out += [why for why, bad in (
@@ -351,6 +340,175 @@ def phase_i_reasons(doc, *, h35, digest, supervisor_sha256):
     last = ev[-1].get("what") if isinstance(ev, list) and ev and isinstance(ev[-1], dict) else None
     return out + ([] if last == FINAL_EVENT else [
         f"the last phase-(i) event is {last!r}, not the final release event {FINAL_EVENT!r}"])
+
+
+# --------------------------------------------------------------------------- #
+# part 1c (Codex P2K-1 BLOCKING 2): the H35 supervisor's COMPLETE pure state schema, ported from exp35_supervisor.py
+# @ 5b065801 (lines 120-262: the helpers, _gate_reasons, _chunk_reasons, _top_reasons, state_reasons) and
+# exp35_training_guard.py (anchor_schema_reasons) -- verbatim but for the names (GPU1_UUID -> SUP_GPU1, the guard
+# module's anchor check, the reservation path, the 33-chunk plan); the tests check it reason for reason against them
+# --------------------------------------------------------------------------- #
+HIS_LOG = ("/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/"   # a path compared, never read
+           "train_exp30_ACEattn_s43_20261104T061255_741947.log")
+APPROVED_SHA256 = "238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e"   # the phase-(i) launch's tuple
+SUP_GPU1 = CARDS[1]
+CHUNK_STATES = ("planned", "in_flight", "runner_verified", "gates_verified")
+ANCHOR_KEYS = ("inode", "device", "size", "offset", "tail_sha256")
+
+
+def anchor_schema_reasons(anchor):
+    """[] iff ``anchor`` is None or exactly what ``anchor_of`` writes (Codex C3b NIT 1)."""
+    if anchor is None:
+        return []
+    ok = isinstance(anchor, dict) and list(anchor) == list(ANCHOR_KEYS) and all(
+        type(anchor[k]) is int and anchor[k] >= 0 for k in ANCHOR_KEYS[:4]) and anchor["offset"] <= anchor["size"] \
+        and isinstance(anchor["tail_sha256"], str) and re.fullmatch(r"[0-9a-f]{64}", anchor["tail_sha256"]) is not None
+    return [] if ok else [f"the persisted anchor is malformed: {anchor!r:.200}"]
+
+
+HEX64, GPU_RE = re.compile(r"[0-9a-f]{64}"), re.compile(r"GPU-[0-9A-Za-z-]+")
+CHUNK_BASE, CHUNK_FLIGHT = ("n", "kind", "cell", "gate", "state"), ("lane", "shared", "started", "log")
+GATE_KEYS = {"E1": ("e1",), "E2": ("e2",), "PROBE": ("probe_contract", "probe_json_sha256", "sidecar_sha256", "log_sha256"),
+             None: ()}
+VERDICTS = {"E1": ({0: "equal", 1: "mismatch"}, "refused", (0,)), "E2": ({0: "PASS", 1: "FAIL"}, "REFUSED", (0, 1))}
+
+
+def _hex(v):
+    return isinstance(v, str) and HEX64.fullmatch(v) is not None
+
+
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0
+
+
+def _text(v):
+    return isinstance(v, str) and v != ""
+
+
+def _gate_reasons(c, latched):
+    """A chunk's gate result: well formed; passed when gates_verified; a failure only under the stop latch."""
+    g, n = c["gate"], c["n"]
+    if g is None or (c["state"] == "runner_verified" and not any(k in c for k in GATE_KEYS[g])):
+        return []
+    if not all(k in c for k in GATE_KEYS[g]):
+        return [f"chunk {n}: an incomplete {g} result"]
+    if g == "PROBE":
+        pc = c["probe_contract"]
+        if not (isinstance(pc, dict) and list(pc) == ["rc", "out"] and type(pc["rc"]) is int and isinstance(pc["out"], str)):
+            return [f"chunk {n}: a malformed probe contract result"]
+        passed = pc["rc"] == 0 and all(_hex(c[k]) for k in GATE_KEYS[g][1:])
+    else:
+        r, (names, other, good) = c[GATE_KEYS[g][0]], VERDICTS[g]
+        if not (isinstance(r, dict) and list(r) == ["rc", "verdict", "out"] and type(r["rc"]) is int
+                and isinstance(r["out"], str) and r["verdict"] == names.get(r["rc"], other)):
+            return [f"chunk {n}: a malformed {g} result {r!r:.120}"]
+        passed = r["rc"] in good
+    if not passed and (c["state"] == "gates_verified" or not latched):
+        return [f"chunk {n}: a failed {g} result in a {c['state']} chunk" + ("" if latched else " without the stop latch")]
+    return []
+
+
+def _chunk_reasons(c, latched):
+    """Codex C3b BLOCKING 1: each state carries exactly the evidence it claims."""
+    n, st, cell = c["n"], c["state"], c["kind"] == "cell"
+    keys, base, flight = set(c), set(CHUNK_BASE), set(CHUNK_BASE + CHUNK_FLIGHT)
+    if st == "planned":
+        return [] if keys == base else [f"chunk {n}: a planned chunk carries {sorted(keys - base)}"]
+    if not flight <= keys:
+        return [f"chunk {n} ({st}): missing {sorted(flight - keys)}"]
+    out = [] if (isinstance(c["lane"], str) and GPU_RE.fullmatch(c["lane"]) and type(c["shared"]) is bool
+                 and c["shared"] == (c["lane"] == SUP_GPU1) and _text(c["started"]) and _text(c["log"])) else [
+        f"chunk {n}: a malformed lane / shared / started / log"]
+    rc_key = "runner_rc" if cell else "probe_rc"
+    run, receipt = {"ended", rc_key}, {"receipt_sha256", "campaign_digest"} if cell else set()
+    extra = keys - flight
+    if st == "in_flight":                         # a crash mid-chunk (bare) or a recorded failure (under the latch)
+        if extra and (extra != run or not latched or type(c[rc_key]) is not int or not _text(c["ended"])):
+            return out + [f"chunk {n}: in flight with {sorted(extra)} (a recorded failure: exactly {sorted(run)}, an int "
+                          "rc and its end, under the stop latch)"]
+        return out
+    gate, adopt = set(GATE_KEYS[c["gate"]]), {"adopted_at_restart"} if cell else set()
+    final = {"final_guard"} if st == "gates_verified" else set()
+    need = run | receipt | (gate | final if st == "gates_verified" else set())
+    if not need <= extra or extra - run - receipt - gate - adopt - final:
+        return out + [f"chunk {n} ({st}): carries {sorted(extra)}, needs {sorted(need)}"]
+    adopted = c.get("adopted_at_restart") is True
+    if "adopted_at_restart" in c and not adopted:
+        out.append(f"chunk {n}: adopted_at_restart {c['adopted_at_restart']!r}")
+    if not ((type(c[rc_key]) is int and c[rc_key] == 0) or (adopted and c[rc_key] is None)):
+        out.append(f"chunk {n}: rc {c[rc_key]!r} in a {st} chunk")
+    if not (_text(c["ended"]) or (adopted and c["ended"] is None)):
+        out.append(f"chunk {n}: ended {c['ended']!r}")
+    if cell and not (_hex(c["receipt_sha256"]) and _hex(c["campaign_digest"])):
+        out.append(f"chunk {n}: the receipt / campaign digest are not sha256 values")
+    fg = c.get("final_guard")
+    if st == "gates_verified" and not (
+            isinstance(fg, dict) and list(fg) == ["status", "exit", "t", "time", "step", "anchor"] and fg["status"] == "OK"
+            and type(fg["exit"]) is int and fg["exit"] == 0 and _num(fg["t"]) and _text(fg["time"])
+            and type(fg["step"]) is int and fg["step"] >= 0 and fg["anchor"] is not None
+            and not anchor_schema_reasons(fg["anchor"])):
+        out.append(f"chunk {n}: gates_verified without a passing final-guard record ({fg!r:.120})")
+    return out + _gate_reasons(c, latched)
+
+
+def _top_reasons(doc, his_log, reservations):
+    """baseline (on THE configured log), the guard anchor, lane + reservation (in THE configured directory), the latch,
+    the events -- exact (Codex C3b BLOCKING 1, C3c BLOCKING 1)."""
+    b, lane, res, latch = doc["baseline"], doc["lane"], doc["reservation"], doc["stop_latch"]
+    out = [] if b is None or (isinstance(b, dict) and list(b) == ["time", "step", "log"] and _num(b["time"])
+                              and type(b["step"]) is int and b["step"] >= 0 and isinstance(b["log"], dict)
+                              and list(b["log"]) == ["path", "inode", "size"] and b["log"]["path"] == his_log
+                              and type(b["log"]["inode"]) is int and b["log"]["inode"] >= 0
+                              and type(b["log"]["size"]) is int and b["log"]["size"] >= 0) else [
+        f"a malformed baseline, or one on another log than {his_log}: {b!r:.160}"]
+    out += anchor_schema_reasons(doc["his_log_anchor"])
+    if (lane is None) != (res is None):
+        out.append("the lane and the reservation must be set together")
+    elif lane is not None and not (
+            isinstance(lane, dict) and list(lane) == ["uuid", "shared"] and isinstance(lane["uuid"], str)
+            and GPU_RE.fullmatch(lane["uuid"]) and type(lane["shared"]) is bool and lane["shared"] == (lane["uuid"] == SUP_GPU1)
+            and isinstance(res, dict) and list(res) == ["uuid", "epoch", "path", "sha256"] and res["uuid"] == lane["uuid"]
+            and type(res["epoch"]) is int and res["epoch"] >= 1 and res["path"] == os.path.join(reservations, res["uuid"] + ".json")
+            and _hex(res["sha256"])):
+        out.append(f"the lane {lane!r} and the reservation {res!r} do not agree")
+    if latch is not None and not (isinstance(latch, dict) and list(latch) == ["reason", "time"]
+                                  and _text(latch["reason"]) and _text(latch["time"])):
+        out.append(f"a malformed stop latch {latch!r:.120}")
+    if not (isinstance(doc["events"], list) and all(isinstance(e, dict) and _num(e.get("t")) and _text(e.get("time"))
+                                                    and _text(e.get("what")) for e in doc["events"])):
+        out.append("malformed events")
+    return out
+
+
+def supervisor_state_reasons(doc, *, h35, cells_sha256, supervisor_sha256, approved_sha256, his_log, reservations):
+    if not isinstance(doc, dict) or list(doc) != list(PHASE_I_KEYS):
+        return [f"the state's keys are not {list(PHASE_I_KEYS)}"]
+    out = [f"{k}: {doc[k]!r} != {want!r}" for k, want in (
+        ("schema_version", 1), ("campaign", "exp35"), ("h35", h35), ("cells_sha256", cells_sha256),
+        ("supervisor_sha256", supervisor_sha256), ("approved_sha256", approved_sha256)) if doc[k] != want]
+    plan = list(PHASE_I_CHUNKS)
+    if not isinstance(doc["chunks"], list) or not all(isinstance(c, dict) for c in doc["chunks"]) or [
+            (c.get("n"), c.get("kind"), c.get("cell"), c.get("gate")) for c in doc["chunks"]] != plan:
+        return out + ["the state's chunks are not the frozen 33-chunk order"]
+    states = [c.get("state") for c in doc["chunks"]]
+    out += [f"chunk {i + 1}: unknown state {s!r}" for i, s in enumerate(states) if s not in CHUNK_STATES]
+    if out:
+        return out
+    done = 0
+    while done < len(states) and states[done] == "gates_verified":
+        done += 1
+    if any(s != "planned" for s in states[done + 1:]):
+        out.append(f"chunk order violated: {states[:done + 3]}... (only the first unfinished chunk may be started)")
+    latched = doc["stop_latch"] is not None
+    out += [x for c in doc["chunks"] for x in _chunk_reasons(c, latched)] + _top_reasons(doc, his_log, reservations)
+    digests = {c["campaign_digest"] for c in doc["chunks"] if "campaign_digest" in c}
+    out += [f"the chunks carry {len(digests)} campaign digests"] if len(digests) > 1 else []
+    started = any(s != "planned" for s in states)
+    if started != (doc["baseline"] is not None):
+        out.append("a baseline exactly when a chunk has started")
+    if started and done < len(states) and doc["reservation"] is None:
+        out.append("a started, unfinished campaign holds no reservation")
+    return out
 
 
 REPORT_KEYS = ("h35", "phase-i-state-sha256", "lanes", "second-lane-decision", "eta", "prior-runs")
@@ -820,7 +978,8 @@ def evidence(cfg, *, lanes, report, report_sha256, prior_runs):
         doc = json.loads(st.raw) if st else None
     except ValueError:
         doc = None
-    out += phase_i_reasons(doc, h35=cfg.h35, digest=cfg.digest, supervisor_sha256=sup.sha256 if sup else None)
+    out += phase_i_reasons(doc, h35=cfg.h35, digest=cfg.digest, supervisor_sha256=sup.sha256 if sup else None,
+                           reservations=cfg.reservations)
     why, rep, raw = report_evidence(cfg, report, report_sha256)
     fields, why2 = report_fields(raw) if raw is not None else ({}, [])
     out += why + why2 + report_reasons(fields, h35=cfg.h35, lanes=lanes, state_sha256=st.sha256 if st else None,
@@ -1475,7 +1634,8 @@ def status(world, cfg, *, orch=None, kit_commit=None):
     why, m, rows = selection(cells.raw if cells else b"")
     out.append(f"cells: {len(rows)} selected, names sha256 {names_sha256([r['cell'] for r in rows])}; " + ("; ".join(why) or "OK"))
     doc = _json(st_i.raw) if st_i else None
-    why = phase_i_reasons(doc, h35=cfg.h35, digest=cfg.digest, supervisor_sha256=sup.sha256 if sup else None)
+    why = phase_i_reasons(doc, h35=cfg.h35, digest=cfg.digest, supervisor_sha256=sup.sha256 if sup else None,
+                          reservations=cfg.reservations)
     out.append(f"phase (i): state sha256 {st_i.sha256 if st_i else None}; " + ("; ".join(why) or "complete"))
     out.append("run worktree: " + ("; ".join(worktree_reasons(cfg, m) if m else ["no manifest"]) or "at H35, clean, digest OK"))
     out.append("his files: " + ("; ".join(external_reasons(cfg)) or "at their pins; his s43 training ended"))

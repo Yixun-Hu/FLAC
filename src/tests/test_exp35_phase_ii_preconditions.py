@@ -216,8 +216,10 @@ def test_every_failed_precondition_is_named(tmp_path, case, reason):
     if case == "phase-i-incomplete":
         SB.write_phase_i(b.run, b.head, b.digest, stop_latch={"reason": "x", "time": "t"})
         reason = "stop latch"
-    elif case == "state-after-report":
-        SB.write_phase_i(b.run, b.head, b.digest, approved_sha256="f" * 64)
+    elif case == "state-after-report":                                          # schema-valid, another sha256
+        doc = SB.completed_state(h35=b.head, campaign_digest=b.digest)
+        doc["events"][-1]["time"] = "2026-11-06T11:21:00-05:00"
+        open(os.path.join(b.run, K.SUP_STATE), "w").write(json.dumps(doc, indent=1))
     elif case == "cells":
         with open(os.path.join(b.run, K.CELLS), "a") as f:
             f.write(" ")

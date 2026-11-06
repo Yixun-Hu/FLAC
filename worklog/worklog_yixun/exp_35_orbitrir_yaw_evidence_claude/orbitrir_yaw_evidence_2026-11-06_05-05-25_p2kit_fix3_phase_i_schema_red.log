@@ -1,0 +1,3 @@
+p2kit fix 3 (Codex P2K-1 BLOCKING 2: the H35 supervisor's complete state schema, then the terminal conditions) RED at f3fc23d146e8dfa5d7c00efb9fe98a39bf08c5dd -- 2026-11-06T05:05:25-05:00 -- the port does not exist yet
+      1 E   AttributeError: module 'exp35_phase_ii' has no attribute 'ANCHOR_KEYS'
+pytest rc 2

@@ -88,7 +88,8 @@ SUP_SHA = SHA(SB.real_supervisor())
 
 
 def _pi(doc, **kw):
-    args = dict(h35=SB.H35_REAL, digest=SB.DIGEST_REAL, supervisor_sha256=SUP_SHA)
+    args = dict(h35=SB.H35_REAL, digest=SB.DIGEST_REAL, supervisor_sha256=SUP_SHA,
+                reservations="/home/yixunhu/codespace/.gpu_reservations")      # a path string, never accessed
     args.update(kw)
     return K.phase_i_reasons(doc, **args)
 
@@ -159,11 +160,11 @@ def _tamper(name):
 
 
 @pytest.mark.parametrize("name, reason", [
-    ("planned", "chunk 33"), ("latch", "stop latch"), ("e2", "E2"), ("e1", "E1"), ("probe", "probe"),
+    ("planned", "chunk 33"), ("latch", "stop latch"), ("e2", "E2"), ("e1", "E1"), ("probe", "PROBE"),
     ("reservation", "reservation"), ("lane", "lane"), ("no-final", "final"), ("final-not-last", "final"),
     ("h35", "h35"), ("cells", "cells_sha256"), ("supervisor", "supervisor_sha256"), ("keys", "keys"),
     ("digest", "digest"), ("order", "33-chunk order"), ("schema", "schema_version"), ("campaign", "campaign"),
-    ("rc", "runner_rc")])
+    ("rc", "rc 1 in a gates_verified chunk")])
 def test_every_incomplete_or_failed_phase_i_is_refused(name, reason):
     why = _pi(_tamper(name))
     assert why and any(reason in x for x in why), why
@@ -174,7 +175,7 @@ def test_a_chunk_adopted_at_a_supervisor_restart_passes_as_the_supervisor_admits
     d["chunks"][9].update(runner_rc=None, ended=None, adopted_at_restart=True)
     assert _pi(d) == []
     d["chunks"][9]["adopted_at_restart"] = False
-    assert any("runner_rc" in x for x in _pi(d))
+    assert any("rc None in a gates_verified chunk" in x for x in _pi(d))
 
 
 def test_a_phase_i_state_that_is_not_a_dict_is_refused():
