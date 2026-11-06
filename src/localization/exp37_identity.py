@@ -98,4 +98,5 @@ def identity_reasons(identity: dict, expected: dict, audit: dict) -> list[str]:
                 bad.append(key)
         elif have != want:
             bad.append(key)
-    return [f"identity field {key} is not the registered value" for key in bad]
+    return [f"identity field {key} is not the registered value" for key in bad] + [
+        f"identity field {key} is not registered" for key in sorted(set(identity) - set(expected))]
