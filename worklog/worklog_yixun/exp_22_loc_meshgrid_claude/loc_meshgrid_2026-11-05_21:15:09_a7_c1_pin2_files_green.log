@@ -1,0 +1,9 @@
+# exp_22 A7 c1 GREEN (Coder, Claude Opus 5.5): the four H35 5b065801 files byte-identical (staged); CPU only
+0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023  overlays/no_flash/flash_attn.py
+bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de  overlays/no_flash/exp35_no_flash_launch.py
+d61a3c02a7e1295a48b3edb60e8abccab508cadb6f4c11bdca9872234bd961dd  src/tests/test_exp35_no_flash_launch.py
+6422eae5482773db252372760825749f41ac061487be892e350fda997b619a74  pyproject.toml
+$ CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider --color=no src/tests/test_exp35_no_flash_launch.py
+.......................................                                  [100%]
+39 passed in 23.57s
+rc 0
