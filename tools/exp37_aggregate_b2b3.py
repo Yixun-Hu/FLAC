@@ -143,6 +143,16 @@ def _input(path, inventory: dict, key: str) -> dict:
     return payload
 
 
+def _selector(path, selection, inventory: dict, key: str):
+    rows, host = lat.load_selector(path, selection), lat.selector_cotenancy(path)
+    monitor = host.get("monitor") or {}
+    inventory["selectors"][key] = {"path": str(path), "sha256": _hashed(path)["sha256"], "file_sha256": _file_sha256(path),
+                                   "binding_sha256": host.get("binding_sha256"), "timing_valid": host["timing_valid"],
+                                   "monitor_head_sha256": monitor.get("monitor_head_sha256"),
+                                   "markers_head_sha256": monitor.get("markers_head_sha256")}
+    return {i: r["scoring_total_seconds"] for i, r in rows.items()}, host
+
+
 def _attested(run_dir, entry: dict) -> bool:
     """The run's co-tenancy attestation into its inventory entry; True when the timing is attested."""
     host = lat.host_cotenancy(run_dir)
@@ -163,6 +173,71 @@ def _timing_only(run_dir, replay, *, arm, selection, audit, **modes) -> dict:
     manifest = _hashed(Path(run_dir) / "run_manifest.json")
     return {"run_dir": str(run_dir), "run_manifest_sha256": manifest["sha256"], "timing": True,
             "queries": sources.query_inventory(run_dir, manifest, [int(r["index"]) for r in selection["records"]])}
+
+
+def _stats(by_seed: dict, label: str) -> dict:
+    if sorted(by_seed) != list(SEEDS):
+        raise RuntimeError(f"{label}: an accuracy statistic needs exactly the seeds {list(SEEDS)} (has {sorted(by_seed)})")
+    return {**{m: agg.seed_stats(by_seed[s][m] for s in SEEDS) for m in METRICS}, "seeds": list(SEEDS)}
+
+
+def build_b2(spec: dict, inventory: dict) -> tuple[dict, dict]:
+    pilot = _input(spec["pilot_0p50"], inventory, "pilot_0p50")
+    pilot75 = _input(spec["pilot_0p75"], inventory, "pilot_0p75")
+    audits = {"0.50": _input(spec["audit_0p50"], inventory, "audit_0p50"),
+              "0.75": _input(spec["audit_0p75"], inventory, "audit_0p75")}
+    nested = _input(spec["nested_manifest"], inventory, "nested_manifest")
+    indices = [int(r["index"]) for r in pilot["records"]]
+    if [int(r["index"]) for r in pilot75["records"]] != indices or nested["parent_pilot_sha256"] != pilot["sha256"]:
+        raise RuntimeError("the 0.75 m pilot / nested manifest do not cover the 0.5 m pilot's queries")
+    terms = {"0.50": _selector(spec["selector_0p50"], pilot, inventory, "selector_0p50"),
+             "0.75": _selector(spec["selector_0p75"], pilot75, inventory, "selector_0p75"),
+             "1.00_nested": _selector(spec["selector_nested"], nested, inventory, "selector_nested")}
+    summaries = {(a, g): {} for a in ARMS for g in GRIDS + SENSITIVITY}
+    seconds, valid = {(a, g): {} for a in ARMS for g in GRIDS}, {(a, g): {} for a in ARMS for g in GRIDS}
+    for item in spec["b2_runs"]:
+        arm, g, seed, timing, run_dir = item["arm"], item["grid"], int(item["seed"]), bool(item["timing"]), item["dir"]
+        selection, audit = (pilot, audits["0.50"]) if g == "0.50" else (pilot75, audits["0.75"])
+        entry = sources.accuracy_source(run_dir, arm=arm, selection=selection, audit=audit, seed=seed, timing=timing,
+                                        replay_dir=item.get("replay"))
+        rows = grid.readout_run(run_dir, pilot) if g == "0.50" else {
+            "0.75": grid.readout_run(run_dir, pilot75, full_only=True)["full"]}
+        for name, summary in grid.summarize_readout(rows).items():
+            summaries[(arm, name)][seed] = summary
+        if timing:
+            core = {i: r["core"] for i, r in lat.load_arm_run(run_dir, arm=arm, selection=selection, audit=audit,
+                                                              seed=seed).items()}
+            seconds[(arm, g)][seed] = agg.mean_latency(core, terms[g][0], indices)
+            valid[(arm, g)][seed] = _attested(run_dir, entry) and bool(terms[g][1]["timing_valid"])
+        inventory["runs"][run_dir] = entry
+    parents = {i["arm"]: i["dir"] for i in spec["b2_runs"] if (i["grid"], int(i["seed"])) == ("0.50", 42)}
+    for item in spec["b2_timing"]:
+        arm, kind, run_dir = item["arm"], item["kind"], item["dir"]
+        modes = {"candidate_subset": kind, **({"c2f_top_k": 5} if kind == "c2f" else {})}
+        entry = _timing_only(run_dir, item.get("replay"), arm=arm, selection=pilot, audit=audits["0.50"], **modes)
+        if kind == "nested_1m":
+            core = {i: r["core"] for i, r in lat.load_arm_run(run_dir, arm=arm, selection=pilot, audit=audits["0.50"],
+                                                              subset_manifest=nested).items()}
+            key, value = (arm, "1.00_nested"), agg.mean_latency(core, terms["1.00_nested"][0], indices)
+            selector_ok = bool(terms["1.00_nested"][1]["timing_valid"])
+        else:
+            rows = lat.load_c2f_run(run_dir, arm=arm, selection=pilot, audit=audits["0.50"], top_k=5,
+                                    parent_run_dir=parents[arm])
+            key, value, selector_ok = (arm, "c2f_k5"), sum(rows[i]["c2f_total"] for i in indices) / len(indices), True
+        seconds[key][42], valid[key][42] = value, _attested(run_dir, entry) and selector_ok
+        inventory["runs"][run_dir] = entry
+    points = []
+    for arm in ARMS:
+        for g in GRIDS:
+            times = seconds[(arm, g)]
+            points.append({"arm": arm, "label": LABELS[arm], "grid": g, "grid_label": GRID_LABELS[g],
+                           "accuracy": _stats(summaries[(arm, g)], f"B2 {arm} {g}"), "seconds_per_query": times[42],
+                           "seconds_per_query_repeats": {str(s): v for s, v in sorted(times.items()) if s != 42},
+                           "timing_valid": bool(valid[(arm, g)][42]),                       # the seed-42 headline
+                           "repeat_timing_valid": {str(s): v for s, v in sorted(valid[(arm, g)].items()) if s != 42}})
+    sensitivity = [{"arm": a, "grid": g, "accuracy": _stats(summaries[(a, g)], f"B2 {a} {g}"),
+                    "post_primary_sensitivity": True} for a in ARMS for g in SENSITIVITY]
+    return {"query_count": len(indices), "points": points, "sensitivity": sensitivity}, summaries
 
 
 def frontier(points: list) -> dict:
@@ -192,6 +267,35 @@ def _synthesis(section: dict, inventory: dict) -> dict:
             "metrics_keys": keys, "cells": cells}
 
 
+def build_b3(spec: dict, b2_summaries: dict, inventory: dict) -> dict:
+    pilot, audit = _hashed(spec["pilot_0p50"]), _hashed(spec["audit_0p50"])
+    cells = {("c4", 0): {s: b2_summaries[("BF", "0.50")][s] for s in SEEDS}}       # C4 theta 0 = B2's B-F 0.50
+    for item in spec["b3_runs"]:
+        orbit, theta, seed, run_dir = item["orbit"], int(item["theta"]), int(item["seed"]), item["dir"]
+        inventory["runs"][run_dir] = sources.accuracy_source(run_dir, arm="BF", selection=pilot, audit=audit, seed=seed,
+                                                             timing=False, frame_angles=ORBITS[orbit],
+                                                             rotate_deg=float(theta))
+        cells.setdefault((orbit, theta), {})[seed] = grid.summarize_readout(
+            {"full": grid.readout_run(run_dir, pilot, full_only=True)["full"]})["full"]
+    accuracy = [{"orbit": o, "theta": t, "angles": ORBITS[o], "accuracy": _stats(cells[(o, t)], f"B3 {o} theta {t}")}
+                for o in B3_ORBITS for t in B3_THETAS]
+    selection = _input(spec["b3_latency"]["selection"], inventory, "latency_selection")
+    terms, selector_host = _selector(spec["b3_latency"]["selector"], selection, inventory, "latency_selector")
+    counts = {int(r["index"]): int(r["candidate_count"]) for r in selection["records"]}
+    latency = []
+    for item in spec["b3_latency"]["runs"]:
+        orbit, run_dir = item["orbit"], item["dir"]
+        entry = _timing_only(run_dir, item.get("replay"), arm="BF", selection=selection, audit=audit,
+                             frame_angles=ORBITS[orbit])
+        rows = lat.load_arm_run(run_dir, arm="BF", selection=selection, audit=audit, frame_angles=ORBITS[orbit])
+        stats = lat.latency_statistics({i: r["core"] for i, r in rows.items()}, terms, counts)
+        latency.append({"orbit": orbit, "angles": ORBITS[orbit], "overall": stats["overall"],
+                        "per_candidate": stats["per_candidate"],
+                        "timing_valid": _attested(run_dir, entry) and bool(selector_host["timing_valid"])})
+        inventory["runs"][run_dir] = entry
+    return {"accuracy": accuracy, "latency": latency, "synthesis": _synthesis(spec["b3_synthesis"], inventory)}
+
+
 def load_external(external: dict, pilot: dict, inventory: dict) -> dict:
     """The FewShotRIR / FEM reference markers from the PINNED exp_23 summary and bundle latency CSV."""
     summary = _hashed(external["accuracy"])
@@ -208,127 +312,21 @@ def load_external(external: dict, pilot: dict, inventory: dict) -> dict:
     return agg.external_markers(summary, rows, pilot)
 
 
-def _selector(path, selection):
-    rows = lat.load_selector(path, selection)
-    return {i: r["scoring_total_seconds"] for i, r in rows.items()}, lat.selector_cotenancy(path)
-
-
-def _seed_of(run_dir) -> int:
-    return int(_hashed(Path(run_dir) / "run_manifest.json")["identity"]["sample_seed"])
-
-
-def _stats(by_seed: dict) -> dict:
-    seeds = sorted(by_seed)
-    return {**{m: agg.seed_stats(by_seed[s][m] for s in seeds) for m in METRICS}, "seeds": seeds}
-
-
-def build_b2(spec: dict) -> dict:
-    pilot, pilot75 = load_pilot_manifest(spec["pilot_0p50"]), load_pilot_manifest(spec["pilot_0p75"])
-    audits = {"0.50": _hashed(spec["audit_0p50"]), "0.75": _hashed(spec["audit_0p75"])}
-    nested = _hashed(spec["nested_manifest"])
-    indices = [int(r["index"]) for r in pilot["records"]]
-    if [int(r["index"]) for r in pilot75["records"]] != indices or nested["parent_pilot_sha256"] != pilot["sha256"]:
-        raise RuntimeError("the 0.75 m pilot / nested manifest do not cover the 0.5 m pilot's queries")
-    terms = {"0.50": _selector(spec["selector_0p50"], pilot), "0.75": _selector(spec["selector_0p75"], pilot75),
-             "1.00_nested": _selector(spec["selector_nested"], nested)}
-    summaries = {(a, g): {} for a in ARMS for g in GRIDS + SENSITIVITY}
-    seconds, valid = {(a, g): {} for a in ARMS for g in GRIDS}, {(a, g): {} for a in ARMS for g in GRIDS}
-    for item in spec["b2_runs"]:
-        arm, g, seed, run_dir = item["arm"], item["grid"], int(item["seed"]), item["dir"]
-        selection = {"0.50": pilot, "0.75": pilot75}[g]
-        core = {i: r["core"] for i, r in lat.load_arm_run(run_dir, arm=arm, selection=selection, audit=audits[g],
-                                                          seed=seed).items()}
-        if _seed_of(run_dir) != seed or seed in summaries[(arm, g)]:
-            raise RuntimeError(f"{run_dir}: not the seed-{seed} {arm} {g} run, or a duplicate")
-        rows = grid.readout_run(run_dir, pilot) if g == "0.50" else {"0.75": grid.readout_run(
-            run_dir, pilot75, full_only=True)["full"]}
-        for name, summary in grid.summarize_readout(rows).items():
-            summaries[(arm, name)][seed] = summary
-        seconds[(arm, g)][seed] = agg.mean_latency(core, terms[g][0], indices)
-        valid[(arm, g)][seed] = lat.host_cotenancy(run_dir)["timing_valid"] and terms[g][1]["timing_valid"]
-    for item in spec.get("b2_timing", []):
-        arm, kind, run_dir = item["arm"], item["kind"], item["dir"]
-        if kind == "nested_1m":
-            core = {i: r["core"] for i, r in lat.load_arm_run(run_dir, arm=arm, selection=pilot, audit=audits["0.50"],
-                                                              subset_manifest=nested).items()}
-            key, value, ok = (arm, "1.00_nested"), agg.mean_latency(core, terms["1.00_nested"][0], indices), \
-                terms["1.00_nested"][1]["timing_valid"]
-        elif kind == "c2f":
-            parent = next((i["dir"] for i in spec["b2_runs"] if (i["arm"], i["grid"], int(i["seed"])) == (arm, "0.50", 42)),
-                          None)
-            if parent is None:
-                raise RuntimeError(f"the {arm} c2f pass needs its parent: the {arm} 0.50 seed-42 run")
-            rows = lat.load_c2f_run(run_dir, arm=arm, selection=pilot, audit=audits["0.50"], top_k=5,
-                                    parent_run_dir=parent)
-            key, value, ok = (arm, "c2f_k5"), sum(rows[i]["c2f_total"] for i in indices) / len(indices), True
-        else:
-            raise ValueError(f"unknown timing pass kind {kind!r}")
-        if _seed_of(run_dir) != 42 or 42 in seconds[key]:
-            raise RuntimeError(f"{run_dir}: the dedicated {kind} timing pass must be the single seed-42 pass")
-        seconds[key][42] = value
-        valid[key][42] = ok and lat.host_cotenancy(run_dir)["timing_valid"]
-    points = []
-    for arm in ARMS:
-        for g in GRIDS:
-            if not summaries[(arm, g)]:
-                continue
-            times = seconds[(arm, g)]
-            points.append({"arm": arm, "label": LABELS[arm], "grid": g, "grid_label": GRID_LABELS[g],
-                           "accuracy": _stats(summaries[(arm, g)]), "seconds_per_query": times.get(42),
-                           "seconds_per_query_repeats": {str(s): v for s, v in sorted(times.items()) if s != 42},
-                           "timing_valid": bool(valid[(arm, g)].get(42, False)),          # the seed-42 headline
-                           "repeat_timing_valid": {str(s): v for s, v in sorted(valid[(arm, g)].items()) if s != 42}})
-    timed = [i for i, p in enumerate(points) if p["seconds_per_query"] is not None]
-    frontier = {metric: [timed[j] for j in agg.pareto_frontier(
-        [(points[i]["seconds_per_query"], points[i]["accuracy"][metric]["mean"]) for i in timed], minimize_y=minimize)]
-        for metric, minimize in (("median_localization_error_m", True), ("success_1_0m", False))}
-    sensitivity = [{"arm": a, "grid": g, "accuracy": _stats(summaries[(a, g)]), "post_primary_sensitivity": True}
-                   for a in ARMS for g in SENSITIVITY if summaries[(a, g)]]
-    return {"query_count": len(indices), "points": points, "frontier": frontier, "sensitivity": sensitivity}
-
-
-def _b3_reasons(identity: dict, orbit: str, theta: float, seed: int, pilot: dict, audit: dict) -> list[str]:
-    want = ident.registered_identity("BF", selection=pilot, audit=audit, seed=seed, timing=not theta,
-                                     frame_angles=ORBITS[orbit], rotate_deg=theta)
-    return ident.identity_reasons(identity, want, audit)
-
-
-def build_b3(spec: dict) -> dict:
-    pilot, audit = load_pilot_manifest(spec["pilot_0p50"]), _hashed(spec["audit_0p50"])
-    by_cell = {}
-    for item in spec.get("b3_runs", []):
-        orbit, theta, seed, run_dir = item["orbit"], float(item["theta"]), int(item["seed"]), item["dir"]
-        bad = _b3_reasons(_hashed(Path(run_dir) / "run_manifest.json")["identity"], orbit, theta, seed, pilot, audit)
-        cell = by_cell.setdefault((orbit, theta), {})
-        if bad or seed in cell:
-            raise RuntimeError(f"{run_dir}: identity fields {bad} differ from B-F orbit {orbit} theta {theta} seed {seed}"
-                               " (or a duplicate)")
-        cell[seed] = grid.summarize_readout({"full": grid.readout_run(run_dir, pilot, full_only=True)["full"]})["full"]
-    accuracy = [{"orbit": o, "theta": int(t), "angles": ORBITS[o], "accuracy": _stats(cell)}
-                for (o, t), cell in sorted(by_cell.items())]
-    latency = []
-    if spec.get("b3_latency"):
-        selection = load_pilot_manifest(spec["b3_latency"]["selection"])
-        terms, selector_host = _selector(spec["b3_latency"]["selector"], selection)
-        counts = {int(r["index"]): int(r["candidate_count"]) for r in selection["records"]}
-        for item in spec["b3_latency"]["runs"]:
-            rows = lat.load_arm_run(item["dir"], arm="BF", selection=selection, audit=audit,
-                                    frame_angles=ORBITS[item["orbit"]])
-            stats = lat.latency_statistics({i: r["core"] for i, r in rows.items()}, terms, counts)
-            latency.append({"orbit": item["orbit"], "angles": ORBITS[item["orbit"]], "overall": stats["overall"],
-                            "per_candidate": stats["per_candidate"],
-                            "timing_valid": lat.host_cotenancy(item["dir"])["timing_valid"] and selector_host["timing_valid"]})
-    return {"accuracy": accuracy, "latency": latency}
-
-
 def build_summary(spec: dict) -> dict:
-    body = {"schema_version": 1, "record_type": "exp37_b2_b3_summary", "spec": spec, "b2": build_b2(spec),
-            "b3": build_b3(spec)}
-    if spec.get("external"):
-        pilot = load_pilot_manifest(spec["pilot_0p50"])
-        with open(spec["external"]["latency_csv"]) as handle:
-            body["external"] = agg.external_markers(json.loads(Path(spec["external"]["accuracy"]).read_text()),
-                                                    list(csv.DictReader(handle)), pilot)
+    check_spec(spec)
+    inventory = {"inputs": {}, "selectors": {}, "runs": {}, "external": {}, "synthesis": {}}
+    b2, summaries = build_b2(spec, inventory)
+    b3 = build_b3(spec, summaries, inventory)
+    external = load_external(spec["external"], _hashed(spec["pilot_0p50"]), inventory["external"])
+    reasons = [f"B2 {p['arm']} {p['grid']}: the seed-42 timing is not attested" for p in b2["points"]
+               if not p["timing_valid"]]
+    reasons += [f"B3 orbit {r['orbit']}: the latency timing is not attested" for r in b3["latency"] if not r["timing_valid"]]
+    if b3["synthesis"]["status"] != "complete":
+        reasons.append("B3 synthesis is pending: the exp_36 leaf cells are not filled in the spec")
+    b2["frontier"] = None if reasons else frontier(b2["points"])
+    body = {"schema_version": SPEC_SCHEMA, "record_type": "exp37_b2_b3_DIAGNOSTIC" if reasons else "exp37_b2_b3_summary",
+            "publishable": not reasons, "reasons": reasons, "spec_sha256": canonical_sha256(spec), "spec": spec,
+            "b2": b2, "b3": b3, "external": external, "inventory": inventory}
     return {**body, "sha256": canonical_sha256(body)}
 
 
