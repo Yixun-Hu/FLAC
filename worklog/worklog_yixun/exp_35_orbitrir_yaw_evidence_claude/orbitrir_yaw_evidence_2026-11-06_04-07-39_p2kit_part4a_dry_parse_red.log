@@ -1,0 +1,31 @@
+p2kit part 4a (the exact runner command, the exact DRY_RUN transcript parser) RED at 56a01ca435829c3e6f8bfc295bc0c8deea46ebc3 -- 2026-11-06T04:07:39-05:00 -- the part-4a functions do not exist yet (the final 25 tests)
+     14 E       AttributeError: module 'exp35_phase_ii' has no attribute 'runner_command'
+     10 E       AttributeError: module 'exp35_phase_ii' has no attribute 'parse_dry_run'
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_the_stub_transcript_of_the_68_cells_parses_exactly
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_the_pinned_preflight_and_warning_lines_are_the_real_ones
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_the_parser_reads_the_real_h35_runner_transcript_exactly
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_the_exact_runner_command
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_stub_fault_is_refused_by_the_parser[fault9-not the expected]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_stub_fault_is_refused_by_the_parser[fault8-not the expected]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_stub_fault_is_refused_by_the_parser[fault7-a refusal]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_stub_fault_is_refused_by_the_parser[fault6-not the expected]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_stub_fault_is_refused_by_the_parser[fault5-not the expected]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_stub_fault_is_refused_by_the_parser[fault4-argv]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_stub_fault_is_refused_by_the_parser[fault3-an E2-FAIL cell]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_stub_fault_is_refused_by_the_parser[fault2-a quarantine line]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_stub_fault_is_refused_by_the_parser[fault1-a SKIP line]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_stub_fault_is_refused_by_the_parser[fault11-None]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_stub_fault_is_refused_by_the_parser[fault10-not the expected]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_stub_fault_is_refused_by_the_parser[fault0-not the expected]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_deviation_of_the_real_transcript_is_named[<lambda>-timestamps]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_deviation_of_the_real_transcript_is_named[<lambda>-not the expected3]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_deviation_of_the_real_transcript_is_named[<lambda>-not the expected2]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_deviation_of_the_real_transcript_is_named[<lambda>-not the expected1]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_deviation_of_the_real_transcript_is_named[<lambda>-not the expected0]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_deviation_of_the_real_transcript_is_named[<lambda>-None]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_deviation_of_the_real_transcript_is_named[<lambda>-follows the summary]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_every_deviation_of_the_real_transcript_is_named[<lambda>-ends after]
+      1 FAILED src/tests/test_exp35_phase_ii_dry_parse.py::test_an_e2_fail_cell_id_alone_is_named
+      1 E       AttributeError: module 'exp35_phase_ii' has no attribute 'PREFLIGHT'
+      1 25 failed in 3.48s
+pytest rc 1

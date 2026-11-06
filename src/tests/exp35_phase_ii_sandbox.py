@@ -264,3 +264,177 @@ def make_box(tmp_path, lanes="0", decision="none", runner=None, prior="none", **
     return types.SimpleNamespace(cfg=cfg, run=run, head=head, digest=digest, state_sha=state_sha, kit_dir=kit_dir,
                                  commit=commit, report=REPORT_REL, report_sha=rsha, tmp=str(tmp_path),
                                  res=lambda u=GPU0: os.path.join(cfg.reservations, f"{u}.json"))
+
+
+# --------------------------------------------------------------------------- #
+# part 4: the stub runner (bash, so its identity is a bash process like the real one; its body in Python). It
+# reproduces depth_canon_eval_run.sh's interface and output at H35 -- the lock, the tee'd log, the plan JSON, the
+# no-flash pre-flight log, DRY_RUN's exact lines -- and a real-run imitation (receipts, DONE / FAILED lines, the
+# summary, rc 0 / 1 / 2 / 4). Faults come from <stub>/control.json. It never touches a GPU or the NAS.
+# --------------------------------------------------------------------------- #
+BENIGN = ("/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: "
+          "pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The "
+          "pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin "
+          "to Setuptools<81.")
+PREFLIGHT = ("exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA\n"
+             "flash_attn not installed, disabling Flash Attention\n"
+             "EXP35_NO_FLASH_LAUNCHER attention_backend=sdpa "
+             "overlay_sha256=0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023 "
+             "launcher_sha256=bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de target=--preflight\n")
+STUB_PY = r'''
+import json, os, subprocess, sys, time
+X25 = "worklog/worklog_yixun/exp_25_depth_canon_claude"
+X35 = "worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude"
+STUB = os.path.dirname(os.path.abspath(__file__))
+BENIGN, PREFLIGHT = json.load(open(os.path.join(STUB, "texts.json")))
+FARM, CANON = "outputs_FLAC/exp25_depth_canon", json.load(open(os.path.join(STUB, "canon.json")))
+pid, args = int(sys.argv[1]), sys.argv[2:]
+ctl = json.load(open(os.path.join(STUB, "control.json"))) if os.path.exists(os.path.join(STUB, "control.json")) else {}
+dry = os.environ.get("DRY_RUN") == "1"
+with open(os.path.join(STUB, "calls.jsonl"), "a") as f:
+    f.write(json.dumps({"pid": pid, "argv": args, "dry": dry, "cwd": os.getcwd()}) + "\n")
+opts = dict(zip(args[::2], args[1::2]))
+if len(args) % 2 or set(opts) - {"--blocks", "--lanes", "--canon-ckpt-manifest"}:
+    print("unknown argument - abort"); sys.exit(2)
+c = ctl.get("dry" if dry else "run", {})
+ts = time.strftime("%Y-%m-%d_%H-%M-%S")
+log = open(f"{X25}/depth_canon_{ts}_eval_run.log", "ab")
+def say(line, internal=True):
+    b = (line + "\n").encode()
+    sys.stdout.buffer.write(b); sys.stdout.flush()
+    if internal:
+        log.write(b); log.flush()
+head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+m = json.load(open(f"{X25}/depth_canon_cells.json"))
+cfgs = [a["model_config"] for a in m["arms"].values()]
+rel = ["eval_FLAC.py", "src", ":(exclude)src/tests", "data/AR", *cfgs, f"{X25}/depth_canon_eval_run.sh",
+       f"{X25}/depth_canon_collect.py", f"{X25}/depth_canon_make_cells.py", f"{X25}/depth_canon_cells.json",
+       f"{X25}/depth_canon_audit_gate.py", "overlays/no_flash", f"{X35}/exp35_gpu_identity.py"]
+digest = c.get("digest") or subprocess.run(["bash", "-c", 'git ls-files -z --cached --others --exclude-standard -- "$@" '
+    "| LC_ALL=C sort -zu | xargs -0r sha256sum -- | sha256sum | cut -c1-64", "_", *rel],
+    capture_output=True, text=True).stdout.strip()
+blocks = opts.get("--blocks", "").split(",")
+rows = [r for r in m["cells"] if r["block"] in blocks]
+if c.get("e2fail"):
+    rows += [r for r in m["cells"] if r["block"] == "E2-FAIL"][:1]
+n, lanes = len(rows), c.get("lanes", opts.get("--lanes"))
+def entry(r):
+    ck = m["arms"][r["arm"]]["ckpt"]
+    tgt, sha = (CANON[0], CANON[1]) if ck["kind"] == "canon_run" else (ck["path"], ck["sha256"])
+    name = os.path.basename(tgt); stem = name[:-5] + "_metrics_" + r["metrics_suffix"]; link = f"{FARM}/{r['arm']}/{name}"
+    return tgt, sha, link, f"{FARM}/{r['arm']}/{stem}.cell.json", r["eval_args"] + ["--ckpt-path", link,
+        "--dump-scored-waveforms", m["dump_root"]]
+say(f"=== exp_25 depth_canon eval campaign -- {ts} -- HEAD {head} -- dry_run={int(dry)} -- harness=false ===")
+if c.get("abort"):
+    say("PLAN REFUSED: unknown, duplicate or empty block selection - abort"); sys.exit(2)
+say(f"evaluator pin OK: {head}; evaluator tree digest {digest}")
+say(f"no-flash overlay + launcher OK: 0d0e52ca693e / bbd2847d3a50 ({n} exp_35 cell(s))")
+if c.get("warning", True):
+    say(BENIGN)
+say("cells manifest OK")
+if c.get("warning", True):
+    say(BENIGN)
+say(f"plan: {n} cell(s) -> {X25}/depth_canon_{ts}_eval_plan.json")
+import importlib.util
+spec = importlib.util.spec_from_file_location("kit_for_the_stub_plan", json.load(open(os.path.join(STUB, "kit.json"))))
+kit = importlib.util.module_from_spec(spec); spec.loader.exec_module(kit)
+plan = kit.expected_plan(m, rows, run=os.path.realpath(os.getcwd()), digest=digest)   # the real runner's plan JSON
+if c.get("plan_tamper"):
+    plan["cells"][3]["argv"] = plan["cells"][3]["argv"][:-2]
+json.dump(plan, open(f"{X25}/depth_canon_{ts}_eval_plan.json", "w"), indent=1)
+say(f"plan: {n} cell(s); dump root {m['dump_root']}; farm {FARM}; lanes {lanes}")
+say("configs OK: every model / dataset config of the selection matches its manifest pin")
+open(f"{X25}/depth_canon_{ts}_no_flash_preflight.log", "w").write(PREFLIGHT + c.get("preflight_extra", ""))
+say(f"BACKEND OK {X25}/depth_canon_{ts}_no_flash_preflight.log")
+say(f"no-flash pre-flight OK: {n} exp_35 cell(s) spawn through overlays/no_flash/exp35_no_flash_launch.py "
+    f"(log {X25}/depth_canon_{ts}_no_flash_preflight.log)")
+say(f"dump root OK under DRY_RUN: {m['dump_root']} (exists)" if dry else
+    f"dump root OK: {m['dump_root']} is cifs //10.249.7.28/shared_data, write probe created + removed")
+say("checkpoint cache space: 1 checkpoint(s) to stage = 723927531 B + 2147483648 B margin = 2871411179 B needed; "
+    "714080342016 B available on outputs_FLAC/exp25_depth_canon/.ckpt_cache")
+if c.get("extra"):
+    say(c["extra"])
+if c.get("internal_extra"):
+    log.write((c["internal_extra"] + "\n").encode()); log.flush()
+root, seen, done, failed = os.path.realpath(os.getcwd()), set(), 0, []
+for r in rows:
+    tgt, sha, link, receipt, argv = entry(r)
+    if c.get("argv_tamper") == r["cell"]:
+        argv = argv[:-2]
+    if c.get("drop") == r["cell"]:
+        continue
+    if r["arm"] not in seen:
+        seen.add(r["arm"])
+        say(f"checkpoint OK (DRY_RUN, not staged): {tgt} ({sha})" if dry else f"checkpoint OK: {tgt} -> cache ({sha})")
+    if c.get("skip") == r["cell"]:
+        say(f"CELL {r['cell']} | {r['block']} | SKIP (complete and verified)"); continue
+    q = c.get("quarantine") == r["cell"]
+    say(f"CELL {r['cell']} | {r['block']} | {r['arm']} | {'would ' if dry else ''}"
+        + ("QUARANTINE 1 artifact(s), then run" if q else "run"))
+    if q:
+        say(f"  would quarantine {receipt}")
+    if dry:
+        say(f"DRYRUN {r['cell']} argv: " + json.dumps(argv, separators=(",", ":")))
+        say(f"  (exp_35: spawned through overlays/no_flash/exp35_no_flash_launch.py, PYTHONPATH={root}/overlays/no_flash)")
+        if c.get("warning_late"):
+            say(BENIGN)
+        continue
+    hold = c.get("hold")
+    while hold and os.path.exists(hold):
+        time.sleep(0.05)
+    say(f"  RUN {r['cell']} on GPU {lanes.split(',')[0]} (log {X25}/depth_canon_{ts}_eval_{r['cell']}.log)")
+    time.sleep(c.get("sleep", 0))
+    if r["cell"] in c.get("fail", []):
+        failed.append(r["cell"]); say(f"  !! FAILED {r['cell']}: the evaluator exited rc=1 (log x)"); continue
+    os.makedirs(os.path.dirname(receipt), exist_ok=True)
+    open(receipt, "w").write(json.dumps({"cell": r["cell"], "stub": True}))
+    done += 1; say(f"  DONE {r['cell']} on GPU {lanes.split(',')[0]}: complete and verified")
+if dry:
+    say(f"=== DRY_RUN summary: {c.get('summary_n', n)} cell(s) planned; nothing evaluated, linked, created or moved ===")
+    sys.exit(c.get("rc", 0))
+if c.get("child"):
+    subprocess.Popen(["sleep", str(c["child"])])                        # an evaluator descendant outliving the runner
+say(f"=== summary: selected {n} | skipped (complete and verified) 0 | ran ok {done} | failed {len(failed)} | not run 0 ===")
+for x in failed:
+    say(f"  FAILED {x}")
+rc = c.get("rc", 1 if failed else 0)
+say({0: "CAMPAIGN SELECTION COMPLETE", 1: "CAMPAIGN SELECTION INCOMPLETE - re-run to resume"}.get(
+    rc, f"ABORTED: {'PIN DRIFT' if rc == 4 else 'GPU GATE FAILED'} - abort"))
+sys.exit(rc)
+'''
+STUB_SH = '''#!/usr/bin/env bash
+# sandbox stand-in for depth_canon_eval_run.sh (the exp_35 phase-(ii) kit tests): never the real runner
+cd "$(dirname "$0")/../../.." || exit 2
+exec 9>"worklog/worklog_yixun/exp_25_depth_canon_claude/.depth_canon_eval.lock" || exit 2
+flock -n 9 || { echo "another evaluation campaign holds worklog/worklog_yixun/exp_25_depth_canon_claude/.depth_canon_eval.lock - abort"; exit 2; }
+tr '\\0' '\\n' < /proc/$$/environ > "@STUB@/env_$$.txt"
+"@PY@" -B "@STUB@/stub_runner.py" "$$" "$@"
+exit $?
+'''
+
+
+def install_stub(root):
+    """Write the stub runner's body under <root>/stub; return the bash runner's text (committed at RUNNER)."""
+    stub = os.path.join(str(root), "stub")
+    os.makedirs(stub, exist_ok=True)
+    K = load_kit()
+    for name, data in (("stub_runner.py", STUB_PY), ("texts.json", json.dumps([BENIGN, PREFLIGHT])),
+                       ("canon.json", json.dumps(list(K.CANON_CKPT))), ("kit.json", json.dumps(KIT_PY))):
+        with open(os.path.join(stub, name), "w") as f:
+            f.write(data)
+    return STUB_SH.replace("@STUB@", stub).replace("@PY@", sys.executable)
+
+
+def stub_control(root, **sections):
+    with open(os.path.join(str(root), "stub", "control.json"), "w") as f:
+        json.dump(sections, f)
+
+
+def stub_calls(root):
+    p = os.path.join(str(root), "stub", "calls.jsonl")
+    return [json.loads(ln) for ln in open(p)] if os.path.exists(p) else []
+
+
+def stub_env(root, pid):
+    return dict(ln.split("=", 1) for ln in open(os.path.join(str(root), "stub", f"env_{pid}.txt")).read().splitlines()
+                if ln)

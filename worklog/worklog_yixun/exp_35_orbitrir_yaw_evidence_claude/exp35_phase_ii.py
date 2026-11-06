@@ -12,6 +12,7 @@ Part 2b: the O_EXCL reservation records with their exact authentication, and the
 Part 3a: the preconditions every mutating mode re-checks -- the kit's self-pin, the report evidence, the run worktree at
 H35 with its campaign digest, Yixun's pinned files and the end of his s43 training -- and the evidence record.
 Part 3b: the orchestration directory, its durable state machine, the kit lock and the reserve transaction.
+Part 4a: the exact runner command and the exact parser of its DRY_RUN transcript.
 
 Never: moves or modifies H35, installs anything, selects E2-FAIL, suppresses dumps, enables GPU sharing,
 overwrites / adopts / removes another holder's reservation, signals / kills / attaches to any process,
@@ -955,3 +956,104 @@ def _reserve(world, cfg, kit, lanes, report, report_sha256):
     write_json_atomic(state_path(orch), st)
     return 1, (f"RESERVE REFUSED after the acquisition ({st['phase']}; our own records released, "
                f"{len(kept)} retained): " + "; ".join(why))
+
+
+# --------------------------------------------------------------------------- #
+# part 4a: the exact runner command and the exact parser of its DRY_RUN transcript (§15 item 7; S4, S6)
+# --------------------------------------------------------------------------- #
+TS_RE = r"[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}"
+BENIGN = ("/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: "   # the
+          "pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The "  # pinned
+          "pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin "  # env's
+          "to Setuptools<81.")                                                                       # one warning
+PREFLIGHT = ("exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA\n"
+             "flash_attn not installed, disabling Flash Attention\n"
+             "EXP35_NO_FLASH_LAUNCHER attention_backend=sdpa "
+             "overlay_sha256=0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023 "
+             "launcher_sha256=bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de target=--preflight\n")
+LAUNCHER_LINE = "  (exp_35: spawned through overlays/no_flash/exp35_no_flash_launch.py, PYTHONPATH={}/overlays/no_flash)"
+
+
+def runner_command(cfg, lanes, dry):
+    """§15 item 7: (argv, env, cwd) -- the 68 cells' blocks, the frozen lanes, the CANON manifest; no --no-dump-blocks,
+    no sharing variable; the phase-(i) launch environment + EXPECT_HEAD (+ DRY_RUN=1); cwd = the run worktree."""
+    argv = ["bash", RUNNER, "--blocks", ",".join(BLOCKS), "--lanes", lanes_text(lanes), "--canon-ckpt-manifest",
+            CANON_MANIFEST]
+    return argv, dict(LAUNCH_ENV, EXPECT_HEAD=cfg.h35, **({"DRY_RUN": "1"} if dry else {})), cfg.run
+
+
+def _expected_lines(cfg, m, rows, lanes):
+    """The runner's DRY_RUN transcript at H35 for ``rows``: its 11 preamble lines as patterns, then per arm the one
+    checkpoint line and per cell exactly 'would run', its argv and the launcher line, then the summary."""
+    x, e, n = re.escape(X25), re.escape, len(rows)
+    want = [("re", p) for p in (
+        rf"=== exp_25 depth_canon eval campaign -- (?P<ts>{TS_RE}) -- HEAD {cfg.h35} -- dry_run=1 -- harness=false ===",
+        rf"evaluator pin OK: {cfg.h35}; evaluator tree digest {cfg.digest}",
+        rf"no-flash overlay \+ launcher OK: 0d0e52ca693e / bbd2847d3a50 \({n} exp_35 cell\(s\)\)", r"cells manifest OK",
+        rf"plan: {n} cell\(s\) -> {x}/depth_canon_(?P<ts>{TS_RE})_eval_plan\.json",
+        rf"plan: {n} cell\(s\); dump root {e(DUMP_ROOT)}; farm {e(FARM)}; lanes {e(lanes_text(lanes))}",
+        r"configs OK: every model / dataset config of the selection matches its manifest pin",
+        rf"BACKEND OK {x}/depth_canon_(?P<ts>{TS_RE})_no_flash_preflight\.log",
+        rf"no-flash pre-flight OK: {n} exp_35 cell\(s\) spawn through overlays/no_flash/exp35_no_flash_launch\.py "
+        rf"\(log {x}/depth_canon_(?P<ts>{TS_RE})_no_flash_preflight\.log\)",
+        rf"dump root OK under DRY_RUN: {e(DUMP_ROOT)} \(exists\)",
+        r"checkpoint cache space: \d+ checkpoint\(s\) to stage = \d+ B \+ \d+ B margin = \d+ B needed; \d+ B "
+        r"available on \S+")]
+    seen = set()
+    for r in rows:
+        p = plan_entry(m, r, {40000: CANON_CKPT})
+        if r["arm"] not in seen:
+            seen.add(r["arm"])
+            want.append(("eq", f"checkpoint OK (DRY_RUN, not staged): {p['target']} ({p['sha256']})"))
+        want += [("eq", f"CELL {r['cell']} | {r['block']} | {r['arm']} | would run"), ("argv", r["cell"], p["argv"]),
+                 ("eq", LAUNCHER_LINE.format(os.path.realpath(cfg.run)))]
+    return want + [("eq", f"=== DRY_RUN summary: {n} cell(s) planned; nothing evaluated, linked, created or moved ===")]
+
+
+def _json(raw):
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+
+
+def parse_dry_run(text, *, cfg, m, rows, lanes):
+    """S6 'exact dry-run parsing': (reasons, info). Every line must be the next expected one -- the pinned env's one
+    warning line only between preamble lines -- and none may be a SKIP, quarantine, E2-FAIL or refusal line. info: the
+    run's timestamp, the cell ids and the argv records in order, the warning count, the line count."""
+    lines, e2 = text.splitlines(), {c["cell"] for c in m["cells"] if c["block"] == "E2-FAIL"}
+    out = [f"the transcript holds {k}: {v[0][:160]!r}" for k, v in (
+        ("a SKIP line", [ln for ln in lines if "| SKIP" in ln]),
+        ("a quarantine line", [ln for ln in lines if "quarantine" in ln.lower()]),
+        ("an E2-FAIL cell", [ln for ln in lines if "E2-FAIL" in ln or (ln.startswith(("CELL ", "DRYRUN "))
+                                                                       and ln.split()[1:2] and ln.split()[1] in e2)]),
+        ("a refusal", [ln for ln in lines if "abort" in ln or "REFUSED" in ln or "FAILED" in ln])) if v]
+    want, k, ts, ids, argv, benign, broke = _expected_lines(cfg, m, rows, lanes), 0, set(), [], [], 0, False
+    for i, ln in enumerate(lines, 1):
+        if ln == BENIGN and k < 11:
+            benign += 1
+            continue
+        if k == len(want):
+            out, broke = out + [f"line {i} follows the summary: {ln[:160]!r}"], True
+            break
+        w = want[k]
+        if w[0] == "re":
+            hit = re.fullmatch(w[1], ln)
+            ts.update([hit["ts"]] if hit is not None and "ts" in hit.re.groupindex else [])
+        elif w[0] == "eq":
+            hit = ln == w[1]
+            ids += [w[1].split()[1]] if hit and ln.startswith("CELL ") else []
+        else:
+            pre = f"DRYRUN {w[1]} argv: "
+            hit = ln.startswith(pre) and _json(ln[len(pre):]) == w[2]
+            argv += [w[2]] if hit else []
+        if not hit:
+            want_text = f"DRYRUN {w[1]} argv {w[2]}" if w[0] == "argv" else w[1]
+            out, broke = out + [f"line {i} {ln[:200]!r} is not the expected {want_text[:300]!r}"], True
+            break
+        k += 1
+    out += [] if broke or k == len(want) else [f"the transcript ends after {k} of its {len(want)} expected lines"]
+    out += [] if len(ts) == 1 else [f"the transcript names {len(ts)} run timestamps {sorted(ts)}"]
+    out += [] if len(ids) == len(argv) == len(rows) else [f"{len(ids)} cell ids, {len(argv)} argv, not {len(rows)}"]
+    return out, {"ts": min(ts) if len(ts) == 1 else None, "ids": ids, "argv": argv, "benign_lines": benign,
+                 "lines": len(lines)}
