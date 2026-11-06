@@ -248,16 +248,44 @@ def make_kit(root, report, files=None):
     return os.path.join(k, X35), git(k, "rev-parse", "HEAD")
 
 
+BEGIN, END = "# --- BEGIN REGISTERED CONFIG", "# --- END REGISTERED CONFIG ---"
+
+
+def replace_block(text, values):
+    """``text`` with ONLY its registered-config block replaced by ``values`` (exactly the block's names)."""
+    i = text.index(BEGIN)
+    j = text.index(END, i)
+    first, body = text[i:text.index("\n", i)], text[text.index("\n", i) + 1:j]
+    import ast
+    names = sorted(t.id for node in ast.parse(body).body for t in (
+        node.targets[0].elts if isinstance(node.targets[0], ast.Tuple) else node.targets))
+    assert sorted(values) == names, (sorted(values), names)
+    return text[:i] + first + "\n" + "".join(f"{k} = {v!r}\n" for k, v in values.items()) + text[j:]
+
+
+def sandbox_block(cfg):
+    """The helper's registered-config values naming the sandbox ``cfg`` (the copy a detached wrapper runs)."""
+    exp30 = os.path.dirname(next(iter(cfg.exp30_pins)))
+    return {"RUN": cfg.run, "H35": cfg.h35, "CAMPAIGN_DIGEST": cfg.digest, "RESERVATIONS": cfg.reservations,
+            "EXP30": exp30, "EXP30_PINS": {os.path.basename(k): v for k, v in cfg.exp30_pins.items()},
+            "QUEUE_LOG": os.path.relpath(cfg.queue_log, exp30), "NVIDIA_SMI": cfg.nvidia_smi, "PROC": cfg.proc,
+            "SCAN_PROC": cfg.scan_proc, "PY": cfg.py, "GAP_S": cfg.gap_s, "CONFIRM_S": cfg.confirm_s,
+            "IDENTIFY_S": cfg.identify_s, "DRY_MAX_AGE_S": cfg.dry_max_age_s}
+
+
 def make_box(tmp_path, lanes="0", decision="none", runner=None, prior="none", **cfg_over):
-    """A complete sandbox for the preconditions and the reserve: the run worktree, the completed phase (i), Yixun's
-    files, the kit checkout with a matching committed report, and a Config naming only these paths."""
+    """A complete sandbox: the run worktree, the completed phase (i), Yixun's files, the kit checkout -- its helper
+    copy's config block naming THIS sandbox -- with a matching committed report, and the Config of these paths."""
     import types
     run, head, digest = make_run(tmp_path, runner)
     state_sha = write_phase_i(run, head, digest)
     report = report_text(head, state_sha, lanes=lanes, decision=decision, prior=prior)
-    kit_dir, commit = make_kit(tmp_path, report)
+    kit_dir = os.path.join(str(tmp_path), "kit", X35)
     cfg = cfg_for(tmp_path, run=run, h35=head, digest=digest, kit_dir=kit_dir,
                   helper=os.path.join(kit_dir, "exp35_phase_ii.py"), **cfg_over)
+    with open(KIT_PY) as f:
+        helper = replace_block(f.read(), sandbox_block(cfg))
+    kit_dir, commit = make_kit(tmp_path, report, files={"exp35_phase_ii.py": helper})
     for rel in (f"{X25}/.depth_canon_eval.lock",):
         open(os.path.join(run, rel), "w").close()
     rsha = hashlib.sha256(report.encode()).hexdigest()

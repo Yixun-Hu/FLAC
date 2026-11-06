@@ -14,6 +14,7 @@ H35 with its campaign digest, Yixun's pinned files and the end of his s43 traini
 Part 3b: the orchestration directory, its durable state machine, the kit lock and the reserve transaction.
 Part 4a: the exact runner command and the exact parser of its DRY_RUN transcript.
 Part 4b: the dry-run transaction (from 'reserved' only; the runner is never given a timeout: the kit never kills).
+Part 5a: the detached wrapper -- the kit lock, both complete identities and environment proofs, the exact rc.
 
 Never: moves or modifies H35, installs anything, selects E2-FAIL, suppresses dumps, enables GPU sharing,
 overwrites / adopts / removes another holder's reservation, signals / kills / attaches to any process,
@@ -21,6 +22,7 @@ relaunches, clears a failure, changes a lane or starts exp_22.
 
 Written by the exp_35 phase-(ii) kit Coder (Claude Opus 5.5, max effort).
 """
+import argparse
 import collections
 import datetime
 import fcntl
@@ -1159,3 +1161,147 @@ def artifacts(cfg, raw, st, rec):
         why += [] if ok else [f"the runner's {key.replace('_', ' ')} {path if info['ts'] else '(no timestamp)'} is not "
                               "the exact expected bytes"]
     return why
+
+
+# --------------------------------------------------------------------------- #
+# part 5a: the detached wrapper (S6 "launch through a detached wrapper / supervisor that durably records the runner's
+# exact rc; record complete identities for the detached wrapper and actual runner")
+# --------------------------------------------------------------------------- #
+SETSID, NOHUP = "/usr/bin/setsid", "/usr/bin/nohup"
+
+
+def launch_spec(cfg, st, orch, lock_fd):
+    """What 'launch_pending' commits to BEFORE any spawn: the runner's exact command and its outer log, and the
+    detached wrapper's (setsid + nohup, the launch environment, cwd = the run worktree, the kit lock's fd)."""
+    argv, env, cwd = runner_command(cfg, tuple(x["index"] for x in st["lanes"]), dry=False)
+    wargv = [SETSID, NOHUP, cfg.py, "-B", cfg.helper, "wrap", "--orch", orch, "--lock-fd", str(lock_fd)]
+    return {"runner": {"argv": argv, "env": env, "cwd": cwd, "log": os.path.join(orch, "runner.log")},
+            "wrapper": {"argv": wargv, "env": dict(LAUNCH_ENV), "cwd": cfg.run, "log": os.path.join(orch, "wrapper.log")}}
+
+
+def environ_of(pid, proc):
+    """The environment a live process was STARTED with (/proc/<pid>/environ); ValueError when unreadable."""
+    try:
+        with open(os.path.join(proc, str(pid), "environ"), "rb") as f:
+            raw = f.read()
+    except OSError as err:
+        raise ValueError(f"process {pid}: its environment is unreadable ({err})") from err
+    return dict(x.decode(errors="replace").split("=", 1) for x in raw.split(b"\0") if b"=" in x)
+
+
+def _proof(ident, env, want, label):
+    return dict({k: ident[k] for k in ID_KEYS}, environ_sha256=sha256_bytes(json.dumps(env, sort_keys=True).encode()),
+                environ_keys=sorted(env), sharing_absent=not set(SHARING) & set(env), **{label: env == want})
+
+
+def identify(p, spec, cfg):
+    """(the runner's complete identity + the proof of its /proc environment, None) once /proc shows the spawned command
+    -- re-read for up to ``identify_s`` s, as the exec may lag the fork -- else (None, why): never a pid alone."""
+    expect = sha256_bytes(b"".join(a.encode() + b"\0" for a in spec["argv"]))
+    deadline, last = time.monotonic() + cfg.identify_s, ""
+    while True:
+        try:
+            ident = proc_identity(p.pid, cfg.proc)
+            if ident["cmdline_sha256"] == expect:
+                return _proof(ident, environ_of(p.pid, cfg.proc), spec["env"], "environ_is_the_spec"), None
+            last = "its /proc cmdline is not the spawned command"
+        except ValueError as err:
+            last = str(err)
+        if p.poll() is not None:
+            return None, f"the runner {p.pid} ended (rc {p.returncode}) before its identity was captured ({last})"
+        if time.monotonic() > deadline:
+            return None, f"the runner {p.pid} did not show its command within {cfg.identify_s} s ({last})"
+        time.sleep(0.01)
+
+
+def wait_for(p):
+    """The runner's exit code, waited for: never a timeout, never a signal (S5)."""
+    return p.wait()
+
+
+def runner_logs(cfg, spec):
+    """The outer log (the wrapper's capture of the runner) and the runner's own tee'd log its first line names."""
+    outer = snapshot(spec["log"])
+    first = outer.raw.split(b"\n", 1)[0].decode(errors="replace") if outer else ""
+    m = re.fullmatch(rf"=== exp_25 depth_canon eval campaign -- ({TS_RE}) -- .*", first)
+    path = os.path.join(cfg.run, X25, f"depth_canon_{m[1]}_eval_run.log") if m else None
+    inner = snapshot(path) if path else None
+    return {"outer": {"path": spec["log"], "sha256": outer.sha256 if outer else None, "bytes": len(outer.raw) if outer else 0},
+            "internal": {"path": path, "sha256": inner.sha256 if inner else None}}
+
+
+def wrap(cfg, *, orch, lock_fd, world=None):
+    """The detached wrapper: it must hold the kit lock through ``lock_fd`` and find a fresh 'launch_pending' (else it
+    refuses and writes nothing); its own identity and environment ('wrapper_refused' unless exactly the launch
+    environment); 'spawning' -> the runner, the lock fd passed on -> 'running' with the runner's identity -> waits,
+    never signalling -> 'exited' with the EXACT rc (then the logs). 0 once the rc is durable, 3 when refused."""
+    world = world or World(cfg.nvidia_smi)
+    try:
+        fst, lst = os.fstat(lock_fd), os.stat(os.path.join(cfg.run, KIT_LOCK))
+        if (fst.st_dev, fst.st_ino) != (lst.st_dev, lst.st_ino):
+            raise OSError(f"fd {lock_fd} is not the kit lock {KIT_LOCK}")
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        st = load_state(orch)
+        if st["phase"] != "launch_pending" or st["wrapper"] is not None:
+            raise ValueError(f"the state is {st['phase']} (wrapper {st['wrapper']!r:.60}), not a fresh launch_pending")
+    except (OSError, ValueError) as err:
+        print(f"WRAPPER REFUSED (nothing written): {err}", flush=True)
+        return 3
+
+    def commit(phase, **kw):
+        st.update(phase=phase, **kw)
+        event(st, world.now(), phase, **({"reasons": kw["failure"]["reasons"]} if kw.get("failure") else {}))
+        write_json_atomic(state_path(orch), st)
+        print(f"[{iso(world.now())}] {phase}", flush=True)
+    try:
+        st["wrapper"] = _proof(proc_identity(os.getpid(), cfg.proc), environ_of(os.getpid(), cfg.proc), LAUNCH_ENV,
+                               "environ_is_the_launch_env")
+        why = [] if st["wrapper"]["environ_is_the_launch_env"] else [
+            f"the wrapper's environment {st['wrapper']['environ_keys']} is not the launch environment"]
+    except ValueError as err:
+        why = [f"the wrapper's own identity: {err}"]
+    if why:
+        commit("wrapper_refused", failure={"reasons": why, "time": iso(world.now())})
+        return 3
+    spec = st["launch"]["runner"]
+    commit("spawning")
+    try:
+        fd = os.open(spec["log"], os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        try:
+            p = subprocess.Popen(spec["argv"], cwd=spec["cwd"], env=spec["env"], stdin=subprocess.DEVNULL, stdout=fd,
+                                 stderr=subprocess.STDOUT, pass_fds=(lock_fd,), close_fds=True)
+        finally:
+            os.close(fd)
+    except OSError as err:
+        commit("runner_spawn_failed", failure={"reasons": [f"the runner could not be spawned ({err})"],
+                                               "time": iso(world.now())})
+        return 3
+    ident, why = identify(p, spec, cfg)
+    commit("running", runner=ident or {"pid": p.pid, "unidentified": why})
+    rc = wait_for(p)
+    commit("exited", exit={"rc": rc, "signal": -rc if rc < 0 else None, "ended": world.now(), "time": iso(world.now()),
+                           "logs": None})
+    deadline = time.monotonic() + 30                     # its tee holds the runner lock until the logs are complete
+    try:
+        while lock_status(os.path.join(cfg.run, RUNNER_LOCK)) == "held" and time.monotonic() < deadline:
+            time.sleep(0.2)
+    except Unreadable:
+        pass
+    st["exit"]["logs"] = runner_logs(cfg, spec)
+    write_json_atomic(state_path(orch), st)
+    return 0
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="exp_35 phase (ii): the launch kit's helper (run by exp35_phase_ii.sh)")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    w = sub.add_parser("wrap", help="the detached wrapper (started by launch only)")
+    w.add_argument("--orch", required=True)
+    w.add_argument("--lock-fd", type=int, required=True)
+    args = ap.parse_args(argv)
+    cfg = registered_config()
+    return wrap(cfg, orch=os.path.abspath(args.orch), lock_fd=args.lock_fd)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
