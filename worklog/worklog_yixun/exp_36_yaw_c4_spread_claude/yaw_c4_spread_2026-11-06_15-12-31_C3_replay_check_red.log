@@ -1,0 +1,652 @@
+RED, cycle 3 (--exp36-replay-check; Codex B3 / H2) at HEAD 0818025be80b5f92987a64b665943bf810a35b90 + the uncommitted tests
+FFFFFFFFFFFFFFFFFFFFFFFF                                                 [100%]
+=================================== FAILURES ===================================
+__________________ test_the_replay_equal_to_the_archived_cell __________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_the_replay_equal_to_the_a0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_the_replay_equal_to_the_a0/exp36/plan.json'}
+
+    def test_the_replay_equal_to_the_archived_cell(world):
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:82: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_the_replay_equal_to_the_a0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_the_replay_equal_to_the_a0/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+__________________ test_a_different_replay_is_a_mismatch[T60] __________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m0/exp36/plan.json'}
+kw = {'metrics': {'T60': 7.5, 'C50': 9.6, 'EDT': 9.7, 'FD': 9.8, ...}}
+needle = 'metrics'
+
+    @pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene", "loaded_bytes"])
+    def test_a_different_replay_is_a_mismatch(world, kw, needle):
+        _rewrite(world, **kw)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m0/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_a_different_replay_is_a_mismatch[C50_int] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m1/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m1/exp36/plan.json'}
+kw = {'metrics': {'T60': 9.5, 'C50': 1, 'EDT': 9.7, 'FD': 9.8, ...}}
+needle = 'metrics'
+
+    @pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene", "loaded_bytes"])
+    def test_a_different_replay_is_a_mismatch(world, kw, needle):
+        _rewrite(world, **kw)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m1/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m1/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+_______________ test_a_different_replay_is_a_mismatch[by_scene] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m2/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m2/exp36/plan.json'}
+kw = {'by_scene': {'Apartments': {'T60': 9.5, 'C50': 9.6, 'EDT': 40.0, 'FD': 9.8, ...}, 'Auditorium': {'T60': 9.5, 'C50': 9...9.5, 'C50': 9.6, 'EDT': 42.0, 'FD': 9.8, ...}, 'Bedrooms': {'T60': 9.5, 'C50': 9.6, 'EDT': 43.0, 'FD': 9.8, ...}, ...}}
+needle = 'by_scene'
+
+    @pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene", "loaded_bytes"])
+    def test_a_different_replay_is_a_mismatch(world, kw, needle):
+        _rewrite(world, **kw)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m2/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m2/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+_____________ test_a_different_replay_is_a_mismatch[loaded_bytes] ______________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m3/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m3/exp36/plan.json'}
+kw = {'ckpt_load': {'ckpt_sha256_loaded': 'ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7', 'ckpt_bytes_loaded': 724000124}}
+needle = 'loaded checkpoint'
+
+    @pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene", "loaded_bytes"])
+    def test_a_different_replay_is_a_mismatch(world, kw, needle):
+>       _rewrite(world, **kw)
+
+src/tests/test_exp36_replay_check.py:115: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp36_replay_check.py:100: in _rewrite
+    T.write_cell(w["new"], _row(REPLAY), pin=H36, dump=False, **kw)
+src/tests/test_depth_canon_collect.py:183: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:227: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:796: in write_receipt
+    rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp36_YAW_C4_S40000_K8_s42_th90', 'block': 'YAW-C4S', 'arm': 'YAW', 'step': 40000, ...}
+row = {'cell': 'exp36_YAW_C4_S40000_K8_s42_th90', 'order': 346, 'priority': 18, 'block': 'YAW-C4S', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_replay_is_a_m3/exp36'
+lane = 0, log = 'logs/x.log', rc = 0
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+ckpt_sha256 = 'ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7'
+ckpt_bytes = 724000123
+campaign_digest = 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
+spawn_digest = 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
+post_digest = 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
+backend = {'attention_backend': 'sdpa', 'no_flash_overlay_sha256': '0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023', 'no_flash_launcher_sha256': 'bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de'}
+
+    def build_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, ckpt_bytes, campaign_digest,
+                      spawn_digest, post_digest, backend=None):
+        """The cell's receipt (``.cell.json``) as a dict: refuses a measured checkpoint digest that
+        is not the expected one and a tree digest at the spawn / after the run that is not the
+        campaign's; binds the committed artifacts' digests and, for a dump, its evidence (B6); and
+        (rB-F2 F2-6) the evaluator's digest of the bytes it deserialized, which must equal the
+        expected one, with the length the driver measured (``ckpt_bytes``)."""
+        if ckpt_sha256 != entry["sha256"]:
+            raise ValueError(f"{entry['cell']}: measured checkpoint sha256 {ckpt_sha256} != the expected "
+                             f"{entry['sha256']}")
+        if backend != (backend_fields() if uses_no_flash(row) else None):   # exp_35 / exp_36: the runner's backend claim
+            raise ValueError(f"{entry['cell']}: attention backend fields {backend!r} are not "
+                             f"{backend_fields() if uses_no_flash(row) else None!r} for this cell")
+        if not eval_FLAC._is_sha256_hex(campaign_digest) or {spawn_digest, post_digest} != {campaign_digest}:
+            raise ValueError(f"{entry['cell']}: tree digest moved (campaign {campaign_digest}, spawn {spawn_digest}, "
+                             f"post {post_digest})")
+        at = lambda p: os.path.join(base_dir, p) if p else None  # noqa: E731
+        artifacts = {"metrics": _file_digest(at(entry["metrics"])), "stream": _file_digest(at(entry["stream"])),
+                     "canon": _file_digest(at(entry["canon"]))}
+        if artifacts["metrics"] is None or artifacts["stream"] is None or (entry["canon"] and artifacts["canon"] is None):
+            raise ValueError(f"{entry['cell']}: nothing to bind -- the metrics / stream / canon files are not all there")
+        try:
+            with open(at(entry["metrics"])) as f:
+                met = json.load(f)
+            loaded = {k: met.get(k) for k in LOAD_KEYS} if isinstance(met, dict) else {}
+        except (OSError, ValueError) as err:
+            raise ValueError(f"{entry['cell']}: the metrics record is unreadable ({err})") from err
+        if loaded.get("ckpt_sha256_loaded") != entry["sha256"]:
+            raise ValueError(f"{entry['cell']}: the evaluator loaded checkpoint bytes with sha256 "
+                             f"{loaded.get('ckpt_sha256_loaded')!r}, not the expected {entry['sha256']}")
+        if type(ckpt_bytes) is not int or ckpt_bytes <= 0 or loaded.get("ckpt_bytes_loaded") != ckpt_bytes:
+>           raise ValueError(f"{entry['cell']}: the evaluator loaded {loaded.get('ckpt_bytes_loaded')!r} checkpoint "
+                             f"bytes, the driver measured {ckpt_bytes!r} bytes")
+E           ValueError: exp36_YAW_C4_S40000_K8_s42_th90: the evaluator loaded 724000124 checkpoint bytes, the driver measured 724000123 bytes
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:771: ValueError
+_________________________ test_equality_is_type_strict _________________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_equality_is_type_strict0/exp25b'), 'new': PosixPath('/tmp/p...2b46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_equality_is_type_strict0/exp36/plan.json'}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_equality_is_type_strict0')
+
+    def test_equality_is_type_strict(world, tmp_path):
+        """8 is not 8.0: a reference published with T60 = 8.0, the replay with T60 = 8 (then 8.0: equal)."""
+        m, ref = T.default_metrics(_row(TEMPLATE)), tmp_path / "exp25b"
+        T.write_cell(ref, _row(TEMPLATE), pin=EXP25_PIN, metrics=dict(m, T60=8.0))
+        (ref / "logs").mkdir()
+        (ref / "logs" / "x.log").write_text(FALLBACK)
+        world["ref"] = ref
+        world["pins"].update({f"{k}_sha256": _sha(ref / _rel(_row(TEMPLATE), k)) for k in ("metrics", "stream", "receipt")})
+        _rewrite(world, metrics=dict(m, T60=8))
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_equality_is_type_strict0/exp25b'), 'new': PosixPath('/tmp/p...2b46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_equality_is_type_strict0/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_a_different_stream_sidecar_is_a_mismatch _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_stream_sideca0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_stream_sideca0/exp36/plan.json'}
+
+    def test_a_different_stream_sidecar_is_a_mismatch(world):
+        path = world["new"] / _rel(_row(REPLAY), "stream")
+        path.write_text(json.dumps(json.loads(path.read_text()), indent=1))           # same content, other bytes
+        rel_metrics = _rel(_row(REPLAY), "metrics")
+        T.write_receipt(world["new"], _row(REPLAY), f"{T.FARM}/YAW/epoch=8-step=40000.ckpt", rel_metrics, False, H36)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_stream_sideca0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_a_different_stream_sideca0/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_an_undecidable_comparison_is_refused[r0] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison0/exp36/plan.json'}
+edit = <function <lambda> at 0x753611074280>
+needle = 'archived reference metrics'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison0/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_an_undecidable_comparison_is_refused[r1] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison1/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison1/exp36/plan.json'}
+edit = <function <lambda> at 0x753611074310>
+needle = 'archived reference stream'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison1/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison1/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_an_undecidable_comparison_is_refused[r2] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison2/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison2/exp36/plan.json'}
+edit = <function <lambda> at 0x7536110743a0>
+needle = 'archived reference receipt'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison2/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison2/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_an_undecidable_comparison_is_refused[r3] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison3/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison3/exp36/plan.json'}
+edit = <function <lambda> at 0x753611074430>, needle = 'archived evaluator log'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison3/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison3/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_an_undecidable_comparison_is_refused[r4] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison4/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison4/exp36/plan.json'}
+edit = <function <lambda> at 0x7536110744c0>, needle = 'archived evaluator log'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison4/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison4/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_an_undecidable_comparison_is_refused[r5] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison5/exp25'), 'new': PosixPath('/tmp/...f9e1a73c87d827689', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison5/exp36/plan.json'}
+edit = <function <lambda> at 0x753611074550>, needle = 'fallback'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison5/exp25'), 'new': PosixPath('/tmp/...f9e1a73c87d827689', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison5/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_an_undecidable_comparison_is_refused[r6] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison6/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison6/exp36/plan.json'}
+edit = <function <lambda> at 0x7536110745e0>, needle = 'replay does not verify'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison6/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison6/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_an_undecidable_comparison_is_refused[r7] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison7/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison7/exp36/plan.json'}
+edit = <function <lambda> at 0x753611074670>, needle = 'replay does not verify'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison7/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison7/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_an_undecidable_comparison_is_refused[r8] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison8/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison8/exp36/plan.json'}
+edit = <function <lambda> at 0x753611074700>, needle = 'replay does not verify'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison8/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison8/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_an_undecidable_comparison_is_refused[r9] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison9/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison9/exp36/plan.json'}
+edit = <function <lambda> at 0x753611074790>, needle = 'replay run plan'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison9/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison9/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_an_undecidable_comparison_is_refused[r10] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison10/exp25'), 'new': PosixPath('/tmp...6230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison10/exp36/plan.json'}
+edit = <function <lambda> at 0x753611074820>, needle = 'replay run plan'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison10/exp25'), 'new': PosixPath('/tmp...6230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison10/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_an_undecidable_comparison_is_refused[r11] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison11/exp25'), 'new': PosixPath('/tmp...6230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison11/exp36/plan.json'}
+edit = <function <lambda> at 0x7536110748b0>, needle = 'replay run plan'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison11/exp25'), 'new': PosixPath('/tmp...6230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison11/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________________ test_an_undecidable_comparison_is_refused[r12] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison12/exp25'), 'new': PosixPath('/tmp...30c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison12/exp36/absent.json'}
+edit = <function <lambda> at 0x753611074940>, needle = 'replay run plan'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison12/exp25'), 'new': PosixPath('/tmp...30c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_an_undecidable_comparison12/exp36/absent.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+________ test_a_replay_run_with_a_dump_or_a_schema1_receipt_is_refused _________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_a_replay_run_with_a_dump_0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_a_replay_run_with_a_dump_0/exp36/plan.json'}
+
+    def test_a_replay_run_with_a_dump_or_a_schema1_receipt_is_refused(world):
+        T.write_cell(world["new"], _row(REPLAY), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_a_replay_run_with_a_dump_0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_a_replay_run_with_a_dump_0/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+__________________________ test_a_bad_pin_is_refused ___________________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_a_bad_pin_is_refused0/exp25'), 'new': PosixPath('/tmp/pytes...e5b2b46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_a_bad_pin_is_refused0/exp36/plan.json'}
+
+    def test_a_bad_pin_is_refused(world):
+        for pin in ("b" * 39, None, EXP25_PIN.upper()):
+>           assert check(world, pin=pin)[0] == "refused"
+
+src/tests/test_exp36_replay_check.py:194: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_a_bad_pin_is_refused0/exp25'), 'new': PosixPath('/tmp/pytes...e5b2b46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_a_bad_pin_is_refused0/exp36/plan.json'}
+kw = {'pin': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_replay_check'. Did you mean: 'exp35_ctl_check'?
+
+src/tests/test_exp36_replay_check.py:78: AttributeError
+___________________ test_cli_exit_codes_and_the_verdict_file ___________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_cli_exit_codes_and_the_ve0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_cli_exit_codes_and_the_ve0/exp36/plan.json'}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_cli_exit_codes_and_the_ve0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x753610f89570>
+capsys = <_pytest.capture.CaptureFixture object at 0x753610d0e3b0>
+
+    def test_cli_exit_codes_and_the_verdict_file(world, tmp_path, monkeypatch, capsys):
+        out = tmp_path / "verdict.json"
+>       assert _cli(world, tmp_path, monkeypatch, "--verdict-out", str(out)) == 0
+
+src/tests/test_exp36_replay_check.py:209: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_cli_exit_codes_and_the_ve0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6527/test_cli_exit_codes_and_the_ve0/exp36/plan.json'}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6527/test_cli_exit_codes_and_the_ve0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x753610f89570>
+extra = ('--verdict-out', '/tmp/pytest-of-yixunhu/pytest-6527/test_cli_exit_codes_and_the_ve0/verdict.json')
+
+    def _cli(w, tmp_path, monkeypatch, *extra):
+>       monkeypatch.setattr(C, "EXP36_REFERENCE", w["pins"])
+E       AttributeError: <module 'depth_canon_collect' from '/home/yixunhu/codespace/exp-36-yaw-c4-spread/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py'> has no attribute 'EXP36_REFERENCE'
+
+src/tests/test_exp36_replay_check.py:199: AttributeError
+_____ test_the_real_archived_reference_verifies_against_the_pinned_digests _____
+
+    @pytest.mark.skipif(not os.path.isfile(os.path.join(ARCHIVE, _rel(_row(TEMPLATE), "receipt"))),
+                        reason="the archived exp_25 cell is not on this machine")
+    def test_the_real_archived_reference_verifies_against_the_pinned_digests():
+        """Read-only: the archived exp_25 YAW C4 K8 s42 th90 cell in the exp-25 worktree hashes to the pinned digests,
+        its evaluator log shows the SDPA fallback, and it verifies offline at d6ca307a under this branch's manifest."""
+>       files, reasons = C.exp36_reference(C.load_cells(C.CELLS_JSON), ref_base_dir=ARCHIVE)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_reference'
+
+src/tests/test_exp36_replay_check.py:231: AttributeError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp36_replay_check.py::test_the_replay_equal_to_the_archived_cell
+FAILED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[T60]
+FAILED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[C50_int]
+FAILED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[by_scene]
+FAILED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[loaded_bytes]
+FAILED src/tests/test_exp36_replay_check.py::test_equality_is_type_strict - A...
+FAILED src/tests/test_exp36_replay_check.py::test_a_different_stream_sidecar_is_a_mismatch
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r0]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r1]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r2]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r3]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r4]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r5]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r6]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r7]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r8]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r9]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r10]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r11]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r12]
+FAILED src/tests/test_exp36_replay_check.py::test_a_replay_run_with_a_dump_or_a_schema1_receipt_is_refused
+FAILED src/tests/test_exp36_replay_check.py::test_a_bad_pin_is_refused - Attr...
+FAILED src/tests/test_exp36_replay_check.py::test_cli_exit_codes_and_the_verdict_file
+FAILED src/tests/test_exp36_replay_check.py::test_the_real_archived_reference_verifies_against_the_pinned_digests
+24 failed, 3 warnings in 7.07s
