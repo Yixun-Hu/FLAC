@@ -58,8 +58,8 @@ def world(tmp_path):
                                   "dit": {"allocated_bytes": 2000, "reserved_bytes": 2500},
                                   "whole_query": {"allocated_bytes": 2100, "reserved_bytes": 2500}})
             save_query_result(run_dir, result=result, candidates=np.zeros((n, 3)), similarities=np.zeros((n, 1)))
-        uuid = "gpu-0"
-        apps = ["GPU-gpu-0, 42, python, 1 MiB"] + (["GPU-gpu-0, 99, python, 1 MiB"] if cotenant else [])
+        uuid = "6ac2604a-1111"                                   # torch prints the bare uuid, nvidia-smi "GPU-<uuid>"
+        apps = ["GPU-6ac2604a-1111, 42, python, 1 MiB"] + (["GPU-6ac2604a-1111, 99, python, 1 MiB"] if cotenant else [])
         for label, extra in (("start", None), ("loaded", {"memory_after_flac_load": {"memory_allocated_bytes": 700},
                                                           "memory_after_agree_load": {"memory_allocated_bytes": 1100}}),
                              ("end", None)):
@@ -74,7 +74,7 @@ def world(tmp_path):
 
 def test_rows_carry_the_bundle_statistics_memory_and_validity(world):
     selection, _sel_path, selector, run = world
-    out = summ.build_summary(selection, selector, runs=[("P1", 8, run("p1")), ("BF", 1, run("bf1", "BF", k=1))])
+    out = summ.build_summary(selection, selector, runs=[("P1", 8, run("p1", "P1")), ("BF", 1, run("bf1", "BF", k=1))])
     p1 = out["rows"][0]
     assert (p1["arm"], p1["context_count"], p1["timing_valid"]) == ("P1", 8, True)
     assert p1["overall"]["summed_seconds"] == pytest.approx(0.2 + 0.4 + 1.0)
