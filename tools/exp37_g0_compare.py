@@ -125,3 +125,106 @@ def load_reference(arm: str, reference_root: Path, pins: Pins = PINS) -> dict:
     if pins.query_index not in identity["query_indices"]:
         raise Refused(f"bundle {arm}: query_indices do not hold {pins.query_index}")
     return ref
+
+
+def _identity_reasons(arm, ours, ref, audit, launcher_sha256, pins) -> list[str]:
+    spec, mine = pins.arms[arm], ours["identity"]
+    want = {**{k: ref["identity"].get(k) for k in SHARED_FIELDS}, "query_indices": [pins.query_index],
+            "checkpoint_sha256": spec["local_ckpt"], "conditioning_method": spec["cond"],
+            "frame_average_angles": spec["angles"], "attention_backend": "sdpa",
+            "no_flash_launch": {"overlay_sha256": pins.overlay_sha256, "launcher_sha256": launcher_sha256,
+                                "sentinel": "EXP37_NO_FLASH_LAUNCHER"}}
+    reasons = [f"identity {k} is {mine.get(k)!r}, not {v!r}" for k, v in want.items() if mine.get(k) != v]
+    if audit["sha256"] != canonical_sha256({k: v for k, v in audit.items() if k != "sha256"}) \
+            or mine.get("geometry_audit_sha256") != audit["sha256"]:
+        reasons.append("the geometry audit fails its sha256 or is not the run's")
+    override = mine.get("mesh_root_override") or {}
+    digests = {room: row.get("mesh_sha256") for room, row in override.get("rooms", {}).items()}
+    if override.get("audit_mesh_root") != audit["mesh_root"] or digests != {
+            room: row["mesh_sha256"] for room, row in audit["rooms"].items()}:
+        reasons.append("identity mesh_root_override is absent or its digest map is not the audit's")
+    return reasons
+
+
+def _yaw_reasons(arm, yaw, launcher_sha256, reference_root, pins) -> list[str]:
+    if arm == "YAW":
+        return []
+    if yaw is None:
+        return [f"{arm} needs the YAW environment-control verdict first (--yaw-verdict)"]
+    want = {"gate": "exp37_G0", "arm": "YAW", "verdict": "PASS", "attention_backend": "sdpa",
+            "overlay_sha256": pins.overlay_sha256, "launcher_sha256": launcher_sha256,
+            "reference_root": str(reference_root)}
+    bad = [f"YAW verdict {k} is {yaw.get(k)!r}, not {v!r}" for k, v in want.items() if yaw.get(k) != v]
+    if yaw.get("sha256") != canonical_sha256({k: v for k, v in yaw.items() if k != "sha256"}):
+        bad.append("the YAW verdict fails its own sha256")
+    return bad
+
+
+def compare(arm: str, run_dir: Path, reference_root: Path, *, audit: dict, launcher_sha256: str,
+            yaw_verdict: dict | None = None, pins: Pins = PINS) -> dict:
+    verdict = {"gate": "exp37_G0", "arm": arm, "run_dir": str(run_dir), "reference_root": str(reference_root),
+               "query_index": pins.query_index, "tolerance": pins.tolerance, "attention_backend": "sdpa",
+               "overlay_sha256": pins.overlay_sha256, "launcher_sha256": launcher_sha256,
+               "comparator_sha256": _sha_file(Path(__file__))}
+    reasons = _yaw_reasons(arm, yaw_verdict, launcher_sha256, reference_root, pins)
+    try:
+        ref = load_reference(arm, reference_root, pins)
+        ours = _load_run(Path(run_dir), f"G0 {arm} run", pins)
+        reasons += _identity_reasons(arm, ours, ref, audit, launcher_sha256, pins)
+    except (Refused, KeyError, ValueError, OSError) as error:
+        reasons.append(f"{type(error).__name__}: {error}")
+    if reasons:
+        verdict.update(verdict="REFUSED", exit_code=2, reasons=reasons,
+                       diagnosis="not a valid G0 comparison; nothing is concluded")
+        return {**verdict, "sha256": canonical_sha256(verdict)}
+    delta = np.abs(ours["similarities"].astype(np.float64) - ref["similarities"].astype(np.float64))[:, 0]
+    fails = []
+    if ours["candidates"].tobytes() != ref["candidates"].tobytes():
+        fails.append("candidate arrays differ (exact comparison)")
+    if ours["argmax"] != ref["argmax"]:
+        fails.append(f"argmax {ours['argmax']} != bundle argmax {ref['argmax']}")
+    if float(delta.max()) > pins.tolerance:
+        fails.append(f"max |delta similarity| {float(delta.max()):.3e} > {pins.tolerance:g}")
+    if arm == "YAW":
+        diagnosis = ("environment / backend parity FAILED (hard stop): the byte-identical YAW checkpoint does not "
+                     "reproduce the bundle") if fails else "environment / backend parity established by the YAW control"
+    else:
+        diagnosis = (f"wrapped-vs-extracted EMA parity suspect for {arm} (the YAW control passed, so the environment / "
+                     "backend is not the cause)") if fails else f"wrapped-checkpoint EMA parity established for {arm}"
+    verdict.update(verdict="FAIL" if fails else "PASS", exit_code=1 if fails else 0, reasons=fails, diagnosis=diagnosis,
+                   exact_equality=bool(np.array_equal(ours["similarities"], ref["similarities"])),
+                   max_abs_delta=float(delta.max()), deltas=[float(v) for v in delta],
+                   argmax={"ours": ours["argmax"], "reference": ref["argmax"]},
+                   top_two_margin={"ours": ours["margin"], "reference": ref["margin"]},
+                   run_manifest_sha256=ours["manifest_sha256"], reference_manifest_sha256=ref["manifest_sha256"],
+                   npz_sha256={"ours": ours["npz_sha256"], "reference": ref["npz_sha256"]},
+                   yaw_verdict_sha256=None if yaw_verdict is None else yaw_verdict.get("sha256"))
+    return {**verdict, "sha256": canonical_sha256(verdict)}
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--arm", choices=tuple(PINS.arms), required=True)
+    parser.add_argument("--run-dir", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--yaw-verdict", type=Path)
+    parser.add_argument("--reference-root", type=Path, default=BUNDLE_REPEAT)
+    args = parser.parse_args()
+    if args.output.exists():
+        print(f"G0 REFUSED: {args.output} exists (verdicts are written once)", file=sys.stderr)
+        return 2
+    yaw = json.loads(args.yaw_verdict.read_text()) if args.yaw_verdict else None
+    verdict = compare(args.arm, args.run_dir.resolve(), args.reference_root.resolve(),
+                      audit=json.loads((REPO_ROOT / AUDIT_REL).read_text()),
+                      launcher_sha256=_sha_file(REPO_ROOT / LAUNCHER_REL), yaw_verdict=yaw)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = args.output.with_suffix(args.output.suffix + ".tmp")
+    temporary.write_text(json.dumps(verdict, indent=2, sort_keys=True) + "\n")
+    os.replace(temporary, args.output)
+    print(f"G0 {args.arm}: {verdict['verdict']} (exit {verdict['exit_code']}) -- {verdict['diagnosis']}; "
+          f"max|delta|={verdict.get('max_abs_delta')} exact={verdict.get('exact_equality')} reasons={verdict['reasons']}")
+    return int(verdict["exit_code"])
+
+
+if __name__ == "__main__":
+    sys.exit(main())
