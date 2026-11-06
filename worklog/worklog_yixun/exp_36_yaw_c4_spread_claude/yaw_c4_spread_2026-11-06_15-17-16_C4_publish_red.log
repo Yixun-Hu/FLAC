@@ -1,0 +1,529 @@
+RED, cycle 4 (--exp36-publish; Codex B4 / H4) at HEAD 6721d8c2da990a8a3f7a9ffc7b73c12ead6b09ad + the uncommitted tests
+FFFFFFFFFFFFFFFFFFF                                                      [100%]
+=================================== FAILURES ===================================
+_________________ test_the_48_files_are_published_and_recorded _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_the_48_files_are_publishe0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_the_48_files_are_publishe0/exp36/plan.json', ...}
+
+    def test_the_48_files_are_published_and_recorded(pub):
+        before = _listing(pub["dest"])
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_the_48_files_are_publishe0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_the_48_files_are_publishe0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+_______________ test_any_present_destination_refuses_everything ________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_any_present_destination_r0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_any_present_destination_r0/exp36/plan.json', ...}
+
+    def test_any_present_destination_refuses_everything(pub):
+        taken = os.path.join(pub["dest"], os.path.basename(_rel(_row(CELLS24[7]), "stream")))
+        open(taken, "w").close()
+        before = _listing(pub["dest"])
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:79: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_any_present_destination_r0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_any_present_destination_r0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+_________________ test_every_gate_refuses_before_any_write[g0] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before0/exp36/plan.json', ...}
+edit = <function <lambda> at 0x765ee67115a0>, needle = 'not at the pin'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+_________________ test_every_gate_refuses_before_any_write[g1] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before1/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before1/exp36/plan.json', ...}
+edit = <function <lambda> at 0x765ee6711630>, needle = 'exp-25 worktree'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before1/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before1/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+_________________ test_every_gate_refuses_before_any_write[g2] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before2/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before2/exp36/plan.json', ...}
+edit = <function <lambda> at 0x765ee67116c0>, needle = 'destination'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before2/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before2/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+_________________ test_every_gate_refuses_before_any_write[g3] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before3/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before3/exp36/plan.json', ...}
+edit = <function <lambda> at 0x765ee6711750>, needle = 'not an equal verdict'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before3/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before3/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+_________________ test_every_gate_refuses_before_any_write[g4] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before4/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before4/exp36/plan.json', ...}
+edit = <function <lambda> at 0x765ee67117e0>, needle = 'not an equal verdict'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before4/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before4/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+_________________ test_every_gate_refuses_before_any_write[g5] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before5/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before5/exp36/plan.json', ...}
+edit = <function <lambda> at 0x765ee6711870>, needle = 're-run'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before5/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before5/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+_________________ test_every_gate_refuses_before_any_write[g6] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before6/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before6/exp36/plan.json', ...}
+edit = <function <lambda> at 0x765ee6711900>, needle = 're-run'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before6/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before6/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+_________________ test_every_gate_refuses_before_any_write[g7] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before7/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before7/exp36/plan.json', ...}
+edit = <function <lambda> at 0x765ee6711990>, needle = 'verdict'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before7/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before7/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+_________________ test_every_gate_refuses_before_any_write[g8] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before8/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before8/exp36/plan.json', ...}
+edit = <function <lambda> at 0x765ee6711a20>
+needle = 'exp25_YAW_C4_S40000_K1_s46_th270'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before8/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before8/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+_________________ test_every_gate_refuses_before_any_write[g9] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before9/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before9/exp36/plan.json', ...}
+edit = <function <lambda> at 0x765ee6711ab0>
+needle = 'exp25_YAW_C4_S40000_K1_s44_th90'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before9/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before9/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+________________ test_every_gate_refuses_before_any_write[g10] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before10/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before10/exp36/plan.json', ...}
+edit = <function <lambda> at 0x765ee6711b40>
+needle = 'exp25_YAW_C4_S40000_K1_s43_th90'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before10/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before10/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+________________ test_every_gate_refuses_before_any_write[g11] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before11/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before11/exp36/plan.json', ...}
+edit = <function <lambda> at 0x765ee6711bd0>
+needle = 'exp25_YAW_C4_S40000_K1_s46_th90'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before11/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before11/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+________________ test_every_gate_refuses_before_any_write[g12] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before12/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before12/exp36/plan.json', ...}
+edit = <function <lambda> at 0x765ee6711c60>, needle = 'publication manifest'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before12/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_every_gate_refuses_before12/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+___________________ test_a_symlinked_destination_is_refused ____________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_a_symlinked_destination_i0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_a_symlinked_destination_i0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_a_symlinked_destination_i0')
+
+    def test_a_symlinked_destination_is_refused(pub, tmp_path):
+        link = tmp_path / "YAWlink"
+        os.symlink(pub["dest"], link)
+>       assert publish(pub, dest=str(link))[0] == "refused"
+
+src/tests/test_exp36_publish.py:126: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_a_symlinked_destination_i0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_a_symlinked_destination_i0/exp36/plan.json', ...}
+kw = {'dest': '/tmp/pytest-of-yixunhu/pytest-6532/test_a_symlinked_destination_i0/YAWlink'}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+___________ test_a_stop_part_way_is_partial_and_resume_completes_it ____________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_a_stop_part_way_is_partia0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_a_stop_part_way_is_partia0/exp36/plan.json', ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x765ee632dcc0>
+
+    def test_a_stop_part_way_is_partial_and_resume_completes_it(pub, monkeypatch):
+        real, calls = os.link, []
+    
+        def flaky(src, dst):
+            calls.append(dst)
+            if len(calls) == 6:
+                raise OSError("simulated crash at the sixth link")
+            return real(src, dst)
+    
+        monkeypatch.setattr(C.os, "link", flaky)
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:143: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_a_stop_part_way_is_partia0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_a_stop_part_way_is_partia0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+____________ test_resume_refuses_a_foreign_destination_or_temp_file ____________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_resume_refuses_a_foreign_0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_resume_refuses_a_foreign_0/exp36/plan.json', ...}
+
+    def test_resume_refuses_a_foreign_destination_or_temp_file(pub):
+        name = os.path.basename(_rel(_row(CELLS24[2]), "metrics"))
+        with open(os.path.join(pub["dest"], name), "w") as f:
+            f.write("{}")
+>       status, doc = publish(pub, resume=True)
+
+src/tests/test_exp36_publish.py:165: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_resume_refuses_a_foreign_0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_resume_refuses_a_foreign_0/exp36/plan.json', ...}
+kw = {'resume': True}
+
+    def publish(p, **kw):
+        args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'exp36_publish'
+
+src/tests/test_exp36_publish.py:47: AttributeError
+_________________________ test_cli_publish_exit_codes __________________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_cli_publish_exit_codes0/exp25'), 'new': PosixPath('/tmp/pyt...230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_cli_publish_exit_codes0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_cli_publish_exit_codes0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x765ee67fbc70>
+capsys = <_pytest.capture.CaptureFixture object at 0x765ee67f9d50>
+
+    def test_cli_publish_exit_codes(pub, tmp_path, monkeypatch, capsys):
+>       assert _cli(pub, tmp_path, monkeypatch, "--exp25-base-dir", str(tmp_path)) == 2   # the pinned worktree only
+
+src/tests/test_exp36_publish.py:187: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_cli_publish_exit_codes0/exp25'), 'new': PosixPath('/tmp/pyt...230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6532/test_cli_publish_exit_codes0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6532/test_cli_publish_exit_codes0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x765ee67fbc70>
+extra = ('--exp25-base-dir', '/tmp/pytest-of-yixunhu/pytest-6532/test_cli_publish_exit_codes0')
+
+    def _cli(p, tmp_path, monkeypatch, *extra):
+        monkeypatch.setattr(C, "EXP36_REFERENCE", p["pins"])
+        monkeypatch.setattr(C, "EXP25_WORKTREE", str(p["ref"]))
+>       monkeypatch.setattr(C, "EXP36_PUBLISH_DEST", p["dest"])
+E       AttributeError: <module 'depth_canon_collect' from '/home/yixunhu/codespace/exp-36-yaw-c4-spread/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py'> has no attribute 'EXP36_PUBLISH_DEST'
+
+src/tests/test_exp36_publish.py:176: AttributeError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp36_publish.py::test_the_48_files_are_published_and_recorded
+FAILED src/tests/test_exp36_publish.py::test_any_present_destination_refuses_everything
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g0]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g1]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g2]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g3]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g4]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g5]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g6]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g7]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g8]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g9]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g10]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g11]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g12]
+FAILED src/tests/test_exp36_publish.py::test_a_symlinked_destination_is_refused
+FAILED src/tests/test_exp36_publish.py::test_a_stop_part_way_is_partial_and_resume_completes_it
+FAILED src/tests/test_exp36_publish.py::test_resume_refuses_a_foreign_destination_or_temp_file
+FAILED src/tests/test_exp36_publish.py::test_cli_publish_exit_codes - Attribu...
+19 failed, 3 warnings in 6.41s
