@@ -40,6 +40,7 @@ def main() -> None:
     parser.add_argument("--query-index", type=int)
     parser.add_argument("--mesh-root", type=Path)
     parser.add_argument("--require-attention-backend", choices=("sdpa",))
+    parser.add_argument("--context-count", type=int, choices=(8, 1), default=8)
     args = parser.parse_args()
 
     output = args.output_dir.resolve()
@@ -72,6 +73,7 @@ def main() -> None:
         query_index=args.query_index,
         mesh_root=args.mesh_root,
         require_attention_backend=args.require_attention_backend,
+        context_count=args.context_count,
     )
     print(json.dumps(result, indent=2))
 

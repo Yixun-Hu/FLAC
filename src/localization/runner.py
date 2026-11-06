@@ -49,6 +49,29 @@ from src.localization.scoring import (
 RUN_SCHEMA_VERSION = 1
 QUERY_SCHEMA_VERSION = 1
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SUPPORTED_CONTEXT_COUNTS = (8, 1)
+K1_CONTEXT_SELECTION = {
+    "model_contexts": "contexts[0] of the frozen context manifest (its exp_09 seed-42 loader order)",
+    "candidate_filter_contexts": "all 8 manifest contexts (candidate_filter_context_sources_global)",
+}
+
+
+def context_count_view(record: dict, context_count: int) -> dict:
+    """exp_37 K_ctx: 8 = the frozen record itself; 1 = ``contexts[0]`` fed to the model while the candidate
+    filter keeps all 8 manifest contexts, so the candidate set and its audit hash do not change."""
+    if context_count not in SUPPORTED_CONTEXT_COUNTS:
+        raise ValueError(f"unsupported context count {context_count}; supported: {SUPPORTED_CONTEXT_COUNTS}")
+    if len(record["contexts"]) != 8 or len(record["context_sources_global"]) != 8:
+        raise ValueError("the frozen manifest records must carry 8 contexts")
+    if context_count == 8:
+        return record
+    if "candidate_filter_context_sources_global" in record:
+        raise ValueError("the record already carries a candidate-filter override")
+    view = dict(record)
+    view["contexts"] = list(record["contexts"][:context_count])
+    view["context_sources_global"] = [list(p) for p in record["context_sources_global"][:context_count]]
+    view["candidate_filter_context_sources_global"] = [list(p) for p in record["context_sources_global"]]
+    return view
 
 
 def file_sha256(path: Path | str) -> str:
@@ -267,6 +290,7 @@ def execute_query(
     score_sample_counts: tuple[int, ...] = SCORE_SAMPLE_COUNTS,
     synchronize_timing: bool = False,
     measure_core_forward: bool = False,
+    context_count: int = 8,
 ) -> tuple[dict, np.ndarray, np.ndarray]:
     """Run and score all candidates for one frozen target query."""
 
@@ -278,8 +302,8 @@ def execute_query(
     candidates = filter_frozen_query_candidates(record, audit, room_base)
     if len(candidates) != int(selected["candidate_count"]):
         raise RuntimeError("pilot and reconstructed candidate counts differ")
-    if len(record["contexts"]) != 8:
-        raise RuntimeError("formal pilot requires N_ctx=8")
+    if len(record["contexts"]) != context_count:
+        raise RuntimeError(f"formal pilot requires N_ctx={context_count}")
 
     observed_gpu = observed.unsqueeze(0).to(device=device, dtype=torch.float32)
     observation_features = encode_audio_features(retrieval, observed_gpu)
@@ -390,8 +414,8 @@ def execute_query(
     )
     if measure_core_forward:
         result["latency_protocol"] = {
-            "name": "fem_core_aligned_kctx8_kgen1",
-            "context_count": 8,
+            "name": f"fem_core_aligned_kctx{context_count}_kgen1",
+            "context_count": context_count,
             "generated_rirs_per_candidate": maximum_samples,
             "input_loading_included": False,
             "candidate_filtering_included": False,
@@ -448,6 +472,7 @@ def run_localization(
     query_index: int | None = None,
     mesh_root: Path | None = None,
     require_attention_backend: str | None = None,
+    context_count: int = 8,
 ) -> dict:
     if candidate_batch_size <= 0:
         raise ValueError("candidate_batch_size must be positive")
@@ -462,6 +487,8 @@ def run_localization(
         raise ValueError("score_sample_counts must be unique, increasing, and positive")
     if warmup_query_count < 0:
         raise ValueError("warmup_query_count must be nonnegative")
+    if context_count not in SUPPORTED_CONTEXT_COUNTS:
+        raise ValueError(f"unsupported context count {context_count}; supported: {SUPPORTED_CONTEXT_COUNTS}")
     if measure_core_forward and score_sample_counts != (1,):
         raise ValueError("core-forward latency requires exactly one RIR per candidate")
     audit_content = {key: value for key, value in geometry_audit.items() if key != "sha256"}
@@ -490,7 +517,7 @@ def run_localization(
         "frame_average_angles": (
             list(DEFAULT_FRAME_ANGLES) if cond_method == "fa_invariant" else None
         ),
-        "n_context": 8,
+        "n_context": int(context_count),
         "score_sample_counts": list(score_sample_counts),
         "tau": float(tau),
         "sample_seed": int(sample_seed),
@@ -503,6 +530,8 @@ def run_localization(
     }
     if mesh_remap is not None:
         identity["mesh_root_override"] = mesh_remap
+    if context_count != 8:
+        identity["context_selection"] = K1_CONTEXT_SELECTION
     run_manifest = initialize_run(output_dir, identity)
     run_sha256 = run_manifest["sha256"]
     write_host_record(
@@ -519,6 +548,7 @@ def run_localization(
     if warmup_query_count > len(joined):
         raise ValueError("warmup_query_count exceeds the selected query count")
     for selected, record, _geometry in joined[:warmup_query_count]:
+        record = context_count_view(record, context_count)
         room = selected["room"]
         if room not in room_bases:
             room_bases[room] = reconstruct_room_base_candidates(
@@ -541,12 +571,14 @@ def run_localization(
             score_sample_counts=score_sample_counts,
             synchronize_timing=synchronize_timing,
             measure_core_forward=measure_core_forward,
+            context_count=context_count,
         )
     if warmup_query_count:
         print(f"completed {warmup_query_count} in-process warm-up queries", flush=True)
 
     completed = 0
     for ordinal, (selected, record, _geometry) in enumerate(joined, start=1):
+        record = context_count_view(record, context_count)
         previous = completed_query_result(
             output_dir,
             query_index=int(selected["index"]),
@@ -582,7 +614,10 @@ def run_localization(
             score_sample_counts=score_sample_counts,
             synchronize_timing=synchronize_timing,
             measure_core_forward=measure_core_forward,
+            context_count=context_count,
         )
+        if context_count != 8:
+            result["context_selection"] = {"indices": list(range(context_count)), "paths": list(record["contexts"])}
         save_query_result(
             output_dir,
             result=result,
