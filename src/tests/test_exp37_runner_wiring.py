@@ -178,3 +178,18 @@ def test_the_cli_passes_the_exp37_flags_through(monkeypatch, tmp_path):
     assert seen["query_index"] == 4467 and seen["mesh_root"] == Path("AcousticRooms/room_mesh_obj_format")
     assert seen["require_attention_backend"] == "sdpa" and seen["query_limit"] is None
     assert not (REPO / "never_created_by_this_test").exists()
+
+
+def test_the_provenance_checks_run_before_the_cuda_check(frozen, tmp_path, stubbed, monkeypatch):
+    """A CPU pre-flight (CUDA hidden) verifies the hand-off and the mesh map on real inputs, THEN stops at the
+    CUDA requirement -- so a bad backend or mesh is reported first and nothing is ever written."""
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    monkeypatch.setattr(transformer, "flash_attn_func", None)
+    monkeypatch.delenv(run_provenance.LAUNCH_ENV, raising=False)
+    with pytest.raises(RuntimeError, match="hand-off"):
+        _run(frozen, tmp_path, query_index=4467, require_attention_backend="sdpa")
+    seen = []
+    monkeypatch.setattr(runner, "resolve_mesh_root", lambda audit, root: seen.append(root) or {"rooms": {}})
+    with pytest.raises(RuntimeError, match="CUDA"):
+        _run(frozen, tmp_path, query_index=4467, mesh_root=Path("m"))
+    assert seen == [Path("m")] and not (tmp_path / "run").exists()
