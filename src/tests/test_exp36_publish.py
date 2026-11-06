@@ -67,7 +67,9 @@ def test_the_48_files_are_published_and_recorded(pub):
     assert (doc["pin"], doc["campaign_digest"], doc["exp25_head"], doc["dest"]) == (H36, T.DIGEST, EXP25_HEAD,
                                                                                     pub["dest"])
     assert doc["verdict"] == {"path": pub["verdict"], "sha256": _sha(pub["verdict"])}
-    assert doc["archived_reference"] == pub["pins"] and "--exp36-publish-resume" in doc["recovery"]
+    ref = doc["archived_reference"]
+    assert {k: ref[k] for k in pub["pins"]} == pub["pins"] and ref["reference"] == "exp25_YAW_C4_S40000_K8_s42_th90"
+    assert "--exp36-publish-resume" in doc["recovery"]
     assert json.loads(open(pub["out"]).read()) == doc
     assert not [n for n in _listing(pub["dest"]) if n.startswith(C.EXP36_TMP_PREFIX)]
 
@@ -171,7 +173,7 @@ def test_resume_refuses_a_foreign_destination_or_temp_file(pub):
 
 
 def _cli(p, tmp_path, monkeypatch, *extra):
-    monkeypatch.setattr(C, "EXP36_REFERENCE", p["pins"])
+    monkeypatch.setitem(C.EXP36_REPLAYS, REPLAY, dict(C.EXP36_REPLAYS[REPLAY], **p["pins"]))
     monkeypatch.setattr(C, "EXP25_WORKTREE", str(p["ref"]))
     monkeypatch.setattr(C, "EXP36_PUBLISH_DEST", p["dest"])
     monkeypatch.setattr(C, "EXP25_WORKTREE_HEAD", EXP25_HEAD)

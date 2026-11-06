@@ -1,0 +1,187 @@
+GREEN, cycle 8 at HEAD bd4938234050fd6d7287da247a807608bad44efb + the uncommitted comparator registry (EXP36_REPLAYS), exp36_reference / exp36_replay_check generalized, the CLI --exp36-replay / --exp36-ref-dir (+ the CANON checkpoint index)
+......................................................F.                 [100%]
+=================================== FAILURES ===================================
+_________________________ test_cli_publish_exit_codes __________________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6548/test_cli_publish_exit_codes0/exp25'), 'new': PosixPath('/tmp/pyt...230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6548/test_cli_publish_exit_codes0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6548/test_cli_publish_exit_codes0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7a7158c830d0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7a7158c825f0>
+
+    def test_cli_publish_exit_codes(pub, tmp_path, monkeypatch, capsys):
+        assert _cli(pub, tmp_path, monkeypatch, "--exp25-base-dir", str(tmp_path)) == 2   # the pinned worktree only
+        assert "exp-25" in capsys.readouterr().out and not os.path.exists(pub["out"])
+>       assert _cli(pub, tmp_path, monkeypatch) == 0 and "EXP36 PUBLISHED 48" in capsys.readouterr().out
+E       AssertionError: assert (2 == 0)
+E        +  where 2 = _cli({'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6548/test_cli_publish_exit_codes0/exp25'), 'new': PosixPath('/tmp/pyt...230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6548/test_cli_publish_exit_codes0/exp36/plan.json', ...}, PosixPath('/tmp/pytest-of-yixunhu/pytest-6548/test_cli_publish_exit_codes0'), <_pytest.monkeypatch.MonkeyPatch object at 0x7a7158c830d0>)
+
+src/tests/test_exp36_publish.py:189: AssertionError
+----------------------------- Captured stdout call -----------------------------
+EXP36 PUBLISH REFUSED (nothing written)
+  - the replay check re-run now is refused and not the recorded verdict
+  - the archived reference metrics outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K8_s42_th90_rot90.json hashes to 7a2eb762ed4ff3195c8b7cfdb82a1f61f306466e61984fdaec2ccac9bc7b94c1, not the pinned fc8cb212a9a5b852d1ad3bc31e01ff17c1b0b93b79141d92d0c016751eb11130
+  - the archived reference stream outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K8_s42_th90_rot90.stream.json hashes to 025d3f8e3ca75b0453b82b8d297c2435065e1aea70aff331c43f86816d8eb2f7, not the pinned e671270fc3cd61f5a47dd68f6f41707db68d6e62b4f2750ae52e9e7f9b7085a8
+  - the archived reference receipt outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K8_s42_th90_rot90.cell.json hashes to e8acbc206066f21228cbc3929a2f0b782469bbeeec0fa31414a894cb6a8feef4, not the pinned ee7d624a0c5a5df589fa7e47690aca85e2d6297007a466ad69820bf3c7bf9177
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_a1_replays.py::test_the_registry_holds_the_four_replays_with_the_amendment_digests
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[P1]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[BF]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[CANON]
+PASSED src/tests/test_exp36_a1_replays.py::test_a_plan_of_the_four_replays_serves_each_check
+PASSED src/tests/test_exp36_a1_replays.py::test_a_different_canon_sidecar_is_a_mismatch
+PASSED src/tests/test_exp36_a1_replays.py::test_the_backend_proof_of_each_reference_kind
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[YAW]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[P1]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[BF]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[CANON]
+PASSED src/tests/test_exp36_replay_check.py::test_the_replay_equal_to_the_archived_cell
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[T60]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[C50_int]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[by_scene]
+PASSED src/tests/test_exp36_replay_check.py::test_equality_is_type_strict
+PASSED src/tests/test_exp36_replay_check.py::test_the_loaded_checkpoint_must_be_the_pinned_one
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_stream_sidecar_is_a_mismatch
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r0]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r1]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r2]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r3]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r4]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r5]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r6]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r7]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r8]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r9]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r10]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r11]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r12]
+PASSED src/tests/test_exp36_replay_check.py::test_a_replay_run_with_a_dump_or_a_schema1_receipt_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_a_bad_pin_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_cli_exit_codes_and_the_verdict_file
+PASSED src/tests/test_exp36_replay_check.py::test_the_real_archived_reference_verifies_against_the_pinned_digests
+PASSED src/tests/test_exp36_replay_check.py::test_cli_a_crashed_check_is_refused_never_a_mismatch
+PASSED src/tests/test_exp36_publish.py::test_the_48_files_are_published_and_recorded
+PASSED src/tests/test_exp36_publish.py::test_any_present_destination_refuses_everything
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g0]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g1]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g2]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g3]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g4]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g5]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g6]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g7]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g8]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g9]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g10]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g11]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g12]
+PASSED src/tests/test_exp36_publish.py::test_a_symlinked_destination_is_refused
+PASSED src/tests/test_exp36_publish.py::test_a_stop_part_way_is_partial_and_resume_completes_it
+PASSED src/tests/test_exp36_publish.py::test_resume_refuses_a_foreign_destination_or_temp_file
+PASSED src/tests/test_exp36_publish.py::test_cli_a_crashed_publication_exits_3_never_0
+FAILED src/tests/test_exp36_publish.py::test_cli_publish_exit_codes - Asserti...
+1 failed, 55 passed, 3 warnings in 7.63s
+
+attempt 2 after two test-side updates: the publish tests patch the registry entry EXP36_REPLAYS[YAW] (EXP36_REFERENCE is no longer consulted by the check) and compare the publication manifest's archived_reference field by field (now the merged registry entry)
+........................................................................ [ 92%]
+......                                                                   [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_________________________ test_cli_publish_exit_codes __________________________
+----------------------------- Captured stdout call -----------------------------
+EXP36 PUBLISHED 48 file(s) into /tmp/pytest-of-yixunhu/pytest-6549/test_cli_publish_exit_codes0/exp25/outputs_FLAC/exp25_depth_canon/YAW; manifest /tmp/pytest-of-yixunhu/pytest-6549/test_cli_publish_exit_codes0/publication.json
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_a1_replays.py::test_the_registry_holds_the_four_replays_with_the_amendment_digests
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[P1]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[BF]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[CANON]
+PASSED src/tests/test_exp36_a1_replays.py::test_a_plan_of_the_four_replays_serves_each_check
+PASSED src/tests/test_exp36_a1_replays.py::test_a_different_canon_sidecar_is_a_mismatch
+PASSED src/tests/test_exp36_a1_replays.py::test_the_backend_proof_of_each_reference_kind
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[YAW]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[P1]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[BF]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[CANON]
+PASSED src/tests/test_exp36_replay_check.py::test_the_replay_equal_to_the_archived_cell
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[T60]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[C50_int]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[by_scene]
+PASSED src/tests/test_exp36_replay_check.py::test_equality_is_type_strict
+PASSED src/tests/test_exp36_replay_check.py::test_the_loaded_checkpoint_must_be_the_pinned_one
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_stream_sidecar_is_a_mismatch
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r0]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r1]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r2]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r3]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r4]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r5]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r6]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r7]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r8]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r9]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r10]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r11]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r12]
+PASSED src/tests/test_exp36_replay_check.py::test_a_replay_run_with_a_dump_or_a_schema1_receipt_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_a_bad_pin_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_cli_exit_codes_and_the_verdict_file
+PASSED src/tests/test_exp36_replay_check.py::test_the_real_archived_reference_verifies_against_the_pinned_digests
+PASSED src/tests/test_exp36_replay_check.py::test_cli_a_crashed_check_is_refused_never_a_mismatch
+PASSED src/tests/test_exp36_publish.py::test_the_48_files_are_published_and_recorded
+PASSED src/tests/test_exp36_publish.py::test_any_present_destination_refuses_everything
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g0]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g1]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g2]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g3]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g4]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g5]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g6]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g7]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g8]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g9]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g10]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g11]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g12]
+PASSED src/tests/test_exp36_publish.py::test_a_symlinked_destination_is_refused
+PASSED src/tests/test_exp36_publish.py::test_a_stop_part_way_is_partial_and_resume_completes_it
+PASSED src/tests/test_exp36_publish.py::test_resume_refuses_a_foreign_destination_or_temp_file
+PASSED src/tests/test_exp36_publish.py::test_cli_publish_exit_codes
+PASSED src/tests/test_exp36_publish.py::test_cli_a_crashed_publication_exits_3_never_0
+PASSED src/tests/test_exp36_collect.py::test_the_no_flash_decision_is_separate_from_the_exp35_identity
+PASSED src/tests/test_exp36_collect.py::test_plan_entries_of_the_yaw_c4s_cells_are_no_flash_and_dump_free
+PASSED src/tests/test_exp36_collect.py::test_exp25_and_exp35_plan_entries_keep_their_no_flash_flag
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args0-25]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args1-1]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args2-24]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args3-100]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args4-0]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args5-27]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp36_YAW_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K1_s43_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K8_s46_th270]
+PASSED src/tests/test_exp36_collect.py::test_a_schema1_receipt_is_refused_for_a_yaw_c4s_cell
+PASSED src/tests/test_exp36_collect.py::test_the_25_yaw_c4s_names_are_admitted_and_only_there
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K1_s43_th270-exp25_YAW_C4_S40000_K1_s43_th91-registered exp_36]
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K8_s42_th90-exp36_YAW_C4_S40000_K8_s42_th90-exp_36 name]
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_T_S40000_K1_s43-exp25_YAW_C4_S40000_K1_s43_th90-exp_36 name]
+PASSED src/tests/test_exp36_collect.py::test_the_a1_names_are_registered_in_their_blocks_only
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp35_CANON_OFF_S40000_K8_s42_th315]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp35_BF_OFF_S40000_K1_s42_th315]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp36_CANON_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp25_YAW_C4_S40000_K1_s42_th135]
+78 passed, 3 warnings in 7.86s
