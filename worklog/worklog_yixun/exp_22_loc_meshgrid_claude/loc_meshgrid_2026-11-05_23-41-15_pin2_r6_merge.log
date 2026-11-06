@@ -1,0 +1,63 @@
+++ date -Is
+2026-11-05T23:41:15-05:00
+++ git fetch origin
+++ git status -sb
+++ head -1
+## localization-exp...origin/localization-exp
+++ git pull --rebase
+Already up to date.
++++ git rev-parse HEAD
++++ git rev-parse HEAD
++++ cut -c9-
+++ test 53326ab0ef52d5bce9e3028cf176802d13218423 = 53326ab0ef52d5bce9e3028cf176802d13218423
++++ git rev-parse HEAD
+++ echo 'HEAD 53326ab0ef52d5bce9e3028cf176802d13218423'
+HEAD 53326ab0ef52d5bce9e3028cf176802d13218423
++++ git rev-parse HEAD
++++ git rev-parse origin/localization-exp
+++ test 53326ab0ef52d5bce9e3028cf176802d13218423 = 53326ab0ef52d5bce9e3028cf176802d13218423
++++ git status --porcelain --untracked-files=no
+++ test -z ''
++++ git rev-parse exp-22-a7-noflash
+++ test 233e2bbb53227b5fe6e53fb040027833c89ef183 = 233e2bbb53227b5fe6e53fb040027833c89ef183
++++ git merge-base HEAD exp-22-a7-noflash
+++ MB=44c2241bb54b946c3f2500737d25c9aac9e72030
+++ echo 'merge-base 44c2241bb54b946c3f2500737d25c9aac9e72030'
+merge-base 44c2241bb54b946c3f2500737d25c9aac9e72030
++++ tr '\n' ' '
++++ comm -12 /dev/fd/63 /dev/fd/62
+++++ git diff --name-only 44c2241bb54b946c3f2500737d25c9aac9e72030 HEAD
+++++ sort
+++++ git diff --name-only 44c2241bb54b946c3f2500737d25c9aac9e72030 exp-22-a7-noflash
+++++ sort
+++ echo 'paths changed on BOTH sides since the merge base: []'
+paths changed on BOTH sides since the merge base: []
++++ comm -12 /dev/fd/63 /dev/fd/62
+++++ git diff --name-only 44c2241bb54b946c3f2500737d25c9aac9e72030 HEAD
+++++ sort
+++++ git diff --name-only 44c2241bb54b946c3f2500737d25c9aac9e72030 exp-22-a7-noflash
+++++ sort
+++ test -z ''
+++ git merge --no-ff exp-22-a7-noflash -m 'exp_22 R2 A7: re-merge the no-flash pre-flight round after the A7-C3 weights-layout fix (branch exp-22-a7-noflash @ 233e2bbb; Codex code + plan A7-C3 = SHIP) -- THIS MERGE COMMIT IS PIN2 (plan A7 r6; the first merge b722d5f0 is superseded and was never used for any line); the non-worklog delta vs the exp_22 PIN 4576b562 is still exactly overlays/no_flash/{flash_attn.py, exp35_no_flash_launch.py}, src/tests/test_exp35_no_flash_launch.py and pyproject.toml, byte-identical to exp_35 H35 5b065801; the meshgrid production code unchanged (701926e5)' -m 'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
+++ cut -c1-120
+++ git log --oneline -1
+42ecdece exp_22 R2 A7: re-merge the no-flash pre-flight round after the A7-C3 weights-layout fix (branch exp-22-a7-nofla
+++ git log -1 '--format=parents %P'
+parents 53326ab0ef52d5bce9e3028cf176802d13218423 233e2bbb53227b5fe6e53fb040027833c89ef183
++++ git diff --name-only 4576b56238d57ce5d572f82ac6fbbdc9545e3430 HEAD -- ':(exclude)worklog' ':(exclude)CLAUDE.md'
++++ tr '\n' ' '
+++ echo 'non-worklog vs 4576b562: overlays/no_flash/exp35_no_flash_launch.py overlays/no_flash/flash_attn.py pyproject.toml src/tests/test_exp35_no_flash_launch.py '
+non-worklog vs 4576b562: overlays/no_flash/exp35_no_flash_launch.py overlays/no_flash/flash_attn.py pyproject.toml src/tests/test_exp35_no_flash_launch.py 
+++ git diff --quiet 701926e5 HEAD -- localize_meshgrid.py src/localization/
+++ echo 'meshgrid frozen'
+meshgrid frozen
+++ git diff --quiet 233e2bbb53227b5fe6e53fb040027833c89ef183 HEAD -- worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools overlays src pyproject.toml localize_meshgrid.py
+++ echo 'tools / overlays / src / pyproject identical to the reviewed 233e2bbb'
+tools / overlays / src / pyproject identical to the reviewed 233e2bbb
+++ git push -q
+++ head -1
+++ git status -sb
+## localization-exp...origin/localization-exp
+++ git rev-parse HEAD
+42ecdecee3f1e66fefc707f3372e20021087afb0
+++ set +x
