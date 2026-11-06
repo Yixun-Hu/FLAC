@@ -183,9 +183,12 @@ def load_arm_run(run_dir: Path, *, arm: str, selection: dict, audit: dict, seed:
         if query.get("run_manifest_sha256") != manifest["sha256"] or int(query["candidate_count"]) != int(
                 expected) or query.get("query_id") != record["query_id"]:
             raise RuntimeError(f"{run_dir}: query {index} does not belong to this run / selection")
-        if subset_manifest is not None and (query.get("candidate_subset") or {}).get(
-                "indices_sha256") != subset_rows[index]["candidate_indices_sha256"]:
-            raise RuntimeError(f"{run_dir}: query {index} ran another candidate subset than the subset manifest's")
+        if subset_manifest is not None and not (
+                (query.get("candidate_subset") or {}).get("indices_sha256") == query.get("candidate_indices_sha256")
+                == subset_rows[index]["candidate_indices_sha256"]
+                and query.get("parent_candidate_indices_sha256") == record.get("candidate_indices_sha256")):
+            raise RuntimeError(f"{run_dir}: query {index} ran another candidate subset than the subset manifest's "
+                               "(active / parent hashes)")
         given = query.get("latency_protocol") or {}
         if any(given.get(k) != v for k, v in protocol.items()) or bool(given.get("stage_split")) != stage_split:
             raise RuntimeError(f"{run_dir}: query {index} latency_protocol is not {protocol} (stage_split={stage_split})")

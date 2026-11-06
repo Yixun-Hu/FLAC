@@ -443,11 +443,14 @@ def execute_query(
         score_sample_counts=score_sample_counts,
     )
     if candidate_subset is not None:
+        subset_sha256 = hashlib.sha256(chosen.astype("<u4").tobytes()).hexdigest()
         result["candidate_subset"] = {
             "name": candidate_subset.__name__,
             "full_candidate_count": full_count,
-            "indices_sha256": hashlib.sha256(chosen.astype("<u4").tobytes()).hexdigest(),
+            "indices_sha256": subset_sha256,
         }
+        result["parent_candidate_indices_sha256"] = result["candidate_indices_sha256"]
+        result["candidate_indices_sha256"] = subset_sha256
     if measure_core_forward:
         result["latency_protocol"] = {
             "name": f"fem_core_aligned_kctx{context_count}_kgen1",

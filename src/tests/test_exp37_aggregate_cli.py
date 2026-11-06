@@ -128,7 +128,9 @@ def spec(tmp_path):
     sub_sha = hashlib.sha256(index.astype("<u4").tobytes()).hexdigest()
     timing = [{"arm": arm, "kind": "nested_1m", "dir": w.run(f"{arm}_nested", arm, w.pilot, HALF[index], core=0.4,
                                                               extra={"candidate_subset": "nested_1m"},
-                                                              per_query={i: {"candidate_subset": {"indices_sha256": sub_sha}}
+                                                              per_query={i: {"candidate_subset": {"indices_sha256": sub_sha},
+                                                                             "candidate_indices_sha256": sub_sha,
+                                                                             "parent_candidate_indices_sha256": f"h{i}"}
                                                                          for i in (1, 2)})} for arm in ("P1", "BF")]
     timing += [{"arm": arm, "kind": "c2f", "dir": w.c2f_run(f"{arm}_c2f", arm)} for arm in ("P1", "BF")]
     b3 = [{"orbit": o, "theta": t, "seed": s,
