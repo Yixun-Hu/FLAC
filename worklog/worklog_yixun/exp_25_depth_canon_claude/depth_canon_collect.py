@@ -2436,14 +2436,41 @@ def exp36_reference(manifest, *, replay=EXP36_REPLAY, ref_base_dir=None, ref_dum
     return files, [f"the archived reference does not verify at {pins['pin'][:12]}: {x}" for x in why]
 
 
-def exp36_dump_preflight(manifest, names, *, base_dir=REPO, dump_root=None, canon_index=None):
-    """The Planner's addendum (every exp_36 cell dumps): reasons any of ``names`` would dump onto a directory this
-    checkout did not publish -- its dump directory or a ``.staging-`` sibling exists under ``dump_root`` while
-    ``base_dir``'s farm holds no receipt for the cell ([] = clear). A dump WITH this checkout's receipt (a resumed chain)
-    is left to the runner's reviewed predicate: SKIP if complete and verified, else QUARANTINE."""
+def _owned(base_dir, p, row, *, pin, dump_root):
+    """Review III HIGH 1: the receipt at ``p.receipt`` is a regular, non-symlink, parseable JSON receipt of exactly
+    this cell (cell, stem) at the launch ``pin``, its checkpoint link under the farm root and its dump under
+    ``dump_root`` (``dump: true``) -- only then is an existing dump this checkout's. Read through ONE no-follow,
+    non-blocking descriptor (a symlink, a directory or a FIFO at the receipt path never authenticates)."""
+    import stat
+    try:
+        fd = os.open(os.path.join(base_dir, p.receipt), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return False
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return False
+        raw = b"".join(iter(lambda: os.read(fd, 1 << 20), b""))
+    finally:
+        os.close(fd)
+    try:
+        rec = json.loads(raw)
+    except ValueError:
+        return False
+    keys = ("cell", "stem", "expect_head", "ckpt_link", "dump_root", "dump")
+    return isinstance(rec, dict) and [rec.get(k) for k in keys] == [row["cell"], p.stem, pin, p.link, dump_root, True]
+
+
+def exp36_dump_preflight(manifest, names, *, pin, base_dir=REPO, dump_root=None, canon_index=None):
+    """The Planner's addendum (every exp_36 cell dumps) + review III HIGH 1: reasons any of ``names`` would dump onto a
+    directory this checkout did not publish -- its dump directory or a ``.staging-`` sibling exists under
+    ``dump_root`` and no AUTHENTICATED receipt (``_owned``: this cell, the launch ``pin``, farm and dump root, dump)
+    claims it ([] = clear). A dump so owned (a resumed chain) is left to the runner's reviewed predicate: SKIP if
+    complete and verified, else QUARANTINE and rerun -- which also recovers a damaged dump."""
     rows = {c["cell"]: c for c in manifest["cells"]}
     if not names or any(n not in rows for n in names):
         return [f"unknown or empty selection {names!r}"]
+    if not re.fullmatch(r"[0-9a-f]{40}", str(pin)):
+        return [f"the launch pin {pin!r} is not a full 40-hex commit"]
     root, out = dump_root or manifest["dump_root"], []
     for name in names:
         row = rows[name]
@@ -2452,10 +2479,10 @@ def exp36_dump_preflight(manifest, names, *, base_dir=REPO, dump_root=None, cano
         except KeyError as err:
             return [str(err).strip("'\"")]
         p = cell_paths(row, os.path.join(manifest["farm_root"], row["arm"], os.path.basename(target)), root)
-        if (os.path.lexists(p.dump_dir) or staging_leftovers(p.dump_dir)) and not os.path.lexists(
-                os.path.join(base_dir, p.receipt)):
-            out.append(f"{name}: its dump directory {p.dump_dir} (or a .staging- sibling) exists and this checkout "
-                       "holds no receipt for it -- it collides")
+        if (os.path.lexists(p.dump_dir) or staging_leftovers(p.dump_dir)) and not _owned(
+                base_dir, p, row, pin=pin, dump_root=root):
+            out.append(f"{name}: its dump directory {p.dump_dir} (or a .staging- sibling) exists and no authenticated "
+                       f"receipt of this checkout at {pin[:12]} owns it -- it collides")
     return out
 
 
@@ -2463,11 +2490,13 @@ def exp36_replay_check(*, replay=EXP36_REPLAY, pin, plan_json, manifest, base_di
                        ref_dump_root=None, reference=None, canon_index=None):
     """B3 / H2 / A1, the hard stop: ``(status, verdict)``, status "equal", "mismatch" or "refused" (undecidable).
     Refused unless the reference passes ``exp36_reference``, the replay run plan ``plan_json`` planned only registered
-    replays (``replay`` among them), dump-free and no-flash, under one campaign digest, and the replay verifies here at
-    ``pin`` dump-free under that digest (receipt 2: sdpa, the pinned overlay + launcher, its log re-validated). Equal
-    iff ``metrics``, ``by_scene`` and every other record key but ``source_sha`` / ``eval_name`` (and the key order)
-    are type-strictly equal, the raw stream (and canon) sidecars are identical and the loaded checkpoint (sha256,
-    bytes) is the pinned one in both records and receipts."""
+    replays (``replay`` among them), each WITH its dump and no-flash, under one campaign digest, and the replay verifies
+    here at ``pin`` WITH its dump (re-hashed) under that digest (receipt 2: sdpa, the pinned overlay + launcher, its log
+    re-validated). Equal iff ``metrics``, ``by_scene`` and every other record key but ``source_sha`` / ``eval_name``
+    (and the key order) are type-strictly equal, the raw stream (and canon) sidecars are identical, the loaded
+    checkpoint (sha256, bytes) is the pinned one in both records and receipts, and the dump passes the exp_35 CTL
+    checks (waveform sha256 + COMPLETE marker = the reference's pinned waveforms; n / dtype / shape and input_hash = the
+    reference dump manifest's)."""
     pins = dict(EXP36_REPLAYS.get(replay) or {}, **(reference or {}))
     verdict = {"schema_version": 1, "check": "exp36_replay", "result": "refused", "pin": pin, "campaign_digest": None,
                "plan_json": plan_json, "plan_sha256": None, "reference": None, "replay": None,
@@ -2932,7 +2961,8 @@ def main(argv=None):
     ap.add_argument("--exp36-replay", default=EXP36_REPLAY, help="--exp36-replay-check: the replay (EXP36_REPLAYS)")
     ap.add_argument("--exp36-ref-dir", default=None, help="--exp36-replay-check: the reference worktree (default: pinned)")
     ap.add_argument("--exp36-dump-preflight", action="store_true",
-                    help="exp_36: exit 0 iff no --only cell would dump onto a directory this checkout did not publish")
+                    help="exp_36: exit 0 iff no --only cell would dump onto a directory that no authenticated receipt of "
+                         "this checkout at --pin (the launch commit) owns")
     ap.add_argument("--exp36-publish", action="store_true",
                     help="exp_36: copy the selected set's verified cells (--exp36-set A: 24 cells, 48 files; OFF: 6 cells, "
                          "12 files) into the pinned exp-25 YAW farm (--pin H36_I, --exp36-verdict, --publisher-pin); exit 0 "
@@ -2957,7 +2987,7 @@ def main(argv=None):
             index = (load_canon_index(args.canon_ckpt_manifest or find_canon_manifest(),
                                       manifest["arms"]["CANON"]["ckpt"]["run_ns"])
                      if any(c["cell"] in sel and c["arm"] == "CANON" for c in manifest["cells"]) else None)
-            why = exp36_dump_preflight(manifest, sel, base_dir=args.base_dir, dump_root=args.dump_root,
+            why = exp36_dump_preflight(manifest, sel, pin=args.pin, base_dir=args.base_dir, dump_root=args.dump_root,
                                        canon_index=index)
         except (OSError, ValueError, KeyError) as err:
             why = [f"the preflight could not run ({type(err).__name__}: {err})"]

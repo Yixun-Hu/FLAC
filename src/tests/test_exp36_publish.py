@@ -5,7 +5,8 @@ run by the runner or the chain. Set A = the 24 YAW-C4S cells (48 files), set OFF
 Gates before any write, under the global publication lock: the publisher checkout at its pin with a clean closure; the
 run checkout at the artifacts' pin (H36_I) and the exp-25 worktree at its expected HEAD; the destination the plain YAW
 farm directory of the exp-25 worktree, opened once (every later operation relative to that fd); the YAW replay's
-verdict ``equal`` at the pin AND re-computed identically; the set's cells verified, dump-free, receipt 2 sdpa, under
+verdict ``equal`` at the pin AND re-computed identically; the set's cells verified with their dump evidence (offline;
+a dump is never copied), receipt 2 sdpa, under
 the verdict's campaign digest, each WITH its dump (receipt evidence, offline); none of the set's destinations (metrics
 JSON + stream sidecar; never the replay, never a ``.cell.json``, never a dump) present. Each file is written to a temp named by the publication's transaction id, fsynced,
 hard-linked to its final name (no replace) and re-hashed; the publication manifest (created exclusively, replaced only

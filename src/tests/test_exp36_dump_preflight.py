@@ -12,6 +12,7 @@ Written by the exp_36 Coder (Claude Opus 5.5, max effort) per plan_yaw_c4_spread
 """
 import json
 import os
+import signal
 
 import pytest
 
@@ -91,6 +92,11 @@ def _relink(receipt, target):
     os.symlink(target, receipt)
 
 
+def _replace(receipt, make):
+    os.unlink(receipt)
+    make(str(receipt))
+
+
 UNAUTHENTICATED = [
     (lambda r, p, rc: _relink(rc, str(rc) + ".real"), {}),                       # an ordinary symlink
     (lambda r, p, rc: _relink(rc, "/nonexistent/receipt.json"), {}),             # a dangling symlink
@@ -102,15 +108,32 @@ UNAUTHENTICATED = [
     (lambda r, p, rc: _edit(rc, ckpt_link="elsewhere/YAW/epoch=8-step=40000.ckpt"), {}),   # another farm root
     (lambda r, p, rc: _edit(rc, dump_root="/elsewhere"), {}),                    # another dump root
     (lambda r, p, rc: _edit(rc, dump=False), {}),
+    (lambda r, p, rc: _replace(rc, os.mkdir), {}),                               # not a regular file: a directory
+    (lambda r, p, rc: _replace(rc, os.mkfifo), {}),                              # ... a FIFO (never blocks)
 ]
 
 
+class _Blocked(Exception):
+    """Not an OSError (a TimeoutError would be swallowed as an open failure): a blocked open fails the test."""
+
+
+def _alarm(signum, frame):
+    raise _Blocked("the preflight blocked on the receipt path")
+
+
 @pytest.mark.parametrize("edit, kw", UNAUTHENTICATED, ids=["symlink", "dangling", "json", "malformed", "cell", "stem",
-                                                          "pin", "farm_root", "dump_root", "dump_false"])
+                                                          "pin", "farm_root", "dump_root", "dump_false", "directory",
+                                                          "fifo"])
 def test_an_unauthenticated_receipt_never_claims_an_existing_dump(tmp_path, edit, kw):
     r, p, receipt = _owned(tmp_path)
     edit(r, p, receipt)
-    reasons = preflight(tmp_path, **kw)
+    old = signal.signal(signal.SIGALRM, _alarm)
+    signal.alarm(20)
+    try:
+        reasons = preflight(tmp_path, **kw)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
     assert len(reasons) == 1 and NAMES[0] in reasons[0] and "collides" in reasons[0], reasons
 
 

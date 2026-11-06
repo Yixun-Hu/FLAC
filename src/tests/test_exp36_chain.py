@@ -4,8 +4,10 @@ binding of it (plan_yaw_c4_spread.md r0 §2 "Run" as amended by the Codex plan r
 Part 1 drives the REAL runner ``depth_canon_eval_run.sh`` in harness mode (stub evaluator, stub nvidia-smi / findmnt /
 df, fake checkpoints) against test_depth_canon_eval_run's throwaway clone (its sparse checkout includes the exp_36
 folder: the chain belongs to every no-flash selection's relevant tree, which must be hashable): a YAW-C4S cell
-spawns through the no-flash launcher on lane 1 without a dump and gets receipt 2, and the chain script belongs to the
-relevant tree of every no-flash selection (an uncommitted edit stops it; an exp_25-only selection is unaffected).
+spawns through the no-flash launcher on lane 1 (with --no-dump-blocks: a runner capability the chain no longer uses --
+since the Planner's addendum every chain cell, every replay included, dumps) and gets receipt 2; the chain's own runner
+calls are dry-run with their dumps; and the chain script belongs to the relevant tree of every no-flash selection (an
+uncommitted edit stops it; an exp_25-only selection is unaffected).
 Part 2 drives the chain itself with a stub runner and a stub comparator: (1) the replay -> (2) the check -> (3) the
 24 only on an exact 0; every other outcome stops before (3); DRY_RUN never runs the check.
 

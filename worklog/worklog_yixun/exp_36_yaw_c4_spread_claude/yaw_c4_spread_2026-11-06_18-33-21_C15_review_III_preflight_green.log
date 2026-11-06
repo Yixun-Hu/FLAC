@@ -1,0 +1,402 @@
+GREEN, cycle 15 at HEAD 9a8440dc9323637972a089d45c8903fc4bc8042d + the uncommitted fixes: _owned (the authenticated receipt), exp36_dump_preflight(pin=...), the chain passes --pin $EXPECT_HEAD and prints only the pointer to yaw_c4_spread_command.md; NIT 2 docstrings
+........................................................................ [ 43%]
+........................................................................ [ 86%]
+.......................                                                  [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_______ test_the_parsed_cli_routes_each_set_to_its_own_default_manifest ________
+----------------------------- Captured stderr call -----------------------------
+usage: __main__.py [-h] [--verify-cell STEM] [--pin PIN] [--cells CELLS]
+                   [--farm-root FARM_ROOT] [--dump-root DUMP_ROOT]
+                   [--base-dir BASE_DIR]
+                   [--canon-ckpt-manifest CANON_CKPT_MANIFEST]
+                   [--dump-check {full,manifest,receipt}] [--no-dump]
+                   [--no-link-check] [--plan OUT] [--blocks BLOCKS]
+                   [--only ONLY] [--limit LIMIT]
+                   [--no-dump-blocks NO_DUMP_BLOCKS] [--write-receipt CELL]
+                   [--plan-json PLAN_JSON] [--lane LANE] [--log LOG] [--rc RC]
+                   [--ckpt-sha CKPT_SHA] [--ckpt-bytes CKPT_BYTES]
+                   [--campaign-digest CAMPAIGN_DIGEST]
+                   [--spawn-digest SPAWN_DIGEST] [--post-digest POST_DIGEST]
+                   [--collect] [--nas-retention-audit] [--partial]
+                   [--probe-json PROBE_JSON] [--tie-audit-json TIE_AUDIT_JSON]
+                   [--out-md OUT_MD] [--out-json OUT_JSON] [--verify-after]
+                   [--check-backend-log LOG] [--finalize-bf-probe JSON]
+                   [--probe-log PROBE_LOG] [--exp35-ctl-check K] [--exp35-e2]
+                   [--a6-csv A6_CSV] [--exp35] [--exp35-out EXP35_OUT]
+                   [--exp25-base-dir EXP25_BASE_DIR]
+                   [--exp25-dump-root EXP25_DUMP_ROOT]
+                   [--bf-probe-json BF_PROBE_JSON] [--count-no-flash]
+                   [--backend-target BACKEND_TARGET]
+                   [--attention-backend ATTENTION_BACKEND]
+                   [--no-flash-overlay-sha256 NO_FLASH_OVERLAY_SHA256]
+                   [--no-flash-launcher-sha256 NO_FLASH_LAUNCHER_SHA256]
+                   [--exp36-replay-check] [--verdict-out VERDICT_OUT]
+                   [--exp36-replay EXP36_REPLAY]
+                   [--exp36-ref-dir EXP36_REF_DIR] [--exp36-dump-preflight]
+                   [--exp36-publish] [--exp36-verdict EXP36_VERDICT]
+                   [--exp36-set {A,OFF}] [--publisher-pin PUBLISHER_PIN]
+                   [--exp36-publish-resume]
+__main__.py: error: unrecognized arguments: --publish-manifest-out x.json
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_dump_preflight.py::test_absent_dump_directories_pass
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp36_YAW_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp36_CANON_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp35_BF_OFF_S40000_K1_s42_th315]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp25_YAW_C4_S40000_K1_s43_th90]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_staging_leftover_refuses
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_dump_of_this_checkouts_own_cell_is_left_to_the_runner
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_damaged_dump_owned_by_an_authenticated_receipt_is_left_to_the_runners_recovery
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[symlink]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[dangling]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[json]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[malformed]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[cell]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[stem]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[pin]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[farm_root]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_root]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_false]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_bad_pin_is_refused
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unknown_cell_or_an_empty_selection_is_refused
+PASSED src/tests/test_exp36_dump_preflight.py::test_cli_exit_codes
+PASSED src/tests/test_exp36_chain.py::test_the_runner_dry_run_spawns_the_replay_through_the_no_flash_launcher
+PASSED src/tests/test_exp36_chain.py::test_the_runner_runs_yaw_c4s_cells_on_lane_1_without_dumps_and_receipt_2
+PASSED src/tests/test_exp36_chain.py::test_the_runner_dry_run_of_chain_i_plans_the_4_replays_and_the_24_off_orbit_cells
+PASSED src/tests/test_exp36_chain.py::test_the_runner_runs_the_4_replays_on_both_lanes_with_receipt_2_and_their_dumps
+PASSED src/tests/test_exp36_chain.py::test_the_chain_script_is_in_the_relevant_tree_of_a_no_flash_selection
+PASSED src/tests/test_exp36_chain.py::test_chain_ii_runs_the_yaw_replay_its_check_then_the_24
+PASSED src/tests/test_exp36_chain.py::test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[1-4]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[2-4]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[3-5]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[4-5]
+PASSED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[1-kinds0-A]
+PASSED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[1-kinds0-offorbit]
+PASSED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[2-None-A]
+PASSED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[2-None-offorbit]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args0]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args1]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args2]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args3]
+PASSED src/tests/test_exp36_chain.py::test_a_changed_canon_checkpoint_manifest_is_refused
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env0-4-REPLAY MISMATCH-kinds0]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env1-5-REPLAY CHECK REFUSED-kinds1]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env2-5-REPLAY CHECK REFUSED-kinds2]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env3-3-the replay run exited 2-kinds3]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env4-3-the replay run exited 1-kinds4]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env5-3-no single plan-kinds5]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env6-6-re-run this chain to resume-kinds6]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env7-6-the production run exited 4-kinds7]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env8-5-REPLAY CHECK REFUSED-kinds8]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env9-5-REPLAY CHECK REFUSED-kinds9]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env10-5-REPLAY CHECK REFUSED-kinds10]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env11-5-REPLAY CHECK REFUSED-kinds11]
+PASSED src/tests/test_exp36_chain.py::test_dry_run_plans_both_runner_steps_and_never_runs_the_check[A]
+PASSED src/tests/test_exp36_chain.py::test_dry_run_plans_both_runner_steps_and_never_runs_the_check[offorbit]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env0-HEAD PIN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env1-EXPECT_HEAD]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env2-DRY_RUN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env3-ALLOW_SHARED_GPU]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env4-co-tenant]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env5-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env6-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_outside_the_harness_a_test_variable_is_refused
+PASSED src/tests/test_exp36_chain.py::test_an_uncommitted_chain_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_the_replay_equal_to_the_archived_cell
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[T60]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[C50_int]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[by_scene]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[waveforms]
+PASSED src/tests/test_exp36_replay_check.py::test_equality_is_type_strict
+PASSED src/tests/test_exp36_replay_check.py::test_the_loaded_checkpoint_must_be_the_pinned_one
+PASSED src/tests/test_exp36_replay_check.py::test_the_raw_stream_sidecar_must_be_the_archived_one
+PASSED src/tests/test_exp36_replay_check.py::test_the_dump_checks_are_ctl_style
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r0]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r1]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r2]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r3]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r4]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r5]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r6]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r7]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r8]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r9]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r10]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r11]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r12]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r13]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r14]
+PASSED src/tests/test_exp36_replay_check.py::test_a_replay_run_without_a_dump_or_with_a_schema1_receipt_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_a_bad_pin_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_cli_exit_codes_and_the_verdict_file
+PASSED src/tests/test_exp36_replay_check.py::test_the_real_archived_reference_verifies_against_the_pinned_digests
+PASSED src/tests/test_exp36_replay_check.py::test_cli_a_crashed_check_is_refused_never_a_mismatch
+PASSED src/tests/test_exp36_a1_replays.py::test_the_registry_holds_the_four_replays_with_the_amendment_digests
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[P1]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[BF]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[CANON]
+PASSED src/tests/test_exp36_a1_replays.py::test_a_plan_of_the_four_replays_serves_each_check
+PASSED src/tests/test_exp36_a1_replays.py::test_the_raw_canon_sidecar_must_be_the_archived_one
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_must_reproduce_its_references_waveforms[P1]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_must_reproduce_its_references_waveforms[BF]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_must_reproduce_its_references_waveforms[CANON]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_backend_proof_of_each_reference_kind
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[YAW]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[P1]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[BF]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[CANON]
+PASSED src/tests/test_exp36_publish.py::test_the_48_files_are_published_and_recorded
+PASSED src/tests/test_exp36_publish.py::test_any_present_destination_refuses_everything
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g0]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g1]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g2]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g3]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g4]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g5]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g6]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g7]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g8]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g9]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g10]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g11]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g12]
+PASSED src/tests/test_exp36_publish.py::test_a_symlinked_destination_is_refused
+PASSED src/tests/test_exp36_publish.py::test_a_stop_part_way_is_partial_and_resume_completes_it
+PASSED src/tests/test_exp36_publish.py::test_resume_refuses_a_foreign_destination_or_temp_file
+PASSED src/tests/test_exp36_publish.py::test_cli_publish_needs_a_set
+PASSED src/tests/test_exp36_publish.py::test_cli_publish_exit_codes
+PASSED src/tests/test_exp36_publish.py::test_cli_a_crashed_publication_exits_3_never_0
+PASSED src/tests/test_exp36_publish.py::test_the_off_set_publishes_its_12_files_only
+PASSED src/tests/test_exp36_publish.py::test_each_set_needs_its_own_cells_and_the_yaw_verdict
+PASSED src/tests/test_exp36_publish.py::test_a_verdict_of_another_replay_is_refused
+PASSED src/tests/test_exp36_publish.py::test_a_relative_plan_path_resolves_against_the_base_dir
+PASSED src/tests/test_exp36_publish.py::test_the_final_collector_reproduces_a_verdict_of_the_launch_collector
+PASSED src/tests/test_exp36_publish_publisher.py::test_a_clean_closure_at_the_pin_is_recorded
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[collector]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[dependency]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[untracked]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[deleted]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[cells]
+PASSED src/tests/test_exp36_publish_publisher.py::test_test_files_and_files_outside_the_closure_do_not_count
+PASSED src/tests/test_exp36_publish_publisher.py::test_a_wrong_or_short_pin_or_a_missing_head_is_refused
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_closure_names_this_collector_and_its_cells_manifest
+PASSED src/tests/test_exp36_publish_publisher.py::test_a_refused_publisher_refuses_the_publication_before_any_write
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_cli_requires_the_publisher_pin_and_the_collectors_own_cells
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_parsed_cli_routes_each_set_to_its_own_default_manifest
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_cli_help_names_both_sets
+PASSED src/tests/test_exp36_publish_provenance.py::test_cli_publishes_the_off_set_into_its_own_manifest
+PASSED src/tests/test_exp36_publish_provenance.py::test_the_default_manifest_paths_differ_per_set
+PASSED src/tests/test_exp36_publish_provenance.py::test_the_manifest_keeps_the_artifact_pin_apart_from_the_publishing_head
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_held_lock_refuses_before_anything_and_the_lock_spans_every_write
+PASSED src/tests/test_exp36_publish_concurrency.py::test_two_concurrent_same_set_publications
+PASSED src/tests/test_exp36_publish_concurrency.py::test_concurrent_a_and_off_publications
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_destination_path_swap_cannot_redirect_the_owner
+PASSED src/tests/test_exp36_publish_concurrency.py::test_temps_are_named_by_the_transaction_and_a_resume_removes_only_those
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[none]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[json]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[file]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[symlink]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[other_set]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[verdict]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[entries]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[source]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[complete]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[txid]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[writer_temp]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_the_initial_manifest_is_created_exclusively
+PASSED src/tests/test_exp36_publish_concurrency.py::test_an_update_never_replaces_a_manifest_it_did_not_write
+167 passed, 3 warnings in 270.96s (0:04:30)
+
+=== re-run after the single-descriptor receipt read (O_NOFOLLOW | O_NONBLOCK, S_ISREG on the fd) + 2 regression cases added at GREEN (a directory, a FIFO at the receipt path) + the chain test header (NIT 2), Fri Nov  6 06:40:32 PM EST 2026
+..................F...............................................       [100%]
+=================================== FAILURES ===================================
+___ test_an_unauthenticated_receipt_never_claims_an_existing_dump[directory] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6675/test_an_unauthenticated_receip10')
+edit = <function <lambda> at 0x7a24e2d77400>, kw = {}
+
+    @pytest.mark.parametrize("edit, kw", UNAUTHENTICATED, ids=["symlink", "dangling", "json", "malformed", "cell", "stem",
+                                                              "pin", "farm_root", "dump_root", "dump_false", "directory",
+                                                              "fifo"])
+    def test_an_unauthenticated_receipt_never_claims_an_existing_dump(tmp_path, edit, kw):
+        r, p, receipt = _owned(tmp_path)
+        edit(r, p, receipt)
+        old = signal.signal(signal.SIGALRM, _alarm)
+        signal.alarm(20)
+        try:
+>           reasons = preflight(tmp_path, **kw)
+
+src/tests/test_exp36_dump_preflight.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp36_dump_preflight.py:39: in preflight
+    return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:2478: in exp36_dump_preflight
+    if (os.path.lexists(p.dump_dir) or staging_leftovers(p.dump_dir)) and not _owned(
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:2449: in _owned
+    with os.fdopen(fd, "rb") as f:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fd = 11, mode = 'rb', buffering = -1, encoding = None, args = (), kwargs = {}
+
+    def fdopen(fd, mode="r", buffering=-1, encoding=None, *args, **kwargs):
+        if not isinstance(fd, int):
+            raise TypeError("invalid fd type (%s, expected integer)" % type(fd))
+        import io
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(fd, mode, buffering, encoding, *args, **kwargs)
+E       IsADirectoryError: [Errno 21] Is a directory: 11
+
+../../miniconda3/envs/flac/lib/python3.10/os.py:1030: IsADirectoryError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_dump_preflight.py::test_absent_dump_directories_pass
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp36_YAW_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp36_CANON_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp35_BF_OFF_S40000_K1_s42_th315]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp25_YAW_C4_S40000_K1_s43_th90]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_staging_leftover_refuses
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_dump_of_this_checkouts_own_cell_is_left_to_the_runner
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_damaged_dump_owned_by_an_authenticated_receipt_is_left_to_the_runners_recovery
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[symlink]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[dangling]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[json]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[malformed]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[cell]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[stem]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[pin]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[farm_root]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_root]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_false]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[fifo]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_bad_pin_is_refused
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unknown_cell_or_an_empty_selection_is_refused
+PASSED src/tests/test_exp36_dump_preflight.py::test_cli_exit_codes
+PASSED src/tests/test_exp36_chain.py::test_the_runner_dry_run_spawns_the_replay_through_the_no_flash_launcher
+PASSED src/tests/test_exp36_chain.py::test_the_runner_runs_yaw_c4s_cells_on_lane_1_without_dumps_and_receipt_2
+PASSED src/tests/test_exp36_chain.py::test_the_runner_dry_run_of_chain_i_plans_the_4_replays_and_the_24_off_orbit_cells
+PASSED src/tests/test_exp36_chain.py::test_the_runner_runs_the_4_replays_on_both_lanes_with_receipt_2_and_their_dumps
+PASSED src/tests/test_exp36_chain.py::test_the_chain_script_is_in_the_relevant_tree_of_a_no_flash_selection
+PASSED src/tests/test_exp36_chain.py::test_chain_ii_runs_the_yaw_replay_its_check_then_the_24
+PASSED src/tests/test_exp36_chain.py::test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[1-4]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[2-4]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[3-5]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[4-5]
+PASSED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[1-kinds0-A]
+PASSED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[1-kinds0-offorbit]
+PASSED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[2-None-A]
+PASSED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[2-None-offorbit]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args0]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args1]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args2]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args3]
+PASSED src/tests/test_exp36_chain.py::test_a_changed_canon_checkpoint_manifest_is_refused
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env0-4-REPLAY MISMATCH-kinds0]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env1-5-REPLAY CHECK REFUSED-kinds1]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env2-5-REPLAY CHECK REFUSED-kinds2]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env3-3-the replay run exited 2-kinds3]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env4-3-the replay run exited 1-kinds4]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env5-3-no single plan-kinds5]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env6-6-re-run this chain to resume-kinds6]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env7-6-the production run exited 4-kinds7]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env8-5-REPLAY CHECK REFUSED-kinds8]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env9-5-REPLAY CHECK REFUSED-kinds9]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env10-5-REPLAY CHECK REFUSED-kinds10]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env11-5-REPLAY CHECK REFUSED-kinds11]
+PASSED src/tests/test_exp36_chain.py::test_dry_run_plans_both_runner_steps_and_never_runs_the_check[A]
+PASSED src/tests/test_exp36_chain.py::test_dry_run_plans_both_runner_steps_and_never_runs_the_check[offorbit]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env0-HEAD PIN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env1-EXPECT_HEAD]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env2-DRY_RUN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env3-ALLOW_SHARED_GPU]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env4-co-tenant]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env5-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env6-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_outside_the_harness_a_test_variable_is_refused
+PASSED src/tests/test_exp36_chain.py::test_an_uncommitted_chain_is_refused
+FAILED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[directory]
+1 failed, 65 passed, 3 warnings in 257.13s (0:04:17)
+
+=== re-run: the directory case raised IsADirectoryError from os.fdopen (the S_ISREG check now runs on the raw fd before any read; os.read loop; the fd always closed), Fri Nov  6 06:45:12 PM EST 2026
+.......................                                                  [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_dump_preflight.py::test_absent_dump_directories_pass
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp36_YAW_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp36_CANON_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp35_BF_OFF_S40000_K1_s42_th315]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp25_YAW_C4_S40000_K1_s43_th90]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_staging_leftover_refuses
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_dump_of_this_checkouts_own_cell_is_left_to_the_runner
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_damaged_dump_owned_by_an_authenticated_receipt_is_left_to_the_runners_recovery
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[symlink]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[dangling]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[json]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[malformed]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[cell]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[stem]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[pin]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[farm_root]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_root]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_false]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[directory]
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[fifo]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_bad_pin_is_refused
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unknown_cell_or_an_empty_selection_is_refused
+PASSED src/tests/test_exp36_dump_preflight.py::test_cli_exit_codes
+23 passed, 3 warnings in 5.22s
+
+=== mutation checks (HIGH 1), each applied alone to the collector, then restored byte-exactly ===
+mutation [drop the cell check]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.36s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[cell]']
+mutation [drop the stem check]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.65s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[stem]']
+mutation [drop the expect_head check]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.47s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[pin]']
+mutation [drop the ckpt_link check]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.33s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[farm_root]']
+mutation [drop the dump_root check]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.26s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_root]']
+mutation [drop the dump check]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.36s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_false]']
+mutation [no O_NOFOLLOW]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.28s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[symlink]']
+mutation [no O_NONBLOCK]: rc 0; ['23 passed, 3 warnings in 25.36s']; failing: []
+mutation [no S_ISREG]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.86s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[directory]']
+mutation [the review-II lexists ownership]: rc 1; ['12 failed, 11 passed, 3 warnings in 5.34s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[cell]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[dangling]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[directory]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_false]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_root]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[farm_root]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[fifo]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[json]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[malformed]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[pin]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[stem]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[symlink]']
+mutation [no pin check]: rc 1; ['2 failed, 21 passed, 3 warnings in 5.74s']; failing: ['test_a_bad_pin_is_refused', 'test_cli_exit_codes']
+collector restored
+the [no O_NONBLOCK] mutation SURVIVED: the test's alarm raised TimeoutError, an OSError subclass, which the open's except swallowed (the preflight then refused, so the test passed after 20 s); the alarm now raises a non-OSError exception; all mutations re-run:
+
+=== mutation checks (HIGH 1), each applied alone to the collector, then restored byte-exactly ===
+mutation [drop the cell check]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.52s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[cell]']
+mutation [drop the stem check]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.55s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[stem]']
+mutation [drop the expect_head check]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.72s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[pin]']
+mutation [drop the ckpt_link check]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.51s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[farm_root]']
+mutation [drop the dump_root check]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.45s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_root]']
+mutation [drop the dump check]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.58s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_false]']
+mutation [no O_NOFOLLOW]: rc 1; ['1 failed, 22 passed, 3 warnings in 5.67s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[symlink]']
+mutation [no O_NONBLOCK]: rc 1; ['1 failed, 22 passed, 3 warnings in 25.92s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[fifo]']
+mutation [no S_ISREG]: rc 1; ['1 failed, 22 passed, 3 warnings in 6.00s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[directory]']
+mutation [the review-II lexists ownership]: rc 1; ['12 failed, 11 passed, 3 warnings in 5.36s']; failing: ['test_an_unauthenticated_receipt_never_claims_an_existing_dump[cell]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[dangling]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[directory]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_false]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_root]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[farm_root]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[fifo]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[json]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[malformed]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[pin]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[stem]', 'test_an_unauthenticated_receipt_never_claims_an_existing_dump[symlink]']
+mutation [no pin check]: rc 1; ['2 failed, 21 passed, 3 warnings in 5.81s']; failing: ['test_a_bad_pin_is_refused', 'test_cli_exit_codes']
+collector restored
+23 passed, 3 warnings in 5.60s

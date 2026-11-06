@@ -1,7 +1,7 @@
 """exp_36 yaw_c4_spread, cycle 3: the replay hard stop ``--exp36-replay-check`` (plan_yaw_c4_spread.md r0 §2 item 2
 as amended by the Codex plan review B3 / H2).
 
-The replay ``exp36_YAW_C4_S40000_K8_s42_th90`` (this worktree, at H36, dump-free, receipt schema 2 on the SDPA
+The replay ``exp36_YAW_C4_S40000_K8_s42_th90`` (this worktree, at H36, WITH its dump, receipt schema 2 on the SDPA
 backend, its receipt's campaign digest == the replay run plan's) vs the archived exp_25 cell
 ``exp25_YAW_C4_S40000_K8_s42_th90`` (the exp-25 worktree, at d6ca307a, with its dump): the three archived raw digests
 and the archived evaluator log first, then both cells verified, then type-strict equality of ``metrics``, ``by_scene``

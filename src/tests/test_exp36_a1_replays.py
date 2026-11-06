@@ -64,7 +64,7 @@ def _plan(new, replays, digest=T.DIGEST):
 
 
 def make(tmp, arm, replays=None):
-    """The reference (its pin, a dump, its backend evidence) and the replay (H36, dump-free, receipt 2)."""
+    """The reference (its pin, a dump, its backend evidence) and the replay (H36, WITH its dump, receipt 2)."""
     ref_name, pin = ARMS[arm]
     replay = f"exp36_{arm}_{C4}"
     ref, new = tmp / f"ref_{arm}", tmp / f"new_{arm}"
