@@ -214,7 +214,9 @@ def test_the_localize_flac_tree_starts_no_python_child():
                 "src/localization/engine.py", "eval_FLAC.py", "AGREE/AGREE/model.py"):
         assert os.path.join(REPO, rel) in closure, rel
     assert len(closure) > 30
-    assert [v for p in sorted(closure) for v in _spawn_violations(p)] == []
+    monitor = os.path.join(REPO, "src", "localization", "exp37_cotenancy.py")      # the one reviewed exception:
+    assert [v for p in sorted(closure) if p != monitor for v in _spawn_violations(p)] == []   # the isolated monitor
+    # child (pinned by test_exp37_runner_monitor.py::test_the_only_python_child_of_the_localize_flac_tree_...)
 
 
 def test_the_spawn_scanner_bites(tmp_path):
@@ -242,7 +244,8 @@ def test_the_only_spawner_reference_is_the_host_record_with_literal_tool_argv():
     default. Pin that this is the closure's ONLY spawner reference and that its argv lists are literal tools."""
     closure = _import_closure([os.path.join(REPO, "localize_FLAC.py")])
     refs = {(os.path.relpath(p, REPO), ref) for p in closure for ref in _spawner_references(p)}
-    assert refs == {("src/localization/run_provenance.py", "subprocess.run")}
+    assert refs - {("src/localization/exp37_cotenancy.py", "subprocess.Popen")} == {
+        ("src/localization/run_provenance.py", "subprocess.run")}                  # + the monitor child (pinned elsewhere)
     tree = ast.parse(open(os.path.join(REPO, "src", "localization", "run_provenance.py")).read())
     argvs = [node.args[1] for node in ast.walk(tree) if isinstance(node, ast.Call)
              and isinstance(node.func, ast.Name) and node.func.id == "_command"]
