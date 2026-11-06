@@ -1,0 +1,37 @@
+=== exp22_pin2_worktree create -- 2026-11-05T23:21:23-05:00 -- PIN2 b722d5f0ecfc618eaebec35eb1fac82c133a531d -- /home/yixunhu/codespace/exp-22-pin2 -- this script bb9473de508b99c5b18c8bdd3cd69c11233d71af4e9ae66b06be4c88f755db97
+untracked weights entries of the main checkout (23): weights/AGREE weights/AGREE_AR.pt weights/AGREE_fullAR.pt weights/AGREE_fullHAA.pt weights/FLAC/.cache weights/FLAC/.gitattributes weights/FLAC/FLAC.ckpt weights/FLAC/FLAC_EMA.ckpt weights/FLAC/FLAC_HAA.ckpt weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed42.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed42.stream.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed43.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed43.stream.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed44.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed44.stream.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed45.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed45.stream.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed46.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed46.stream.json weights/FLAC/README.md weights/FLAC/VAE.ckpt weights/FLAC/VAE.safetensors weights/exp20
+Preparing worktree (detached HEAD b722d5f0)
+Updating files:  72% (3423/4695)Updating files:  73% (3428/4695)Updating files:  74% (3475/4695)Updating files:  75% (3522/4695)Updating files:  76% (3569/4695)Updating files:  77% (3616/4695)Updating files:  78% (3663/4695)Updating files:  79% (3710/4695)Updating files:  80% (3756/4695)Updating files:  81% (3803/4695)Updating files:  82% (3850/4695)Updating files:  83% (3897/4695)Updating files:  84% (3944/4695)Updating files:  85% (3991/4695)Updating files:  86% (4038/4695)Updating files:  87% (4085/4695)Updating files:  88% (4132/4695)Updating files:  89% (4179/4695)Updating files:  90% (4226/4695)Updating files:  91% (4273/4695)Updating files:  92% (4320/4695)Updating files:  93% (4367/4695)Updating files:  94% (4414/4695)Updating files:  95% (4461/4695)Updating files:  96% (4508/4695)Updating files:  97% (4555/4695)Updating files:  98% (4602/4695)Updating files:  99% (4649/4695)Updating files:  99% (4672/4695)Updating files: 100% (4695/4695)Updating files: 100% (4695/4695), done.
+HEAD is now at b722d5f0 exp_22 R2 A7: merge the no-flash pre-flight round (branch exp-22-a7-noflash @ 44c2241b; Codex code A7-C2 = SHIP, A7-C1 findings closed; plan A7 r1-r5 approved) -- THIS MERGE COMMIT IS PIN2 for the reopened GPU pre-flight; the non-worklog delta vs the exp_22 PIN 4576b562 is exactly overlays/no_flash/{flash_attn.py, exp35_no_flash_launch.py}, src/tests/test_exp35_no_flash_launch.py and pyproject.toml, byte-identical to exp_35 H35 5b065801; the meshgrid production code unchanged (701926e5); the tools under worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/
+created; verifying
+OK: HEAD = PIN2
+OK: HEAD is detached
+OK: the tracked tree is clean
+OK: weights/ is a real directory
+OK: outputs_loc -> /home/yixunhu/codespace/FLAC/outputs_loc
+OK: AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms
+OK: weights/AGREE -> /home/yixunhu/codespace/FLAC/weights/AGREE (same device + inode)
+OK: weights/AGREE_AR.pt -> /home/yixunhu/codespace/FLAC/weights/AGREE_AR.pt (same device + inode)
+OK: weights/AGREE_fullAR.pt -> /home/yixunhu/codespace/FLAC/weights/AGREE_fullAR.pt (same device + inode)
+OK: weights/AGREE_fullHAA.pt -> /home/yixunhu/codespace/FLAC/weights/AGREE_fullHAA.pt (same device + inode)
+OK: weights/FLAC/.cache -> /home/yixunhu/codespace/FLAC/weights/FLAC/.cache (same device + inode)
+OK: weights/FLAC/.gitattributes -> /home/yixunhu/codespace/FLAC/weights/FLAC/.gitattributes (same device + inode)
+OK: weights/FLAC/FLAC.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/FLAC.ckpt (same device + inode)
+OK: weights/FLAC/FLAC_EMA.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/FLAC_EMA.ckpt (same device + inode)
+OK: weights/FLAC/FLAC_HAA.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/FLAC_HAA.ckpt (same device + inode)
+OK: weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed42.json -> /home/yixunhu/codespace/FLAC/weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed42.json (same device + inode)
+OK: weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed42.stream.json -> /home/yixunhu/codespace/FLAC/weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed42.stream.json (same device + inode)
+OK: weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed43.json -> /home/yixunhu/codespace/FLAC/weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed43.json (same device + inode)
+OK: weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed43.stream.json -> /home/yixunhu/codespace/FLAC/weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed43.stream.json (same device + inode)
+OK: weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed44.json -> /home/yixunhu/codespace/FLAC/weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed44.json (same device + inode)
+OK: weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed44.stream.json -> /home/yixunhu/codespace/FLAC/weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed44.stream.json (same device + inode)
+OK: weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed45.json -> /home/yixunhu/codespace/FLAC/weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed45.json (same device + inode)
+OK: weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed45.stream.json -> /home/yixunhu/codespace/FLAC/weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed45.stream.json (same device + inode)
+OK: weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed46.json -> /home/yixunhu/codespace/FLAC/weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed46.json (same device + inode)
+OK: weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed46.stream.json -> /home/yixunhu/codespace/FLAC/weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed46.stream.json (same device + inode)
+OK: weights/FLAC/README.md -> /home/yixunhu/codespace/FLAC/weights/FLAC/README.md (same device + inode)
+OK: weights/FLAC/VAE.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt (same device + inode)
+OK: weights/FLAC/VAE.safetensors -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.safetensors (same device + inode)
+OK: weights/exp20 -> /home/yixunhu/codespace/FLAC/weights/exp20 (same device + inode)
+OK: the worktree's untracked weights entries are exactly the links
+VERIFY PASS

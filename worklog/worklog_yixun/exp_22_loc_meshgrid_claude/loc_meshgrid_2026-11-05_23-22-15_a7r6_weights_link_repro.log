@@ -1,0 +1,11 @@
+git 2.43.0; the repo tracks: src/x.py weights/FLAC/m.json 
+## (a) a worktree whose weights IS a link to the main weights (what the merged launcher demands)
+readlink -f weights = /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/weights_repro_232215/main_weights
+status --porcelain -uno: [ D weights/FLAC/m.json]
+## (b) a sparse checkout excluding /weights/, then the link
+after sparse-checkout: ls-files -v = [H src/x.py S weights/FLAC/m.json ]
+status --porcelain -uno: [ D weights/FLAC/m.json]
+## (c) the A7 r6 layout: the tracked weights/ kept, one link per untracked entry
+status --porcelain -uno: []
+-ef identity of the linked asset: yes
+-ef of a byte-identical copy: no (as required)

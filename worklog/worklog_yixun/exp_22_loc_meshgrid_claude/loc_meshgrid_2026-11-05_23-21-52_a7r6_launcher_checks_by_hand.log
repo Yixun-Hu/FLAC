@@ -1,0 +1,25 @@
+2026-11-05T23:21:52-05:00
+worktree HEAD b722d5f0ecfc618eaebec35eb1fac82c133a531d; tracked status lines: 0
+pin OK overlays/no_flash/flash_attn.py
+pin OK overlays/no_flash/exp35_no_flash_launch.py
+pin OK src/tests/test_exp35_no_flash_launch.py
+pin OK pyproject.toml
+outputs_loc -> /home/yixunhu/codespace/FLAC/outputs_loc
+weights -> /home/yixunhu/codespace/exp-22-pin2/weights   (the merged launcher wants /home/yixunhu/codespace/FLAC/weights: EXPECTED FAIL = the defect)
+AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms
+asset OK outputs_loc/exp22/d1_context_manifest.json
+asset OK outputs_loc/exp22/g1_audit/geometry_audit_report.json
+asset OK weights/exp20/YAW_40k.ckpt
+asset OK weights/exp20/BF_40k.ckpt
+asset OK weights/exp20/P1_40k.ckpt
+asset OK weights/FLAC/FLAC_EMA.ckpt
+asset OK weights/AGREE/AGREE_fullAR.pt
+asset dir OK outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+asset dir OK AcousticRooms/metadata/
+asset dir OK AcousticRooms/depth_map/
+PY + pytest __main__ OK
+DINO cache OK
+no exp22 run is active
+active rc=0
+tracked status lines after: 0; untracked non-link files: 0
+2026-11-05T23:21:52-05:00
