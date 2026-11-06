@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import os
 import sys
@@ -29,6 +30,7 @@ from src.localization import exp37_aggregate as agg  # noqa: E402
 from src.localization import exp37_identity as ident  # noqa: E402
 from src.localization import exp37_grid as grid  # noqa: E402
 from src.localization import exp37_latency as lat  # noqa: E402
+from src.localization import exp37_sources as sources  # noqa: E402
 from src.localization.pilot import canonical_sha256, load_pilot_manifest  # noqa: E402
 
 ARMS = ("P1", "BF")
@@ -39,6 +41,8 @@ SENSITIVITY = ("c2f_k1", "c2f_k3", "c2f_k10")
 METRICS = ("median_localization_error_m", "success_0_5m", "success_1_0m", "oracle_normalized_success_0_5m",
            "mean_oracle_error_m", "mean_candidate_count")
 ORBITS = {"0": [0.0], "0_180": [0.0, 180.0], "c4": [0.0, 90.0, 180.0, 270.0]}
+EXP23_SUMMARY_SHA256 = "674998f9e3e76fad2641e6b164a31dca1b73d0cfb3a0a5120b3f0e180c514ad2"   # its canonical sha256
+LATENCY_CSV_SHA256 = "3cac4a9c92f0943a57c0a228f94ca4d8d9357ea244214e202238cdb01b0191b8"     # = the bundle's SHA256SUMS
 
 # the registered coverage (Codex code review 1, BLOCKING 4): every cell exactly once, n = 3 seeds everywhere
 SPEC_SCHEMA = 2
@@ -127,6 +131,81 @@ def _hashed(path) -> dict:
     if payload.get("sha256") != canonical_sha256({k: v for k, v in payload.items() if k != "sha256"}):
         raise RuntimeError(f"stale or corrupt sha256 in {path}")
     return payload
+
+
+def _file_sha256(path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _input(path, inventory: dict, key: str) -> dict:
+    payload = _hashed(path)
+    inventory["inputs"][key] = {"path": str(path), "sha256": payload["sha256"], "file_sha256": _file_sha256(path)}
+    return payload
+
+
+def _attested(run_dir, entry: dict) -> bool:
+    """The run's co-tenancy attestation into its inventory entry; True when the timing is attested."""
+    host = lat.host_cotenancy(run_dir)
+    monitor = host.get("monitor") or {}
+    entry["attestation"] = {"timing_valid": host["timing_valid"], "reasons": host["reasons"],
+                            "monitor_head_sha256": monitor.get("monitor_head_sha256"),
+                            "markers_head_sha256": monitor.get("markers_head_sha256"),
+                            "foreign_cpu_cores_mean": monitor.get("foreign_cpu_cores_mean"),
+                            "host_records": host.get("host_records", {})}
+    return bool(host["timing_valid"])
+
+
+def _timing_only(run_dir, replay, *, arm, selection, audit, **modes) -> dict:
+    """A timing-only pass's inventory entry (and its replay, validated when given)."""
+    if replay:
+        return sources.accuracy_source(run_dir, arm=arm, selection=selection, audit=audit, seed=42, timing=True,
+                                       replay_dir=replay, **modes)
+    manifest = _hashed(Path(run_dir) / "run_manifest.json")
+    return {"run_dir": str(run_dir), "run_manifest_sha256": manifest["sha256"], "timing": True,
+            "queries": sources.query_inventory(run_dir, manifest, [int(r["index"]) for r in selection["records"]])}
+
+
+def frontier(points: list) -> dict:
+    """The internal Pareto frontier -- only ever over attested timings (build_summary computes it only then)."""
+    if not all(p["timing_valid"] for p in points):
+        raise RuntimeError("a Pareto frontier is never computed from an unattested timing")
+    return {metric: agg.pareto_frontier([(p["seconds_per_query"], p["accuracy"][metric]["mean"]) for p in points],
+                                        minimize_y=minimize)
+            for metric, minimize in (("median_localization_error_m", True), ("success_1_0m", False))}
+
+
+def _synthesis(section: dict, inventory: dict) -> dict:
+    if section["status"] != "complete":
+        return {"status": "pending", "note": section.get("note"), "cells": []}
+    keys, cells = list(section["metrics_keys"]), []
+    for cell in section["cells"]:
+        path = Path(cell["metrics_json"])
+        if _file_sha256(path) != cell["metrics_sha256"]:
+            raise RuntimeError(f"{path}: the synthesis metrics file's sha256 is not the spec's")
+        metrics = json.loads(path.read_text())
+        if any(not isinstance(metrics.get(k), (int, float)) for k in keys):
+            raise RuntimeError(f"{path}: the synthesis metrics file lacks one of {keys}")
+        cells.append({**{k: cell[k] for k in ("orbit", "theta", "k_context", "seed", "source")},
+                      "metrics": {k: float(metrics[k]) for k in keys}})
+        inventory["synthesis"][str(path)] = cell["metrics_sha256"]
+    return {"status": "complete", "leaf_commit": section["leaf_commit"], "runbook": section["runbook"],
+            "metrics_keys": keys, "cells": cells}
+
+
+def load_external(external: dict, pilot: dict, inventory: dict) -> dict:
+    """The FewShotRIR / FEM reference markers from the PINNED exp_23 summary and bundle latency CSV."""
+    summary = _hashed(external["accuracy"])
+    if summary["sha256"] != EXP23_SUMMARY_SHA256:
+        raise RuntimeError(f"{external['accuracy']}: not the pinned exp_23 summary ({EXP23_SUMMARY_SHA256[:12]}...)")
+    csv_sha256 = _file_sha256(external["latency_csv"])
+    if csv_sha256 != LATENCY_CSV_SHA256:
+        raise RuntimeError(f"{external['latency_csv']}: not the pinned bundle latency CSV ({LATENCY_CSV_SHA256[:12]}...)")
+    with open(external["latency_csv"]) as handle:
+        rows = list(csv.DictReader(handle))
+    inventory.update(exp23_summary={"path": str(external["accuracy"]), "sha256": summary["sha256"],
+                                    "file_sha256": _file_sha256(external["accuracy"])},
+                     latency_csv={"path": str(external["latency_csv"]), "file_sha256": csv_sha256})
+    return agg.external_markers(summary, rows, pilot)
 
 
 def _selector(path, selection):
