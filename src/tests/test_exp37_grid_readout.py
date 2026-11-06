@@ -98,3 +98,33 @@ def test_a_run_whose_arrays_disagree_with_its_recorded_metrics_is_refused(tmp_pa
     first.write_text(json.dumps(payload))
     with pytest.raises(RuntimeError, match="recorded"):
         grid.readout_run(copy, pilot)
+
+
+@pytest.mark.parametrize("field, value", [("oracle_error_m", 9.0), ("excess_error_m", 9.0), ("success_0_5m", 7),
+                                          ("success_1_0m", 7), ("oracle_normalized_success_0_5m", 7),
+                                          ("oracle_normalized_success_1_0m", 7), ("prediction_global", [0.0, 0.0, 0.0]),
+                                          ("winning_score", 9.0), ("mean_candidate_score", 9.0)])
+def test_every_recorded_k1_field_must_be_reproduced(tmp_path, field, value):
+    """Codex NIT 1: the full recorded K=1 block, not only the prediction index and the error."""
+    import shutil
+    from src.localization.pilot import canonical_sha256
+    pilot = load_pilot_manifest(E9 / "pilot_manifest_seed42_4_per_room.json")
+    copy = tmp_path / "vanilla"
+    shutil.copytree(E9 / "pilot_results" / "vanilla", copy)
+    first = copy / "queries" / f"query_{int(pilot['records'][0]['index']):05d}.json"
+    payload = json.loads(first.read_text())
+    payload["metrics"]["1"][field] = value
+    payload["sha256"] = canonical_sha256({k: v for k, v in payload.items() if k != "sha256"})
+    first.write_text(json.dumps(payload))
+    with pytest.raises(RuntimeError, match="recorded"):
+        grid.readout_run(copy, pilot)
+
+
+def test_the_recomputed_block_equals_the_recorded_one_on_real_data():
+    pilot = load_pilot_manifest(E9 / "pilot_manifest_seed42_4_per_room.json")
+    record = pilot["records"][0]
+    stem = E9 / "pilot_results" / "fa_bf" / "queries" / f"query_{int(record['index']):05d}"
+    result = json.loads(stem.with_suffix(".json").read_text())
+    with np.load(stem.with_suffix(".npz")) as arrays:
+        block = grid.recomputed_k1_metrics(arrays["candidates"], arrays["similarities"], result["source_global"], 0.1)
+    assert block == result["metrics"]["1"]
