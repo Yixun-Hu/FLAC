@@ -191,3 +191,131 @@ def lock_status(path):
         raise Unreadable(f"the exp_35 lock {path} cannot be probed ({err})") from err
     finally:
         os.close(fd)
+
+
+def procs_named(name, proc=PROC):
+    """PIDs (sorted; not this process) with an argv element whose basename is exactly ``name``. A vanished entry is
+    skipped; an unreadable one is ``Unreadable`` (never silently skipped)."""
+    try:
+        entries = os.listdir(proc)
+    except OSError as err:
+        raise Unreadable(f"{proc} is unreadable ({err})") from err
+    out = []
+    for n in entries:
+        if not n.isdigit() or int(n) == os.getpid():
+            continue
+        try:
+            with open(os.path.join(proc, n, "cmdline"), "rb") as f:
+                raw = f.read()
+        except (FileNotFoundError, ProcessLookupError):
+            continue
+        except OSError as err:
+            raise Unreadable(f"{proc}/{n}/cmdline is unreadable ({err})") from err
+        if any(os.path.basename(a.decode(errors="replace")) == name for a in raw.split(b"\0") if a):
+            out.append(int(n))
+    return sorted(out)
+
+
+def _stat_identity(text):
+    """``(pid, start time)``: field 1 and field 22 of ``/proc/<pid>/stat`` (after the LAST ')' of the comm)."""
+    return int(text.split(" ", 1)[0]), int(text[text.rindex(")") + 2:].split()[19])
+
+
+def proc_identity(pid, proc=PROC):
+    """The reviewed exp_35 identity of a LIVE process -- pid, start time, cwd, cmdline sha256, fd 1 / 2 -- read through
+    ONE directory fd between two stat reads that must agree; ``ValueError`` when gone, unreadable or reused."""
+    pid = int(pid)
+    try:
+        fd = os.open(os.path.join(proc, str(pid)), os.O_RDONLY | os.O_DIRECTORY)
+    except OSError as err:
+        raise ValueError(f"process {pid}: its /proc identity is unreadable ({type(err).__name__}: {err})") from err
+    opener = lambda path, flags: os.open(path, flags, dir_fd=fd)  # noqa: E731
+    try:
+        with open("stat", opener=opener) as f:
+            first = _stat_identity(f.read())
+        with open("cmdline", "rb", opener=opener) as f:
+            cmdline = f.read()
+        links = [os.readlink(p, dir_fd=fd) for p in ("cwd", "fd/1", "fd/2")]
+        with open("stat", opener=opener) as f:
+            second = _stat_identity(f.read())
+    except (OSError, ValueError, IndexError) as err:
+        raise ValueError(f"process {pid}: its /proc identity is unreadable ({type(err).__name__}: {err})") from err
+    finally:
+        os.close(fd)
+    if not first == second == (pid, first[1]):
+        raise ValueError(f"process {pid}: its /proc entry changed during the sample ({first} -> {second}): PID reuse")
+    return {"pid": pid, "start_time": first[1], "cwd": links[0], "cmdline_sha256": sha256_bytes(cmdline),
+            "fd1": links[1], "fd2": links[2]}
+
+
+def descendants(pid, proc=PROC):
+    """``pid`` and every process below it by the ppid of ``/proc/<p>/stat`` (empty when ``pid`` is not listed)."""
+    parent = {}
+    for name in os.listdir(proc):
+        if name.isdigit():
+            try:
+                with open(os.path.join(proc, name, "stat")) as f:
+                    text = f.read()
+                parent[int(name)] = int(text[text.rindex(")") + 2:].split()[1])
+            except (OSError, ValueError, IndexError):
+                continue
+    out, todo = set(), [pid] if pid in parent else []
+    while todo:
+        p = todo.pop()
+        out.add(p)
+        todo += [c for c, pp in parent.items() if pp == p and c not in out]
+    return out
+
+
+def table_job_status(queue_log, proc=PROC):
+    """(done, reasons): his s43 table job is terminally complete iff his queue log carries a line starting with
+    ``EVAL_DONE ACEattn s43 `` and no ``exp30_attn_eval.sh`` process runs; ``Unreadable`` when the log is."""
+    try:
+        with open(queue_log, "rb") as f:
+            lines = f.read().decode(errors="replace").splitlines()
+    except OSError as err:
+        raise Unreadable(f"his queue log {queue_log} is unreadable ({err})") from err
+    out = [] if any(ln.startswith(EVAL_DONE) for ln in lines) else [
+        f"his queue log carries no {EVAL_DONE!r} line: the s43 table job is not terminally complete"]
+    running = procs_named(TABLE_JOB, proc)
+    if running:
+        out.append(f"{TABLE_JOB} runs (pids {running}): his table job")
+    return not out, out
+
+
+def observe(world, cfg, card, held=None):
+    """One observation of ``card`` ('GPU0' / 'GPU1') under the card rule; ``held`` -- the supervisor's own record
+    (path / sha256 / dev / inode) -- turns 'no reservation file' into 'the file IS our record'."""
+    if card not in CARDS:
+        raise ValueError(f"unknown card {card!r} (GPU0 or GPU1)")
+    uuid, t, map_raw = CARDS[card], world.now(), world.nvsmi("map")
+    try:
+        m = gpu_map(map_raw)
+    except ValueError as err:
+        raise Unreadable(f"the GPU map: {err}") from err
+    if sorted(m.values()) != sorted(CARDS.values()):
+        raise Unreadable(f"the GPU map {m} is not this box's two registered cards")
+    apps_raw = world.nvsmi("apps")
+    try:
+        pids = sorted(p for p, u in compute_apps(apps_raw) if u == uuid)
+    except ValueError as err:
+        raise Unreadable(f"the compute table: {err}") from err
+    reasons = [f"compute process(es) {pids} on {card} ({uuid})"] if pids else []
+    if held is None:
+        res = reservation_status(cfg.reservations, uuid)
+        if res != "absent":
+            reasons.append(f"a reservation file exists for {card}: {res}"
+                           + (" -- an exp_35 reservation (its lane or a phase-(ii) intent)" if "holder exp35" in res else ""))
+    else:
+        why = held_reasons(held)
+        res, reasons = ("held" if not why else "NOT OUR RECORD"), reasons + why
+    if card == "GPU0":
+        lk = lock_status(cfg.exp35_lock)
+        rule = f"exp35 lock {'HELD' if lk == 'held' else lk}"
+        reasons += ["the exp_35 supervisor lock is held: GPU 0 is its hand-over target"] if lk == "held" else []
+    else:
+        done, why = table_job_status(cfg.queue_log, cfg.proc)
+        rule, reasons = f"his s43 table job {'terminally complete' if done else 'NOT complete'}", reasons + why
+    return {"t": t, "iso": iso(t), "card": card, "uuid": uuid, "index": next(i for i, u in m.items() if u == uuid),
+            "gpu_map_raw": map_raw, "apps_raw": apps_raw, "apps_sha256": sha256_bytes(apps_raw.encode()),
+            "pids_on_card": pids, "reservation": res, "rule": rule, "free": not reasons, "reasons": reasons}

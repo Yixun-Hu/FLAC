@@ -1,0 +1,325 @@
+# exp_22 A7 c2b_card_rule RED (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T21:23:12-05:00 -- branch exp-22-a7-noflash HEAD f7cc0c0f; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py
+FFFFFFFFFFFFFFFFFFFF                                                     [100%]
+=================================== FAILURES ===================================
+______ test_processes_are_found_by_the_exact_basename_of_an_argv_element _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_processes_are_found_by_th0')
+
+    def test_processes_are_found_by_the_exact_basename_of_an_argv_element(tmp_path):
+        proc = tmp_path / "proc"
+        proc.mkdir()
+        fake_proc(proc, 11, ["bash", "/kit/exp30_attn_eval.sh", "s43"])
+        fake_proc(proc, 12, ["bash", "/kit/exp30_attn_eval.sh.bak"])
+        fake_proc(proc, 13, ["python", "x.py", "--note", "exp30_attn_eval.sh-like"])
+        (proc / "14").mkdir()                                                 # vanished between listdir and read
+        (proc / "self").mkdir()
+>       assert C.procs_named("exp30_attn_eval.sh", str(proc)) == [11]
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'procs_named'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:24: AttributeError
+_____________ test_an_unreadable_cmdline_is_unreadable_not_skipped _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_an_unreadable_cmdline_is_0')
+
+    def test_an_unreadable_cmdline_is_unreadable_not_skipped(tmp_path):
+        proc = tmp_path / "proc"
+        proc.mkdir()
+        d = fake_proc(proc, 21, ["bash", "/kit/exp30_attn_eval.sh"])
+        (d / "cmdline").chmod(0)
+        try:
+            with pytest.raises(C.Unreadable, match="21"):
+>               C.procs_named("exp30_attn_eval.sh", str(proc))
+E               AttributeError: module '_a7_exp22_r2c_common' has no attribute 'procs_named'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:36: AttributeError
+___________ test_proc_identity_binds_pid_start_time_cwd_and_cmdline ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_proc_identity_binds_pid_s0')
+
+    def test_proc_identity_binds_pid_start_time_cwd_and_cmdline(tmp_path):
+>       me = C.proc_identity(os.getpid())
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'proc_identity'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:42: AttributeError
+____________________ test_descendants_follow_the_ppid_tree _____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_descendants_follow_the_pp0')
+
+    def test_descendants_follow_the_ppid_tree(tmp_path):
+        proc = tmp_path / "proc"
+        proc.mkdir()
+        fake_proc(proc, 40, ["python", "sup.py"], ppid=1)
+        fake_proc(proc, 41, ["python", "child.py"], ppid=40)
+        fake_proc(proc, 42, ["python", "worker"], ppid=41)
+        fake_proc(proc, 43, ["other"], ppid=1)
+>       assert C.descendants(41, str(proc)) == {41, 42}
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'descendants'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:62: AttributeError
+_ test_the_table_job_is_done_only_on_its_exact_eval_done_line[EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00\n-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_the_table_job_is_done_onl0')
+text = 'EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00\n'
+done = False
+
+    @pytest.mark.parametrize("text, done", [
+        ("EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00\n", False),
+        ("EVAL_DONE ACEattn s43 cells=40 2026-11-06T15:00:00-05:00\n", True),
+        ("x EVAL_DONE ACEattn s43 cells=40\n", False),
+        ("EVAL_DONE ACEattn s430 cells=40\n", False),
+        ("EVAL_DONE ACEattn s43\n", False),
+    ])
+    def test_the_table_job_is_done_only_on_its_exact_eval_done_line(tmp_path, text, done):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(text)
+>       ok, why = C.table_job_status(cfg.queue_log, cfg.proc)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'table_job_status'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:80: AttributeError
+_ test_the_table_job_is_done_only_on_its_exact_eval_done_line[EVAL_DONE ACEattn s43 cells=40 2026-11-06T15:00:00-05:00\n-True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_the_table_job_is_done_onl1')
+text = 'EVAL_DONE ACEattn s43 cells=40 2026-11-06T15:00:00-05:00\n', done = True
+
+    @pytest.mark.parametrize("text, done", [
+        ("EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00\n", False),
+        ("EVAL_DONE ACEattn s43 cells=40 2026-11-06T15:00:00-05:00\n", True),
+        ("x EVAL_DONE ACEattn s43 cells=40\n", False),
+        ("EVAL_DONE ACEattn s430 cells=40\n", False),
+        ("EVAL_DONE ACEattn s43\n", False),
+    ])
+    def test_the_table_job_is_done_only_on_its_exact_eval_done_line(tmp_path, text, done):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(text)
+>       ok, why = C.table_job_status(cfg.queue_log, cfg.proc)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'table_job_status'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:80: AttributeError
+_ test_the_table_job_is_done_only_on_its_exact_eval_done_line[x EVAL_DONE ACEattn s43 cells=40\n-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_the_table_job_is_done_onl2')
+text = 'x EVAL_DONE ACEattn s43 cells=40\n', done = False
+
+    @pytest.mark.parametrize("text, done", [
+        ("EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00\n", False),
+        ("EVAL_DONE ACEattn s43 cells=40 2026-11-06T15:00:00-05:00\n", True),
+        ("x EVAL_DONE ACEattn s43 cells=40\n", False),
+        ("EVAL_DONE ACEattn s430 cells=40\n", False),
+        ("EVAL_DONE ACEattn s43\n", False),
+    ])
+    def test_the_table_job_is_done_only_on_its_exact_eval_done_line(tmp_path, text, done):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(text)
+>       ok, why = C.table_job_status(cfg.queue_log, cfg.proc)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'table_job_status'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:80: AttributeError
+_ test_the_table_job_is_done_only_on_its_exact_eval_done_line[EVAL_DONE ACEattn s430 cells=40\n-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_the_table_job_is_done_onl3')
+text = 'EVAL_DONE ACEattn s430 cells=40\n', done = False
+
+    @pytest.mark.parametrize("text, done", [
+        ("EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00\n", False),
+        ("EVAL_DONE ACEattn s43 cells=40 2026-11-06T15:00:00-05:00\n", True),
+        ("x EVAL_DONE ACEattn s43 cells=40\n", False),
+        ("EVAL_DONE ACEattn s430 cells=40\n", False),
+        ("EVAL_DONE ACEattn s43\n", False),
+    ])
+    def test_the_table_job_is_done_only_on_its_exact_eval_done_line(tmp_path, text, done):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(text)
+>       ok, why = C.table_job_status(cfg.queue_log, cfg.proc)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'table_job_status'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:80: AttributeError
+_ test_the_table_job_is_done_only_on_its_exact_eval_done_line[EVAL_DONE ACEattn s43\n-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_the_table_job_is_done_onl4')
+text = 'EVAL_DONE ACEattn s43\n', done = False
+
+    @pytest.mark.parametrize("text, done", [
+        ("EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00\n", False),
+        ("EVAL_DONE ACEattn s43 cells=40 2026-11-06T15:00:00-05:00\n", True),
+        ("x EVAL_DONE ACEattn s43 cells=40\n", False),
+        ("EVAL_DONE ACEattn s430 cells=40\n", False),
+        ("EVAL_DONE ACEattn s43\n", False),
+    ])
+    def test_the_table_job_is_done_only_on_its_exact_eval_done_line(tmp_path, text, done):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(text)
+>       ok, why = C.table_job_status(cfg.queue_log, cfg.proc)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'table_job_status'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:80: AttributeError
+_ test_the_table_job_is_not_done_while_its_evaluator_runs_or_the_log_is_unreadable _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_the_table_job_is_not_done0')
+
+    def test_the_table_job_is_not_done_while_its_evaluator_runs_or_the_log_is_unreadable(tmp_path):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write("EVAL_DONE ACEattn s43 cells=40 2026-11-06T15:00:00-05:00\n")
+        fake_proc(tmp_path / "proc", 77, ["bash", "/kit/exp30_attn_eval.sh", "ACEattn", "s45"])
+>       ok, why = C.table_job_status(cfg.queue_log, cfg.proc)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'table_job_status'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:89: AttributeError
+_______ test_an_empty_gpu0_with_no_reservation_and_no_exp35_lock_is_free _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_an_empty_gpu0_with_no_res0')
+
+    def test_an_empty_gpu0_with_no_reservation_and_no_exp35_lock_is_free(tmp_path):
+        w, cfg = FakeWorld(apps=f"3028196, {GPU1}\n"), cfg_for(tmp_path)
+>       o = C.observe(w, cfg, "GPU0")
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'observe'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:100: AttributeError
+_________ test_a_compute_process_or_any_reservation_makes_a_card_busy __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_a_compute_process_or_any_0')
+
+    def test_a_compute_process_or_any_reservation_makes_a_card_busy(tmp_path):
+        cfg = cfg_for(tmp_path)
+>       o = C.observe(FakeWorld(apps=f"5, {GPU0}\n"), cfg, "GPU0")
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'observe'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:109: AttributeError
+____ test_gpu0_is_busy_while_the_exp35_lock_is_held_and_free_on_a_leftover _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_gpu0_is_busy_while_the_ex0')
+
+    def test_gpu0_is_busy_while_the_exp35_lock_is_held_and_free_on_a_leftover(tmp_path):
+        cfg = cfg_for(tmp_path)
+        lock = tmp_path / "exp35_supervisor_state.json.lock"
+        lock.write_text("")
+>       o = C.observe(FakeWorld(), cfg, "GPU0")
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'observe'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:122: AttributeError
+______________________ test_gpu1_waits_for_the_table_job _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_gpu1_waits_for_the_table_0')
+
+    def test_gpu1_waits_for_the_table_job(tmp_path):
+        cfg = cfg_for(tmp_path)
+>       o = C.observe(FakeWorld(), cfg, "GPU1")
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'observe'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:137: AttributeError
+_______ test_an_unreadable_or_foreign_gpu_table_is_unreadable[one-card] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_an_unreadable_or_foreign_0')
+world = <conftest.FakeWorld object at 0x7ec17ea03fa0>
+
+    @pytest.mark.parametrize("world", [
+        FakeWorld(gpu_map=f"0, {GPU0}\n"),                                    # one card
+        FakeWorld(gpu_map=f"0, {GPU0}\n1, GPU-ffffffff-0000-0000-0000-000000000000\n"),
+        FakeWorld(apps="garbage\n"),
+        FakeWorld(apps=lambda: (_ for _ in ()).throw(C.Unreadable("nvidia-smi --query-compute-apps: rc 9"))),
+    ], ids=["one-card", "foreign-uuid", "malformed-apps", "nvsmi-fails"])
+    def test_an_unreadable_or_foreign_gpu_table_is_unreadable(tmp_path, world):
+        with pytest.raises(C.Unreadable):
+>           C.observe(world, cfg_for(tmp_path), "GPU0")
+E           AttributeError: module '_a7_exp22_r2c_common' has no attribute 'observe'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:152: AttributeError
+_____ test_an_unreadable_or_foreign_gpu_table_is_unreadable[foreign-uuid] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_an_unreadable_or_foreign_1')
+world = <conftest.FakeWorld object at 0x7ec17ea5d330>
+
+    @pytest.mark.parametrize("world", [
+        FakeWorld(gpu_map=f"0, {GPU0}\n"),                                    # one card
+        FakeWorld(gpu_map=f"0, {GPU0}\n1, GPU-ffffffff-0000-0000-0000-000000000000\n"),
+        FakeWorld(apps="garbage\n"),
+        FakeWorld(apps=lambda: (_ for _ in ()).throw(C.Unreadable("nvidia-smi --query-compute-apps: rc 9"))),
+    ], ids=["one-card", "foreign-uuid", "malformed-apps", "nvsmi-fails"])
+    def test_an_unreadable_or_foreign_gpu_table_is_unreadable(tmp_path, world):
+        with pytest.raises(C.Unreadable):
+>           C.observe(world, cfg_for(tmp_path), "GPU0")
+E           AttributeError: module '_a7_exp22_r2c_common' has no attribute 'observe'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:152: AttributeError
+____ test_an_unreadable_or_foreign_gpu_table_is_unreadable[malformed-apps] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_an_unreadable_or_foreign_2')
+world = <conftest.FakeWorld object at 0x7ec17ea5d360>
+
+    @pytest.mark.parametrize("world", [
+        FakeWorld(gpu_map=f"0, {GPU0}\n"),                                    # one card
+        FakeWorld(gpu_map=f"0, {GPU0}\n1, GPU-ffffffff-0000-0000-0000-000000000000\n"),
+        FakeWorld(apps="garbage\n"),
+        FakeWorld(apps=lambda: (_ for _ in ()).throw(C.Unreadable("nvidia-smi --query-compute-apps: rc 9"))),
+    ], ids=["one-card", "foreign-uuid", "malformed-apps", "nvsmi-fails"])
+    def test_an_unreadable_or_foreign_gpu_table_is_unreadable(tmp_path, world):
+        with pytest.raises(C.Unreadable):
+>           C.observe(world, cfg_for(tmp_path), "GPU0")
+E           AttributeError: module '_a7_exp22_r2c_common' has no attribute 'observe'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:152: AttributeError
+______ test_an_unreadable_or_foreign_gpu_table_is_unreadable[nvsmi-fails] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_an_unreadable_or_foreign_3')
+world = <conftest.FakeWorld object at 0x7ec17ea5d1e0>
+
+    @pytest.mark.parametrize("world", [
+        FakeWorld(gpu_map=f"0, {GPU0}\n"),                                    # one card
+        FakeWorld(gpu_map=f"0, {GPU0}\n1, GPU-ffffffff-0000-0000-0000-000000000000\n"),
+        FakeWorld(apps="garbage\n"),
+        FakeWorld(apps=lambda: (_ for _ in ()).throw(C.Unreadable("nvidia-smi --query-compute-apps: rc 9"))),
+    ], ids=["one-card", "foreign-uuid", "malformed-apps", "nvsmi-fails"])
+    def test_an_unreadable_or_foreign_gpu_table_is_unreadable(tmp_path, world):
+        with pytest.raises(C.Unreadable):
+>           C.observe(world, cfg_for(tmp_path), "GPU0")
+E           AttributeError: module '_a7_exp22_r2c_common' has no attribute 'observe'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:152: AttributeError
+_________________ test_the_index_follows_the_uuid_not_the_name _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_the_index_follows_the_uui0')
+
+    def test_the_index_follows_the_uuid_not_the_name(tmp_path):
+>       o = C.observe(FakeWorld(gpu_map=f"0, {GPU1}\n1, {GPU0}\n"), cfg_for(tmp_path), "GPU0")
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'observe'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:156: AttributeError
+_____________________ test_an_unknown_card_name_is_refused _____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6302/test_an_unknown_card_name_is_r0')
+
+    def test_an_unknown_card_name_is_refused(tmp_path):
+        with pytest.raises(ValueError):
+>           C.observe(FakeWorld(), cfg_for(tmp_path), "GPU2")
+E           AttributeError: module '_a7_exp22_r2c_common' has no attribute 'observe'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py:162: AttributeError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_processes_are_found_by_the_exact_basename_of_an_argv_element
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_an_unreadable_cmdline_is_unreadable_not_skipped
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_proc_identity_binds_pid_start_time_cwd_and_cmdline
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_descendants_follow_the_ppid_tree
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_the_table_job_is_done_only_on_its_exact_eval_done_line[EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00\n-False]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_the_table_job_is_done_only_on_its_exact_eval_done_line[EVAL_DONE ACEattn s43 cells=40 2026-11-06T15:00:00-05:00\n-True]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_the_table_job_is_done_only_on_its_exact_eval_done_line[x EVAL_DONE ACEattn s43 cells=40\n-False]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_the_table_job_is_done_only_on_its_exact_eval_done_line[EVAL_DONE ACEattn s430 cells=40\n-False]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_the_table_job_is_done_only_on_its_exact_eval_done_line[EVAL_DONE ACEattn s43\n-False]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_the_table_job_is_not_done_while_its_evaluator_runs_or_the_log_is_unreadable
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_an_empty_gpu0_with_no_reservation_and_no_exp35_lock_is_free
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_a_compute_process_or_any_reservation_makes_a_card_busy
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_gpu0_is_busy_while_the_exp35_lock_is_held_and_free_on_a_leftover
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_gpu1_waits_for_the_table_job
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_an_unreadable_or_foreign_gpu_table_is_unreadable[one-card]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_an_unreadable_or_foreign_gpu_table_is_unreadable[foreign-uuid]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_an_unreadable_or_foreign_gpu_table_is_unreadable[malformed-apps]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_an_unreadable_or_foreign_gpu_table_is_unreadable[nvsmi-fails]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_the_index_follows_the_uuid_not_the_name
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_card_rule.py::test_an_unknown_card_name_is_refused
+20 failed in 0.25s
+rc 1
