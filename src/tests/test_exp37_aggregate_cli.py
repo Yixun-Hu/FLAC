@@ -72,7 +72,8 @@ def test_the_inventory_binds_every_source(world):
     assert seed42["replay"]["waveforms"]["mode"] == "replay" and len(seed42["attestation"]["monitor_head_sha256"]) == 64
     acc = inv["runs"][next(i["dir"] for i in spec["b3_runs"])]
     assert acc["waveforms"]["mode"] == "inline" and len(acc["waveforms"]["dump_manifest_sha256"]) == 64
-    assert set(inv["inputs"]) == set(tool.INPUT_KEYS) - {"selector_0p50", "selector_0p75", "selector_nested"}
+    assert set(inv["inputs"]) == set(tool.INPUT_KEYS) - {"selector_0p50", "selector_0p75", "selector_nested"} | {
+        "latency_selection"}
     assert set(inv["selectors"]) == {"selector_0p50", "selector_0p75", "selector_nested", "latency_selector"}
     assert all(len(s["binding_sha256"]) == 64 for s in inv["selectors"].values())
     assert inv["external"]["exp23_summary"]["sha256"] == tool.EXP23_SUMMARY_SHA256

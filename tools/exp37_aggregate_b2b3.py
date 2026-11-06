@@ -339,7 +339,10 @@ def _cell(stats: dict, metric: str, percent: bool = False) -> str:
 
 def render_markdown(summary: dict) -> str:
     b2 = summary["b2"]
-    lines = [f"# exp_37 B2 candidate density / coarse-to-fine and B3 orbit size ({b2['query_count']} queries)", "",
+    lines = [] if summary["publishable"] else [
+        "# DIAGNOSTIC -- NOT PUBLISHABLE (no frontier and no figure are produced)", "",
+        *[f"- {reason}" for reason in summary["reasons"]], ""]
+    lines += [f"# exp_37 B2 candidate density / coarse-to-fine and B3 orbit size ({b2['query_count']} queries)", "",
              "B2 accuracy: mean ± sample SD over seeds 42-44 of the pooled per-run metrics; s/query = seed-42 pass, "
              "query-micro mean of L_q = core_forward_total + shape-matched AGREE selector (c2f: its sequential total). "
              "1.0 m = the nested integer subset of the 0.5 m grid with full-grid common random numbers.", "",
@@ -357,7 +360,7 @@ def render_markdown(summary: dict) -> str:
         lines.append(f"| {m['label']} | reference | {m['seconds_per_query']:.3f} | - | {acc['median_localization_error_m']:.3f} | "
                      f"{100 * acc['success_0_5m']:.1f}% | {100 * acc['success_1_0m']:.1f}% | "
                      f"{100 * acc['oracle_normalized_success_0_5m']:.1f}% | external |")
-    for metric, members in b2["frontier"].items():
+    for metric, members in (b2["frontier"] or {}).items():
         lines.append(f"\nPareto frontier ({metric}, internal points only): " +
                      ", ".join(f"{b2['points'][i]['label']} {b2['points'][i]['grid_label']}" for i in members))
     lines += ["", "c2f top-k sensitivity (post-primary; accuracy only; the registered k = 5 is above):", "",
@@ -374,6 +377,21 @@ def render_markdown(summary: dict) -> str:
         lines += [f"| {r['angles']} | {r['overall']['mean_seconds']:.3f} | {r['overall']['median_seconds']:.3f} | "
                   f"{r['overall']['p90_seconds']:.3f} | {1000 * r['per_candidate']['amortized_seconds']:.3f} | "
                   f"{'valid' if r['timing_valid'] else 'NOT PUBLISHABLE'} |" for r in summary["b3"]["latency"]]
+    synthesis = summary["b3"]["synthesis"]
+    lines += ["", "## B3 synthesis cells (eval_FLAC, seed 42; the exp_36 leaf)", ""]
+    if synthesis["status"] != "complete":
+        lines.append(f"PENDING: {synthesis.get('note')}")
+    else:
+        keys = synthesis["metrics_keys"]
+        lines += [f"Leaf commit `{synthesis['leaf_commit']}`; runbook: {synthesis['runbook']}.", "",
+                  "| Orbit | theta | K | source | " + " | ".join(keys) + " |", "|---|---:|---:|---|" + "---:|" * len(keys)]
+        lines += [f"| {ORBITS[c['orbit']]} | {c['theta']} | {c['k_context']} | {c['source']} | "
+                  + " | ".join(f"{c['metrics'][k]:.3f}" for k in keys) + " |" for c in synthesis["cells"]]
+    inventory = summary["inventory"]
+    lines += ["", f"Sources: {len(inventory['runs'])} runs, {len(inventory['selectors'])} selector vectors, "
+              f"{len(inventory['inputs'])} input manifests, the pinned exp_23 summary and bundle latency CSV, "
+              f"{len(inventory['synthesis'])} synthesis files -- every sha256 in the JSON inventory; spec "
+              f"`{summary['spec_sha256']}`."]
     return "\n".join(lines) + "\n"
 
 
@@ -386,6 +404,8 @@ REFERENCE_MARKERS = {"few_shot_rir": ("P", "Few-ShotRIR (ref.)"), "fem_omp": ("X
 
 
 def render_figure(summary: dict, stem: Path) -> None:
+    if not summary["publishable"] or summary["b2"]["frontier"] is None:
+        raise RuntimeError("the Pareto figure is drawn only from a publishable summary")
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -458,19 +478,27 @@ def main() -> int:
     parser.add_argument("--output-md", type=Path, required=True)
     parser.add_argument("--figure-stem", type=Path)
     args = parser.parse_args()
-    summary = build_summary(json.loads(args.spec.read_text()))
-    for path, text in ((args.output_json, json.dumps(summary, indent=2, sort_keys=True) + "\n"),
-                       (args.output_md, render_markdown(summary))):
+    published = [args.output_json, args.output_md] + (
+        [args.figure_stem.with_suffix(".png"), args.figure_stem.with_suffix(".pdf")] if args.figure_stem else [])
+    diagnostic = [args.output_json.with_suffix(".DIAGNOSTIC.json"), args.output_md.with_suffix(".DIAGNOSTIC.md")]
+    if any(path.exists() for path in published + diagnostic):
+        print("REFUSED: an output exists (summaries, diagnostics and figures are written once)", file=sys.stderr)
+        return 2
+    try:
+        summary = build_summary(json.loads(args.spec.read_text()))
+    except SpecError as error:
+        print(f"REFUSED (spec): {error}", file=sys.stderr)
+        return 2
+    targets = published[:2] if summary["publishable"] else diagnostic
+    for path, text in zip(targets, (json.dumps(summary, indent=2, sort_keys=True) + "\n", render_markdown(summary))):
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(path.suffix + ".tmp")
         temporary.write_text(text)
         os.replace(temporary, path)
-    if args.figure_stem is not None:
+    if summary["publishable"] and args.figure_stem is not None:
         render_figure(summary, args.figure_stem)
     print(render_markdown(summary))
-    valid = all(p["timing_valid"] for p in summary["b2"]["points"]) and all(
-        r["timing_valid"] for r in summary["b3"]["latency"])
-    return 0 if valid else 3
+    return 0 if summary["publishable"] else 3
 
 
 if __name__ == "__main__":
