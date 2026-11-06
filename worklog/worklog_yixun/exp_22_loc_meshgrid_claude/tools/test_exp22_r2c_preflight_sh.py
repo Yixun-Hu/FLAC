@@ -39,14 +39,17 @@ def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
         PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
         "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
                                        OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
-                                       ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+                                       ROOMS_TARGET=str(w / "AcousticRooms"), DINO_CACHE=str(tmp_path / "dinov3"),
+                                       CONFIRM_TIMEOUT_S=30),
         "exp22_free_card_detect.sh": dict(PY=sys.executable)})
     for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
-              "weights/exp20", "AcousticRooms/metadata"):
+              "weights/exp20", "weights/FLAC", "weights/AGREE", "AcousticRooms/metadata", "AcousticRooms/depth_map"):
         os.makedirs(os.path.join(w, d), exist_ok=True)
     for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
-              "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+              "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt",
+              "weights/FLAC/FLAC_EMA.ckpt", "weights/AGREE/AGREE_fullAR.pt"):
         open(os.path.join(w, f), "w").write("{}")
+    os.makedirs(tmp_path / "dinov3")                                    # the stand-in DINOv3 HF cache
     script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
     sha = E.sha256_bytes(open(script, "rb").read())
 
@@ -128,7 +131,8 @@ def test_the_capture_refuses_without_the_reviewed_script_sha256(tmp_path):
     assert p.returncode == 1 and "CHECK FAILED: EXPECT_SCRIPT_SHA256" in p.stdout and "SEAL " not in p.stdout
 
 
-@pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job"])
+@pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                      "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache"])
 def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
     lab = make_lab(tmp_path)
     card = "GPU1" if breakage == "gpu1-table-job" else "GPU0"
@@ -141,6 +145,13 @@ def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
         open(os.path.join(lab.w, "localize_meshgrid.py"), "a").write("# edited\n")
     elif breakage == "asset":
         os.unlink(os.path.join(lab.w, "weights", "exp20", "BF_40k.ckpt"))
+    elif breakage in ("t-checkpoint", "t-agree"):                        # the T tests would skip without them
+        os.unlink(os.path.join(lab.w, "weights", *(("FLAC", "FLAC_EMA.ckpt") if breakage == "t-checkpoint"
+                                                     else ("AGREE", "AGREE_fullAR.pt"))))
+    elif breakage == "t-depth-map":
+        os.rmdir(os.path.join(lab.w, "AcousticRooms", "depth_map"))
+    elif breakage == "t-dinov3-cache":
+        os.rmdir(lab.tmp / "dinov3")
     elif breakage == "active-exp22":
         open(lab.res(GPU1), "w").write(json.dumps({"holder": "exp22", "run": "20261101T000000"}))
     elif breakage == "pin":
@@ -251,7 +262,8 @@ def test_the_shell_config_and_literals_agree_with_the_python_ones():
     vals = dict(ln.split("=", 1) for ln in block.splitlines()[1:] if ln and not ln.startswith("#"))
     assert vals == {"PY": C.PY, "PYTEST_MAIN": C.PYTEST_MAIN, "OUTPUTS_TARGET": "/home/yixunhu/codespace/FLAC/outputs_loc",
                     "WEIGHTS_TARGET": "/home/yixunhu/codespace/FLAC/weights",
-                    "ROOMS_TARGET": "/media/diskstation/yixunhu/FLAC/AcousticRooms", "CONFIRM_TIMEOUT_S": "60"}
+                    "ROOMS_TARGET": "/media/diskstation/yixunhu/FLAC/AcousticRooms", "CONFIRM_TIMEOUT_S": "60",
+                    "DINO_CACHE": "/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m"}
     assert f"GPU0={GPU0}; GPU1={GPU1}" in text
     for rel, sha in E.PIN_FILES.items():
         assert f'"{rel}|{sha}"' in text

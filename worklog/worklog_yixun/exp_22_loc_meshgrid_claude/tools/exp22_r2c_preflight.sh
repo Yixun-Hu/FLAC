@@ -25,6 +25,7 @@ OUTPUTS_TARGET=/home/yixunhu/codespace/FLAC/outputs_loc
 WEIGHTS_TARGET=/home/yixunhu/codespace/FLAC/weights
 ROOMS_TARGET=/media/diskstation/yixunhu/FLAC/AcousticRooms
 CONFIRM_TIMEOUT_S=60
+DINO_CACHE=/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m
 # --- END REGISTERED CONFIG ---
 MODE="${1:-}"; PIN2="${2:-}"
 TOOLS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; W="$(cd "$TOOLS/../../../.." && pwd)"
@@ -38,8 +39,9 @@ PINS=("overlays/no_flash/flash_attn.py|0d0e52ca693e236a2e0a44cd61f61539fdf995cff
 TOOL_FILES=(exp22_r2c_common.py exp22_r2c_evidence.py exp22_r2c_supervisor.py exp22_free_card_detect.sh
             exp22_r2c_preflight.sh exp22_r2c_preflight_lines.json)
 ASSETS=(outputs_loc/exp22/d1_context_manifest.json outputs_loc/exp22/g1_audit/geometry_audit_report.json
-        weights/exp20/YAW_40k.ckpt weights/exp20/BF_40k.ckpt weights/exp20/P1_40k.ckpt)
-ASSET_DIRS=(outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged AcousticRooms/metadata)
+        weights/exp20/YAW_40k.ckpt weights/exp20/BF_40k.ckpt weights/exp20/P1_40k.ckpt
+        weights/FLAC/FLAC_EMA.ckpt weights/AGREE/AGREE_fullAR.pt)       # the last two: T's tests skip without them
+ASSET_DIRS=(outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged AcousticRooms/metadata AcousticRooms/depth_map)
 LAUNCH_ENV=(HOME=/home/yixunhu USER=yixunhu LOGNAME=yixunhu LANG=en_US.UTF-8
             PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin PYTHONDONTWRITEBYTECODE=1)
 RUN_RE='^r2_preflight_[0-9]{8}T[0-9]{6}$'
@@ -70,6 +72,7 @@ common_checks() {   # <orch> <run>: the preconditions both modes check right bef
   for rel in "${ASSETS[@]}"; do need "asset ${rel}" test -f "$W/$rel"; done
   for rel in "${ASSET_DIRS[@]}"; do need "asset ${rel}/" test -d "$W/$rel"; done
   need "the flac interpreter and pytest's own __main__.py" test -x "$PY" -a -f "$PYTEST_MAIN"
+  need "the DINOv3 HF cache T's tests need (${DINO_CACHE})" test -d "$DINO_CACHE"
   need "the run's r2_gates_${2} and r2_probe_BF_${2} do not exist" test ! -e "$EX/r2_gates_$2" -a ! -e "$EX/r2_probe_BF_$2"
   out="$(py "$SUP" active --except-orch "$1")"; rc=$?; say "$out"
   need "no exp22 run is active or unresolved" test "$rc" = 0
