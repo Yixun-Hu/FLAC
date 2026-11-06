@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+"""exp_22 R2-C pre-flight: the shared READ-ONLY card observation (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v),
+r3 (b) (d) (h)). ONE implementation of the card rule for the detector, the launcher's sealed capture polls, its
+launch re-checks and the supervisor's re-checks before and during every line. A card is FREE at an observation iff
+
+  (a) nvidia-smi lists no compute process on its UUID;
+  (b) no file <reservations>/<uuid>.json exists -- any holder, an exp_35 phase-(ii) reservation (its intent)
+      included; a malformed file is present (busy);
+  (c) GPU 0: no process holds the exp_35 supervisor lock (O_RDONLY + LOCK_SH | LOCK_NB, as the reviewed exp_35 dry
+      run probes it; absent or unheld = may be free) -- held, GPU 0 is the exp_35 hand-over target;
+  (d) GPU 1: Yixun's queue log carries an ``EVAL_DONE ACEattn s43 `` line and no ``exp30_attn_eval.sh`` runs.
+
+An unreadable GPU map / compute table / reservation file or directory / lock / queue log / /proc entry raises
+``Unreadable``: busy for the detector, a refusal for the launcher and the supervisor. Nothing in this module writes,
+reserves, spawns a workload or signals a process: nvidia-smi queries and reads only.
+
+Written by the exp_22 A7 Coder (Claude Opus 5.5, max effort).
+"""
+import collections
+import datetime
+import fcntl
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+sys.dont_write_bytecode = True
+
+# --- BEGIN REGISTERED CONFIG (the sandbox tests replace this block, and only this block) ---
+RESERVATIONS = "/home/yixunhu/codespace/.gpu_reservations"
+EXP35_LOCK = ("/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/"
+              "exp35_supervisor_state.json.lock")
+QUEUE_LOG = ("/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/"
+             "queue_20261101T233607_741947.log")
+PROC = "/proc"
+NVIDIA_SMI = "nvidia-smi"
+POLL_S, WINDOW_POLLS, POLL_SLACK_S, FRESH_S = 60, 31, 15, 600     # A7 r2 (v)(1) / r3 (b): 31 polls = 30 min; 10 min
+# --- END REGISTERED CONFIG ---
+
+CARDS = {"GPU0": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "GPU1": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da"}
+EVAL_DONE = "EVAL_DONE ACEattn s43 "                          # A7 r2 (v)(1)(d), the trailing space included
+TABLE_JOB = "exp30_attn_eval.sh"
+Config = collections.namedtuple("Config", "reservations exp35_lock queue_log proc nvidia_smi")
+
+
+class Unreadable(ValueError):
+    """An input of the card rule could not be read: busy (detector) or a refusal (launcher, supervisor)."""
+
+
+def registered_config():
+    return Config(RESERVATIONS, EXP35_LOCK, QUEUE_LOG, PROC, NVIDIA_SMI)
+
+
+def sha256_bytes(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def iso(t):
+    return datetime.datetime.fromtimestamp(t).astimezone().isoformat(timespec="seconds")
+
+
+ROW = re.compile(r"\s*(\d+),\s*(GPU-[0-9A-Za-z-]+)\s*")
+
+
+def gpu_map(text):
+    """``{index: uuid}`` from ``nvidia-smi --query-gpu=index,uuid --format=csv,noheader``; ValueError when malformed."""
+    out = {}
+    for line in [ln for ln in text.splitlines() if ln.strip()]:
+        m = ROW.fullmatch(line)
+        if not m or int(m[1]) in out or m[2] in out.values():
+            raise ValueError(f"malformed or duplicate nvidia-smi index,uuid row {line!r}")
+        out[int(m[1])] = m[2]
+    if not out:
+        raise ValueError("nvidia-smi lists no GPU")
+    return out
+
+
+def compute_apps(text):
+    """``[(pid, uuid)]`` from ``nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader``."""
+    out = []
+    for line in [ln for ln in text.splitlines() if ln.strip()]:
+        m = ROW.fullmatch(line)
+        if not m:
+            raise ValueError(f"malformed nvidia-smi compute-app row {line!r}")
+        out.append((int(m[1]), m[2]))
+    return out
+
+
+class World:
+    """The real world: wall time, sleep, nvidia-smi (every failure is ``Unreadable``)."""
+    QUERIES = {"map": "--query-gpu=index,uuid", "apps": "--query-compute-apps=pid,gpu_uuid"}
+
+    def __init__(self, nvidia_smi=NVIDIA_SMI):
+        self.nvidia_smi = nvidia_smi
+
+    def now(self):
+        return time.time()
+
+    def sleep(self, s):
+        time.sleep(max(0.0, s))
+
+    def nvsmi(self, query):
+        if query not in self.QUERIES:
+            raise ValueError(f"unknown nvidia-smi query {query!r}")
+        argv = [self.nvidia_smi, self.QUERIES[query], "--format=csv,noheader"]
+        try:
+            r = subprocess.run(argv, capture_output=True, text=True, timeout=120)
+        except (OSError, subprocess.SubprocessError) as err:
+            raise Unreadable(f"nvidia-smi {argv[1]}: {err}") from err
+        if r.returncode != 0:
+            raise Unreadable(f"nvidia-smi {argv[1]}: rc {r.returncode}: {r.stderr.strip()[:200]}")
+        return r.stdout
+
+
+def reservation_path(dirpath, uuid):
+    return os.path.join(dirpath, f"{uuid}.json")
+
+
+def reservation_status(dirpath, uuid):
+    """'absent', 'present (holder X)' or 'present (...)' for any other file -- a dangling link, a malformed file;
+    ``Unreadable`` when the directory is missing or unreadable or the file cannot be read."""
+    try:
+        os.listdir(dirpath)
+    except OSError as err:
+        raise Unreadable(f"the reservation directory {dirpath} is missing or unreadable ({err})") from err
+    path = reservation_path(dirpath, uuid)
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
+        return "absent"
+    except OSError as err:
+        raise Unreadable(f"the reservation file {path} is unreadable ({err})") from err
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except FileNotFoundError:
+        return "present (a dangling link, or removed while it was read)"
+    except OSError as err:
+        raise Unreadable(f"the reservation file {path} is unreadable ({err})") from err
+    try:
+        doc = json.loads(raw)
+    except ValueError:
+        return "present (malformed)"
+    if not isinstance(doc, dict) or not isinstance(doc.get("holder"), str):
+        return "present (malformed)"
+    return f"present (holder {doc['holder']})"
+
+
+def read_record(path):
+    """(the bytes, (device, inode)) of the file at ``path`` through ONE descriptor, never through a symlink."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        st, chunks = os.fstat(fd), []
+        while True:
+            chunk = os.read(fd, 1 << 16)
+            if not chunk:
+                return b"".join(chunks), (st.st_dev, st.st_ino)
+            chunks.append(chunk)
+    finally:
+        os.close(fd)
+
+
+def held_reasons(held):
+    """[] iff the file at ``held['path']`` IS the record we wrote: its bytes' sha256 and its (device, inode)."""
+    try:
+        raw, ident = read_record(held["path"])
+    except OSError as err:
+        return [f"our reservation {held['path']} is gone or unreadable ({err})"]
+    out = [] if sha256_bytes(raw) == held["sha256"] else [f"{held['path']} is not our record (other bytes)"]
+    return out + ([] if list(ident) == [held["dev"], held["inode"]] else [f"{held['path']} is not our record (another inode)"])
+
+
+def lock_status(path):
+    """'absent' | 'unheld' | 'held' -- the reviewed exp_35 probe: open O_RDONLY (never created), LOCK_SH | LOCK_NB,
+    closed at once so no lock outlives the probe; ``Unreadable`` on any other error."""
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except FileNotFoundError:
+        return "absent"
+    except OSError as err:
+        raise Unreadable(f"the exp_35 lock {path} is unreadable ({err})") from err
+    try:
+        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        return "unheld"
+    except BlockingIOError:
+        return "held"
+    except OSError as err:
+        raise Unreadable(f"the exp_35 lock {path} cannot be probed ({err})") from err
+    finally:
+        os.close(fd)
