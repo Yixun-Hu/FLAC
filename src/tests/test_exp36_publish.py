@@ -1,14 +1,17 @@
-"""exp_36 yaw_c4_spread, cycle 4: the publication ``--exp36-publish`` (plan_yaw_c4_spread.md r0 §2 item 3 as amended
-by the Codex plan review B4 / H4). A SEPARATE command, never run by the runner or the chain.
+"""exp_36 yaw_c4_spread, cycles 4 / 10 / 12-13: the publication ``--exp36-publish --exp36-set A|OFF`` (plan r0 §2 item 3
+as amended by the Codex plan review B4 / H4, amendment A1 §5 and the Codex code reviews I-II). A SEPARATE command, never
+run by the runner or the chain. Set A = the 24 YAW-C4S cells (48 files), set OFF = the 6 YAW s42 off-orbit cells (12).
 
-Gates before any write: this worktree at the pin (H36) and the exp-25 worktree at its expected HEAD; the destination
-the plain YAW farm directory of the exp-25 worktree; the replay verdict ``equal`` at H36 AND re-computed identically;
-the 24 cells verified here, dump-free, receipt 2 sdpa, under the verdict's campaign digest; none of the 48 destination
-paths present (``lexists``). Then each of the 48 files (24 metrics JSONs + 24 stream sidecars; never the replay, never
-a ``.cell.json``) is written to a temp file, fsynced, hard-linked to its final name (no replace) and re-hashed; the
-publication manifest records sources, destinations, hashes, receipts, H36, the digest, the exp-25 HEAD and the archived
-reference. A stop part-way is ``partial``; ``resume`` accepts only byte-identical destinations and removes only this
-tool's own temp files.
+Gates before any write, under the global publication lock: the publisher checkout at its pin with a clean closure; the
+run checkout at the artifacts' pin (H36_I) and the exp-25 worktree at its expected HEAD; the destination the plain YAW
+farm directory of the exp-25 worktree, opened once (every later operation relative to that fd); the YAW replay's
+verdict ``equal`` at the pin AND re-computed identically; the set's cells verified, dump-free, receipt 2 sdpa, under
+the verdict's campaign digest; none of the set's destinations (metrics JSON + stream sidecar; never the replay, never a
+``.cell.json``) present. Each file is written to a temp named by the publication's transaction id, fsynced,
+hard-linked to its final name (no replace) and re-hashed; the publication manifest (created exclusively, replaced only
+while authenticated) records sources, destinations, hashes, receipts, the pin, the digest, the exp-25 HEAD, the archived
+reference and the publisher. A stop part-way is ``partial``; ``resume`` authenticates the prior manifest, accepts only
+byte-identical destinations and removes only the temps that manifest names.
 
 Written by the exp_36 Coder (Claude Opus 5.5, max effort) per plan_yaw_c4_spread.md r0 + its Codex plan review.
 """
@@ -22,6 +25,13 @@ from test_exp36_replay_check import H36, REPLAY, _rel, _row, _sha, check, world 
 
 C, MANIFEST = T.C, T.MANIFEST
 EXP25_HEAD = "5" * 40
+PUB = "e" * 40        # the publisher checkout's pin (review II HIGH 3); its closure check is faked by FAKE_PUBLISHER
+
+
+def FAKE_PUBLISHER(repo, pin):
+    """A clean publisher closure at ``pin`` (the real check, publisher_closure, is tested on a throwaway git repo)."""
+    return {"repo": repo, "head": pin, "collector": C.EXP36_COLLECTOR_REL, "collector_sha256": "c" * 64,
+            "closure_digest": "9" * 64}, []
 CELLS24 = [f"exp25_YAW_C4_S40000_K{k}_s{s}_th{d}" for k in (1, 8) for s in (43, 44, 45, 46) for d in (90, 180, 270)]
 
 
@@ -36,13 +46,14 @@ def pub(world, tmp_path):
     path.write_text(json.dumps(verdict, indent=1))
     dest = world["ref"] / T.FARM / "YAW"
     heads = {str(world["new"]): H36, str(world["ref"]): EXP25_HEAD}
-    return dict(world, verdict=str(path), dest=str(dest), out=str(tmp_path / "publication.json"), heads=heads)
+    return dict(world, verdict=str(path), dest=str(dest), out=str(tmp_path / "publication_A.json"), heads=heads)
 
 
 def publish(p, **kw):
     args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
                 ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
-                dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+                dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
     args.update(kw)
     return C.exp36_publish(**args)
 
@@ -135,11 +146,11 @@ def test_a_symlinked_destination_is_refused(pub, tmp_path):
 def test_a_stop_part_way_is_partial_and_resume_completes_it(pub, monkeypatch):
     real, calls = os.link, []
 
-    def flaky(src, dst):
-        calls.append(dst)
+    def flaky(src, dst, **kw):
+        calls.append(os.path.join(pub["dest"], dst))
         if len(calls) == 6:
             raise OSError("simulated crash at the sixth link")
-        return real(src, dst)
+        return real(src, dst, **kw)
 
     monkeypatch.setattr(C.os, "link", flaky)
     status, doc = publish(pub)
@@ -152,7 +163,8 @@ def test_a_stop_part_way_is_partial_and_resume_completes_it(pub, monkeypatch):
     assert not [n for n in _listing(pub["dest"]) if n.startswith(C.EXP36_TMP_PREFIX)]
     status, doc = publish(pub)                                              # without resume: refused, untouched
     assert status == "refused" and json.loads(open(pub["out"]).read())["status"] == "partial"
-    leftover = os.path.join(pub["dest"], f"{C.EXP36_TMP_PREFIX}999-{os.path.basename(calls[5])}")
+    txid = json.loads(open(pub["out"]).read())["txid"]
+    leftover = os.path.join(pub["dest"], f"{C.EXP36_TMP_PREFIX}{txid}-{os.path.basename(calls[5])}")
     open(leftover, "w").close()                                             # a crash between write and link
     status, doc = publish(pub, resume=True)
     assert status == "published" and doc["status"] == "complete", doc.get("reasons")
@@ -160,7 +172,11 @@ def test_a_stop_part_way_is_partial_and_resume_completes_it(pub, monkeypatch):
     assert all(_sha(e["dest"]) == e["source_sha256"] for e in doc["entries"]) and not os.path.lexists(leftover)
 
 
-def test_resume_refuses_a_foreign_destination_or_temp_file(pub):
+def test_resume_refuses_a_foreign_destination_or_temp_file(pub, monkeypatch):
+    real = os.link
+    monkeypatch.setattr(C.os, "link", lambda *a, **kw: (_ for _ in ()).throw(OSError("simulated crash")))
+    assert publish(pub)[0] == "partial"                                     # a stopped publication to resume
+    monkeypatch.setattr(C.os, "link", real)
     name = os.path.basename(_rel(_row(CELLS24[2]), "metrics"))
     with open(os.path.join(pub["dest"], name), "w") as f:
         f.write("{}")
@@ -172,17 +188,22 @@ def test_resume_refuses_a_foreign_destination_or_temp_file(pub):
     assert status == "refused" and any("temp" in x for x in doc["reasons"]), doc
 
 
-def _cli(p, tmp_path, monkeypatch, *extra):
+def _cli(p, tmp_path, monkeypatch, *extra, publisher_pin=PUB):
+    """The PARSED CLI: the pinned constants redirected into the world, the manifest at its per-set default (review II
+    NIT 1: no override exists), the collector's own cells manifest (the publisher closure binds it)."""
     monkeypatch.setitem(C.EXP36_REPLAYS, REPLAY, dict(C.EXP36_REPLAYS[REPLAY], **p["pins"]))
     monkeypatch.setattr(C, "EXP25_WORKTREE", str(p["ref"]))
     monkeypatch.setattr(C, "EXP36_PUBLISH_DEST", p["dest"])
     monkeypatch.setattr(C, "EXP25_WORKTREE_HEAD", EXP25_HEAD)
     monkeypatch.setattr(C, "_git_head", lambda d: p["heads"].get(d))
+    monkeypatch.setattr(C, "publisher_closure", FAKE_PUBLISHER)
+    monkeypatch.setattr(C, "EXP36_PUBLICATION", str(tmp_path / "publication_{}.json"))
     cells = tmp_path / "cells.json"
     cells.write_text(json.dumps(MANIFEST))
-    return C.main(["--exp36-publish", "--pin", H36, "--exp36-verdict", p["verdict"], "--cells", str(cells),
-                   "--base-dir", str(p["new"]), "--exp25-dump-root", str(p["ref"] / "dumps"),
-                   "--dump-root", str(p["new"] / "dumps"), "--publish-manifest-out", p["out"], *extra])
+    monkeypatch.setattr(C, "CELLS_JSON", str(cells))
+    pin = ["--publisher-pin", publisher_pin] if publisher_pin else []
+    return C.main(["--exp36-publish", "--pin", H36, "--exp36-verdict", p["verdict"], *pin, "--base-dir", str(p["new"]),
+                   "--exp25-dump-root", str(p["ref"] / "dumps"), "--dump-root", str(p["new"] / "dumps"), *extra])
 
 
 def test_cli_publish_needs_a_set(pub, tmp_path, monkeypatch, capsys):
@@ -198,7 +219,8 @@ def test_cli_publish_exit_codes(pub, tmp_path, monkeypatch, capsys):
     assert "exp-25" in capsys.readouterr().out and not os.path.exists(pub["out"])
     assert _cli(pub, tmp_path, monkeypatch, *A) == 0 and "EXP36 PUBLISHED 48" in capsys.readouterr().out
     assert _cli(pub, tmp_path, monkeypatch, *A) == 2 and "REFUSED" in capsys.readouterr().out
-    assert _cli(pub, tmp_path, monkeypatch, *A, "--exp36-publish-resume") == 0            # all 48 byte-identical
+    assert _cli(pub, tmp_path, monkeypatch, *A, "--exp36-publish-resume") == 2            # review II HIGH 2: a
+    assert "complete" in capsys.readouterr().out                                          # complete one is final
 
 
 def test_cli_a_crashed_publication_exits_3_never_0(pub, tmp_path, monkeypatch, capsys):
@@ -222,8 +244,8 @@ def pub_off(world, tmp_path):
     path = tmp_path / "verdict.json"
     path.write_text(json.dumps(verdict, indent=1))
     heads = {str(world["new"]): H36, str(world["ref"]): EXP25_HEAD}
-    return dict(world, verdict=str(path), dest=str(world["ref"] / T.FARM / "YAW"), out=str(tmp_path / "pub_off.json"),
-                heads=heads)
+    return dict(world, verdict=str(path), dest=str(world["ref"] / T.FARM / "YAW"),
+                out=str(tmp_path / "publication_OFF.json"), heads=heads)
 
 
 def test_the_off_set_publishes_its_12_files_only(pub_off):
@@ -263,9 +285,11 @@ def test_a_relative_plan_path_resolves_against_the_base_dir(world, tmp_path, mon
     assert status == "equal" and v["plan_json"] == rel, v["reasons"]
 
 
-def test_the_final_collector_reproduces_a_verdict_of_the_chain_i_collector(world):
-    """The publication re-computes the replay verdict and requires it byte-for-byte equal (as JSON) to the recorded one;
-    chain I records its verdicts with the collector at H36_I 461c58e0 -- this collector must produce the same dict."""
+def test_the_final_collector_reproduces_a_verdict_of_the_chain_i_collector(world, tmp_path, monkeypatch):
+    """The publication re-computes the replay verdict and requires PARSED-DICT equality with the recorded one. Chain I
+    records it with the collector at H36_I 461c58e0, run in the run checkout with the runner's RELATIVE plan path; the
+    publication re-computes it with this collector from another cwd, the same relative string resolved against
+    --base-dir (review II NIT 2: both conditions in one test)."""
     import subprocess
     import types
     path = os.path.join(T.EXPDIR, "depth_canon_collect.py")
@@ -274,8 +298,11 @@ def test_the_final_collector_reproduces_a_verdict_of_the_chain_i_collector(world
     old = types.ModuleType("depth_canon_collect_at_461c58e0")
     old.__file__ = path
     exec(compile(src, f"{path}@461c58e0", "exec"), old.__dict__)
-    kw = dict(pin=H36, plan_json=world["plan"], manifest=MANIFEST, base_dir=str(world["new"]),
-              ref_base_dir=str(world["ref"]), ref_dump_root=str(world["ref"] / "dumps"), reference=world["pins"],
-              canon_index=T.canon_index())
-    assert old.exp36_replay_check(**kw) == C.exp36_replay_check(**kw)
-    assert old.exp36_replay_check(**kw)[0] == "equal"
+    rel = os.path.relpath(world["plan"], world["new"])
+    kw = dict(pin=H36, plan_json=rel, manifest=MANIFEST, base_dir=str(world["new"]), ref_base_dir=str(world["ref"]),
+              ref_dump_root=str(world["ref"] / "dumps"), reference=world["pins"], canon_index=T.canon_index())
+    monkeypatch.chdir(world["new"])                                   # chain I: the comparator runs in the run checkout
+    recorded = json.loads(json.dumps(old.exp36_replay_check(**kw)[1]))
+    monkeypatch.chdir(tmp_path)                                       # the publication: another cwd, same string
+    status, again = C.exp36_replay_check(**kw)
+    assert recorded["result"] == status == "equal" and recorded["plan_json"] == rel and again == recorded

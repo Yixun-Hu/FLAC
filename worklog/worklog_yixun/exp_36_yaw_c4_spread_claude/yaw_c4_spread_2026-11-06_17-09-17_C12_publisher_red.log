@@ -1,0 +1,992 @@
+RED, cycle 12 (Codex code review II HIGH 3 + NIT 1-3: publisher_closure / --publisher-pin, the collector's own cells, the parsed CLI's per-set default manifests without an override, the cross-version relative-plan guard, the help naming A 48 / OFF 12) at HEAD 5ee1d6fe7debdce9b3acd37d3ea8aaa64666d1ec + the uncommitted tests
+EEEEEEEEFFFFFFFFFFFFFFFFFFFFFFFFFFFFF..F.F                               [100%]
+==================================== ERRORS ====================================
+________ ERROR at setup of test_a_clean_closure_at_the_pin_is_recorded _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_a_clean_closure_at_the_pi0')
+
+    @pytest.fixture()
+    def repo(tmp_path):
+        """A throwaway git checkout holding the closure's paths (their contents do not matter: the check is about clean,
+        committed bytes at the pin), plus a test file and an unrelated file outside the closure."""
+        r = tmp_path / "pubrepo"
+>       for rel in ("eval_FLAC.py", "src/data/x.py", "src/tests/test_x.py", C.EXP36_COLLECTOR_REL, C.EXP36_CELLS_REL,
+                    "other.txt"):
+E                   AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_COLLECTOR_REL'
+
+src/tests/test_exp36_publish_publisher.py:41: AttributeError
+______ ERROR at setup of test_dirty_closure_bytes_are_refused[collector] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_dirty_closure_bytes_are_r0')
+
+    @pytest.fixture()
+    def repo(tmp_path):
+        """A throwaway git checkout holding the closure's paths (their contents do not matter: the check is about clean,
+        committed bytes at the pin), plus a test file and an unrelated file outside the closure."""
+        r = tmp_path / "pubrepo"
+>       for rel in ("eval_FLAC.py", "src/data/x.py", "src/tests/test_x.py", C.EXP36_COLLECTOR_REL, C.EXP36_CELLS_REL,
+                    "other.txt"):
+E                   AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_COLLECTOR_REL'
+
+src/tests/test_exp36_publish_publisher.py:41: AttributeError
+______ ERROR at setup of test_dirty_closure_bytes_are_refused[dependency] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_dirty_closure_bytes_are_r1')
+
+    @pytest.fixture()
+    def repo(tmp_path):
+        """A throwaway git checkout holding the closure's paths (their contents do not matter: the check is about clean,
+        committed bytes at the pin), plus a test file and an unrelated file outside the closure."""
+        r = tmp_path / "pubrepo"
+>       for rel in ("eval_FLAC.py", "src/data/x.py", "src/tests/test_x.py", C.EXP36_COLLECTOR_REL, C.EXP36_CELLS_REL,
+                    "other.txt"):
+E                   AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_COLLECTOR_REL'
+
+src/tests/test_exp36_publish_publisher.py:41: AttributeError
+______ ERROR at setup of test_dirty_closure_bytes_are_refused[untracked] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_dirty_closure_bytes_are_r2')
+
+    @pytest.fixture()
+    def repo(tmp_path):
+        """A throwaway git checkout holding the closure's paths (their contents do not matter: the check is about clean,
+        committed bytes at the pin), plus a test file and an unrelated file outside the closure."""
+        r = tmp_path / "pubrepo"
+>       for rel in ("eval_FLAC.py", "src/data/x.py", "src/tests/test_x.py", C.EXP36_COLLECTOR_REL, C.EXP36_CELLS_REL,
+                    "other.txt"):
+E                   AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_COLLECTOR_REL'
+
+src/tests/test_exp36_publish_publisher.py:41: AttributeError
+_______ ERROR at setup of test_dirty_closure_bytes_are_refused[deleted] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_dirty_closure_bytes_are_r3')
+
+    @pytest.fixture()
+    def repo(tmp_path):
+        """A throwaway git checkout holding the closure's paths (their contents do not matter: the check is about clean,
+        committed bytes at the pin), plus a test file and an unrelated file outside the closure."""
+        r = tmp_path / "pubrepo"
+>       for rel in ("eval_FLAC.py", "src/data/x.py", "src/tests/test_x.py", C.EXP36_COLLECTOR_REL, C.EXP36_CELLS_REL,
+                    "other.txt"):
+E                   AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_COLLECTOR_REL'
+
+src/tests/test_exp36_publish_publisher.py:41: AttributeError
+________ ERROR at setup of test_dirty_closure_bytes_are_refused[cells] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_dirty_closure_bytes_are_r4')
+
+    @pytest.fixture()
+    def repo(tmp_path):
+        """A throwaway git checkout holding the closure's paths (their contents do not matter: the check is about clean,
+        committed bytes at the pin), plus a test file and an unrelated file outside the closure."""
+        r = tmp_path / "pubrepo"
+>       for rel in ("eval_FLAC.py", "src/data/x.py", "src/tests/test_x.py", C.EXP36_COLLECTOR_REL, C.EXP36_CELLS_REL,
+                    "other.txt"):
+E                   AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_COLLECTOR_REL'
+
+src/tests/test_exp36_publish_publisher.py:41: AttributeError
+_ ERROR at setup of test_test_files_and_files_outside_the_closure_do_not_count _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_test_files_and_files_outs0')
+
+    @pytest.fixture()
+    def repo(tmp_path):
+        """A throwaway git checkout holding the closure's paths (their contents do not matter: the check is about clean,
+        committed bytes at the pin), plus a test file and an unrelated file outside the closure."""
+        r = tmp_path / "pubrepo"
+>       for rel in ("eval_FLAC.py", "src/data/x.py", "src/tests/test_x.py", C.EXP36_COLLECTOR_REL, C.EXP36_CELLS_REL,
+                    "other.txt"):
+E                   AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_COLLECTOR_REL'
+
+src/tests/test_exp36_publish_publisher.py:41: AttributeError
+___ ERROR at setup of test_a_wrong_or_short_pin_or_a_missing_head_is_refused ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_a_wrong_or_short_pin_or_a0')
+
+    @pytest.fixture()
+    def repo(tmp_path):
+        """A throwaway git checkout holding the closure's paths (their contents do not matter: the check is about clean,
+        committed bytes at the pin), plus a test file and an unrelated file outside the closure."""
+        r = tmp_path / "pubrepo"
+>       for rel in ("eval_FLAC.py", "src/data/x.py", "src/tests/test_x.py", C.EXP36_COLLECTOR_REL, C.EXP36_CELLS_REL,
+                    "other.txt"):
+E                   AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_COLLECTOR_REL'
+
+src/tests/test_exp36_publish_publisher.py:41: AttributeError
+=================================== FAILURES ===================================
+_________ test_the_closure_names_this_collector_and_its_cells_manifest _________
+
+    def test_the_closure_names_this_collector_and_its_cells_manifest():
+>       assert os.path.join(C.REPO, C.EXP36_COLLECTOR_REL) == os.path.abspath(C.__file__)
+E       AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_COLLECTOR_REL'
+
+src/tests/test_exp36_publish_publisher.py:94: AttributeError
+______ test_a_refused_publisher_refuses_the_publication_before_any_write _______
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_a_refused_publisher_refus0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_a_refused_publisher_refus0/exp36/plan.json', ...}
+
+    def test_a_refused_publisher_refuses_the_publication_before_any_write(pub):
+        before = _listing(pub["dest"])
+>       status, doc = publish(pub, publisher_check=lambda repo, pin: (None, ["the publication closure is not clean"]))
+
+src/tests/test_exp36_publish_publisher.py:102: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_a_refused_publisher_refus0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_a_refused_publisher_refus0/exp36/plan.json', ...}
+kw = {'publisher_check': <function test_a_refused_publisher_refuses_the_publication_before_any_write.<locals>.<lambda> at 0x7cebd4eda7a0>}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_____ test_the_cli_requires_the_publisher_pin_and_the_collectors_own_cells _____
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_cli_requires_the_publ0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_the_cli_requires_the_publ0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_cli_requires_the_publ0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cebd4e0e9e0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7cebd4e0fdc0>
+
+    def test_the_cli_requires_the_publisher_pin_and_the_collectors_own_cells(pub, tmp_path, monkeypatch, capsys):
+>       assert _cli(pub, tmp_path, monkeypatch, "--exp36-set", "A", publisher_pin=None) == 2
+
+src/tests/test_exp36_publish_publisher.py:108: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_cli_requires_the_publ0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_the_cli_requires_the_publ0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_cli_requires_the_publ0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cebd4e0e9e0>
+publisher_pin = None, extra = ('--exp36-set', 'A')
+
+    def _cli(p, tmp_path, monkeypatch, *extra, publisher_pin=PUB):
+        """The PARSED CLI: the pinned constants redirected into the world, the manifest at its per-set default (review II
+        NIT 1: no override exists), the collector's own cells manifest (the publisher closure binds it)."""
+        monkeypatch.setitem(C.EXP36_REPLAYS, REPLAY, dict(C.EXP36_REPLAYS[REPLAY], **p["pins"]))
+        monkeypatch.setattr(C, "EXP25_WORKTREE", str(p["ref"]))
+        monkeypatch.setattr(C, "EXP36_PUBLISH_DEST", p["dest"])
+        monkeypatch.setattr(C, "EXP25_WORKTREE_HEAD", EXP25_HEAD)
+        monkeypatch.setattr(C, "_git_head", lambda d: p["heads"].get(d))
+>       monkeypatch.setattr(C, "publisher_closure", FAKE_PUBLISHER)
+E       AttributeError: <module 'depth_canon_collect' from '/home/yixunhu/codespace/exp-36-yaw-c4-spread/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py'> has no attribute 'publisher_closure'
+
+src/tests/test_exp36_publish.py:199: AttributeError
+_______ test_the_parsed_cli_routes_each_set_to_its_own_default_manifest ________
+
+both = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_parsed_cli_routes_eac0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_the_parsed_cli_routes_eac0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_parsed_cli_routes_eac0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cebd4a9f6d0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7cebd4a9d4b0>
+
+    def test_the_parsed_cli_routes_each_set_to_its_own_default_manifest(both, tmp_path, monkeypatch, capsys):
+        """Review II NIT 1: no --publish-manifest-out (it no longer exists); EXP36_PUBLICATION redirected to a temp
+        pattern; A -> 48 entries, OFF -> 12, two distinct default files."""
+>       assert _cli(both, tmp_path, monkeypatch, "--exp36-set", "A") == 0
+
+src/tests/test_exp36_publish_publisher.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_parsed_cli_routes_eac0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_the_parsed_cli_routes_eac0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_parsed_cli_routes_eac0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cebd4a9f6d0>
+publisher_pin = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+extra = ('--exp36-set', 'A')
+
+    def _cli(p, tmp_path, monkeypatch, *extra, publisher_pin=PUB):
+        """The PARSED CLI: the pinned constants redirected into the world, the manifest at its per-set default (review II
+        NIT 1: no override exists), the collector's own cells manifest (the publisher closure binds it)."""
+        monkeypatch.setitem(C.EXP36_REPLAYS, REPLAY, dict(C.EXP36_REPLAYS[REPLAY], **p["pins"]))
+        monkeypatch.setattr(C, "EXP25_WORKTREE", str(p["ref"]))
+        monkeypatch.setattr(C, "EXP36_PUBLISH_DEST", p["dest"])
+        monkeypatch.setattr(C, "EXP25_WORKTREE_HEAD", EXP25_HEAD)
+        monkeypatch.setattr(C, "_git_head", lambda d: p["heads"].get(d))
+>       monkeypatch.setattr(C, "publisher_closure", FAKE_PUBLISHER)
+E       AttributeError: <module 'depth_canon_collect' from '/home/yixunhu/codespace/exp-36-yaw-c4-spread/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py'> has no attribute 'publisher_closure'
+
+src/tests/test_exp36_publish.py:199: AttributeError
+______________________ test_the_cli_help_names_both_sets _______________________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7cebd4ef40d0>
+
+    def test_the_cli_help_names_both_sets(capsys):
+        with pytest.raises(SystemExit):
+            C.main(["--help"])
+        text = "".join(capsys.readouterr().out.split())                # argparse wraps (and may break at hyphens)
+>       assert "A=the24YAW-C4Scells(48files)" in text and "OFF=the6YAWs42off-orbitcells(12files)" in text
+E       AssertionError: assert ('A=the24YAW-C4Scells(48files)' in 'usage:__main__.py[-h][--verify-cellSTEM][--pinPIN][--cellsCELLS][--farm-rootFARM_ROOT][--dump-rootDUMP_ROOT][--base-d...epublicationmanifest(default:theexp_36folder,oneperset)--exp36-publish-resume--exp36-publish:resumeastoppedpublication')
+
+src/tests/test_exp36_publish_publisher.py:149: AssertionError
+_________________ test_the_48_files_are_published_and_recorded _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_48_files_are_publishe0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_the_48_files_are_publishe0/exp36/plan.json', ...}
+
+    def test_the_48_files_are_published_and_recorded(pub):
+        before = _listing(pub["dest"])
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_48_files_are_publishe0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_the_48_files_are_publishe0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_______________ test_any_present_destination_refuses_everything ________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_any_present_destination_r0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_any_present_destination_r0/exp36/plan.json', ...}
+
+    def test_any_present_destination_refuses_everything(pub):
+        taken = os.path.join(pub["dest"], os.path.basename(_rel(_row(CELLS24[7]), "stream")))
+        open(taken, "w").close()
+        before = _listing(pub["dest"])
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_any_present_destination_r0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_any_present_destination_r0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_________________ test_every_gate_refuses_before_any_write[g0] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before0/exp36/plan.json', ...}
+edit = <function <lambda> at 0x7cebd4ed80d0>, needle = 'not at the pin'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_________________ test_every_gate_refuses_before_any_write[g1] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before1/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before1/exp36/plan.json', ...}
+edit = <function <lambda> at 0x7cebd4ed8160>, needle = 'exp-25 worktree'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before1/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before1/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_________________ test_every_gate_refuses_before_any_write[g2] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before2/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before2/exp36/plan.json', ...}
+edit = <function <lambda> at 0x7cebd4ed81f0>, needle = 'destination'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before2/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before2/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_________________ test_every_gate_refuses_before_any_write[g3] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before3/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before3/exp36/plan.json', ...}
+edit = <function <lambda> at 0x7cebd4ed8280>, needle = 'not an equal verdict'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before3/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before3/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_________________ test_every_gate_refuses_before_any_write[g4] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before4/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before4/exp36/plan.json', ...}
+edit = <function <lambda> at 0x7cebd4ed8310>, needle = 'not an equal verdict'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before4/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before4/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_________________ test_every_gate_refuses_before_any_write[g5] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before5/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before5/exp36/plan.json', ...}
+edit = <function <lambda> at 0x7cebd4ed83a0>, needle = 're-run'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before5/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before5/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_________________ test_every_gate_refuses_before_any_write[g6] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before6/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before6/exp36/plan.json', ...}
+edit = <function <lambda> at 0x7cebd4ed8430>, needle = 're-run'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before6/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before6/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_________________ test_every_gate_refuses_before_any_write[g7] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before7/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before7/exp36/plan.json', ...}
+edit = <function <lambda> at 0x7cebd4ed84c0>, needle = 'verdict'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before7/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before7/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_________________ test_every_gate_refuses_before_any_write[g8] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before8/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before8/exp36/plan.json', ...}
+edit = <function <lambda> at 0x7cebd4ed8550>
+needle = 'exp25_YAW_C4_S40000_K1_s46_th270'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before8/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before8/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_________________ test_every_gate_refuses_before_any_write[g9] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before9/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before9/exp36/plan.json', ...}
+edit = <function <lambda> at 0x7cebd4ed85e0>
+needle = 'exp25_YAW_C4_S40000_K1_s44_th90'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before9/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before9/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+________________ test_every_gate_refuses_before_any_write[g10] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before10/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before10/exp36/plan.json', ...}
+edit = <function <lambda> at 0x7cebd4ed8670>
+needle = 'exp25_YAW_C4_S40000_K1_s43_th90'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before10/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before10/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+________________ test_every_gate_refuses_before_any_write[g11] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before11/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before11/exp36/plan.json', ...}
+edit = <function <lambda> at 0x7cebd4ed8700>
+needle = 'exp25_YAW_C4_S40000_K1_s46_th90'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before11/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before11/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+________________ test_every_gate_refuses_before_any_write[g12] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before12/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before12/exp36/plan.json', ...}
+edit = <function <lambda> at 0x7cebd4ed8790>, needle = 'publication manifest'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before12/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_every_gate_refuses_before12/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+___________________ test_a_symlinked_destination_is_refused ____________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_a_symlinked_destination_i0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_a_symlinked_destination_i0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_a_symlinked_destination_i0')
+
+    def test_a_symlinked_destination_is_refused(pub, tmp_path):
+        link = tmp_path / "YAWlink"
+        os.symlink(pub["dest"], link)
+>       assert publish(pub, dest=str(link))[0] == "refused"
+
+src/tests/test_exp36_publish.py:139: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_a_symlinked_destination_i0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_a_symlinked_destination_i0/exp36/plan.json', ...}
+kw = {'dest': '/tmp/pytest-of-yixunhu/pytest-6608/test_a_symlinked_destination_i0/YAWlink'}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+___________ test_a_stop_part_way_is_partial_and_resume_completes_it ____________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_a_stop_part_way_is_partia0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_a_stop_part_way_is_partia0/exp36/plan.json', ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cedbf689d50>
+
+    def test_a_stop_part_way_is_partial_and_resume_completes_it(pub, monkeypatch):
+        real, calls = os.link, []
+    
+        def flaky(src, dst, **kw):
+            calls.append(os.path.join(pub["dest"], dst))
+            if len(calls) == 6:
+                raise OSError("simulated crash at the sixth link")
+            return real(src, dst, **kw)
+    
+        monkeypatch.setattr(C.os, "link", flaky)
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:156: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_a_stop_part_way_is_partia0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_a_stop_part_way_is_partia0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+____________ test_resume_refuses_a_foreign_destination_or_temp_file ____________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_resume_refuses_a_foreign_0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_resume_refuses_a_foreign_0/exp36/plan.json', ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cebd4ce1fc0>
+
+    def test_resume_refuses_a_foreign_destination_or_temp_file(pub, monkeypatch):
+        real = os.link
+        monkeypatch.setattr(C.os, "link", lambda *a, **kw: (_ for _ in ()).throw(OSError("simulated crash")))
+>       assert publish(pub)[0] == "partial"                                     # a stopped publication to resume
+
+src/tests/test_exp36_publish.py:178: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_resume_refuses_a_foreign_0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_resume_refuses_a_foreign_0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_________________________ test_cli_publish_needs_a_set _________________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publish_needs_a_set0/exp25'), 'new': PosixPath('/tmp/py...30c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publish_needs_a_set0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publish_needs_a_set0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cebd4ed4280>
+capsys = <_pytest.capture.CaptureFixture object at 0x7cebd4ed7fd0>
+
+    def test_cli_publish_needs_a_set(pub, tmp_path, monkeypatch, capsys):
+        """amendment A1 §5: two separate invocations, --exp36-set A (the 24) and --exp36-set OFF (the 6 YAW s42 off-orbit
+        cells); without a set nothing is published."""
+>       assert _cli(pub, tmp_path, monkeypatch) == 2 and "--exp36-set" in capsys.readouterr().out
+
+src/tests/test_exp36_publish.py:212: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publish_needs_a_set0/exp25'), 'new': PosixPath('/tmp/py...30c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publish_needs_a_set0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publish_needs_a_set0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cebd4ed4280>
+publisher_pin = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', extra = ()
+
+    def _cli(p, tmp_path, monkeypatch, *extra, publisher_pin=PUB):
+        """The PARSED CLI: the pinned constants redirected into the world, the manifest at its per-set default (review II
+        NIT 1: no override exists), the collector's own cells manifest (the publisher closure binds it)."""
+        monkeypatch.setitem(C.EXP36_REPLAYS, REPLAY, dict(C.EXP36_REPLAYS[REPLAY], **p["pins"]))
+        monkeypatch.setattr(C, "EXP25_WORKTREE", str(p["ref"]))
+        monkeypatch.setattr(C, "EXP36_PUBLISH_DEST", p["dest"])
+        monkeypatch.setattr(C, "EXP25_WORKTREE_HEAD", EXP25_HEAD)
+        monkeypatch.setattr(C, "_git_head", lambda d: p["heads"].get(d))
+>       monkeypatch.setattr(C, "publisher_closure", FAKE_PUBLISHER)
+E       AttributeError: <module 'depth_canon_collect' from '/home/yixunhu/codespace/exp-36-yaw-c4-spread/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py'> has no attribute 'publisher_closure'
+
+src/tests/test_exp36_publish.py:199: AttributeError
+_________________________ test_cli_publish_exit_codes __________________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publish_exit_codes0/exp25'), 'new': PosixPath('/tmp/pyt...230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publish_exit_codes0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publish_exit_codes0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cebd4af1b40>
+capsys = <_pytest.capture.CaptureFixture object at 0x7cebd4af33a0>
+
+    def test_cli_publish_exit_codes(pub, tmp_path, monkeypatch, capsys):
+        A = ("--exp36-set", "A")
+>       assert _cli(pub, tmp_path, monkeypatch, *A, "--exp25-base-dir", str(tmp_path)) == 2   # the pinned worktree only
+
+src/tests/test_exp36_publish.py:218: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publish_exit_codes0/exp25'), 'new': PosixPath('/tmp/pyt...230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publish_exit_codes0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publish_exit_codes0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cebd4af1b40>
+publisher_pin = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+extra = ('--exp36-set', 'A', '--exp25-base-dir', '/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publish_exit_codes0')
+
+    def _cli(p, tmp_path, monkeypatch, *extra, publisher_pin=PUB):
+        """The PARSED CLI: the pinned constants redirected into the world, the manifest at its per-set default (review II
+        NIT 1: no override exists), the collector's own cells manifest (the publisher closure binds it)."""
+        monkeypatch.setitem(C.EXP36_REPLAYS, REPLAY, dict(C.EXP36_REPLAYS[REPLAY], **p["pins"]))
+        monkeypatch.setattr(C, "EXP25_WORKTREE", str(p["ref"]))
+        monkeypatch.setattr(C, "EXP36_PUBLISH_DEST", p["dest"])
+        monkeypatch.setattr(C, "EXP25_WORKTREE_HEAD", EXP25_HEAD)
+        monkeypatch.setattr(C, "_git_head", lambda d: p["heads"].get(d))
+>       monkeypatch.setattr(C, "publisher_closure", FAKE_PUBLISHER)
+E       AttributeError: <module 'depth_canon_collect' from '/home/yixunhu/codespace/exp-36-yaw-c4-spread/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py'> has no attribute 'publisher_closure'
+
+src/tests/test_exp36_publish.py:199: AttributeError
+________________ test_cli_a_crashed_publication_exits_3_never_0 ________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_a_crashed_publication0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_cli_a_crashed_publication0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_a_crashed_publication0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cebd4ce1030>
+capsys = <_pytest.capture.CaptureFixture object at 0x7cebd4ce1cf0>
+
+    def test_cli_a_crashed_publication_exits_3_never_0(pub, tmp_path, monkeypatch, capsys):
+        def boom(**kw):
+            raise RuntimeError("simulated crash")
+        monkeypatch.setattr(C, "exp36_publish", boom)
+>       assert _cli(pub, tmp_path, monkeypatch, "--exp36-set", "A") == 3 and "CRASHED" in capsys.readouterr().out
+
+src/tests/test_exp36_publish.py:230: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_a_crashed_publication0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_cli_a_crashed_publication0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_a_crashed_publication0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cebd4ce1030>
+publisher_pin = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+extra = ('--exp36-set', 'A')
+
+    def _cli(p, tmp_path, monkeypatch, *extra, publisher_pin=PUB):
+        """The PARSED CLI: the pinned constants redirected into the world, the manifest at its per-set default (review II
+        NIT 1: no override exists), the collector's own cells manifest (the publisher closure binds it)."""
+        monkeypatch.setitem(C.EXP36_REPLAYS, REPLAY, dict(C.EXP36_REPLAYS[REPLAY], **p["pins"]))
+        monkeypatch.setattr(C, "EXP25_WORKTREE", str(p["ref"]))
+        monkeypatch.setattr(C, "EXP36_PUBLISH_DEST", p["dest"])
+        monkeypatch.setattr(C, "EXP25_WORKTREE_HEAD", EXP25_HEAD)
+        monkeypatch.setattr(C, "_git_head", lambda d: p["heads"].get(d))
+>       monkeypatch.setattr(C, "publisher_closure", FAKE_PUBLISHER)
+E       AttributeError: <module 'depth_canon_collect' from '/home/yixunhu/codespace/exp-36-yaw-c4-spread/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py'> has no attribute 'publisher_closure'
+
+src/tests/test_exp36_publish.py:199: AttributeError
+_________________ test_the_off_set_publishes_its_12_files_only _________________
+
+pub_off = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_off_set_publishes_its0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_the_off_set_publishes_its0/exp36/plan.json', ...}
+
+    def test_the_off_set_publishes_its_12_files_only(pub_off):
+        before = _listing(pub_off["dest"])
+>       status, doc = publish(pub_off, cell_set="OFF")
+
+src/tests/test_exp36_publish.py:253: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_off_set_publishes_its0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_the_off_set_publishes_its0/exp36/plan.json', ...}
+kw = {'cell_set': 'OFF'}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+____________ test_each_set_needs_its_own_cells_and_the_yaw_verdict _____________
+
+pub_off = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_each_set_needs_its_own_ce0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_each_set_needs_its_own_ce0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_each_set_needs_its_own_ce0')
+
+    def test_each_set_needs_its_own_cells_and_the_yaw_verdict(pub_off, tmp_path):
+>       status, doc = publish(pub_off, cell_set="A")                         # the 24 are not there
+
+src/tests/test_exp36_publish.py:261: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_each_set_needs_its_own_ce0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_each_set_needs_its_own_ce0/exp36/plan.json', ...}
+kw = {'cell_set': 'A'}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_________________ test_a_verdict_of_another_replay_is_refused __________________
+
+pub_off = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_a_verdict_of_another_repl0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_a_verdict_of_another_repl0/exp36/plan.json', ...}
+
+    def test_a_verdict_of_another_replay_is_refused(pub_off):
+        doc = json.load(open(pub_off["verdict"]))
+        doc["replay"]["cell"] = "exp36_P1_C4_S40000_K8_s42_th90"
+        with open(pub_off["verdict"], "w") as f:
+            json.dump(doc, f)
+>       status, doc = publish(pub_off, cell_set="OFF")
+
+src/tests/test_exp36_publish.py:275: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_a_verdict_of_another_repl0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_a_verdict_of_another_repl0/exp36/plan.json', ...}
+kw = {'cell_set': 'OFF'}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+_____________ test_cli_publishes_the_off_set_into_its_own_manifest _____________
+
+pub_off = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publishes_the_off_set0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publishes_the_off_set0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publishes_the_off_set0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cebd4b73250>
+capsys = <_pytest.capture.CaptureFixture object at 0x7cebd4b73370>
+
+    def test_cli_publishes_the_off_set_into_its_own_manifest(pub_off, tmp_path, monkeypatch, capsys):
+>       assert _cli(pub_off, tmp_path, monkeypatch, "--exp36-set", "OFF") == 0
+
+src/tests/test_exp36_publish_provenance.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publishes_the_off_set0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publishes_the_off_set0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_cli_publishes_the_off_set0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cebd4b73250>
+publisher_pin = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+extra = ('--exp36-set', 'OFF')
+
+    def _cli(p, tmp_path, monkeypatch, *extra, publisher_pin=PUB):
+        """The PARSED CLI: the pinned constants redirected into the world, the manifest at its per-set default (review II
+        NIT 1: no override exists), the collector's own cells manifest (the publisher closure binds it)."""
+        monkeypatch.setitem(C.EXP36_REPLAYS, REPLAY, dict(C.EXP36_REPLAYS[REPLAY], **p["pins"]))
+        monkeypatch.setattr(C, "EXP25_WORKTREE", str(p["ref"]))
+        monkeypatch.setattr(C, "EXP36_PUBLISH_DEST", p["dest"])
+        monkeypatch.setattr(C, "EXP25_WORKTREE_HEAD", EXP25_HEAD)
+        monkeypatch.setattr(C, "_git_head", lambda d: p["heads"].get(d))
+>       monkeypatch.setattr(C, "publisher_closure", FAKE_PUBLISHER)
+E       AttributeError: <module 'depth_canon_collect' from '/home/yixunhu/codespace/exp-36-yaw-c4-spread/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py'> has no attribute 'publisher_closure'
+
+src/tests/test_exp36_publish.py:199: AttributeError
+___ test_the_manifest_keeps_the_artifact_pin_apart_from_the_publishing_head ____
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_manifest_keeps_the_ar0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_the_manifest_keeps_the_ar0/exp36/plan.json', ...}
+
+    def test_the_manifest_keeps_the_artifact_pin_apart_from_the_publishing_head(pub):
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish_provenance.py:32: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6608/test_the_manifest_keeps_the_ar0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6608/test_the_manifest_keeps_the_ar0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d),
+                    publisher_pin=PUB, publisher_check=FAKE_PUBLISHER)
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'publisher_pin'
+
+src/tests/test_exp36_publish.py:58: TypeError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_publish.py::test_a_relative_plan_path_resolves_against_the_base_dir
+PASSED src/tests/test_exp36_publish.py::test_the_final_collector_reproduces_a_verdict_of_the_chain_i_collector
+PASSED src/tests/test_exp36_publish_provenance.py::test_the_default_manifest_paths_differ_per_set
+ERROR src/tests/test_exp36_publish_publisher.py::test_a_clean_closure_at_the_pin_is_recorded
+ERROR src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[collector]
+ERROR src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[dependency]
+ERROR src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[untracked]
+ERROR src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[deleted]
+ERROR src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[cells]
+ERROR src/tests/test_exp36_publish_publisher.py::test_test_files_and_files_outside_the_closure_do_not_count
+ERROR src/tests/test_exp36_publish_publisher.py::test_a_wrong_or_short_pin_or_a_missing_head_is_refused
+FAILED src/tests/test_exp36_publish_publisher.py::test_the_closure_names_this_collector_and_its_cells_manifest
+FAILED src/tests/test_exp36_publish_publisher.py::test_a_refused_publisher_refuses_the_publication_before_any_write
+FAILED src/tests/test_exp36_publish_publisher.py::test_the_cli_requires_the_publisher_pin_and_the_collectors_own_cells
+FAILED src/tests/test_exp36_publish_publisher.py::test_the_parsed_cli_routes_each_set_to_its_own_default_manifest
+FAILED src/tests/test_exp36_publish_publisher.py::test_the_cli_help_names_both_sets
+FAILED src/tests/test_exp36_publish.py::test_the_48_files_are_published_and_recorded
+FAILED src/tests/test_exp36_publish.py::test_any_present_destination_refuses_everything
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g0]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g1]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g2]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g3]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g4]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g5]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g6]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g7]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g8]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g9]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g10]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g11]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g12]
+FAILED src/tests/test_exp36_publish.py::test_a_symlinked_destination_is_refused
+FAILED src/tests/test_exp36_publish.py::test_a_stop_part_way_is_partial_and_resume_completes_it
+FAILED src/tests/test_exp36_publish.py::test_resume_refuses_a_foreign_destination_or_temp_file
+FAILED src/tests/test_exp36_publish.py::test_cli_publish_needs_a_set - Attrib...
+FAILED src/tests/test_exp36_publish.py::test_cli_publish_exit_codes - Attribu...
+FAILED src/tests/test_exp36_publish.py::test_cli_a_crashed_publication_exits_3_never_0
+FAILED src/tests/test_exp36_publish.py::test_the_off_set_publishes_its_12_files_only
+FAILED src/tests/test_exp36_publish.py::test_each_set_needs_its_own_cells_and_the_yaw_verdict
+FAILED src/tests/test_exp36_publish.py::test_a_verdict_of_another_replay_is_refused
+FAILED src/tests/test_exp36_publish_provenance.py::test_cli_publishes_the_off_set_into_its_own_manifest
+FAILED src/tests/test_exp36_publish_provenance.py::test_the_manifest_keeps_the_artifact_pin_apart_from_the_publishing_head
+31 failed, 3 passed, 3 warnings, 8 errors in 7.16s

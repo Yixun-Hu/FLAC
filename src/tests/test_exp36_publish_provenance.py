@@ -8,11 +8,10 @@ Written by the exp_36 Coder (Claude Opus 5.5, max effort) per plan_yaw_c4_spread
 import json
 
 import test_depth_canon_collect as T
-from test_exp36_publish import _cli, pub, pub_off, publish  # noqa: F401 -- the publication worlds
+from test_exp36_publish import FAKE_PUBLISHER, PUB, _cli, pub, pub_off, publish  # noqa: F401 -- the publication worlds
 from test_exp36_replay_check import H36, world  # noqa: F401
 
 C = T.C
-PUBLISHER = "f" * 40
 
 
 def test_cli_publishes_the_off_set_into_its_own_manifest(pub_off, tmp_path, monkeypatch, capsys):
@@ -30,9 +29,8 @@ def test_the_default_manifest_paths_differ_per_set():
 
 
 def test_the_manifest_keeps_the_artifact_pin_apart_from_the_publishing_head(pub):
-    pub["heads"][C.REPO] = PUBLISHER
     status, doc = publish(pub)
     assert status == "published", doc.get("reasons")
     assert (doc["pin"], doc["campaign_digest"]) == (H36, T.DIGEST)                # the artifacts' provenance
-    assert doc["publisher"] == {"repo": C.REPO, "head": PUBLISHER}                # the code that copied them
+    assert doc["publisher"] == FAKE_PUBLISHER(C.REPO, PUB)[0]                     # the code that copied them
     assert json.load(open(pub["out"]))["publisher"] == doc["publisher"]
