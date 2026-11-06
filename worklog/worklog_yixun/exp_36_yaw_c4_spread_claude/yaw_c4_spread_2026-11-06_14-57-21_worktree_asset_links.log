@@ -1,0 +1,26 @@
+Fri Nov  6 02:57:21 PM EST 2026
+exp_36 Coder r1, task 1: the exp_35 run worktree's untracked asset links mirrored (AcousticRooms -> NAS; weights/{AGREE, FLAC/VAE.ckpt} -> the main checkout)
+worktree /home/yixunhu/codespace/exp-36-yaw-c4-spread branch exp-36-yaw-c4-spread HEAD 5b065801e9d1c1844461ec84cd0558702c714326
+before: git status --short:
+?? worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/
+AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms (resolves: /media/diskstation/yixunhu/FLAC/AcousticRooms)
+weights/AGREE -> /home/yixunhu/codespace/FLAC/weights/AGREE (resolves: /home/yixunhu/codespace/FLAC/weights/AGREE)
+weights/FLAC/VAE.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt (resolves: /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt)
+lrwxrwxrwx 1 yixunhu yixunhu   45 Nov  6 14:57 AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms
+lrwxrwxrwx  1 yixunhu yixunhu   42 Nov  6 14:57 AGREE -> /home/yixunhu/codespace/FLAC/weights/AGREE
+lrwxrwxrwx 1 yixunhu yixunhu   50 Nov  6 14:57 VAE.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt
+reference (exp_35 run worktree, read-only):
+lrwxrwxrwx 1 yixunhu yixunhu 45 Nov  5 18:08 /home/yixunhu/codespace/exp-35-orbitrir-yaw/AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms
+lrwxrwxrwx 1 yixunhu yixunhu 42 Nov  5 18:08 /home/yixunhu/codespace/exp-35-orbitrir-yaw/weights/AGREE -> /home/yixunhu/codespace/FLAC/weights/AGREE
+lrwxrwxrwx 1 yixunhu yixunhu 50 Nov  5 18:08 /home/yixunhu/codespace/exp-35-orbitrir-yaw/weights/FLAC/VAE.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt
+6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf  weights/FLAC/VAE.ckpt
+3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787  weights/AGREE/AGREE_fullAR.pt
+depth_map
+metadata
+room_mesh_obj_format
+single_channel_ir_1
+single_channel_ir_zip
+after: git status --short:
+?? AcousticRooms
+?? worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/
+Fri Nov  6 02:57:22 PM EST 2026
