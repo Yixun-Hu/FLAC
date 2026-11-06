@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from exp37_fakes import example_identity
+from exp37_fakes import attest_run, attest_selector, example_identity, selector_binding
 from src.localization import exp37_identity as ident
 from src.localization import exp37_latency as lat
 from src.localization.pilot import canonical_sha256
@@ -66,7 +66,7 @@ def _selector_file(tmp_path, selection, repeat_count=3, rows=None):
         {"query_index": r["index"], "query_id": r["query_id"], "room": r["room"], "candidate_count": r["candidate_count"],
          "agree": {"median_seconds": {"scoring_total_seconds": 0.25}}, "peak_memory_allocated_bytes": 100}
         for r in selection["records"]]
-    body = {"record_type": "exp37_agree_selector_latency", "selection_sha256": selection["sha256"],
+    body = {"record_type": "exp37_agree_selector_latency", "selection_sha256": selection["sha256"], "device": "cuda:0",
             "repeat_count": repeat_count, "candidate_batch_size": 64, "queries": rows,
             "agree_checkpoint_file_sha256": ident.AGREE_SHA256, "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256}
     path = tmp_path / "selector.json"
@@ -88,29 +88,6 @@ def test_the_selector_vector_may_cover_more_queries_but_must_match_each_one(tmp_
         lat.load_selector(_selector_file(tmp_path, wrong), small)
     with pytest.raises(RuntimeError, match="repeat"):
         lat.load_selector(_selector_file(tmp_path, small, repeat_count=1), small)
-
-
-def _host(run_dir, label, uuid, apps, top=()):
-    path = run_dir / "host_records" / f"{label}_20261106T000000000000Z_pid42.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    snapshot = {"pid": 42, "cuda_device": {"uuid": uuid} if uuid is not None else None,
-                "gpu_compute_apps": {"lines": list(apps)}, "top_cpu_processes": {"lines": list(top)}}
-    path.write_text(json.dumps({"label": label, "snapshot": snapshot}))
-
-
-def test_co_tenancy_from_the_host_records(tmp_path):
-    run = tmp_path / "run"
-    _host(run, "start", "6ac2604a-1111", [])
-    _host(run, "end", "6ac2604a-1111", ["GPU-6ac2604a-1111, 42, python, 1200 MiB", "GPU-0a1aaa90-2222, 77, python, 9 MiB"],
-          top=["42 1 me 99.0 1.0 10:00 python", "77 1 me 95.0 1.0 10:00 python", "5 1 root 0.5 0.0 1:00 init"])
-    verdict = lat.host_cotenancy(run)
-    assert verdict["timing_valid"] is True and verdict["gpu_cotenants"] == []
-    assert verdict["cpu_cotenants"] == ["77 1 me 95.0 1.0 10:00 python"]        # recorded, never silently ignored
-    _host(run, "end", "6ac2604a-1111", ["GPU-6ac2604a-1111, 42, python, 1 MiB", "GPU-6ac2604a-1111, 99, python, 5 MiB"])
-    assert lat.host_cotenancy(run)["timing_valid"] is False
-    _host(tmp_path / "nouuid", "start", None, [])
-    assert lat.host_cotenancy(tmp_path / "nouuid")["timing_valid"] is False   # an unknown card is never valid
-    assert lat.host_cotenancy(tmp_path / "absent")["timing_valid"] is False
 
 
 def _arm_run(tmp_path, name, arm, selection, *, context_count=8, over=None, query_over=None):
@@ -208,22 +185,54 @@ def test_the_stage_breakdown_adds_the_selector_and_reports_absolute_peaks():
     assert out["peak_memory"]["whole_query"]["allocated_bytes"] == 1250
 
 
-def test_a_run_never_seen_on_its_own_card_is_not_valid(tmp_path):
-    """Fail-closed uuid matching: if the run's own pid never appears on its card (e.g. a uuid format mismatch
-    between torch and nvidia-smi), co-tenants on that card could be missed -- so the timing is not valid."""
-    run = tmp_path / "run"
-    _host(run, "start", "6ac2604a-1111", [])
-    _host(run, "end", "6ac2604a-1111", ["GPU-0a1aaa90-2222, 42, python, 9 MiB"])
+def test_a_run_s_timing_is_valid_only_with_its_monitor_and_bound_host_records(tmp_path):
+    """BLOCKING 3: the verdict is the run-bound monitor's over the whole timed interval plus hashed start / loaded /
+    end host records bound to the run manifest -- never a snapshot."""
+    selection = _selection({1: 10})
+    run = attest_run(_arm_run(tmp_path, "ok", "P1", selection))
     verdict = lat.host_cotenancy(run)
-    assert verdict["timing_valid"] is False and verdict["own_process_seen_on_card"] is False
+    assert verdict["timing_valid"] is True and verdict["reasons"] == [] and len(verdict["host_records"]) == 3
+    assert verdict["monitor"]["foreign_cpu_cores_mean"] == pytest.approx(0.2)
+    busy = attest_run(_arm_run(tmp_path, "busy", "P1", selection), co_tenant=True)
+    assert lat.host_cotenancy(busy)["timing_valid"] is False
+    exp36 = attest_run(_arm_run(tmp_path, "exp36", "P1", selection), exp36=True)
+    assert any("exp_36" in r for r in lat.host_cotenancy(exp36)["reasons"])
+    bare = _arm_run(tmp_path, "bare", "P1", selection)                         # no monitor, no host records
+    assert lat.host_cotenancy(bare)["timing_valid"] is False
+    loose = attest_run(_arm_run(tmp_path, "loose", "P1", selection))
+    record = next((loose / "host_records").glob("loaded_*.json"))
+    record.write_text(json.dumps({**json.loads(record.read_text()), "run_manifest_sha256": "x"}))   # unhashed / foreign
+    assert lat.host_cotenancy(loose)["timing_valid"] is False
+    missing = attest_run(_arm_run(tmp_path, "missing", "P1", selection))
+    next((missing / "host_records").glob("end_*.json")).unlink()
+    assert lat.host_cotenancy(missing)["timing_valid"] is False
+    assert lat.host_cotenancy(tmp_path / "absent")["timing_valid"] is False
 
 
-def test_the_selector_vector_s_own_host_snapshot_is_judged_like_a_run(tmp_path):
-    def payload(apps, uuid="6ac2604a-1111"):
-        return {"host": {"pid": 42, "cuda_device": {"uuid": uuid}, "gpu_compute_apps": {"lines": apps},
-                         "top_cpu_processes": {"lines": []}}}
-    assert lat.selector_cotenancy(payload(["GPU-6ac2604a-1111, 42, python, 1 MiB"]))["timing_valid"] is True
-    assert lat.selector_cotenancy(payload(["GPU-6ac2604a-1111, 42, python, 1 MiB",
-                                           "GPU-6ac2604a-1111, 7, python, 1 MiB"]))["timing_valid"] is False
-    assert lat.selector_cotenancy(payload([]))["timing_valid"] is False               # never seen on its card
-    assert lat.selector_cotenancy({})["timing_valid"] is False                         # no snapshot (e.g. the bundle's)
+def test_the_selector_vector_needs_its_own_bound_monitor(tmp_path):
+    selection = _selection({1: 10})
+    path = _selector_file(tmp_path, selection)
+    payload = json.loads(path.read_text())
+    assert lat.selector_cotenancy(path)["timing_valid"] is False                 # no binding (e.g. the bundle's)
+    binding = selector_binding(payload, path)
+    body = {**{k: v for k, v in payload.items() if k != "sha256"}, "binding": binding}
+    path.write_text(json.dumps({**body, "sha256": canonical_sha256(body)}))
+    assert lat.selector_cotenancy(path)["timing_valid"] is False                 # no monitor yet
+    attest_selector(path, binding)
+    verdict = lat.selector_cotenancy(path)
+    assert verdict["timing_valid"] is True and verdict["binding_sha256"] == binding["sha256"]
+    other = tmp_path / "other"
+    other.mkdir()
+    wrong = _selector_file(other, _selection({1: 11}))
+    body = {**{k: v for k, v in json.loads(wrong.read_text()).items() if k != "sha256"}, "binding": binding}
+    wrong.write_text(json.dumps({**body, "sha256": canonical_sha256(body)}))     # another run's binding
+    attest_selector(wrong, binding)
+    assert lat.selector_cotenancy(wrong)["timing_valid"] is False
+    busy = tmp_path / "busy"
+    busy.mkdir()
+    shared = _selector_file(busy, selection)
+    binding = selector_binding(json.loads(shared.read_text()), shared)
+    body = {**{k: v for k, v in json.loads(shared.read_text()).items() if k != "sha256"}, "binding": binding}
+    shared.write_text(json.dumps({**body, "sha256": canonical_sha256(body)}))
+    attest_selector(shared, binding, co_tenant=True)
+    assert lat.selector_cotenancy(shared)["timing_valid"] is False

@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from exp37_fakes import example_identity
+from exp37_fakes import attest_run, attest_selector, example_identity, selector_binding, write_attestation
 from src.localization import exp37_identity as ident
 from src.localization import exp37_latency as lat
 from src.localization import exp37_grid as grid
@@ -23,8 +23,6 @@ from tools import exp37_aggregate_b2b3 as tool
 C4 = [0.0, 90.0, 180.0, 270.0]
 HALF = np.array([[x, y, 1.0] for x in np.arange(0.0, 3.01, 0.5) for y in np.arange(0.0, 2.01, 0.5)], dtype=np.float32)
 SEVENTY_FIVE = np.array([[x, 0.0, 0.75] for x in np.arange(0.0, 3.01, 0.75)], dtype=np.float32)
-HOST = {"pid": 42, "cuda_device": {"uuid": "6ac2604a-1111"}, "gpu_compute_apps": {"lines": ["GPU-6ac2604a-1111, 42, py, 1 MiB"]},
-        "top_cpu_processes": {"lines": []}}
 
 
 def _hashed(path, body):
@@ -57,10 +55,12 @@ class World:
         rows = [{"query_index": r["index"], "query_id": r["query_id"], "room": r["room"],
                  "candidate_count": r["candidate_count"], "peak_memory_allocated_bytes": 5,
                  "agree": {"median_seconds": {"scoring_total_seconds": seconds}}} for r in selection["records"]]
-        _hashed(self.root / name, {"record_type": "exp37_agree_selector_latency", "repeat_count": 3,
-                                   "candidate_batch_size": 64, "host": HOST, "queries": rows,
-                                   "selection_sha256": selection["sha256"], "agree_checkpoint_file_sha256": ident.AGREE_SHA256,
-                                   "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256})
+        fields = {"record_type": "exp37_agree_selector_latency", "repeat_count": 3, "candidate_batch_size": 64,
+                  "queries": rows, "selection_sha256": selection["sha256"], "agree_checkpoint_file_sha256": ident.AGREE_SHA256,
+                  "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256, "device": "cuda:0"}
+        binding = selector_binding(fields, self.root / name)
+        _hashed(self.root / name, {**fields, "binding": binding})
+        attest_selector(self.root / name, binding)
         return str(self.root / name)
 
     @staticmethod
@@ -112,8 +112,7 @@ class World:
                       "latency_seconds": {"context_conditioning": 0.1, "candidate_conditioning_and_generation": core - 0.1,
                                           "core_forward_total": core}, **((per_query or {}).get(r["index"], {}))}
             save_query_result(run_dir, result=result, candidates=c, similarities=sims.reshape(-1, 1))
-        (run_dir / "host_records").mkdir(exist_ok=True)
-        (run_dir / "host_records" / "end_x_pid42.json").write_text(json.dumps({"label": "end", "snapshot": HOST}))
+        attest_run(run_dir)
         return str(run_dir)
 
 
@@ -206,7 +205,9 @@ def test_timing_validity_is_per_seed_headline_and_repeats(spec):
     """A co-tenant during a seed-43 repeat must not invalidate the valid seed-42 headline (and vice versa)."""
     body = json.loads(spec.read_text())
     s43 = next(item["dir"] for item in body["b2_runs"] if (item["arm"], item["grid"], item["seed"]) == ("P1", "0.50", 43))
-    busy = dict(HOST, gpu_compute_apps={"lines": ["GPU-6ac2604a-1111, 42, py, 1 MiB", "GPU-6ac2604a-1111, 77, py, 9 MiB"]})
-    (Path(s43) / "host_records" / "end_x_pid42.json").write_text(json.dumps({"label": "end", "snapshot": busy}))
+    import shutil
+    shutil.rmtree(Path(s43) / "cotenancy")
+    write_attestation(Path(s43) / "cotenancy", json.loads((Path(s43) / "run_manifest.json").read_text())["sha256"],
+                      co_tenant=True)
     point = next(p for p in tool.build_summary(body)["b2"]["points"] if (p["arm"], p["grid"]) == ("P1", "0.50"))
     assert point["timing_valid"] is True and point["repeat_timing_valid"] == {"43": False, "44": True}

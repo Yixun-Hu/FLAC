@@ -1,6 +1,8 @@
 """exp_37 shared CPU fakes for the localization executors (a tiny conditioner / DiT / pretransform / retrieval and
 a frozen query) -- test support only, never imported by production code.
 Written by the exp_37 Coder (Claude Opus 5.5, max effort), round B-c (moved out of test_exp37_stage_split.py)."""
+from pathlib import Path
+
 import numpy as np
 import torch
 
@@ -87,3 +89,75 @@ def example_identity(expected: dict, audit: dict) -> dict:
         else:
             out[key] = copy.deepcopy(want)
     return out
+
+
+# --------------------------------------------------------------------------- #
+# co-tenancy attestations (Codex code review 1, BLOCKING 3): what the runner / selector + the monitor child write
+# --------------------------------------------------------------------------- #
+CARD = "6ac2604a-1111"
+
+
+def _monitor_script():
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[2] / "tools" / "exp37_cotenancy_monitor.py"
+    spec = importlib.util.spec_from_file_location("exp37_cotenancy_monitor", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def write_attestation(directory, binding_sha256, *, pid=42, card=CARD, co_tenant=False, exp36=False):
+    """A monitor stream (one sample per second over t = 0..20 s) and the markers 2 / 3 / 18 s; ``co_tenant`` puts
+    another pid on the card at t = 10 s, ``exp36`` an exp_36 process on the host at t = 5 s."""
+    from src.localization import exp37_cotenancy as cot
+
+    directory = Path(directory)
+    directory.mkdir(parents=True)
+    out = _monitor_script().ChainWriter(directory / "monitor.jsonl", binding_sha256=binding_sha256)
+    out.write({"kind": "start", "target_pid": pid, "card_uuid": card, "proc": "/proc", "interval_seconds": 1.0})
+    for t in range(21):
+        lines = [f"GPU-{card}, {pid}, python, 900 MiB"] + ([f"GPU-{card}, 77, python, 9 MiB"] if co_tenant and t == 10
+                                                           else [])
+        out.write({"kind": "sample", "t_monotonic": float(t), "target_alive": True, "gpu": {"returncode": 0, "lines": lines},
+                   "exp36": [{"pid": 5, "cwd": "/home/yixunhu/codespace/exp-36-yaw-c4-spread"}] if exp36 and t == 5 else [],
+                   "cpu": {"interval_seconds": 1.0, "foreign_cores": 0.2},
+                   "foreign_processes": [{"pid": 9, "comm": "kworker", "uid": 0, "cores": 0.2}]})
+    out.write({"kind": "stop", "reason": "stop_file"})
+    markers = cot.ChainWriter(directory / "markers.jsonl", binding_sha256=binding_sha256)
+    for name, t in zip(cot.MARKERS, (2.0, 3.0, 18.0)):
+        markers.write({"marker": name, "pid": pid, "t_monotonic": t})
+    return directory
+
+
+def attest_run(run_dir, *, loaded_extra=None, **kwargs):
+    """Hashed start / loaded / end host records bound to the run's manifest, plus its monitor attestation."""
+    import json
+
+    from src.localization.pilot import canonical_sha256
+
+    run_dir = Path(run_dir)
+    binding = json.loads((run_dir / "run_manifest.json").read_text())["sha256"]
+    for label in ("start", "loaded", "end"):
+        body = {"label": label, "run_manifest_sha256": binding, "no_flash_launch_handoff": None,
+                "snapshot": {"pid": kwargs.get("pid", 42), "cuda_device": {"uuid": kwargs.get("card", CARD)}},
+                "extra": loaded_extra if label == "loaded" else None}
+        path = run_dir / "host_records" / f"{label}_20261106T000000000000Z_pid42.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({**body, "sha256": canonical_sha256(body)}))
+    write_attestation(run_dir / "cotenancy", binding, **kwargs)
+    return run_dir
+
+
+def selector_binding(payload_fields: dict, output) -> dict:
+    """The selector run's binding as tools/exp37_selector_latency.py writes it (before the measurement)."""
+    from src.localization.exp37_latency import SELECTOR_BOUND
+    from src.localization.pilot import canonical_sha256
+
+    body = {"record_type": "exp37_selector_binding", "output": str(output), "pid": 42,
+            **{key: payload_fields[key] for key in SELECTOR_BOUND}}
+    return {**body, "sha256": canonical_sha256(body)}
+
+
+def attest_selector(path, binding: dict, **kwargs):
+    return write_attestation(Path(str(path) + ".cotenancy"), binding["sha256"], **kwargs)

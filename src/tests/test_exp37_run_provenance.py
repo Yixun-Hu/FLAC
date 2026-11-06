@@ -12,6 +12,8 @@ import subprocess
 
 import pytest
 
+from src.localization.pilot import canonical_sha256
+
 import src.models.transformer as transformer
 from src.localization import run_provenance as rp
 
@@ -132,7 +134,7 @@ def test_host_snapshot_records_threads_affinity_environment_and_co_tenants(monke
     assert snap["environment"]["OMP_NUM_THREADS"] == "7" and snap["environment"]["MKL_NUM_THREADS"] is None
     assert isinstance(snap["torch_num_threads"], int) and isinstance(snap["torch_num_interop_threads"], int)
     assert snap["gpu_compute_apps"]["lines"] == ["GPU-abc, 123, /usr/bin/python, 1000 MiB"]
-    assert len(snap["top_cpu_processes"]["lines"]) == 20 and snap["top_cpu_processes"]["lines"][0].endswith("proc0")
+    assert len(snap["top_cpu_processes"]["lines"]) == 30 and snap["top_cpu_processes"]["lines"][0].endswith("proc0")
     assert snap["cuda_device"] is None                                    # a CPU device records no card
     assert [c[0][0] for c in calls] == ["nvidia-smi", "ps"]
     assert all(c[1].get("timeout") and c[1].get("check") is False for c in calls)
@@ -154,6 +156,7 @@ def test_a_host_record_is_written_atomically_under_host_records(tmp_path):
     assert payload["label"] == "start" and payload["run_manifest_sha256"] == "abc"
     assert payload["no_flash_launch_handoff"] == {"pid": os.getpid()} and payload["snapshot"]["pid"] == os.getpid()
     assert not list((tmp_path / "host_records").glob("*.tmp"))
+    assert payload["sha256"] == canonical_sha256({k: v for k, v in payload.items() if k != "sha256"})   # hashed
 
 
 def test_a_host_record_can_carry_extra_measurements(tmp_path):

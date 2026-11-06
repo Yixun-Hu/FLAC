@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from exp37_fakes import example_identity
+from exp37_fakes import attest_run, attest_selector, example_identity, selector_binding, write_attestation
 from src.localization import exp37_identity as ident
 from src.localization import exp37_latency as lat
 from src.localization.pilot import canonical_sha256
@@ -38,13 +38,12 @@ def world(tmp_path):
     sel_path = _write_hashed(tmp_path / "selection.json", {k: v for k, v in selection.items() if k != "sha256"})
     rows = [{**r, "agree": {"median_seconds": {"scoring_total_seconds": 0.5}}, "peak_memory_allocated_bytes": 3000,
              "query_index": r["index"]} for r in records]
-    host = {"pid": 43, "cuda_device": {"uuid": "6ac2604a-1111"}, "top_cpu_processes": {"lines": []},
-            "gpu_compute_apps": {"lines": ["GPU-6ac2604a-1111, 43, python, 1 MiB"]}}
-    selector = _write_hashed(tmp_path / "selector.json", {"record_type": "exp37_agree_selector_latency", "host": host,
-                                                           "repeat_count": 3, "candidate_batch_size": 64, "queries": rows,
-                                                           "selection_sha256": selection["sha256"],
-                                                           "agree_checkpoint_file_sha256": ident.AGREE_SHA256,
-                                                           "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256})
+    fields = {"record_type": "exp37_agree_selector_latency", "repeat_count": 3, "candidate_batch_size": 64,
+              "queries": rows, "selection_sha256": selection["sha256"], "device": "cuda:0",
+              "agree_checkpoint_file_sha256": ident.AGREE_SHA256, "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256}
+    binding = selector_binding(fields, tmp_path / "selector.json")
+    selector = _write_hashed(tmp_path / "selector.json", {**fields, "binding": binding})
+    attest_selector(selector, binding, pid=43)
     _write_hashed(tmp_path / "audit.json", _AUDIT_BODY)
 
     def run(name, arm, k=8, scale=1.0, split=False, cotenant=False):
@@ -68,16 +67,8 @@ def world(tmp_path):
                                   "dit": {"allocated_bytes": 2000, "reserved_bytes": 2500},
                                   "whole_query": {"allocated_bytes": 2100, "reserved_bytes": 2500}})
             save_query_result(run_dir, result=result, candidates=np.zeros((n, 3)), similarities=np.zeros((n, 1)))
-        uuid = "6ac2604a-1111"                                   # torch prints the bare uuid, nvidia-smi "GPU-<uuid>"
-        apps = ["GPU-6ac2604a-1111, 42, python, 1 MiB"] + (["GPU-6ac2604a-1111, 99, python, 1 MiB"] if cotenant else [])
-        for label, extra in (("start", None), ("loaded", {"memory_after_flac_load": {"memory_allocated_bytes": 700},
-                                                          "memory_after_agree_load": {"memory_allocated_bytes": 1100}}),
-                             ("end", None)):
-            snapshot = {"pid": 42, "cuda_device": {"uuid": uuid}, "gpu_compute_apps": {"lines": apps},
-                        "top_cpu_processes": {"lines": []}}
-            path = run_dir / "host_records" / f"{label}_x_pid42.json"
-            path.parent.mkdir(exist_ok=True)
-            path.write_text(json.dumps({"label": label, "snapshot": snapshot, "extra": extra}))
+        attest_run(run_dir, co_tenant=cotenant, loaded_extra={"memory_after_flac_load": {"memory_allocated_bytes": 700},
+                                                              "memory_after_agree_load": {"memory_allocated_bytes": 1100}})
         return run_dir
     return selection, sel_path, selector, run
 
@@ -139,7 +130,7 @@ def test_the_summary_records_the_selector_validity(world, tmp_path):
     selection, _sel_path, selector, run = world
     p1 = run("p1", "P1")
     assert summ.build_summary(selection, selector, audit=AUDIT, runs=[("P1", 8, p1)])["selector_timing_valid"] is True
-    body = {k: v for k, v in json.loads(selector.read_text()).items() if k not in ("sha256", "host")}
+    body = {k: v for k, v in json.loads(selector.read_text()).items() if k not in ("sha256", "binding")}
     bare = _write_hashed(tmp_path / "bare_selector.json", body)
     out = summ.build_summary(selection, bare, audit=AUDIT, runs=[("P1", 8, p1)])
-    assert out["selector_host"]["timing_valid"] is False and out["selector_timing_valid"] is False   # no snapshot
+    assert out["selector_host"]["timing_valid"] is False and out["selector_timing_valid"] is False   # no binding
