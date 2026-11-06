@@ -1,0 +1,4 @@
+exp35_plan_literal_check 2026-11-05T23:36:44-05:00; script a5d97e07e8ffc73900566c791eb80e6b7dd7851f9aa2dcb1099e7d4b162c980e; watcher v5 32d74fbc76b6eeadd86ffa8f1db381b77e7e77c35e74d83e79cea3994ac226e9; state snapshot exp35_state_snapshot_2026-11-05_23-36-44.json 4c2f75971226c48743165cb7c846a539fc183bbca6f01434dec7cc4518682e5f
+SEEDS (42, 43, 44, 45, 46); chunk_plan() rows 33; literal rows 33; state rows 33
+literal == H35 chunk_plan(): True; state == H35 chunk_plan(): True
+rc 0

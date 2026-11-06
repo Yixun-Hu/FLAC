@@ -1,0 +1,27 @@
+watcher v5 smoke test (read-only), 2026-11-05T23:33:46-05:00; v5 sha256 32d74fbc76b6eeadd86ffa8f1db381b77e7e77c35e74d83e79cea3994ac226e9
+== live state, N=33 (expect: still waiting -> timeout rc 124)
+Terminated
+rc 124
+== wrong_kind (expect: malformed)
+EVENT: the state is unreadable or malformed: jq: error (at /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v5_smoke/wrong_kind.json:475): schema
+== wrong_cell (expect: malformed)
+EVENT: the state is unreadable or malformed: jq: error (at /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v5_smoke/wrong_cell.json:475): schema
+== wrong_gate (expect: malformed)
+EVENT: the state is unreadable or malformed: jq: error (at /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v5_smoke/wrong_gate.json:475): schema
+== swapped_cells (expect: malformed)
+EVENT: the state is unreadable or malformed: jq: error (at /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v5_smoke/swapped_cells.json:475): schema
+== empty (expect: malformed)
+EVENT: the state is unreadable or malformed: jq: error (at /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v5_smoke/empty.json:43): schema
+== unknown (expect: malformed)
+EVENT: the state is unreadable or malformed: jq: error (at /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v5_smoke/unknown.json:475): schema
+== noncontig (expect: malformed)
+EVENT: the state is unreadable or malformed: jq: error (at /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v5_smoke/noncontig.json:475): schema
+== badn (expect: malformed)
+EVENT: the state is unreadable or malformed: jq: error (at /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v5_smoke/badn.json:475): schema
+== live copy, N=33 (expect: still waiting -> rc 124; the plan check passes on the real state)
+Terminated
+rc 124
+== live state, N=1 (expect: milestone)
+EVENT: milestone: 8 chunks gates_verified (>= 1)
+== a wrong argv sha (expect: not the launched process)
+EVENT: the supervisor (pid 685273, start 781579512) is gone or no longer the launched process

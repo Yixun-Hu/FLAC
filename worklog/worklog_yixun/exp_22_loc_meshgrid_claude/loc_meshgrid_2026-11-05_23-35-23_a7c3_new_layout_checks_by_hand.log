@@ -1,0 +1,15 @@
+2026-11-05T23:35:23-05:00
+worktree /home/yixunhu/codespace/exp-22-pin2 HEAD b722d5f0ecfc618eaebec35eb1fac82c133a531d (still the superseded b722d5f0; these are the A7-C3 launcher's NEW layout checks, evaluated by hand with its exact test expressions from 54b06199)
+OK: weights/ is this worktree's own directory, not a link
+OK: asset weights/exp20/YAW_40k.ckpt is the main checkout's file (same device + inode)
+OK: asset weights/exp20/BF_40k.ckpt is the main checkout's file (same device + inode)
+OK: asset weights/exp20/P1_40k.ckpt is the main checkout's file (same device + inode)
+OK: asset weights/FLAC/FLAC_EMA.ckpt is the main checkout's file (same device + inode)
+OK: asset weights/FLAC/VAE.ckpt is the main checkout's file (same device + inode)
+OK: asset weights/AGREE/AGREE_fullAR.pt is the main checkout's file (same device + inode)
+OK: asset dir outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+OK: asset dir AcousticRooms/metadata/
+OK: asset dir AcousticRooms/depth_map/
+OK: asset dir AcousticRooms/single_channel_ir_1/
+tracked status lines: 0
+2026-11-05T23:35:23-05:00
