@@ -70,7 +70,7 @@ def build_b2(spec: dict) -> dict:
     terms = {"0.50": _selector(spec["selector_0p50"], pilot), "0.75": _selector(spec["selector_0p75"], pilot75),
              "1.00_nested": _selector(spec["selector_nested"], nested)}
     summaries = {(a, g): {} for a in ARMS for g in GRIDS + SENSITIVITY}
-    seconds, valid = {(a, g): {} for a in ARMS for g in GRIDS}, {(a, g): [] for a in ARMS for g in GRIDS}
+    seconds, valid = {(a, g): {} for a in ARMS for g in GRIDS}, {(a, g): {} for a in ARMS for g in GRIDS}
     for item in spec["b2_runs"]:
         arm, g, seed, run_dir = item["arm"], item["grid"], int(item["seed"]), item["dir"]
         selection = {"0.50": pilot, "0.75": pilot75}[g]
@@ -82,7 +82,7 @@ def build_b2(spec: dict) -> dict:
         for name, summary in grid.summarize_readout(rows).items():
             summaries[(arm, name)][seed] = summary
         seconds[(arm, g)][seed] = agg.mean_latency(core, terms[g][0], indices)
-        valid[(arm, g)].append(lat.host_cotenancy(run_dir)["timing_valid"] and terms[g][1]["timing_valid"])
+        valid[(arm, g)][seed] = lat.host_cotenancy(run_dir)["timing_valid"] and terms[g][1]["timing_valid"]
     for item in spec.get("b2_timing", []):
         arm, kind, run_dir = item["arm"], item["kind"], item["dir"]
         if kind == "nested_1m":
@@ -98,7 +98,7 @@ def build_b2(spec: dict) -> dict:
         if _seed_of(run_dir) != 42 or 42 in seconds[key]:
             raise RuntimeError(f"{run_dir}: the dedicated {kind} timing pass must be the single seed-42 pass")
         seconds[key][42] = value
-        valid[key].append(ok and lat.host_cotenancy(run_dir)["timing_valid"])
+        valid[key][42] = ok and lat.host_cotenancy(run_dir)["timing_valid"]
     points = []
     for arm in ARMS:
         for g in GRIDS:
@@ -108,7 +108,8 @@ def build_b2(spec: dict) -> dict:
             points.append({"arm": arm, "label": LABELS[arm], "grid": g, "grid_label": GRID_LABELS[g],
                            "accuracy": _stats(summaries[(arm, g)]), "seconds_per_query": times.get(42),
                            "seconds_per_query_repeats": {str(s): v for s, v in sorted(times.items()) if s != 42},
-                           "timing_valid": bool(valid[(arm, g)]) and all(valid[(arm, g)]) and 42 in times})
+                           "timing_valid": bool(valid[(arm, g)].get(42, False)),          # the seed-42 headline
+                           "repeat_timing_valid": {str(s): v for s, v in sorted(valid[(arm, g)].items()) if s != 42}})
     timed = [i for i, p in enumerate(points) if p["seconds_per_query"] is not None]
     frontier = {metric: [timed[j] for j in agg.pareto_frontier(
         [(points[i]["seconds_per_query"], points[i]["accuracy"][metric]["mean"]) for i in timed], minimize_y=minimize)]
