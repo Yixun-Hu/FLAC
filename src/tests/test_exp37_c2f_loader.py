@@ -78,8 +78,8 @@ def _tamper(path, change, arrays=None):
     (lambda p: p["c2f"].update(top_indices=p["c2f"]["top_indices"][::-1]), "top"),
     (lambda p: p["c2f"].update(generated_count=p["c2f"]["generated_count"] + 1), "count"),
     (lambda p: p["c2f"].update(winner_full_index=-1), "winner"),
-    (lambda p: p["latency_protocol"].update(chebyshev_radius_m=0.75), "radius"),
-    (lambda p: p["c2f"].update(union_indices=p["c2f"]["union_indices"][::-1]), "union"),
+    (lambda p: p["latency_protocol"].update(chebyshev_radius_m=0.75), "radius|protocol"),   # the exact block (r2)
+    (lambda p: p["c2f"].update(union_indices=p["c2f"]["union_indices"][::-1]), "union|subset"),  # its hash (r2)
     (lambda p: p["latency_seconds"].update(c2f_total=0.0), "c2f_total"),
 ], ids=["active-hash", "parent-hash", "top", "generated", "winner", "radius", "union-order", "total"])
 def test_a_tampered_c2f_record_is_refused(runs, change, needle):

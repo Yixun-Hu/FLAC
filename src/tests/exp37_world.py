@@ -137,10 +137,11 @@ class World:
                  "selection": 0.01, "refined_generation": 0.25, "refined_scoring": 0.08, "union_argmax": 0.01}
         selector = ("observed_encoding", "coarse_scoring", "selection", "refined_scoring", "union_argmax")
         winner = int(union[int(np.argmax(grid.query_scores(parent[union].reshape(-1, 1), 0.1)))])
+        from src.localization.exp37_latency import c2f_protocol
+        core = float(parts["context_conditioning"] + parts["coarse_generation"] + parts["refined_generation"])
         per_query = {i: {"candidate_indices_sha256": sha, "parent_candidate_indices_sha256": f"h{i}",
-                         "latency_protocol": {"name": "exp37_c2f_sequential_kctx8_kgen1", "context_count": 8, "top_k": 5,
-                                              "chebyshev_radius_m": 0.5, "selector_repeat_count": 3},
-                         "latency_seconds": {**parts, "c2f_total": sum(parts.values()), "core_forward_total": 0.65},
+                         "latency_protocol": c2f_protocol(5),
+                         "latency_seconds": {**parts, "c2f_total": float(sum(parts.values())), "core_forward_total": core},
                          "selector_repeat_seconds": {p: [parts[p]] * 3 for p in selector},
                          "c2f": {"full_candidate_count": len(HALF), "coarse_count": len(rule["coarse"]),
                                  "top_indices": rule["top"].tolist(), "refined_count": len(rule["refined"]),

@@ -298,19 +298,52 @@ def _arrays(run_dir: Path, query: dict):
         return arrays["candidates"], arrays["similarities"]
 
 
-def _c2f_reasons(query: dict, full, record: dict, parent_query: dict, cands, sims, top_k: int) -> list[str]:
+C2F_PARTS = ("observed_encoding", "context_conditioning", "coarse_generation", "coarse_scoring", "selection",
+             "refined_generation", "refined_scoring", "union_argmax")
+C2F_SELECTOR_PARTS = ("observed_encoding", "coarse_scoring", "selection", "refined_scoring", "union_argmax")
+C2F_STATISTIC = "per-component median over the repeats on the exact generated tensors (the bundle selector's median-of-three)"
+
+
+def c2f_protocol(top_k: int) -> dict:
+    """The exact latency_protocol block a c2f timing pass records (exp37_c2f.execute_query_c2f)."""
+    return {"name": "exp37_c2f_sequential_kctx8_kgen1", "context_count": 8, "top_k": int(top_k),
+            "chebyshev_radius_m": 0.5, "observed_encoding_included": True, "candidate_scoring_included": True,
+            "input_loading_included": False, "candidate_filtering_included": False, "selector_repeat_count": 3,
+            "selector_statistic": C2F_STATISTIC}
+
+
+def _c2f_timing_reasons(query: dict, top_k: int) -> list[str]:
+    """Review 2 HIGH 5: the exact repeat-evidence and latency schema of a c2f timing record."""
+    bad = []
+    if query.get("latency_protocol") != c2f_protocol(top_k):
+        bad.append("the latency protocol block is not the registered c2f one")
+    repeats, seconds = query.get("selector_repeat_seconds"), query.get("latency_seconds")
+    if not isinstance(repeats, dict) or set(repeats) != set(C2F_SELECTOR_PARTS) or not all(
+            isinstance(repeats[p], list) and len(repeats[p]) == 3 and all(queries.finite_nonnegative(v) for v in repeats[p])
+            for p in repeats):
+        return bad + ["the selector repeat evidence is not the five parts x three finite nonnegative samples"]
+    if not isinstance(seconds, dict) or set(seconds) != set(C2F_PARTS) | {"c2f_total", "core_forward_total"} or \
+            not all(queries.finite_nonnegative(v) for v in seconds.values()):
+        return bad + ["the latency components are not the registered finite nonnegative set"]
+    if any(seconds[p] != statistics.median(repeats[p]) for p in C2F_SELECTOR_PARTS):
+        bad.append("a selector part is not the median of its three repeats")
+    if seconds["c2f_total"] != float(sum(seconds[p] for p in C2F_PARTS)):
+        bad.append("c2f_total is not the sum of the components")
+    if seconds["core_forward_total"] != float(seconds["context_conditioning"] + seconds["coarse_generation"]
+                                              + seconds["refined_generation"]):
+        bad.append("core_forward_total is not context + coarse + refined generation")
+    return bad
+
+
+def _c2f_reasons(query: dict, full, cands, sims, top_k: int) -> list[str]:
     """Every registered property of one c2f record, recomputed from its own arrays and the parent's full grid."""
     from src.localization import exp37_grid as grid
     c2f, bad = query["c2f"], []
     union = np.asarray(c2f["union_indices"])
     if union.ndim != 1 or not len(union) or np.any(np.diff(union) <= 0) or union[0] < 0 or union[-1] >= len(full):
         return ["the union indices are not sorted, unique and inside the parent grid"]
-    union_sha = hashlib.sha256(union.astype("<u4").tobytes()).hexdigest()
-    if not union_sha == c2f["union_indices_sha256"] == query["candidate_indices_sha256"]:
-        bad.append("the active candidate hash is not the union's")
-    if not query.get("parent_candidate_indices_sha256") == record["candidate_indices_sha256"] == parent_query[
-            "candidate_indices_sha256"]:
-        bad.append("the parent candidate hash is not the full grid's")
+    if hashlib.sha256(union.astype("<u4").tobytes()).hexdigest() != c2f["union_indices_sha256"]:
+        bad.append("the recorded union hash is not the union's")
     if not np.array_equal(cands, full[union]) or cands.dtype != full.dtype:
         bad.append("the stored candidates are not the parent's full[union] rows")
     scores = np.full(len(full), np.nan)
@@ -327,52 +360,63 @@ def _c2f_reasons(query: dict, full, record: dict, parent_query: dict, cands, sim
     new = np.setdiff1d(refined, coarse)
     if not np.array_equal(np.union1d(coarse, refined), union):
         bad.append("the union is not the coarse set plus the Chebyshev-0.5 m refinement")
-    counts = (c2f["coarse_count"], c2f["refined_count"], c2f["new_count"], c2f["generated_count"], len(union))
-    if counts != (len(coarse), len(refined), len(new), len(coarse) + len(new), int(query["candidate_count"])):
-        bad.append("the coarse / refined / generated / union counts disagree")
+    counts = (c2f["full_candidate_count"], c2f["coarse_count"], c2f["refined_count"], c2f["new_count"],
+              c2f["generated_count"], len(union))
+    if counts != (len(full), len(coarse), len(refined), len(new), len(coarse) + len(new), int(query["candidate_count"])):
+        bad.append("the full / coarse / refined / generated / union counts disagree")
     if int(union[int(np.argmax(scores[union]))]) != c2f["winner_full_index"]:
         bad.append("the winner is not the union argmax")
     if grid.recomputed_k1_metrics(cands, sims, query["source_global"], 0.1) != query["metrics"]["1"]:
         bad.append("the recorded K=1 block is not reproduced")
-    protocol = query["latency_protocol"]
-    if (protocol.get("chebyshev_radius_m"), c2f.get("chebyshev_radius_m"), protocol.get("top_k"), c2f.get("top_k"),
-            protocol.get("selector_repeat_count")) != (0.5, 0.5, top_k, top_k, 3):
-        bad.append("the radius / top_k / selector repeat count are not the registered ones")
-    seconds, repeats = query["latency_seconds"], query["selector_repeat_seconds"]
-    parts = ("observed_encoding", "context_conditioning", "coarse_generation", "coarse_scoring", "selection",
-             "refined_generation", "refined_scoring", "union_argmax")
-    medians_ok = all(len(repeats[p]) == 3 and seconds[p] == statistics.median(repeats[p]) for p in repeats)
-    if not medians_ok or abs(seconds["c2f_total"] - sum(seconds[p] for p in parts)) > 1e-9:
-        bad.append("c2f_total is not the sum of the components with median-of-three selector parts")
+    if (c2f.get("top_k"), c2f.get("chebyshev_radius_m")) != (top_k, 0.5):
+        bad.append("the radius / top_k of the c2f record are not the registered ones")
     return bad
 
 
-def load_c2f_run(run_dir: Path, *, arm: str, selection: dict, audit: dict, parent_run_dir: Path, top_k: int = 5) -> dict:
-    """``{query index: {c2f_total, core, union_count, generated_count}}`` of one c2f sequential pass, every record
-    re-verified against its parent (the same arm's seed-42 0.5 m timing run on this selection)."""
+def load_c2f_run(run_dir: Path, *, arm: str, selection: dict, audit: dict, parent_run_dir: Path, top_k: int = 5,
+                 seed: int = 42, timing: bool = True) -> dict:
+    """``{query index: {c2f_total, core, union_count, generated_count, readout}}`` of one c2f run -- the seed-42
+    sequential TIMING pass (``timing``) or an accuracy-only c2f run of seed 43 / 44 -- every record re-verified
+    against its PARENT (the same arm's 0.5 m run of the same seed, itself identity-checked): the selection rule (full
+    parent records, subset c2f records with the recomputed union hash), the union / top-k / refinement / counts /
+    winner / K=1 block, and for a timing pass the exact repeat and latency schema. ``readout`` is the query's
+    accuracy row (fresh oracle over its union; the c2f point's accuracy of record)."""
+    from src.localization import exp37_grid as grid
     run_dir, parent_run_dir = Path(run_dir), Path(parent_run_dir)
     manifest, parent = _hashed(run_dir / "run_manifest.json"), _hashed(parent_run_dir / "run_manifest.json")
+    mode = None if timing else "inline"
     for label, payload, extra in (("c2f", manifest, {"candidate_subset": "c2f", "c2f_top_k": top_k}),
                                   ("parent", parent, {})):
-        want = ident.registered_identity(arm, selection=selection, audit=audit, seed=42, timing=True, **extra)
+        want = ident.registered_identity(arm, selection=selection, audit=audit, seed=seed, timing=timing,
+                                         waveform_mode=mode, **extra)
         bad = ident.identity_reasons(payload["identity"], want, audit)
         if bad:
-            raise RuntimeError(f"{run_dir if label == 'c2f' else parent_run_dir}: {bad} (the {arm} {label} registered protocol)")
+            raise RuntimeError(f"{run_dir if label == 'c2f' else parent_run_dir}: {bad} (the {arm} seed-{seed} {label} "
+                               f"{'timing' if timing else 'accuracy-only'} registered protocol)")
     rows = {}
     for record in selection["records"]:
         index = int(record["index"])
         query = _hashed(run_dir / "queries" / f"query_{index:05d}.json")
         parent_query = _hashed(parent_run_dir / "queries" / f"query_{index:05d}.json")
-        if query.get("run_manifest_sha256") != manifest["sha256"] or query.get("query_id") != record["query_id"] or \
-                parent_query.get("run_manifest_sha256") != parent["sha256"] or query["latency_protocol"].get(
-                    "name") != "exp37_c2f_sequential_kctx8_kgen1":
-            raise RuntimeError(f"{run_dir}: query {index} is not a c2f result of this run / parent / selection")
+        queries.check_query(parent_query, record, run_sha256=parent["sha256"], label=f"{parent_run_dir}: ")
+        union = np.asarray(query.get("c2f", {}).get("union_indices", []))
+        queries.check_query(query, record, run_sha256=manifest["sha256"], label=f"{run_dir}: ", count=len(union),
+                            active_sha256=hashlib.sha256(union.astype("<u4").tobytes()).hexdigest())
         full, _parent_sims = _arrays(parent_run_dir, parent_query)
         cands, sims = _arrays(run_dir, query)
-        bad = _c2f_reasons(query, full, record, parent_query, cands, sims, int(top_k))
+        bad = _c2f_reasons(query, full, cands, sims, int(top_k))
+        if timing:
+            bad += _c2f_timing_reasons(query, int(top_k))
+        elif any(k in query for k in ("latency_seconds", "selector_repeat_seconds", "latency_protocol")):
+            bad.append("an accuracy-only c2f record carries timing fields")
         if bad:
             raise RuntimeError(f"{run_dir}: query {index}: {bad}")
-        rows[index] = {"c2f_total": float(query["latency_seconds"]["c2f_total"]),
-                       "core": float(query["latency_seconds"]["core_forward_total"]),
-                       "union_count": int(query["candidate_count"]), "generated_count": int(query["c2f"]["generated_count"])}
+        scores = grid.query_scores(sims, 0.1)
+        readout = {**grid.subset_readout(cands, scores, np.asarray(query["source_global"]), np.arange(len(cands))),
+                   "room": query["room"], "query_index": index}
+        seconds = query.get("latency_seconds") or {}
+        rows[index] = {"c2f_total": float(seconds["c2f_total"]) if timing else None,
+                       "core": float(seconds["core_forward_total"]) if timing else None,
+                       "union_count": int(query["candidate_count"]), "generated_count": int(query["c2f"]["generated_count"]),
+                       "readout": readout}
     return rows

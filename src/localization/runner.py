@@ -545,8 +545,10 @@ def run_localization(
         raise ValueError("--frame-avg-angles must be a registered fa_invariant orbit: {0}, {0, 180} or C4")
     if candidate_subset not in (None, "nested_1m", "c2f"):
         raise ValueError(f"unknown candidate subset {candidate_subset!r}")
-    if candidate_subset and not (measure_core_forward or replay_of is not None):
-        raise ValueError("the nested / c2f passes are timing passes (or their replays): --measure-core-forward is required")
+    if candidate_subset and not (measure_core_forward or replay_of is not None
+                                 or (candidate_subset == "c2f" and dump_waveforms is not None)):
+        raise ValueError("the nested / c2f passes are timing passes (or their replays; an untimed c2f pass is an "
+                         "accuracy dump): --measure-core-forward is required")
     if candidate_subset and stage_split:
         raise ValueError("a candidate subset pass is never a stage split pass")
     if rotate_deg:
@@ -668,8 +670,9 @@ def run_localization(
             from src.localization.exp37_grid import nested_subset as subset_fn
 
         def per_query(selected):
-            if replayed is None:
-                return {"reference": None, "plan": None}
+            if replayed is None:                  # an inline accuracy dump (an adaptive c2f run for c2f)
+                return {"reference": None, "plan": None,
+                        "c2f_top_k": int(c2f_top_k) if candidate_subset == "c2f" else None}
             expected, plan = exp37_artifacts.replay_inputs(replay_of, replayed, int(selected["index"]))
             return {"reference": lambda index, expected=expected: expected, "plan": plan}
     elif candidate_subset == "c2f":
