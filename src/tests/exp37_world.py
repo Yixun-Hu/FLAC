@@ -202,12 +202,16 @@ class World:
         metrics_path = Path(paths["metrics_json"])
         metrics_path.write_text(json.dumps(metrics))
         metrics_sha = hashlib.sha256(metrics_path.read_bytes()).hexdigest()
+        stream_path = metrics_path.with_name(f"{stem}.stream.json")         # the runner's stream sidecar
+        self._inside([stream_path])
+        stream_path.write_text(json.dumps({"eval_name": name, "stream_count": syn.STREAMS}))
+        stream_sha = hashlib.sha256(stream_path.read_bytes()).hexdigest()
         wave = hashlib.sha256(stem.encode()).hexdigest()
         manifest = {"schema_version": 1, "n": syn.STREAMS, "dtype": "float32", "shape": [syn.STREAMS, 10240],
                     "sha256": wave, "input_hash": "1" * 64, "metrics_stem": stem, "source_sha": pin,
                     "ckpt_path": syn.CKPT_LINK, "metrics_path": f"outputs_FLAC/exp25_depth_canon/BF/{stem}.json",
                     "metrics_sha256": metrics_sha, "stream_sidecar_path": f"outputs_FLAC/exp25_depth_canon/BF/{stem}.stream.json",
-                    "stream_sidecar_sha256": "2" * 64, "canon_sidecar_path": None, "canon_sidecar_sha256": None}
+                    "stream_sidecar_sha256": stream_sha, "canon_sidecar_path": None, "canon_sidecar_sha256": None}
         manifest_bytes = json.dumps(manifest, indent=2).encode()
         manifest_path = Path(paths["dump_manifest"])
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -227,7 +231,7 @@ class World:
                   "expected_stream_count": syn.STREAMS, "dump": True, "dump_root": syn.DUMP_ROOT, "argv": argv,
                   "expect_head": pin, **{key: syn.LEAF_TREE_DIGEST if source == "new" else syn.H35_TREE_DIGEST
                                          for key in ("campaign_digest", "spawn_digest", "post_digest")},
-                  "artifact_sha256": {"metrics": metrics_sha, "stream": "2" * 64, "canon": None},
+                  "artifact_sha256": {"metrics": metrics_sha, "stream": stream_sha, "canon": None},
                   "dump_evidence": {"manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(), "manifest": manifest,
                                     "marker": f"{wave}\n", "waveforms_sidecar": f"{wave}  waveforms.npy\n"},
                   "lane": 0, "log": f"worklog/{name}.log", "rc": 0, **syn.NO_FLASH}
