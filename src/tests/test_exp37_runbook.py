@@ -55,7 +55,7 @@ def test_the_registered_sequence(steps):
     order = ["P0", "G0", "SEL", "B1", "B2", "B3", "TR", "B2A", "B3A", "B1S", "B3S", "AGG"]
     assert [p for i, p in enumerate(phases) if i == 0 or phases[i - 1] != p] == order
     assert list(rows)[-5:] == ["B3S.gate", "B3S.run", "B3S.cells", "AGG.spec", "AGG.run"]
-    assert {sid for sid, (_p, kind, _c) in rows.items() if kind == "optional"} == {
+    assert {sid for sid, (_p, kind, _c) in rows.items() if kind.endswith("?")} == {          # optional steps
         "B1.split_k1.P1", "B1.split_k1.YAW", "B1.split_k1.BF", "TR.split_k1.P1", "TR.split_k1.YAW", "TR.split_k1.BF",
         "B1S.all", "B1S.noK1"}
 
@@ -70,7 +70,7 @@ def test_every_registered_run_and_replay_has_one_producer(steps):
     wanted = {Path(i[k]).name for i in spec["b2_runs"] + spec["b2_timing"] + spec["b3_latency"]["runs"]
               for k in ("dir", "replay") if i.get(k)} | {Path(i["dir"]).name for i in spec["b3_runs"] + spec["b2_c2f_runs"]}
     assert wanted <= stems, sorted(wanted - stems)
-    timed = {Path(_flag(c, "--output-dir")).name for _p, k, c in rows.values() if k == "timed"}
+    timed = {Path(_flag(c, "--output-dir")).name for _p, k, c in rows.values() if k.rstrip("?") == "timed"}
     replays = {Path(_flag(c, "--replay-of")).name for _p, _k, c in rows.values() if _flag(c, "--replay-of")}
     assert timed == replays                                                  # D-c: every timing pass is replayed
 
@@ -84,7 +84,7 @@ def test_every_model_step_carries_its_registered_flags(steps):
         stem = Path(out).name
         assert "overlays/no_flash/exp37_no_flash_launch.py" in argv and _flag(argv, "--require-attention-backend") == "sdpa"
         timed, dumped, replay = "--measure-core-forward" in argv, _flag(argv, "--dump-waveforms"), _flag(argv, "--replay-of")
-        assert timed == (kind == "timed") and timed != bool(dumped), sid
+        assert timed == (kind.rstrip("?") == "timed") and timed != bool(dumped), sid
         if dumped:
             assert Path(dumped) == Path("/media/diskstation/yixunhu/FLAC/exp37_pred_waveforms") / stem
         if replay:
