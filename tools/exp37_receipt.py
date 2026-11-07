@@ -2,6 +2,7 @@
 """exp_37 runbook step receipts (Codex code review 2, HIGH 8). Standard library only.
 
     write --path P --step S --phase PH --status ok|skipped --head H --command C --log L --started T --finished T
+          [--record R]   (binds R's sha256, e.g. the pre-step exp_36 gate record; R must exist)
     check --path P --step S [--status ok|skipped|any] [--head H] [--max-age-hours X]
 
 ``write`` creates the hashed receipt exclusively (write-once; exit 2 if it exists). ``check`` exits 0 only for an
@@ -27,6 +28,13 @@ def write(args) -> int:
     body = {"schema_version": 1, "record_type": "exp37_runbook_receipt", "step": args.step, "phase": args.phase,
             "status": args.status, "head": args.head, "command": args.command, "log": args.log,
             "started_utc": args.started, "finished_utc": args.finished}
+    if args.record is not None:
+        try:
+            with open(args.record, "rb") as handle:
+                body.update(record=args.record, record_sha256=hashlib.sha256(handle.read()).hexdigest())
+        except OSError as error:
+            print(f"REFUSED: the bound record {args.record} is unreadable ({error})", file=sys.stderr)
+            return 2
     os.makedirs(os.path.dirname(os.path.abspath(args.path)), exist_ok=True)
     try:
         fd = os.open(args.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o444)
@@ -75,6 +83,7 @@ def main(argv=None) -> int:
     for name in ("path", "step", "phase", "head", "command", "log", "started", "finished"):
         w.add_argument(f"--{name}", required=True)
     w.add_argument("--status", choices=("ok", "skipped"), required=True)
+    w.add_argument("--record")
     c = sub.add_parser("check")
     c.add_argument("--path", required=True)
     c.add_argument("--step", required=True)

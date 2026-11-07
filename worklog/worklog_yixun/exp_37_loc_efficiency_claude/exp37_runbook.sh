@@ -9,10 +9,13 @@
 #   bash exp37_runbook.sh check-leaf         the B3 leaf worktree is at its launch commit with a clean tree
 #
 # Every executed step: refuses (exit 2) a dirty tracked tree, untracked content outside the allowlist, a missing or
-# foreign predecessor receipt (every earlier step done; every earlier MODEL step at this HEAD), a stale / foreign gate
-# receipt before a timed / selector / leaf step, an existing output or a missing input; logs HEAD + the exact command
-# into a NEW log (a logging failure is exit 74); returns the command's own exit status; on success writes the hashed
-# receipt $D/receipts/<step>.json. DRY_RUN=1 checks and prints without running or receipting.
+# foreign predecessor receipt (every earlier step done; every earlier CAMPAIGN step -- P0, the gates, the model and
+# leaf steps -- at this HEAD; the CPU consumers G0 cmp / B1S / B3S.cells / AGG may follow at a later HEAD), an existing
+# output or a missing input; logs HEAD + the exact command into a NEW log (a logging failure is exit 74, the command's
+# own nonzero status wins); a timed / selector / leaf step first runs the exp_36 gate (a unique record under
+# $D/gates/pre/), writes that gate's receipt bound to the record ($D/receipts/pregate/) and checks it fresh at this
+# HEAD -- an unclean gate refuses before the command; returns the command's own exit status; on success writes the
+# hashed receipt $D/receipts/<step>.json. DRY_RUN=1 checks and prints without gating, running or receipting.
 # Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix rounds 1-2.
 set -uo pipefail
 export PYTHONDONTWRITEBYTECODE=1 HF_HUB_OFFLINE=1                  # the launcher requires the first
@@ -27,7 +30,7 @@ LEAF_ROOT=${LEAF_ROOT:-/home/yixunhu/codespace/exp-37-b3-synthesis}
 LEAF_COMMIT=d30137349027914af7f04462b05347f0f9e03c02
 LEAF_CHAIN=worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh
 DRY_RUN=${DRY_RUN:-0}
-GATE_MAX_AGE_HOURS=6
+PREGATE_MAX_AGE_HOURS=0.1                                          # the pre-step gate receipt: <= 6 minutes old
 D=worklog/worklog_yixun/exp_37_loc_efficiency_claude
 E9=worklog/worklog_yixun/exp_09_localization_grid_preflight_claude
 LB=NeurIPS_2026_Workshop_Latency_Reproducibility
@@ -41,7 +44,6 @@ N100=$D/manifests/nested_1m_pilot_seed42_4_per_room.json
 UNTRACKED_OK=(AcousticRooms "$D/runs/" "$D/selector/" "$D/gates/" "$D/g0/" "$D/b1/" "$D/b2b3/" "$D/receipts/")
 declare -A CKPT=([P1]=weights/exp20/P1_40k.ckpt [YAW]=weights/exp20/YAW_40k.ckpt [BF]=weights/exp20/BF_40k.ckpt)
 declare -A COND=([P1]=vanilla [YAW]=vanilla [BF]=fa_invariant)
-declare -A GATE_OF=([G0]=P0.4 [SEL]=SEL.0 [B1]=B1.0 [B2]=B2.0 [B3]=B3.0 [B3S]=B3S.gate)
 IDS=() ; declare -A PHASE RUNNER ARGS OPTIONAL
 
 add() { local id=$1 phase=$2 runner=$3; shift 3; IDS+=("$id"); PHASE[$id]=$phase; RUNNER[$id]=$runner; ARGS[$id]="$*"
@@ -171,6 +173,8 @@ kind_of() {
   echo "$k"
 }
 model_step() { case ${RUNNER[$1]} in timed|acc|replay|selector|leaf) return 0 ;; esac; return 1; }
+campaign_step() { model_step "$1" || [ "${RUNNER[$1]}" = gate ] || [ "${PHASE[$1]}" = P0 ]; }
+gated_step() { case ${RUNNER[$1]} in timed|selector|leaf) return 0 ;; esac; return 1; }
 
 # build_cmd STEP -> CMD (argv), OUTS (must not exist), NEEDS (must exist)
 build_cmd() {
@@ -208,7 +212,7 @@ build_cmd() {
 check_leaf() {
   [ "$(git -C "$LEAF_ROOT" rev-parse HEAD 2>/dev/null)" = "$LEAF_COMMIT" ] || {
     refuse leaf "$LEAF_ROOT is not at the leaf launch commit $LEAF_COMMIT"; return 2; }
-  [ -z "$(git -C "$LEAF_ROOT" status --porcelain --untracked-files=no)" ] || {
+  [ -z "$(git --no-optional-locks -C "$LEAF_ROOT" status --porcelain --untracked-files=no)" ] || {
     refuse leaf "the leaf worktree's tracked tree is dirty"; return 2; }
 }
 
@@ -228,44 +232,62 @@ preflight() {   # the checks every executed or skipped step passes first
   [ -n "${PHASE[$id]:-}" ] || { refuse "$id" "no such step (bash $0 list)"; return 2; }
   cd "$REPO_DIR" || { refuse "$id" "no checkout at $REPO_DIR"; return 2; }
   ! has_receipt "$id" || { refuse "$id" "already done (its receipt exists)"; return 2; }
-  [ -z "$(git status --porcelain --untracked-files=no)" ] || { refuse "$id" "the tracked tree is dirty"; return 2; }
+  [ -z "$(git --no-optional-locks status --porcelain --untracked-files=no)" ] || {
+    refuse "$id" "the tracked tree is dirty"; return 2; }
   while IFS= read -r line; do
     path=${line#?? }; ok=0
     for prefix in "${UNTRACKED_OK[@]}"; do case $path in "$prefix"|"$prefix"*) ok=1 ;; esac; done
     case $path in $D/loc_efficiency_*.log) ok=1 ;; esac
     [ $ok = 1 ] || { refuse "$id" "untracked content outside the allowlist: $path"; return 2; }
-  done < <(git status --porcelain --untracked-files=normal | grep '^?? ')
+  done < <(git --no-optional-locks status --porcelain --untracked-files=normal | grep '^?? ')
   head=$(git rev-parse HEAD)
   for prior in "${IDS[@]}"; do
     [ "$prior" = "$id" ] && break
     has_receipt "$prior" || { refuse "$id" "predecessor $prior has no receipt (the registered order)"; return 2; }
-    if model_step "$prior" && model_step "$id"; then
-      has_receipt "$prior" any "$head" || { refuse "$id" "the model step $prior ran at another HEAD"; return 2; }
+    if campaign_step "$prior" && campaign_step "$id"; then
+      has_receipt "$prior" any "$head" || { refuse "$id" "the campaign step $prior ran at another HEAD"; return 2; }
     fi
   done
   HEAD_NOW=$head
 }
 
+# pregate STEP LOG: the exp_36 gate immediately before a timed / selector / leaf step, and its fresh bound receipt
+pregate() {
+  local id=$1 log=$2 stamp record receipt grc started
+  stamp=$(date -u +%Y%m%dT%H%M%S%NZ); record=$D/gates/pre/$id.$stamp.json; receipt=$D/receipts/pregate/$id.$stamp.json
+  started=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
+  env CUDA_VISIBLE_DEVICES= $PY tools/exp37_cotenancy_monitor.py --gate-only --output "$record" 2>&1 | tee -a "$log"
+  local status=("${PIPESTATUS[@]}"); grc=${status[0]}; local trc=${status[1]}
+  echo "PREGATE EXIT $grc $record" | tee -a "$log" >/dev/null || trc=74
+  [ "$grc" = 0 ] || { refuse "$id" "the pre-step exp_36 gate is not clean (exit $grc; $record)"; return 2; }
+  [ "$trc" = 0 ] || { echo "REFUSED [$id]: the audit log failed (pre-step gate)" >&2; return 74; }
+  "$RPY" "$TOOLS/exp37_receipt.py" write --path "$receipt" --step "$id.pregate" --phase "${PHASE[$id]}" --status ok \
+    --head "$HEAD_NOW" --command "env CUDA_VISIBLE_DEVICES= $PY tools/exp37_cotenancy_monitor.py --gate-only" \
+    --log "$log" --started "$started" --finished "$(date -u +%Y-%m-%dT%H:%M:%S+00:00)" --record "$record" || {
+    refuse "$id" "the pre-step gate receipt was not written"; return 2; }
+  "$RPY" "$TOOLS/exp37_receipt.py" check --path "$receipt" --step "$id.pregate" --status ok --head "$HEAD_NOW" \
+    --max-age-hours "$PREGATE_MAX_AGE_HOURS" || { refuse "$id" "no fresh pre-step gate receipt"; return 2; }
+}
+
 run_step() {
-  local id=$1 log rc trc started gate path
+  local id=$1 log rc trc started path
   preflight "$id" || return $?
   if [ "${OPTIONAL[$id]}" = 1 ] && ! condition "$id"; then refuse "$id" "its condition does not hold (skip it)"; return 2; fi
   build_cmd "$id" || return 2
-  case ${RUNNER[$id]} in
-    timed|selector|leaf) gate=${GATE_OF[${PHASE[$id]}]}
-      has_receipt "$gate" ok "$HEAD_NOW" "$GATE_MAX_AGE_HOURS" || {
-        refuse "$id" "the gate $gate has no fresh clean receipt at this HEAD (< $GATE_MAX_AGE_HOURS h)"; return 2; } ;;
-  esac
   [ "${RUNNER[$id]}" != leaf ] || check_leaf || return 2
   for path in "${OUTS[@]}"; do [ ! -e "$path" ] || { refuse "$id" "$path exists (outputs are fresh)"; return 2; }; done
   for path in "${NEEDS[@]}"; do [ -e "$path" ] || { refuse "$id" "$path is missing"; return 2; }; done
   mkdir -p "$D" 2>/dev/null
-  log=$D/loc_efficiency_$(date +%Y-%m-%d_%H-%M-%S)_${id}.log
-  ( set -C; : > "$log" ) 2>/dev/null || { echo "REFUSED [$id]: cannot create the audit log $log" >&2; return 74; }
+  local base n=0; base=$D/loc_efficiency_$(date +%Y-%m-%d_%H-%M-%S)_${id}; log=$base.log
+  until ( set -C; : > "$log" ) 2>/dev/null; do                      # a NEW log per attempt (exclusive create)
+    n=$((n + 1)); [ "$n" -le 20 ] || { echo "REFUSED [$id]: cannot create the audit log $log" >&2; return 74; }
+    log=${base}_$n.log
+  done
   started=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
   { echo "HEAD $HEAD_NOW step=$id phase=${PHASE[$id]}"; printf 'COMMAND'; printf ' %q' "${CMD[@]}"; echo; } | tee -a "$log"
   [ "${PIPESTATUS[1]}" = 0 ] || { echo "REFUSED [$id]: the audit log failed" >&2; return 74; }
   if [ "$DRY_RUN" = 1 ]; then echo "DRY_RUN: not executed" | tee -a "$log"; return 0; fi
+  if gated_step "$id"; then pregate "$id" "$log" || return $?; fi
   if [ "${RUNNER[$id]}" = leaf ]; then
     ( cd "$LEAF_ROOT" && env "EXPECT_HEAD=$LEAF_COMMIT" bash $LEAF_CHAIN b3 ) 2>&1 | tee -a "$log"
   else

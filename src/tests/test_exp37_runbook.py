@@ -177,7 +177,9 @@ def test_the_command_status_is_returned_and_writes_no_receipt(checkout):
     assert _bash("run", "P0.1", env=env).returncode == 0
     done = _bash("run", "P0.2", env={**env, "PY": seven})
     assert done.returncode == 7 and "P0.2" not in _receipts(repo)
-    assert "EXIT 7" in sorted((repo / D).glob("loc_efficiency_*_P0.2.log"))[0].read_text()
+    assert _bash("run", "P0.2", env={**env, "PY": seven}).returncode == 7     # a retry (often in the same second)
+    logs = sorted((repo / D).glob("loc_efficiency_*_P0.2*.log"))
+    assert len(logs) == 2 and all("EXIT 7" in log.read_text() for log in logs)   # a new log per attempt
 
 
 def test_a_dirty_tree_stray_untracked_content_or_an_unwritable_log_refuses(checkout):
