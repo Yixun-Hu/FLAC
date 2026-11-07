@@ -1,0 +1,31 @@
+exp_37 B3: the evaluator closure of the 8 BF-ORB cells (+ the replay) at the leaf e1de4155003d5f24a0426c4cdf9d93ea1c7acc14 vs H35 5b065801e9d1c1844461ec84cd0558702c714326 (the exp_35 phase-(i) cells' pin), Fri Nov  6 07:26:08 PM EST 2026; read-only git object comparison (ls-tree blob ids; src/tests excluded)
+eval_FLAC.py (1 tracked files): H35 8f343371e036fec2148b773fa00a1c3e5799f1424030565467e5dcc4f36c0d7f | leaf 8f343371e036fec2148b773fa00a1c3e5799f1424030565467e5dcc4f36c0d7f | IDENTICAL
+src (99 tracked files): H35 1490633ec83f5700b1eceff16c9df48cbc0a1c56541e68a050c27b85ed1e3452 | leaf 1490633ec83f5700b1eceff16c9df48cbc0a1c56541e68a050c27b85ed1e3452 | IDENTICAL
+data (19 tracked files): H35 c15f7c8943ad6f88f851b36d5f48ee6499213f37292eec2502ccf23ed3122391 | leaf c15f7c8943ad6f88f851b36d5f48ee6499213f37292eec2502ccf23ed3122391 | IDENTICAL
+weights (10 tracked files): H35 a05111935938e4df2107774fcc4dea1ce8e32f80ffa434ab21259959fd2c6ce3 | leaf a05111935938e4df2107774fcc4dea1ce8e32f80ffa434ab21259959fd2c6ce3 | IDENTICAL
+overlays (2 tracked files): H35 471f82aeda364894ff63864f377a1a94da172d4d3936cd0f4bdcf0dfd4dd1a2a | leaf 471f82aeda364894ff63864f377a1a94da172d4d3936cd0f4bdcf0dfd4dd1a2a | IDENTICAL
+pyproject.toml (1 tracked files): H35 4cc5e22cfcca6c4dd738c54008b2eee78a137adb0b44ec73fa091a78b9506fba | leaf 4cc5e22cfcca6c4dd738c54008b2eee78a137adb0b44ec73fa091a78b9506fba | IDENTICAL
+defaults.ini (1 tracked files): H35 67934ed5aa069605cd4514009780da8ccf4056e9826a4947c99c10940320d276 | leaf 67934ed5aa069605cd4514009780da8ccf4056e9826a4947c99c10940320d276 | IDENTICAL
+git diff --quiet H35 leaf -- eval_FLAC.py src ':(exclude)src/tests' data weights overlays pyproject.toml defaults.ini: no difference
+every non-test, non-record file that differs H35 -> leaf (the campaign kit only):
+ .../depth_canon_cells.json                         |  67 +-
+ .../depth_canon_collect.py                         | 769 ++++++++++++++++++++-
+ .../depth_canon_eval_run.sh                        |   6 +-
+ .../depth_canon_make_cells.py                      |  83 ++-
+ .../yaw_c4_spread_chain.sh                         | 178 +++++
+ .../yaw_c4_spread_launch_commit.txt                |   1 +
+ 6 files changed, 1076 insertions(+), 28 deletions(-)
+the B-F row's configs (the same for the reused exp_35 cells and the 8 new cells; the manifest's pinned sha256 vs the file at the leaf):
+exp35_BF_T_S40000_K1_s42: model_config worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json 3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328 | dataset_config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json 4875374040cad2272e1df2b99809743c7bcf3fd0718df40c6ebfaf9c84c8b4e3
+exp35_BF_T_S40000_K1_s42_dup: model_config worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json 3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328 | dataset_config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json 4875374040cad2272e1df2b99809743c7bcf3fd0718df40c6ebfaf9c84c8b4e3
+exp37_BF_ORB1_S40000_K1_s42_th0: model_config worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json 3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328 | dataset_config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json 4875374040cad2272e1df2b99809743c7bcf3fd0718df40c6ebfaf9c84c8b4e3
+  4875374040cad2272e1df2b99809743c7bcf3fd0718df40c6ebfaf9c84c8b4e3  src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json
+  063c66c2411cde4b1f07ec7c5331150b322517cf0067a0ef3def819368423b55  src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json
+  3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328  worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json
+untracked assets (symlinks) -- the leaf worktree vs the exp_35 run worktree (read-only):
+  AcousticRooms: leaf -> /media/diskstation/yixunhu/FLAC/AcousticRooms | exp-35 run worktree -> /media/diskstation/yixunhu/FLAC/AcousticRooms
+  weights/AGREE: leaf -> /home/yixunhu/codespace/FLAC/weights/AGREE | exp-35 run worktree -> /home/yixunhu/codespace/FLAC/weights/AGREE
+  weights/FLAC/VAE.ckpt: leaf -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt | exp-35 run worktree -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt
+the checkpoint: both stage /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000.ckpt (manifest sha256 5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328); the exp_35 B-F reference loaded ['5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328', 723922667] and the replay check requires the replay to load the same
+finished Fri Nov  6 07:26:14 PM EST 2026
+the B-F model config explicitly: git diff --quiet H35 leaf -- worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json: no difference
