@@ -95,6 +95,17 @@ def example_identity(expected: dict, audit: dict) -> dict:
 # co-tenancy attestations (Codex code review 1, BLOCKING 3): what the runner / selector + the monitor child write
 # --------------------------------------------------------------------------- #
 CARD = "6ac2604a-1111"
+HOST = "exp37-host"
+START = 123
+PRODUCER = {"pid": 42, "pid_start_ticks": START, "hostname": HOST, "card_uuid": CARD}
+
+
+def host_snapshot(pid=42, card=CARD, hostname=HOST, **override):
+    """A host snapshot as run_provenance.host_snapshot records it (both host commands successful)."""
+    return {"pid": pid, "hostname": hostname, "cuda_device": {"uuid": card},
+            "gpu_compute_apps": {"argv": ["nvidia-smi"], "returncode": 0, "lines": [f"GPU-{card}, {pid}, python, 9 MiB"]},
+            "top_cpu_processes": {"argv": ["ps"], "returncode": 0, "lines": [f"{pid} 1 me 99.0 1.0 10:00 python"]},
+            **override}
 
 
 def _monitor_script():
@@ -107,7 +118,8 @@ def _monitor_script():
     return module
 
 
-def write_attestation(directory, binding_sha256, *, pid=42, card=CARD, co_tenant=False, exp36=False):
+def write_attestation(directory, binding_sha256, *, pid=42, card=CARD, co_tenant=False, exp36=False, start=START,
+                      hostname=HOST):
     """A monitor stream (one sample per second over t = 0..20 s) and the markers 2 / 3 / 18 s; ``co_tenant`` puts
     another pid on the card at t = 10 s, ``exp36`` an exp_36 process on the host at t = 5 s."""
     from src.localization import exp37_cotenancy as cot
@@ -115,13 +127,15 @@ def write_attestation(directory, binding_sha256, *, pid=42, card=CARD, co_tenant
     directory = Path(directory)
     directory.mkdir(parents=True)
     out = _monitor_script().ChainWriter(directory / "monitor.jsonl", binding_sha256=binding_sha256)
-    out.write({"kind": "start", "target_pid": pid, "card_uuid": card, "proc": "/proc", "interval_seconds": 1.0})
+    out.write({"kind": "start", "target_pid": pid, "target_start": start, "target_comm": "python", "card_uuid": card,
+               "proc": "/proc", "interval_seconds": 1.0, "hostname": hostname, "exp36_roots": list(cot.EXP36_ROOTS)})
     for t in range(21):
         lines = [f"GPU-{card}, {pid}, python, 900 MiB"] + ([f"GPU-{card}, 77, python, 9 MiB"] if co_tenant and t == 10
                                                            else [])
         out.write({"kind": "sample", "t_monotonic": float(t), "target_alive": True, "gpu": {"returncode": 0, "lines": lines},
                    "exp36": [{"pid": 5, "cwd": "/home/yixunhu/codespace/exp-36-yaw-c4-spread"}] if exp36 and t == 5 else [],
-                   "cpu": {"interval_seconds": 1.0, "foreign_cores": 0.2},
+                   "cpu": {"interval_start": t - 1.0, "interval_end": float(t), "interval_seconds": 1.0,
+                           "foreign_cores": 0.2},
                    "foreign_processes": [{"pid": 9, "comm": "kworker", "uid": 0, "cores": 0.2}]})
     out.write({"kind": "stop", "reason": "stop_file"})
     markers = cot.ChainWriter(directory / "markers.jsonl", binding_sha256=binding_sha256)
@@ -131,16 +145,22 @@ def write_attestation(directory, binding_sha256, *, pid=42, card=CARD, co_tenant
 
 
 def attest_run(run_dir, *, loaded_extra=None, **kwargs):
-    """Hashed start / loaded / end host records bound to the run's manifest, plus its monitor attestation."""
+    """The producer record, hashed start / loaded / end host records bound to the run's manifest, and its monitor
+    attestation -- all naming the same pid, /proc start time, host and card."""
     import json
 
     from src.localization.pilot import canonical_sha256
 
     run_dir = Path(run_dir)
     binding = json.loads((run_dir / "run_manifest.json").read_text())["sha256"]
+    producer = {"record_type": "exp37_producer", "run_manifest_sha256": binding, "pid": kwargs.get("pid", 42),
+                "pid_start_ticks": kwargs.get("start", START), "hostname": kwargs.get("hostname", HOST),
+                "card_uuid": kwargs.get("card", CARD)}
+    (run_dir / "producer.json").write_text(json.dumps({**producer, "sha256": canonical_sha256(producer)}))
     for label in ("start", "loaded", "end"):
         body = {"label": label, "run_manifest_sha256": binding, "no_flash_launch_handoff": None,
-                "snapshot": {"pid": kwargs.get("pid", 42), "cuda_device": {"uuid": kwargs.get("card", CARD)}},
+                "snapshot": host_snapshot(pid=kwargs.get("pid", 42), card=kwargs.get("card", CARD),
+                                          hostname=kwargs.get("hostname", HOST)),
                 "extra": loaded_extra if label == "loaded" else None}
         path = run_dir / "host_records" / f"{label}_20261106T000000000000Z_pid42.json"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -154,7 +174,8 @@ def selector_binding(payload_fields: dict, output) -> dict:
     from src.localization.exp37_latency import SELECTOR_BOUND
     from src.localization.pilot import canonical_sha256
 
-    body = {"record_type": "exp37_selector_binding", "output": str(output), "pid": 42,
+    body = {"record_type": "exp37_selector_binding", "output": str(output), "pid": 42, "pid_start_ticks": START,
+            "hostname": HOST, "card_uuid": CARD, "started_at_utc": "2026-11-06T00:00:00+00:00",
             **{key: payload_fields[key] for key in SELECTOR_BOUND}}
     return {**body, "sha256": canonical_sha256(body)}
 

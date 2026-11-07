@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from exp37_fakes import attest_run, attest_selector, example_identity, selector_binding
+from exp37_fakes import attest_run, attest_selector, example_identity, host_snapshot, selector_binding
 from src.localization import exp37_identity as ident
 from src.localization import exp37_latency as lat
 from src.localization.pilot import canonical_sha256
@@ -67,6 +67,7 @@ def _selector_file(tmp_path, selection, repeat_count=3, rows=None):
          "agree": {"median_seconds": {"scoring_total_seconds": 0.25}}, "peak_memory_allocated_bytes": 100}
         for r in selection["records"]]
     body = {"record_type": "exp37_agree_selector_latency", "selection_sha256": selection["sha256"], "device": "cuda:0",
+            "host": host_snapshot(),
             "repeat_count": repeat_count, "candidate_batch_size": 64, "queries": rows,
             "agree_checkpoint_file_sha256": ident.AGREE_SHA256, "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256}
     path = tmp_path / "selector.json"
@@ -236,3 +237,54 @@ def test_the_selector_vector_needs_its_own_bound_monitor(tmp_path):
     shared.write_text(json.dumps({**body, "sha256": canonical_sha256(body)}))
     attest_selector(shared, binding, co_tenant=True)
     assert lat.selector_cotenancy(shared)["timing_valid"] is False
+
+
+def _rewrite(path, change):
+    from src.localization.pilot import canonical_sha256 as _c
+    body = {k: v for k, v in json.loads(path.read_text()).items() if k != "sha256"}
+    change(body)
+    path.write_text(json.dumps({**body, "sha256": _c(body)}))
+
+
+@pytest.mark.parametrize("target, change", [
+    ("producer.json", lambda b: b.update(pid=43)),                               # another process
+    ("producer.json", lambda b: b.update(pid_start_ticks=124)),                  # a reused pid
+    ("producer.json", lambda b: b.update(card_uuid="0a1aaa90-2222")),            # another card
+    ("loaded", lambda b: b["snapshot"].update(pid=43)),
+    ("loaded", lambda b: b["snapshot"].update(hostname="other-host")),
+    ("loaded", lambda b: b["snapshot"]["cuda_device"].update(uuid="0a1aaa90-2222")),
+    ("loaded", lambda b: b.update(label="end")),                                 # a label that is not its file's
+    ("loaded", lambda b: b["snapshot"]["gpu_compute_apps"].update(returncode=9)),
+    ("end", lambda b: b["snapshot"].update(top_cpu_processes={"argv": ["ps"], "error": "FileNotFoundError: ps"})),
+])
+def test_the_producer_binds_monitor_markers_and_host_records(tmp_path, target, change):
+    """Review 2 HIGH 1: pid + /proc start time + card UUID (+ host) are bound before measurement and compared across the
+    producer record, the monitor stream, the markers and every host record; a failed host command withholds."""
+    run = attest_run(_arm_run(tmp_path, "run", "P1", _selection({1: 10})))
+    assert lat.host_cotenancy(run)["timing_valid"] is True
+    path = run / target if target.endswith(".json") else next((run / "host_records").glob(f"{target}_*.json"))
+    _rewrite(path, change)
+    assert lat.host_cotenancy(run)["timing_valid"] is False
+
+
+@pytest.mark.parametrize("change", [lambda b: b.update(pid=43), lambda b: b.update(pid_start_ticks=1),
+                                    lambda b: b.update(card_uuid="0a1aaa90-2222"), lambda b: b.update(hostname="x")])
+def test_the_selector_binding_names_the_monitored_process_and_card(tmp_path, change):
+    """Review 2 HIGH 1: the selector's binding (pid, /proc start time, host, card) must be what its monitor watched
+    (the stream here watched pid 42 / start 123 / the fakes' host and card) and what its host snapshot recorded."""
+    import shutil
+
+    from src.localization.pilot import canonical_sha256 as _c
+    selection = _selection({1: 10})
+    path = _selector_file(tmp_path, selection)
+    payload = {k: v for k, v in json.loads(path.read_text()).items() if k != "sha256"}
+    for valid in (True, False):
+        binding = {k: v for k, v in selector_binding(payload, path).items() if k != "sha256"}
+        if not valid:
+            change(binding)
+        binding["sha256"] = _c({k: v for k, v in binding.items() if k != "sha256"})
+        body = {**payload, "binding": binding}
+        path.write_text(json.dumps({**body, "sha256": _c(body)}))
+        shutil.rmtree(f"{path}.cotenancy", ignore_errors=True)
+        attest_selector(path, binding)
+        assert lat.selector_cotenancy(path)["timing_valid"] is valid

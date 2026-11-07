@@ -11,7 +11,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from exp37_fakes import attest_run, attest_selector, example_identity, selector_binding, write_attestation
+from exp37_fakes import attest_run, attest_selector, example_identity, host_snapshot, selector_binding, \
+    write_attestation
 from src.localization import exp37_identity as ident
 from src.localization import exp37_latency as lat
 from src.localization.pilot import canonical_sha256
@@ -39,11 +40,11 @@ def world(tmp_path):
     rows = [{**r, "agree": {"median_seconds": {"scoring_total_seconds": 0.5}}, "peak_memory_allocated_bytes": 3000,
              "query_index": r["index"]} for r in records]
     fields = {"record_type": "exp37_agree_selector_latency", "repeat_count": 3, "candidate_batch_size": 64,
-              "queries": rows, "selection_sha256": selection["sha256"], "device": "cuda:0",
+              "queries": rows, "selection_sha256": selection["sha256"], "device": "cuda:0", "host": host_snapshot(),
               "agree_checkpoint_file_sha256": ident.AGREE_SHA256, "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256}
     binding = selector_binding(fields, tmp_path / "selector.json")
     selector = _write_hashed(tmp_path / "selector.json", {**fields, "binding": binding})
-    attest_selector(selector, binding, pid=43)
+    attest_selector(selector, binding)
     _write_hashed(tmp_path / "audit.json", _AUDIT_BODY)
 
     def run(name, arm, k=8, scale=1.0, split=False, cotenant=False):
