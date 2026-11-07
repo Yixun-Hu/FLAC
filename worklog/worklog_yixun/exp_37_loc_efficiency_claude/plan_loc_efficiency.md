@@ -176,3 +176,10 @@ process on its card (discard + rerun, never publish). Each stops the affected ar
 - **c2f:** the selector components measured three times with medians on the exact generated tensors (review BLOCKING 2).
 - **B3 synthesis:** 8 eval_FLAC cells on a separate leaf of the exp_36 code line (`exp-37-b3-synthesis`, built by the exp_36 Coder after its fix round; a BF replay hard stop; dumps on), reviewed in exp_37's round 2.
 - Every other finding fixed exactly as the review states (all in one revision; round 2 of 3 next).
+
+## 12. Planner decisions after Codex code review 2 (2026-11-06T19:22:58-05:00; round 3 of 3 is the last review)
+- **D-a (accepted by Codex):** B2 seeds 43 / 44 are accuracy-only runs with inline dumps; seed 42 is the sole time-axis measurement; no timing-variance claim; the `--seeds-43-44-timing` fork is removed. (Amends §4's "43 / 44 as repeats" before execution.)
+- **D-b:** a timing is publishable only if the TIME-WEIGHTED mean foreign CPU over the exact timed interval is ≤ 4 cores (precise interval bounds, overlap weighting; raw intervals, the maximum and per-process CPU seconds kept); plus the GPU rule.
+- **D-c:** phase XR (the deterministic artifact replays of the latency-only B1 passes) is MANDATORY unless Yixun grants a written exp_37 exemption (asked; none yet), with `--require-replays` / `--require-timing-replays` wired into every consumer.
+- **D-d:** the B3 synthesis cells are delivered (the leaf commit, exact commands, reused exp_35 paths) and bound (per-artifact embedded identities checked against the cell spec) for round 3 — this SUPERSEDES §11's "reviewed in exp_37's round 2". Until then the aggregator stays diagnostic-only.
+- Every other round-2 finding fixed exactly as the review states, in one revision before round 3.
