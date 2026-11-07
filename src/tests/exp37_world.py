@@ -180,21 +180,70 @@ class World:
         return self
 
     # ------------------------------------------------------------------ the fixed inputs
-    def synthesis(self, *, status="complete"):
-        cells = []
-        for orbit in ("0", "0_180", "c4"):
-            for theta in (0, 90):
-                for k in (1, 8):
-                    path = self.root / "synthesis" / f"{orbit}_t{theta}_k{k}.json"
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    path.write_text(json.dumps({"t60_error_pct": 10.0 + k, "c50_error_db": 1.0 + theta / 90}))
-                    cells.append({"orbit": orbit, "theta": theta, "k_context": k, "seed": 42,
-                                  "source": "reused_exp35" if orbit == "c4" else "new", "metrics_json": str(path),
-                                  "metrics_sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
-        body = {"status": status, "leaf_commit": "e" * 40, "runbook": "exp36 leaf runbook (Planner)",
-                "metrics_keys": ["t60_error_pct", "c50_error_db"], "cells": cells if status == "complete" else []}
+    def synthesis_cell(self, orbit, theta, k, leaf_commit, keys):
+        """One synthesis cell's three artifacts exactly as the exp_25 runner writes them, and its spec entry."""
+        from src.localization import exp37_synthesis as syn
+        name, block, source = syn.cell_name(orbit, theta, k)
+        stem, pin = syn.cell_stem(orbit, theta, k), leaf_commit if source == "new" else syn.H35_PIN
+        folder = self.root / "synthesis" / source
+        folder.mkdir(parents=True, exist_ok=True)
+        value = 10.0 + k + theta / 90 + len(syn.ORBITS[orbit])
+        metrics = {"metrics": {key: value + i for i, key in enumerate(keys)},
+                   "ckpt_path": syn.CKPT_LINK, "rotate_deg": float(theta), "cond_method": "fa_invariant",
+                   "frame_avg_angles": syn.ORBITS[orbit], "cond_autocast": "bf16", "orbit_execution": "frame_average",
+                   "frame_avg_fwd_cap": 64, "source_sha": pin, "batch_size": 64, "n_samples": syn.STREAMS,
+                   "dataset_config": syn.DATASET[k][0], "seed": 42, "cfg_scale": 1.0, "steps": 1, "eval_name": name,
+                   "weights_source": "ema", "device": "cuda", "ckpt_sha256_loaded": syn.CKPT_SHA256,
+                   "ckpt_bytes_loaded": 1, "by_scene": {scene: {key: value + i + j for i, key in enumerate(keys)}
+                                                         for j, scene in enumerate(("Cafe", "Office"))}}
+        metrics_path = folder / f"{stem}.json"
+        metrics_path.write_text(json.dumps(metrics))
+        metrics_sha = hashlib.sha256(metrics_path.read_bytes()).hexdigest()
+        wave = hashlib.sha256(stem.encode()).hexdigest()
+        manifest = {"schema_version": 1, "n": syn.STREAMS, "dtype": "float32", "shape": [syn.STREAMS, 10240],
+                    "sha256": wave, "input_hash": "1" * 64, "metrics_stem": stem, "source_sha": pin,
+                    "ckpt_path": syn.CKPT_LINK, "metrics_path": f"outputs_FLAC/exp25_depth_canon/BF/{stem}.json",
+                    "metrics_sha256": metrics_sha, "stream_sidecar_path": f"outputs_FLAC/exp25_depth_canon/BF/{stem}.stream.json",
+                    "stream_sidecar_sha256": "2" * 64, "canon_sidecar_path": None, "canon_sidecar_sha256": None}
+        manifest_bytes = json.dumps(manifest, indent=2).encode()
+        manifest_path = self.root / "synthesis_dumps" / stem / "manifest.json"
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_bytes(manifest_bytes)
+        argv = ["--model-config", syn.MODEL_CONFIG[0], "--dataset-config", syn.DATASET[k][0], "--cond-method",
+                "fa_invariant", "--frame-avg-angles", ",".join(str(int(a)) for a in syn.ORBITS[orbit]),
+                "--frame-avg-max-fwd-samples", "64", "--cond-autocast", "bf16", "--cfg-scale", "1.0", "--steps", "1",
+                "--batch-size", "64", "--device", "cuda", "--record-per-scene", "--record-stream",
+                "--expected-stream-count", str(syn.STREAMS), "--seed", "42", "--rotate-mode", "fixed", "--rotate-deg",
+                str(theta), "--eval-name", name, "--ckpt-path", syn.CKPT_LINK, "--dump-scored-waveforms", syn.DUMP_ROOT]
+        values = {"schema_version": 2, "cell": name, "stem": stem, "block": block, "arm": "BF", "step": 40000,
+                  "ckpt_link": syn.CKPT_LINK, "ckpt_target": "/media/diskstation/x/BF/epoch=8-step=40000.ckpt",
+                  "ckpt_sha256": syn.CKPT_SHA256, "ckpt_cache": f"outputs_FLAC/exp25_depth_canon/.ckpt_cache/{syn.CKPT_SHA256}.ckpt",
+                  "ckpt_sha256_measured": syn.CKPT_SHA256, "ckpt_sha256_loaded": syn.CKPT_SHA256, "ckpt_bytes_loaded": 1,
+                  "model_config": syn.MODEL_CONFIG[0], "model_config_sha256": syn.MODEL_CONFIG[1],
+                  "dataset_config": syn.DATASET[k][0], "dataset_config_sha256": syn.DATASET[k][1],
+                  "expected_stream_count": syn.STREAMS, "dump": True, "dump_root": syn.DUMP_ROOT, "argv": argv,
+                  "expect_head": pin, "campaign_digest": "3" * 64, "spawn_digest": "3" * 64, "post_digest": "3" * 64,
+                  "artifact_sha256": {"metrics": metrics_sha, "stream": "2" * 64, "canon": None},
+                  "dump_evidence": {"manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(), "manifest": manifest,
+                                    "marker": f"{wave}\n", "waveforms_sidecar": f"{wave}  waveforms.npy\n"},
+                  "lane": 0, "log": f"worklog/{name}.log", "rc": 0, **syn.NO_FLASH}
+        receipt_path = folder / f"{stem}.cell.json"
+        receipt_path.write_text(json.dumps({key: values[key] for key in syn.RECEIPT_KEYS}, indent=2))
+        sha = lambda path: hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        return {"orbit": orbit, "theta": theta, "k_context": k, "seed": 42, "source": source, "cell": name,
+                "metrics_json": str(metrics_path), "metrics_sha256": metrics_sha, "receipt": str(receipt_path),
+                "receipt_sha256": sha(receipt_path), "dump_manifest": str(manifest_path),
+                "dump_manifest_sha256": sha(manifest_path)}
+
+    def synthesis(self, *, status="complete", leaf_commit="e" * 40):
+        keys = ["T60", "C50"]
+        cells = [self.synthesis_cell(o, t, k, leaf_commit, keys) for o in ("0", "0_180", "c4") for t in (0, 90)
+                 for k in (1, 8)] if status == "complete" else []
+        body = {"status": status, "leaf_commit": leaf_commit if status == "complete" else None,
+                "runbook": "the exp_36 leaf's B3 runbook (Planner)" if status == "complete" else None,
+                "metrics_keys": keys if status == "complete" else [], "cells": cells}
         if status == "pending":
-            body.update(leaf_commit=None, runbook=None)
+            body["note"] = "pending"
         path = self.root / "synthesis.json"
         path.write_text(json.dumps(body))
         return path
