@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 from exp37_fakes import write_attestation
-from exp37_world import World, add_timing_only_replays
+from exp37_world import World, registered_world
 from tools import exp37_aggregate_b2b3 as tool
 from tools import exp37_build_b2b3_spec as builder
 
@@ -29,16 +29,15 @@ E9 = REPO / "worklog/worklog_yixun/exp_09_localization_grid_preflight_claude"
 
 @pytest.fixture
 def world(tmp_path, monkeypatch):
-    w = World(tmp_path).build()
+    w = registered_world(tmp_path, monkeypatch)                          # every registered run + synthesis stand-ins
     summary_sha, csv_sha = w.external()
     monkeypatch.setattr(tool, "EXP23_SUMMARY_SHA256", summary_sha)      # the synthetic world's own references
     monkeypatch.setattr(tool, "LATENCY_CSV_SHA256", csv_sha)
     return w
 
 
-def _spec(w, **kw):
-    synthesis = kw.pop("synthesis", "complete")
-    return builder.build_spec(w.inputs, w.runs, synthesis=w.synthesis(status="complete") if synthesis else None, **kw)
+def _spec(w, synthesis=True):
+    return builder.build_spec(w.inputs, w.runs, synthesis=w.root / "synthesis.json" if synthesis else None)
 
 
 def test_a_complete_world_is_publishable_with_n3_everywhere(world):
@@ -51,8 +50,13 @@ def test_a_complete_world_is_publishable_with_n3_everywhere(world):
     assert points[("BF", "1.00_nested")]["seconds_per_query"] == pytest.approx(0.5)
     assert points[("BF", "c2f_k5")]["seconds_per_query"] == pytest.approx(0.9)               # the sequential total
     assert points[("P1", "0.75")]["seconds_per_query"] == pytest.approx(0.8)
-    assert points[("P1", "0.50")]["seconds_per_query_repeats"] == {}                        # 43 / 44 accuracy-only
+    assert "seconds_per_query_repeats" not in points[("P1", "0.50")]                         # D-a: seed 42 only
     assert all(p["timing_valid"] for p in points.values()) and out["b2"]["frontier"]["success_1_0m"]
+    c2f = points[("BF", "c2f_k5")]["accuracy"]                                               # sequential c2f runs
+    assert c2f["seeds"] == [42, 43, 44] and c2f["median_localization_error_m"]["n"] == 3
+    parity = out["b2"]["c2f_parity"]["BF"]                                                   # the offline cross-check
+    assert set(parity) == {"42", "43", "44"} and all(v["union_equal"] == v["queries"] == 2 for v in parity.values())
+    assert {s["grid"] for s in out["b2"]["sensitivity"]} == {"c2f_k1", "c2f_k3", "c2f_k10", "c2f_k5_offline"}
     cells = {(r["orbit"], r["theta"]): r for r in out["b3"]["accuracy"]}
     assert set(cells) == {(o, t) for o in ("0", "0_180", "c4") for t in (0, 90)}
     assert all(r["accuracy"]["median_localization_error_m"]["n"] == 3 for r in cells.values())
@@ -66,8 +70,10 @@ def test_the_inventory_binds_every_source(world):
     spec = _spec(world)
     out = tool.build_summary(spec)
     inv = out["inventory"]
-    dirs = {i["dir"] for i in spec["b2_runs"] + spec["b2_timing"] + spec["b3_runs"] + spec["b3_latency"]["runs"]}
-    assert set(inv["runs"]) == dirs and len(dirs) == 34
+    dirs = {i["dir"] for i in spec["b2_runs"] + spec["b2_timing"] + spec["b2_c2f_runs"] + spec["b3_runs"]
+            + spec["b3_latency"]["runs"]}
+    assert set(inv["runs"]) == dirs and len(dirs) == 38
+    assert all("replay" in inv["runs"][i["dir"]] for i in spec["b2_timing"] + spec["b3_latency"]["runs"])   # D-c
     seed42 = inv["runs"][next(i["dir"] for i in spec["b2_runs"] if (i["arm"], i["grid"], i["seed"]) == ("BF", "0.50", 42))]
     assert seed42["replay"]["waveforms"]["mode"] == "replay" and len(seed42["attestation"]["monitor_head_sha256"]) == 64
     acc = inv["runs"][next(i["dir"] for i in spec["b3_runs"])]
@@ -96,16 +102,16 @@ def test_a_pending_synthesis_is_diagnostic_only(world):
     assert out["b3"]["synthesis"]["status"] == "pending"
 
 
-def test_tampered_sources_are_refused(world):
+def test_a_tampered_synthesis_artifact_is_refused(world):
     spec = _spec(world)
-    cell = Path(spec["b3_synthesis"]["cells"][3]["metrics_json"])
-    cell.write_text(json.dumps({"t60_error_pct": 0.0, "c50_error_db": 0.0}))
+    Path(spec["b3_synthesis"]["cells"][3]["metrics_json"]).write_text(json.dumps({"T60": 0.0}))
     with pytest.raises(RuntimeError, match="sha256"):
         tool.build_summary(spec)
-    again = World(world.root / "again").build()
-    again.external()                                                     # the same synthetic references
-    spec = _spec(again)
-    target = world.root / "again" / "waves" / "b2_0p50_P1_s43" / "query_00001.npy"
+
+
+def test_a_tampered_waveform_is_refused(world):
+    spec = _spec(world)
+    target = world.waves / "b2_0p50_P1_s43" / "query_00001.npy"
     target.chmod(0o644)                                                   # r2: published files are read-only
     np.save(target, np.zeros((15, 1, 10240), np.float32))
     with pytest.raises(RuntimeError, match="sha256"):
@@ -123,17 +129,6 @@ def test_a_claimed_cell_must_be_the_run_s_identity(world):
     p1["dir"], bf["dir"] = bf["dir"], p1["dir"]
     with pytest.raises(RuntimeError, match="checkpoint_sha256"):
         tool.build_summary(spec)
-
-
-def test_timing_repeats_and_the_optional_replays_are_validated(tmp_path, monkeypatch):
-    w = add_timing_only_replays(World(tmp_path).build(seeds_43_44_timing=True))
-    monkeypatch.setattr(tool, "EXP23_SUMMARY_SHA256", w.external()[0])
-    monkeypatch.setattr(tool, "LATENCY_CSV_SHA256", w.external()[1])
-    out = tool.build_summary(_spec(w, seeds_43_44_timing=True, require_timing_replays=True))
-    assert out["publishable"] is True
-    half = next(p for p in out["b2"]["points"] if (p["arm"], p["grid"]) == ("P1", "0.50"))
-    assert half["seconds_per_query_repeats"] == {"43": 2.5, "44": 2.5} and half["repeat_timing_valid"] == {"43": True, "44": True}
-    assert all("replay" in out["inventory"]["runs"][i["dir"]] for i in _spec(w, require_timing_replays=True)["b2_timing"])
 
 
 def test_the_external_references_are_pinned_to_the_real_files():
