@@ -34,7 +34,7 @@ def test_a_complete_section_validates_from_its_own_artifacts(section):
 
 
 def _rehash(cell, key):
-    cell[f"{key}_sha256"] = hashlib.sha256(Path(cell[key]).read_bytes()).hexdigest()
+    cell[syn.SHA_KEY[key]] = hashlib.sha256(Path(cell[key]).read_bytes()).hexdigest()
 
 
 def _edit_json(cell, key, change):
