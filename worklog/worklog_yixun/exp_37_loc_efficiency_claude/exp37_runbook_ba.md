@@ -1,5 +1,7 @@
 # exp_37 loc_efficiency — runbook B-a (GPU commands, NOT run by the Coder)
 
+> **SUPERSEDED for execution (fix round 1, 2026-11-06):** run `exp37_runbook.sh` per `exp37_runbook_r2.md`. This file is kept as the history of its round. Codex code review 1 found commands here that it no longer accepts: no waveform dumps or replays, snapshot-only co-tenancy, unenumerated seeds, masked exit statuses.
+
 Written by the exp_37 Coder (Claude Opus 5.5, max effort), round B-a, for the Planner, who runs every command below
 after the `claude_gpu_yield/` handshake. Plan: `plan_loc_efficiency.md` (§10 binding). Nothing here has been run.
 
@@ -132,9 +134,13 @@ queries of `core_forward_total` + the shape-matched AGREE selector — never `el
 | B2.5 | `run_loc b2_0p50_P1_s44 weights/exp20/P1_40k.ckpt vanilla $E9/pilot_manifest_seed42_4_per_room.json 44` | ≈ 7 min + 1–3 min |
 | B2.6 | `run_loc b2_0p50_BF_s44 weights/exp20/BF_40k.ckpt fa_invariant $E9/pilot_manifest_seed42_4_per_room.json 44` | ≈ 12 min + 1–3 min |
 
-Note for the Planner (not applied): the candidate noise seeds are keyed by (seed, query index, candidate index), so
-B1.1 / B1.3 (seed 42, 128 queries) already contain the 64 pilot queries of B2.1 / B2.2 under identical seeds and
-batches (only the warm-up query and run order differ); B2.1 / B2.2 could be read out of B1 if GPU time is short.
+Note for the Planner (not applied; QUALIFIED in fix round 1 per Codex HIGH 4): the candidate noise seeds are keyed
+by (seed, query index, candidate index), so B1.1 / B1.3 (seed 42, 128 queries) already contain the 64 pilot queries
+of B2.1 / B2.2 under identical seeds and batches (only the warm-up query and run order differ). That reuse is valid
+for ACCURACY ONLY. It is NOT the registered B2 timing source: plan §4 pre-registers the dedicated 64-query seed-42
+passes and their own timings, and a 128-query execution has different intervening queries and thermal history. The
+dedicated B2.1 / B2.2 timing runs therefore stay, and their artifact replays give the waveforms. No superset-accuracy
+mode is implemented; see `exp37_runbook_r2.md` §5.4.
 
 ## 6. Order and totals
 

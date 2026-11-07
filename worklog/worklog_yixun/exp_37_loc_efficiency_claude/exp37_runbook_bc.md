@@ -1,5 +1,7 @@
 # exp_37 loc_efficiency — runbook B-c (GPU commands, NOT run by the Coder)
 
+> **SUPERSEDED for execution (fix round 1, 2026-11-06):** run `exp37_runbook.sh` per `exp37_runbook_r2.md`. This file is kept as the history of its round. Codex code review 1 found commands here that it no longer accepts: no waveform dumps or replays, snapshot-only co-tenancy, unenumerated seeds, masked exit statuses.
+
 Round B-c adds the B2 candidate-density points (0.75 m runs, the dedicated nested-1.0 m and coarse-to-fine timing
 passes), B3 (inference orbit {0} / {0,180} / C4 × θ {0, 90}; orbit latency), and the aggregation + Pareto figure.
 `exp37_runbook_ba.md` §0 (rules) and §1 (shell set-up) apply unchanged; run after G0 PASS (runbook B-a §3). All

@@ -1,5 +1,7 @@
 # exp_37 loc_efficiency — runbook B-b (GPU commands, NOT run by the Coder)
 
+> **SUPERSEDED for execution (fix round 1, 2026-11-06):** run `exp37_runbook.sh` per `exp37_runbook_r2.md`. This file is kept as the history of its round. Codex code review 1 found commands here that it no longer accepts: no waveform dumps or replays, snapshot-only co-tenancy, unenumerated seeds, masked exit statuses.
+
 Round B-b adds: the AGREE selector vector over any manifest, K_ctx = 1, the SEPARATE instrumented stage-split pass, and
 the 3-arm summary. Everything in `exp37_runbook_ba.md` §0 (rules) and §1 (shell set-up, `run_loc`) applies unchanged:
 one process at a time on GPU 0, every model run through the no-flash launcher with `--require-attention-backend sdpa`,
