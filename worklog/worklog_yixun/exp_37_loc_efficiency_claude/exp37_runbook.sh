@@ -1,24 +1,32 @@
 #!/usr/bin/env bash
-# exp_37 loc_efficiency -- the EXECUTABLE runbook (fix rounds 1-2; Codex code reviews 1 / 2). NOT run by the Coder.
+# exp_37 loc_efficiency -- the EXECUTABLE runbook (fix rounds 1-3; Codex code reviews 1-3). NOT run by the Coder.
 #
 #   bash exp37_runbook.sh list               the registered sequence: id, phase, kind (? = optional), exact command
 #   bash exp37_runbook.sh all                every remaining step in order; stops at the first failure (its status)
 #   bash exp37_runbook.sh run STEP [STEP..]  named steps, in order (each must be next in the registered sequence)
-#   bash exp37_runbook.sh skip STEP          the Planner's K_ctx 1 split decision only (B1.split_k1.{P1,YAW,BF}); the
-#                                            conditional steps after it (TR.split_k1.*, B1S.all / B1S.noK1) are run or
-#                                            recorded as skipped by run / all from those decisions
+#   bash exp37_runbook.sh check STEP         the read-only preflight of STEP: READY + its command (exit 0) or the
+#                                            refusal (exit 2); no log, gate, receipt or command
+#   bash exp37_runbook.sh skip B1.split_k1   the Planner's ONE collective K_ctx 1 split decision (= B1.split_k1.P1;
+#                                            review 3 H-01): B1.split_k1.YAW / .BF, their replays TR.split_k1.* and the
+#                                            summaries B1S.all / B1S.noK1 follow it (run / all run them or record them
+#                                            as skipped); running B1.split_k1.P1 instead runs all three passes;
+#                                            receipts that mix run and skipped splits refuse every later step
 #   bash exp37_runbook.sh clean STEP         quarantine a FAILED model step's remains (tools/exp37_quarantine.py)
 #   bash exp37_runbook.sh check-leaf         the B3 leaf worktree is at its launch commit with a clean tree
 #
 # Every executed step: refuses (exit 2) a dirty tracked tree, untracked content outside the allowlist, a missing or
-# foreign predecessor receipt (every earlier step done; every earlier CAMPAIGN step -- P0, the gates, the model and
-# leaf steps -- at this HEAD; the CPU consumers G0 cmp / B1S / B3S.cells / AGG may follow at a later HEAD), an existing
+# foreign predecessor receipt (every earlier step done; every earlier CAMPAIGN step -- P0, the gates, the B3 reuse
+# checks, the model and leaf steps -- at this HEAD; the CPU consumers G0 cmp / B1S / B3S.cells / AGG may follow at a
+# later HEAD), an existing
 # output or a missing input; logs HEAD + the exact command into a NEW log (a logging failure is exit 74, the command's
 # own nonzero status wins); a timed / selector / leaf step first runs the exp_36 gate (a unique record under
 # $D/gates/pre/), writes that gate's receipt bound to the record ($D/receipts/pregate/) and checks it fresh at this
 # HEAD -- an unclean gate refuses before the command; returns the command's own exit status; on success writes the
 # hashed receipt $D/receipts/<step>.json. DRY_RUN=1 checks and prints without gating, running or receipting.
-# Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix rounds 1-2.
+# The B3 reuse checks (review 3 H-04) bind their record's sha256 into their receipt; the leaf step is one executable
+# argv (env -C <leaf> EXPECT_HEAD=<launch commit> bash <chain> b3; N-01), logged and receipted as executed.
+# Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix rounds 1-2; the final fix round (fixed after review
+# 3, not re-reviewed (cap)).
 set -uo pipefail
 export PYTHONDONTWRITEBYTECODE=1 HF_HUB_OFFLINE=1                  # the launcher requires the first
 unset PYTHONPATH
@@ -46,13 +54,13 @@ N100=$D/manifests/nested_1m_pilot_seed42_4_per_room.json
 UNTRACKED_OK=(AcousticRooms "$D/runs/" "$D/selector/" "$D/gates/" "$D/g0/" "$D/b1/" "$D/b2b3/" "$D/receipts/")
 declare -A CKPT=([P1]=weights/exp20/P1_40k.ckpt [YAW]=weights/exp20/YAW_40k.ckpt [BF]=weights/exp20/BF_40k.ckpt)
 declare -A COND=([P1]=vanilla [YAW]=vanilla [BF]=fa_invariant)
-IDS=() ; declare -A PHASE RUNNER ARGS OPTIONAL
+IDS=() ; declare -A PHASE RUNNER ARGS OPTIONAL POS
 
-add() { local id=$1 phase=$2 runner=$3; shift 3; IDS+=("$id"); PHASE[$id]=$phase; RUNNER[$id]=$runner; ARGS[$id]="$*"
-        OPTIONAL[$id]=0; }
+add() { local id=$1 phase=$2 runner=$3; shift 3; POS[$id]=${#IDS[@]}; IDS+=("$id"); PHASE[$id]=$phase; RUNNER[$id]=$runner
+        ARGS[$id]="$*"; OPTIONAL[$id]=0; }
 optional() { OPTIONAL[$1]=$2; }                                   # decision (skip by hand) | conditional (follows)
 
-# ================================================================ the registered sequence (98 steps)
+# ================================================================ the registered sequence (100 steps)
 add P0.1 P0 cpu bash $D/exp37_assets.sh verify "$REPO_DIR"
 add P0.2 P0 cpu env CUDA_VISIBLE_DEVICES= $PY $L --preflight
 add P0.3 P0 cpu env CUDA_VISIBLE_DEVICES= $PY -m pytest -q -p no:cacheprovider src/tests -k exp37
@@ -70,9 +78,9 @@ add B1.0 B1 gate b1
 for arm in P1 YAW BF; do add B1.k8.$arm B1 timed b1_k8_${arm}_s42 $arm $S128 $A050 42; done
 for arm in P1 YAW BF; do add B1.k1.$arm B1 timed b1_k1_${arm}_s42 $arm $S128 $A050 42 --context-count 1; done
 for arm in P1 YAW BF; do add B1.split_k8.$arm B1 timed b1_split_k8_${arm}_s42 $arm $S128 $A050 42 --stage-split; done
-for arm in P1 YAW BF; do
+for arm in P1 YAW BF; do                    # ONE collective decision, taken at B1.split_k1.P1 (review 3 H-01)
   add B1.split_k1.$arm B1 timed b1_split_k1_${arm}_s42 $arm $S128 $A050 42 --context-count 1 --stage-split
-  optional B1.split_k1.$arm decision
+  if [ $arm = P1 ]; then optional B1.split_k1.$arm decision; else optional B1.split_k1.$arm conditional; fi
 done
 add B2.0 B2 gate b2
 for g in 0p50 0p75; do
@@ -149,7 +157,9 @@ add B1S.noK1 B1S cpu env CUDA_VISIBLE_DEVICES= $PY tools/exp37_summarize_latency
 optional B1S.noK1 conditional
 # ---- B3 synthesis: the Planner's leaf (chain b3 at its launch commit), after every exp_37 timing pass
 add B3S.gate B3S gate b3s
+add B3S.reuse.run B3S reuse run                      # the C4 / K8 reference by its pinned digests (review 3 H-04)
 add B3S.run B3S leaf
+add B3S.reuse.cells B3S reuse cells                  # all four reused exp_35 cells by their pinned digests
 add B3S.cells B3S cpu env CUDA_VISIBLE_DEVICES= $PY tools/exp37_build_synthesis_cells.py --output $D/b2b3/synthesis_cells.json
 add AGG.spec AGG cpu env CUDA_VISIBLE_DEVICES= $PY tools/exp37_build_b2b3_spec.py --inputs $D/b2b3/b2b3_inputs.json \
   --runs-root $D/runs --synthesis $D/b2b3/synthesis_cells.json --require-timing-replays --output $D/b2b3/b2b3_spec.json
@@ -175,7 +185,7 @@ kind_of() {
   echo "$k"
 }
 model_step() { case ${RUNNER[$1]} in timed|acc|replay|selector|leaf) return 0 ;; esac; return 1; }
-campaign_step() { model_step "$1" || [ "${RUNNER[$1]}" = gate ] || [ "${PHASE[$1]}" = P0 ]; }
+campaign_step() { model_step "$1" || [ "${RUNNER[$1]}" = gate ] || [ "${RUNNER[$1]}" = reuse ] || [ "${PHASE[$1]}" = P0 ]; }
 gated_step() { case ${RUNNER[$1]} in timed|selector|leaf) return 0 ;; esac; return 1; }
 
 # build_cmd STEP -> CMD (argv), OUTS (must not exist), NEEDS (must exist)
@@ -206,7 +216,10 @@ build_cmd() {
                  --pilot-manifest $sel --geometry-audit $audit --sample-seed $seed --output-dir $D/runs/$run
                  "${LOCALIZE[@]}" "${a[@]:6}" --dump-waveforms $W/$run --replay-of $D/runs/$of)
             OUTS=($D/runs/$run $W/$run); NEEDS=($D/runs/$of/run_manifest.json) ;;
-    leaf) CMD=(cd "$LEAF_ROOT" "&&" env "EXPECT_HEAD=$LEAF_COMMIT" bash $LEAF_CHAIN b3) ;;
+    reuse) CMD=(env CUDA_VISIBLE_DEVICES= $PY tools/exp37_b3_reuse_check.py --stage ${a[0]}
+                --output $D/gates/b3s_reuse_${a[0]}.json)
+           OUTS=($D/gates/b3s_reuse_${a[0]}.json) ;;
+    leaf) CMD=(env -C "$LEAF_ROOT" "EXPECT_HEAD=$LEAF_COMMIT" bash "$LEAF_CHAIN" b3) ;;   # executed exactly as logged
     *) refuse "$id" "unknown step kind $kind"; return 2 ;;
   esac
 }
@@ -219,15 +232,27 @@ check_leaf() {
 }
 
 # the condition of a conditional step: 0 holds, 1 does not (run / all record it as skipped), 3 none registered;
-# exactly one B1S variant holds
+# everything follows the ONE collective decision at B1.split_k1.P1, so exactly one B1S variant holds
 condition() {
-  local id=$1 arm
+  local id=$1
   case $id in
+    B1.split_k1.YAW|B1.split_k1.BF) has_receipt B1.split_k1.P1 ok && return 0; return 1 ;;
     TR.split_k1.*) has_receipt "B1.split_k1.${id##*.}" ok && return 0; return 1 ;;
-    B1S.all) for arm in P1 YAW BF; do has_receipt B1.split_k1.$arm ok || return 1; done; return 0 ;;
-    B1S.noK1) for arm in P1 YAW BF; do has_receipt B1.split_k1.$arm skipped && return 0; done; return 1 ;;
+    B1S.all) has_receipt B1.split_k1.P1 ok && return 0; return 1 ;;
+    B1S.noK1) has_receipt B1.split_k1.P1 skipped && return 0; return 1 ;;
     *) refuse "$id" "no condition is registered"; return 3 ;;
   esac
+}
+
+# 0 when the K_ctx 1 split receipts mix run and skipped passes (only fabricable by hand: the decision is collective)
+k1_mixed() {
+  local sid seen="" now
+  for sid in B1.split_k1.P1 B1.split_k1.YAW B1.split_k1.BF; do
+    if has_receipt "$sid" ok; then now=ok; elif has_receipt "$sid" skipped; then now=skipped; else continue; fi
+    [ -z "$seen" ] || [ "$seen" = "$now" ] || return 0
+    seen=$now
+  done
+  return 1
 }
 
 preflight() {   # the checks every executed or skipped step passes first
@@ -251,6 +276,10 @@ preflight() {   # the checks every executed or skipped step passes first
       has_receipt "$prior" any "$head" || { refuse "$id" "the campaign step $prior ran at another HEAD"; return 2; }
     fi
   done
+  if [ "${POS[$id]}" -gt "${POS[B1.split_k1.P1]}" ] && k1_mixed; then
+    refuse "$id" "a mixed K_ctx 1 split decision: the receipts of B1.split_k1.{P1,YAW,BF} mix run and skipped passes \
+(the decision is collective; nothing after it runs)"; return 2
+  fi
   HEAD_NOW=$head
 }
 
@@ -305,26 +334,43 @@ run_step() {
   [ "${PIPESTATUS[1]}" = 0 ] || { echo "REFUSED [$id]: the audit log failed" >&2; return 74; }
   if [ "$DRY_RUN" = 1 ]; then echo "DRY_RUN: not executed" | tee -a "$log"; return 0; fi
   if gated_step "$id"; then pregate "$id" "$log" || return $?; fi
-  if [ "${RUNNER[$id]}" = leaf ]; then
-    ( cd "$LEAF_ROOT" && env "EXPECT_HEAD=$LEAF_COMMIT" bash $LEAF_CHAIN b3 ) 2>&1 | tee -a "$log"
-  else
-    "${CMD[@]}" 2>&1 | tee -a "$log"
-  fi
+  "${CMD[@]}" 2>&1 | tee -a "$log"
   local status=("${PIPESTATUS[@]}"); rc=${status[0]}; trc=${status[1]}
   echo "EXIT $rc" | tee -a "$log" >/dev/null || trc=74
   [ "$rc" = 0 ] || return "$rc"
   [ "$trc" = 0 ] || { echo "REFUSED [$id]: the audit log failed (the command exited 0)" >&2; return 74; }
+  local bind=()
+  [ "${RUNNER[$id]}" != reuse ] || bind=(--record "${OUTS[0]}")    # the reuse check's record is bound (H-04)
   "$RPY" "$TOOLS/exp37_receipt.py" write --path "$(receipt "$id")" --step "$id" --phase "${PHASE[$id]}" --status ok \
     --head "$HEAD_NOW" --command "$(printf '%q ' "${CMD[@]}")" --log "$log" --started "$started" \
-    --finished "$(date -u +%Y-%m-%dT%H:%M:%S+00:00)" || { echo "REFUSED [$id]: the receipt was not written" >&2; return 74; }
+    --finished "$(date -u +%Y-%m-%dT%H:%M:%S+00:00)" "${bind[@]}" || {
+    echo "REFUSED [$id]: the receipt was not written" >&2; return 74; }
 }
 
 skip_step() {
   local id=$1
+  [ "$id" != B1.split_k1 ] || id=B1.split_k1.P1                    # the collective decision's name
   [ "${OPTIONAL[$id]:-0}" = decision ] || {
-    refuse "$id" "only the K_ctx 1 split decisions B1.split_k1.{P1,YAW,BF} are skipped by hand"; return 2; }
+    refuse "$id" "only the collective K_ctx 1 split decision is skipped by hand: skip B1.split_k1"; return 2; }
   preflight "$id" || return $?
-  record_skip "$id" "the Planner's K_ctx 1 split decision"
+  record_skip "$id" "the Planner's collective K_ctx 1 split decision (B1.split_k1.YAW / .BF and their followers follow)"
+}
+
+check_step() {   # the read-only preflight: what run would refuse, without a log, a gate, a receipt or the command
+  local id=$1 path
+  preflight "$id" || return $?
+  if [ "${OPTIONAL[$id]}" = conditional ]; then
+    local holds=0; condition "$id" || holds=$?
+    [ "$holds" -le 1 ] || return 2
+    [ "$holds" = 0 ] || { echo "READY $id: run would record it as skipped (its condition does not hold)"; return 0; }
+  fi
+  build_cmd "$id" || return 2
+  [ "${RUNNER[$id]}" != leaf ] || check_leaf || return 2
+  for path in "${OUTS[@]}"; do [ ! -e "$path" ] || { refuse "$id" "$path exists (outputs are fresh)"; return 2; }; done
+  for path in "${NEEDS[@]}"; do [ -e "$path" ] || { refuse "$id" "$path is missing"; return 2; }; done
+  printf 'READY %s:' "$id"; printf ' %q' "${CMD[@]}"; echo
+  if gated_step "$id"; then echo "  (its pre-step exp_36 gate runs at launch)"; fi
+  return 0
 }
 
 case ${1:-} in
@@ -337,7 +383,8 @@ case ${1:-} in
          run_step "$id"; rc=$?
          [ "$rc" = 0 ] || { echo "STOPPED at $id (exit $rc)" >&2; exit "$rc"; }
        done ;;
-  skip) [ -n "${2:-}" ] || { echo "usage: bash $0 skip STEP" >&2; exit 2; }; skip_step "$2"; exit $? ;;
+  skip) [ -n "${2:-}" ] || { echo "usage: bash $0 skip B1.split_k1" >&2; exit 2; }; skip_step "$2"; exit $? ;;
+  check) [ -n "${2:-}" ] || { echo "usage: bash $0 check STEP" >&2; exit 2; }; check_step "$2"; exit $? ;;
   clean) id=${2:-}
          case ${RUNNER[$id]:-} in timed|acc|replay) ;; *) refuse "$id" "only a model step can be cleaned"; exit 2 ;; esac
          cd "$REPO_DIR" || exit 2
@@ -345,6 +392,6 @@ case ${1:-} in
          build_cmd "$id"
          "$RPY" "$TOOLS/exp37_quarantine.py" --run-dir "${OUTS[0]}" --dump-root "$W" ${3:+"$3"}; exit $? ;;
   check-leaf) check_leaf; exit $? ;;
-  *) echo "usage: bash $0 list | all | run STEP [STEP ...] | skip STEP | clean STEP [--include-published] | check-leaf" >&2
+  *) echo "usage: bash $0 list | all | run STEP [STEP ...] | check STEP | skip B1.split_k1 | clean STEP [--include-published] | check-leaf" >&2
      exit 2 ;;
 esac
