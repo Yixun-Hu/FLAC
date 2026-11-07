@@ -147,3 +147,78 @@ def test_validate_section_requires_the_registered_metric_list(section, keys):
     body["metrics_keys"] = keys
     with pytest.raises(RuntimeError, match="metrics"):
         syn.validate_section(body)
+
+
+
+# ---- review 3 B-03: the full evaluator identity -- the audited tree digests and the complete ordered argv
+REPO = Path(__file__).resolve().parents[2]
+RESTORED = REPO / "worklog/worklog_yixun/exp_37_loc_efficiency_claude/incident_2026-11-06/restore"
+
+
+def _set_digests(cell, value):
+    _edit_json(cell, "receipt", lambda r: r.update(campaign_digest=value, spawn_digest=value, post_digest=value))
+
+
+def test_the_audited_tree_digests_are_pinned():
+    """The exp_25 runner's evaluator tree digest at the leaf launch commit (printed by the leaf's dry run at e1de4155,
+    whose evaluator tree d3013734 does not change; recomputed from the git objects of both commits) and at H35 (the
+    reused cells' receipts)."""
+    assert syn.LEAF_TREE_DIGEST == "a0aa83520a0e8de6b80f643a2b4e4d66e523a0552b6f2010b3053caa809496c4"
+    assert syn.H35_TREE_DIGEST == "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1"
+
+
+def test_a_new_cell_with_an_arbitrary_consistent_digest_is_refused(section):
+    _world, body = section
+    _set_digests(body["cells"][2], "4" * 64)                          # equal to each other, not the audited digest
+    with pytest.raises(RuntimeError, match="tree digest"):
+        syn.validate_section(body)
+
+
+def test_new_cells_with_different_digests_are_refused(section):
+    _world, body = section
+    new = [c for c in body["cells"] if c["source"] == "new"]
+    _set_digests(new[5], "5" * 64)                                     # one of the eight differs from the others
+    with pytest.raises(RuntimeError, match=new[5]["cell"]):
+        syn.validate_section(body)
+
+
+def test_a_reused_cell_must_carry_the_h35_tree_digest(section, monkeypatch):
+    _world, body = section
+    cell = next(c for c in body["cells"] if c["source"] == "reused_exp35")
+    _set_digests(cell, syn.LEAF_TREE_DIGEST)                          # even re-pinned, it is not the H35 evaluator
+    monkeypatch.setitem(syn.REUSED, cell["cell"], {k: cell[k] for k in syn.SHA_KEY.values()})
+    with pytest.raises(RuntimeError, match="tree digest"):
+        syn.validate_section(body)
+
+
+def _argv_edit(change):
+    def edit(cell):
+        _edit_json(cell, "receipt", lambda r: r.update(argv=change(list(r["argv"]))))
+    return edit
+
+
+@pytest.mark.parametrize("change", [
+    lambda a: [x for x in a if x != "--record-per-scene"],                  # a missing valueless flag
+    lambda a: [x for x in a if x != "--record-stream"],
+    lambda a: a + ["--cfg-scale", "3.0"],                                    # an extra behavior-changing flag
+    lambda a: a + ["--no-ema"],                                              # an extra valueless flag
+    lambda a: a + ["--seed", "42"],                                          # a duplicate
+    lambda a: a[2:4] + a[:2] + a[4:],                                        # reordered
+    lambda a: a[:-1],                                                        # a truncated value
+], ids=["missing-record-per-scene", "missing-record-stream", "extra-cfg", "extra-valueless", "duplicate", "reordered",
+        "truncated"])
+def test_the_argv_is_exactly_the_registered_command_line(section, change):
+    _world, body = section
+    _argv_edit(change)(body["cells"][2])
+    with pytest.raises(RuntimeError, match="argv"):
+        syn.validate_section(body)
+
+
+def test_the_restored_exp35_receipts_carry_the_registered_identity():
+    """The 4 reused cells' receipts (the byte-exact pre-incident copies committed in incident_2026-11-06/restore/,
+    never the live roots): the complete ordered argv and the H35 tree digest of the new rules."""
+    for theta in (0, 90):
+        for k in (1, 8):
+            name = syn.cell_name("c4", theta, k)[0]
+            receipt = json.loads((RESTORED / f"{syn.cell_stem('c4', theta, k)}.cell.json").read_text())
+            assert syn.receipt_identity_reasons(receipt, "c4", theta, k) == [], name

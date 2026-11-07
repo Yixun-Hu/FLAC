@@ -225,7 +225,8 @@ class World:
                   "model_config": syn.MODEL_CONFIG[0], "model_config_sha256": syn.MODEL_CONFIG[1],
                   "dataset_config": syn.DATASET[k][0], "dataset_config_sha256": syn.DATASET[k][1],
                   "expected_stream_count": syn.STREAMS, "dump": True, "dump_root": syn.DUMP_ROOT, "argv": argv,
-                  "expect_head": pin, "campaign_digest": "3" * 64, "spawn_digest": "3" * 64, "post_digest": "3" * 64,
+                  "expect_head": pin, **{key: syn.LEAF_TREE_DIGEST if source == "new" else syn.H35_TREE_DIGEST
+                                         for key in ("campaign_digest", "spawn_digest", "post_digest")},
                   "artifact_sha256": {"metrics": metrics_sha, "stream": "2" * 64, "canon": None},
                   "dump_evidence": {"manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(), "manifest": manifest,
                                     "marker": f"{wave}\n", "waveforms_sidecar": f"{wave}  waveforms.npy\n"},
