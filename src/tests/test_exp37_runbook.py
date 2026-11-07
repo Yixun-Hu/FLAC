@@ -8,7 +8,9 @@ the synthesis section) and the aggregation with --require-timing-replays) with e
 P0, the gates, the model and leaf steps -- at this HEAD), a pre-step exp_36 gate run immediately before every timed /
 selector / leaf step and its fresh receipt (bound to the gate record), a tracked tree that is clean and untracked
 content only under the allowlist, an exclusive log whose tee status is checked (a logging failure is exit 74), and
-the command's own exit status; ``skip`` only for optional steps (the K_ctx 1 splits and the B1 summary variant);
+the command's own exit status; ``skip`` only for the Planner's K_ctx 1 split decisions (B1.split_k1.*), while the
+conditional steps that follow them (their replays, the two B1 summary variants) are run or recorded as skipped by
+``run`` / ``all`` from those decisions -- exactly one B1 summary variant runs;
 ``clean`` quarantines a failed model step; ``check-leaf`` verifies the leaf worktree.
 CPU; a scratch git repository stands in for the checkout. Written by the exp_37 Coder (Claude Opus 5.5, max effort).
 """
@@ -22,6 +24,7 @@ from pathlib import Path
 import pytest
 
 from tools import exp37_build_b2b3_spec as builder
+from tools import exp37_receipt as receipt_tool
 
 REPO = Path(__file__).resolve().parents[2]
 D = "worklog/worklog_yixun/exp_37_loc_efficiency_claude"
@@ -246,3 +249,47 @@ def test_check_leaf_verifies_the_launch_commit(tmp_path):
         subprocess.run(argv, cwd=leaf, check=True)
     done = _bash("check-leaf", env={"LEAF_ROOT": str(leaf)})
     assert done.returncode == 2 and "launch commit" in done.stderr
+
+
+def _fabricate(repo, upto, statuses=None):
+    """Receipts at the scratch HEAD for every step before ``upto`` that has none (status ok unless given)."""
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+    ids = [line.split()[0] for line in _bash("list").stdout.splitlines()]
+    for sid in ids[:ids.index(upto)]:
+        path = repo / D / "receipts" / f"{sid}.json"
+        if not path.exists():
+            assert receipt_tool.main(["write", "--path", str(path), "--step", sid, "--phase", sid.split(".")[0],
+                                      "--status", (statuses or {}).get(sid, "ok"), "--head", head, "--command", "x",
+                                      "--log", "x", "--started", "2026-11-06T00:00:00+00:00",
+                                      "--finished", "2026-11-06T00:00:00+00:00"]) == 0
+
+
+def _status(repo, sid):
+    return json.loads((repo / D / "receipts" / f"{sid}.json").read_text())["status"]
+
+
+def test_only_the_k1_split_decisions_are_skipped_by_hand(checkout):
+    _repo, env, _seven = checkout
+    for sid in ("TR.split_k1.P1", "B1S.all", "B1S.noK1", "P0.1"):
+        done = _bash("skip", sid, env=env)
+        assert done.returncode == 2 and "B1.split_k1" in done.stderr, sid
+
+
+def test_a_skipped_k1_split_skips_its_replay_and_selects_the_nok1_summary(checkout):
+    repo, env, _seven = checkout
+    calls = Path(env["CALLS"])
+    _fabricate(repo, "TR.split_k1.P1", {"B1.split_k1.P1": "skipped"})
+    assert _bash("run", "TR.split_k1.P1", env=env).returncode == 0
+    assert _status(repo, "TR.split_k1.P1") == "skipped" and not calls.exists()     # nothing was launched
+    _fabricate(repo, "B1S.all")
+    assert _bash("run", "B1S.all", "B1S.noK1", env=env).returncode == 0
+    assert (_status(repo, "B1S.all"), _status(repo, "B1S.noK1")) == ("skipped", "ok")
+    launched = calls.read_text().splitlines()
+    assert len(launched) == 1 and "exp37_summarize_latency.py" in launched[0] and "_noK1split.json" in launched[0]
+
+
+def test_three_run_k1_splits_select_the_full_summary(checkout):
+    repo, env, _seven = checkout
+    _fabricate(repo, "B1S.all")
+    assert _bash("run", "B1S.all", "B1S.noK1", env=env).returncode == 0
+    assert (_status(repo, "B1S.all"), _status(repo, "B1S.noK1")) == ("ok", "skipped")
