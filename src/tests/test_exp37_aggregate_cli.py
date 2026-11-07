@@ -84,7 +84,7 @@ def test_the_inventory_binds_every_source(world):
     assert all(len(s["binding_sha256"]) == 64 for s in inv["selectors"].values())
     assert inv["external"]["exp23_summary"]["sha256"] == tool.EXP23_SUMMARY_SHA256
     assert inv["external"]["latency_csv"]["file_sha256"] == tool.LATENCY_CSV_SHA256
-    assert len(inv["synthesis"]) == 12 and out["spec_sha256"]
+    assert len(inv["synthesis"]) == 36 and out["spec_sha256"]             # 12 cells x (metrics, receipt, dump manifest)
 
 
 def test_an_unattested_timing_withholds_publication_and_the_frontier(world, tmp_path):

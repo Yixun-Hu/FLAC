@@ -23,6 +23,8 @@ import os
 import sys
 from pathlib import Path
 
+import numpy as np
+
 REPO_ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / ".git").exists())
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -37,7 +39,7 @@ ARMS = ("P1", "BF")
 LABELS = {"P1": "FLAC (P1@40k)", "BF": "OrbitRIR (B-F@40k)"}
 GRIDS = ("0.50", "0.75", "1.00_nested", "c2f_k5")
 GRID_LABELS = {"0.50": "0.5 m", "0.75": "0.75 m", "1.00_nested": "1.0 m (nested)", "c2f_k5": "c2f (1.0 -> 0.5 m, k = 5)"}
-SENSITIVITY = ("c2f_k1", "c2f_k3", "c2f_k10")
+SENSITIVITY = ("c2f_k1", "c2f_k3", "c2f_k10", "c2f_k5_offline")    # offline readouts of the 0.5 m runs (accuracy only)
 METRICS = ("median_localization_error_m", "success_0_5m", "success_1_0m", "oracle_normalized_success_0_5m",
            "mean_oracle_error_m", "mean_candidate_count")
 ORBITS = {"0": [0.0], "0_180": [0.0, 180.0], "c4": [0.0, 90.0, 180.0, 270.0]}
@@ -248,15 +250,16 @@ def build_b2(spec: dict, inventory: dict) -> tuple[dict, dict]:
                                         replay_dir=item.get("replay"))
         rows = grid.readout_run(run_dir, pilot) if g == "0.50" else {
             "0.75": grid.readout_run(run_dir, pilot75, full_only=True)["full"]}
-        for name, summary in grid.summarize_readout(rows).items():
-            summaries[(arm, name)][seed] = summary
+        for name, summary in grid.summarize_readout(rows).items():   # c2f_k5 of record = the sequential runs below
+            summaries[(arm, "c2f_k5_offline" if name == "c2f_k5" else name)][seed] = summary
         if timing:
             core = {i: r["core"] for i, r in lat.load_arm_run(run_dir, arm=arm, selection=selection, audit=audit,
                                                               seed=seed).items()}
             seconds[(arm, g)][seed] = agg.mean_latency(core, terms[g][0], indices)
             valid[(arm, g)][seed] = _attested(run_dir, entry) and bool(terms[g][1]["timing_valid"])
         inventory["runs"][run_dir] = entry
-    parents = {i["arm"]: i["dir"] for i in spec["b2_runs"] if (i["grid"], int(i["seed"])) == ("0.50", 42)}
+    parents = {(i["arm"], int(i["seed"])): i["dir"] for i in spec["b2_runs"] if i["grid"] == "0.50"}
+    c2f_rows = {a: {} for a in ARMS}
     for item in spec["b2_timing"]:
         arm, kind, run_dir = item["arm"], item["kind"], item["dir"]
         modes = {"candidate_subset": kind, **({"c2f_top_k": 5} if kind == "c2f" else {})}
@@ -268,22 +271,59 @@ def build_b2(spec: dict, inventory: dict) -> tuple[dict, dict]:
             selector_ok = bool(terms["1.00_nested"][1]["timing_valid"])
         else:
             rows = lat.load_c2f_run(run_dir, arm=arm, selection=pilot, audit=audits["0.50"], top_k=5,
-                                    parent_run_dir=parents[arm])
+                                    parent_run_dir=parents[(arm, 42)], seed=42, timing=True)
             key, value, selector_ok = (arm, "c2f_k5"), sum(rows[i]["c2f_total"] for i in indices) / len(indices), True
+            c2f_rows[arm][42] = (run_dir, rows)
         seconds[key][42], valid[key][42] = value, _attested(run_dir, entry) and selector_ok
         inventory["runs"][run_dir] = entry
+    for item in spec["b2_c2f_runs"]:                    # review 2 BLOCKING 3: the c2f accuracy is sequential, n = 3
+        arm, seed, run_dir = item["arm"], int(item["seed"]), item["dir"]
+        inventory["runs"][run_dir] = sources.accuracy_source(run_dir, arm=arm, selection=pilot, audit=audits["0.50"],
+                                                             seed=seed, timing=False, candidate_subset="c2f", c2f_top_k=5)
+        c2f_rows[arm][seed] = (run_dir, lat.load_c2f_run(run_dir, arm=arm, selection=pilot, audit=audits["0.50"],
+                                                         top_k=5, parent_run_dir=parents[(arm, seed)], seed=seed,
+                                                         timing=False))
+    parity = {a: {} for a in ARMS}
+    for arm in ARMS:
+        for seed, (run_dir, rows) in sorted(c2f_rows[arm].items()):
+            summaries[(arm, "c2f_k5")][seed] = grid.summarize_readout(
+                {"c2f_k5": [rows[i]["readout"] for i in indices]})["c2f_k5"]
+            parity[arm][str(seed)] = c2f_parity(run_dir, parents[(arm, seed)], pilot)
     points = []
     for arm in ARMS:
         for g in GRIDS:
             times = seconds[(arm, g)]
+            if set(times) != {42}:
+                raise RuntimeError(f"B2 {arm} {g}: the time axis is the seed-42 pass only (D-a)")
             points.append({"arm": arm, "label": LABELS[arm], "grid": g, "grid_label": GRID_LABELS[g],
                            "accuracy": _stats(summaries[(arm, g)], f"B2 {arm} {g}"), "seconds_per_query": times[42],
-                           "seconds_per_query_repeats": {str(s): v for s, v in sorted(times.items()) if s != 42},
-                           "timing_valid": bool(valid[(arm, g)][42]),                       # the seed-42 headline
-                           "repeat_timing_valid": {str(s): v for s, v in sorted(valid[(arm, g)].items()) if s != 42}})
+                           "timing_valid": bool(valid[(arm, g)][42])})                    # the seed-42 headline
     sensitivity = [{"arm": a, "grid": g, "accuracy": _stats(summaries[(a, g)], f"B2 {a} {g}"),
                     "post_primary_sensitivity": True} for a in ARMS for g in SENSITIVITY]
-    return {"query_count": len(indices), "points": points, "sensitivity": sensitivity}, summaries
+    return {"query_count": len(indices), "points": points, "sensitivity": sensitivity, "c2f_parity": parity}, summaries
+
+
+def c2f_parity(c2f_dir, parent_dir, selection: dict) -> dict:
+    """The REPORTED cross-check of a sequential c2f run against its parent 0.5 m run's offline c2f (never a gate):
+    per query, whether the parent-derived top-k / union and winner equal the run's and whether the run's union
+    similarities are bitwise the parent's; the largest absolute similarity difference over equal unions."""
+    union_equal = winner_equal = bitwise = 0
+    delta = 0.0
+    for record in selection["records"]:
+        name = f"query_{int(record['index']):05d}.json"
+        query, parent = _hashed(Path(c2f_dir) / "queries" / name), _hashed(Path(parent_dir) / "queries" / name)
+        cands, sims = lat._arrays(c2f_dir, query)
+        full, parent_sims = lat._arrays(parent_dir, parent)
+        derived = grid.c2f_indices(full, grid.query_scores(parent_sims, 0.1), k=5)["union"]
+        union = np.asarray(query["c2f"]["union_indices"])
+        winner = int(derived[int(np.argmax(grid.query_scores(parent_sims[derived], 0.1)))])
+        union_equal += int(np.array_equal(derived, union))
+        winner_equal += int(winner == int(query["c2f"]["winner_full_index"]))
+        if np.array_equal(derived, union):
+            bitwise += int(np.array_equal(parent_sims[union], sims))
+            delta = max(delta, float(np.max(np.abs(parent_sims[union].astype(np.float64) - sims.astype(np.float64)))))
+    return {"queries": len(selection["records"]), "union_equal": union_equal, "winner_equal": winner_equal,
+            "bitwise_equal": bitwise, "max_abs_similarity_delta": delta}
 
 
 def frontier(points: list) -> dict:
@@ -296,21 +336,15 @@ def frontier(points: list) -> dict:
 
 
 def _synthesis(section: dict, inventory: dict) -> dict:
+    """The B3 synthesis section: pending (diagnostic only) or validated cell by cell from its own artifacts."""
     if section["status"] != "complete":
         return {"status": "pending", "note": section.get("note"), "cells": []}
-    keys, cells = list(section["metrics_keys"]), []
+    from src.localization import exp37_synthesis as syn
+    out = syn.validate_section(section)
     for cell in section["cells"]:
-        path = Path(cell["metrics_json"])
-        if _file_sha256(path) != cell["metrics_sha256"]:
-            raise RuntimeError(f"{path}: the synthesis metrics file's sha256 is not the spec's")
-        metrics = json.loads(path.read_text())
-        if any(not isinstance(metrics.get(k), (int, float)) for k in keys):
-            raise RuntimeError(f"{path}: the synthesis metrics file lacks one of {keys}")
-        cells.append({**{k: cell[k] for k in ("orbit", "theta", "k_context", "seed", "source")},
-                      "metrics": {k: float(metrics[k]) for k in keys}})
-        inventory["synthesis"][str(path)] = cell["metrics_sha256"]
-    return {"status": "complete", "leaf_commit": section["leaf_commit"], "runbook": section["runbook"],
-            "metrics_keys": keys, "cells": cells}
+        for key, sha_key in syn.SHA_KEY.items():
+            inventory["synthesis"][cell[key]] = cell[sha_key]
+    return out
 
 
 def build_b3(spec: dict, b2_summaries: dict, inventory: dict) -> dict:
@@ -389,9 +423,11 @@ def render_markdown(summary: dict) -> str:
         "# DIAGNOSTIC -- NOT PUBLISHABLE (no frontier and no figure are produced)", "",
         *[f"- {reason}" for reason in summary["reasons"]], ""]
     lines += [f"# exp_37 B2 candidate density / coarse-to-fine and B3 orbit size ({b2['query_count']} queries)", "",
-             "B2 accuracy: mean ± sample SD over seeds 42-44 of the pooled per-run metrics; s/query = seed-42 pass, "
-             "query-micro mean of L_q = core_forward_total + shape-matched AGREE selector (c2f: its sequential total). "
-             "1.0 m = the nested integer subset of the 0.5 m grid with full-grid common random numbers.", "",
+             "B2 accuracy: mean ± sample SD over seeds 42-44 of the pooled per-run metrics; s/query = the seed-42 "
+             "pass only (D-a; no timing-variance claim), query-micro mean of L_q = core_forward_total + shape-matched "
+             "AGREE selector (c2f: its sequential total). 1.0 m = the nested integer subset of the 0.5 m grid with "
+             "full-grid common random numbers. c2f accuracy = the sequential c2f runs (seed 42 the timed pass, 43 / 44 "
+             "accuracy runs); the offline c2f readout of the 0.5 m runs is a reported cross-check.", "",
              "| Method | Grid | s/query | candidates / query | median error [m] | SR@0.5 m | SR@1 m | res.-aware SR@0.5 | timing |",
              "|---|---|---:|---:|---:|---:|---:|---:|---|"]
     for p in b2["points"]:
@@ -409,7 +445,12 @@ def render_markdown(summary: dict) -> str:
     for metric, members in (b2["frontier"] or {}).items():
         lines.append(f"\nPareto frontier ({metric}, internal points only): " +
                      ", ".join(f"{b2['points'][i]['label']} {b2['points'][i]['grid_label']}" for i in members))
-    lines += ["", "c2f top-k sensitivity (post-primary; accuracy only; the registered k = 5 is above):", "",
+    for arm, by_seed in b2.get("c2f_parity", {}).items():
+        lines.append(f"\nc2f cross-check {LABELS[arm]} (sequential vs the parent's offline c2f, per seed): " + "; ".join(
+            f"s{seed} union {v['union_equal']}/{v['queries']}, winner {v['winner_equal']}/{v['queries']}, bitwise "
+            f"{v['bitwise_equal']}/{v['queries']}, max |dsim| {v['max_abs_similarity_delta']:.2e}"
+            for seed, v in sorted(by_seed.items())))
+    lines += ["", "c2f top-k sensitivity and the offline k = 5 readout (post-primary; accuracy only):", "",
               "| Method | Grid | median error [m] | SR@1 m |", "|---|---|---:|---:|"]
     lines += [f"| {LABELS[s['arm']]} | {s['grid']} | {_cell(s['accuracy'], 'median_localization_error_m')} | "
               f"{_cell(s['accuracy'], 'success_1_0m', True)} |" for s in b2["sensitivity"]]
@@ -429,10 +470,11 @@ def render_markdown(summary: dict) -> str:
         lines.append(f"PENDING: {synthesis.get('note')}")
     else:
         keys = synthesis["metrics_keys"]
-        lines += [f"Leaf commit `{synthesis['leaf_commit']}`; runbook: {synthesis['runbook']}.", "",
+        lines += [f"Leaf commit `{synthesis['leaf_commit']}`; runbook: {synthesis['runbook']}. Values = the per-scene "
+                  "mean of each metric (the paper's convention).", "",
                   "| Orbit | theta | K | source | " + " | ".join(keys) + " |", "|---|---:|---:|---|" + "---:|" * len(keys)]
         lines += [f"| {ORBITS[c['orbit']]} | {c['theta']} | {c['k_context']} | {c['source']} | "
-                  + " | ".join(f"{c['metrics'][k]:.3f}" for k in keys) + " |" for c in synthesis["cells"]]
+                  + " | ".join(f"{c['per_scene_mean'][k]:.3f}" for k in keys) + " |" for c in synthesis["cells"]]
     inventory = summary["inventory"]
     lines += ["", f"Sources: {len(inventory['runs'])} runs, {len(inventory['selectors'])} selector vectors, "
               f"{len(inventory['inputs'])} input manifests, the pinned exp_23 summary and bundle latency CSV, "
