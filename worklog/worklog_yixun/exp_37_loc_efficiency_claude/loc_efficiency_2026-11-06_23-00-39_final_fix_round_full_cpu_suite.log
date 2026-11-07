@@ -1,0 +1,125 @@
+HEAD 206c5b6e (code; the records commit f25b1c6e followed) (CPU, CUDA_VISIBLE_DEVICES=, PYTHONDONTWRITEBYTECODE=1): python -m pytest -q -p no:cacheprovider src/tests
+....................s................................................... [  7%]
+........................................................................ [ 15%]
+........................................................................ [ 22%]
+........................................................................ [ 30%]
+........................................................................ [ 37%]
+........................................................................ [ 45%]
+........................................................................ [ 52%]
+........................................................................ [ 60%]
+........................................................................ [ 67%]
+........................................................................ [ 75%]
+........................................................................ [ 82%]
+......FF................................................................ [ 90%]
+.....................s.................................................. [ 97%]
+........................                                                 [100%]
+=================================== FAILURES ===================================
+_____ test_mkl_pardiso_complex_symmetric_session_reuses_symbolic_analysis ______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x766f7bac0400>
+
+    def test_mkl_pardiso_complex_symmetric_session_reuses_symbolic_analysis(monkeypatch):
+        runtime = Path("/opt/anaconda3/lib/libmkl_rt.so")
+>       if not runtime.is_file():
+
+src/tests/test_fem_solver.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/envs/flac/lib/python3.10/pathlib.py:1322: in is_file
+    return S_ISREG(self.stat().st_mode)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/opt/anaconda3/lib/libmkl_rt.so'), follow_symlinks = True
+
+    def stat(self, *, follow_symlinks=True):
+        """
+        Return the result of the stat() system call on this path, like
+        os.stat() does.
+        """
+>       return self._accessor.stat(self, follow_symlinks=follow_symlinks)
+E       PermissionError: [Errno 13] Permission denied: '/opt/anaconda3/lib/libmkl_rt.so'
+
+../../miniconda3/envs/flac/lib/python3.10/pathlib.py:1097: PermissionError
+______________ test_mkl_pardiso_multi_rhs_preserves_column_layout ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x766f27d97250>
+
+    def test_mkl_pardiso_multi_rhs_preserves_column_layout(monkeypatch):
+        runtime = Path("/opt/anaconda3/lib/libmkl_rt.so")
+>       if not runtime.is_file():
+
+src/tests/test_fem_solver.py:152: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/envs/flac/lib/python3.10/pathlib.py:1322: in is_file
+    return S_ISREG(self.stat().st_mode)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/opt/anaconda3/lib/libmkl_rt.so'), follow_symlinks = True
+
+    def stat(self, *, follow_symlinks=True):
+        """
+        Return the result of the stat() system call on this path, like
+        os.stat() does.
+        """
+>       return self._accessor.stat(self, follow_symlinks=follow_symlinks)
+E       PermissionError: [Errno 13] Permission denied: '/opt/anaconda3/lib/libmkl_rt.so'
+
+../../miniconda3/envs/flac/lib/python3.10/pathlib.py:1097: PermissionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+src/tests/test_baseline_experiment.py::test_few_shot_checkpoint_loader_accepts_lightning_prefix_and_is_strict
+src/tests/test_few_shot_rir_waveform.py::test_waveform_model_accepts_flac_ar_inputs_and_outputs_direct_waveform
+src/tests/test_few_shot_rir_waveform.py::test_one_model_supports_k1_and_k8_with_an_explicit_validity_mask
+src/tests/test_few_shot_rir_waveform.py::test_context_memory_is_permutation_invariant_and_ignores_masked_slots
+src/tests/test_few_shot_rir_waveform.py::test_waveform_model_rejects_wrong_geometry_and_context_contracts
+src/tests/test_few_shot_training.py::test_model_and_training_factories_construct_waveform_baseline_from_scratch
+src/tests/test_few_shot_training.py::test_training_batch_uses_one_nested_context_count_and_direct_target
+src/tests/test_few_shot_training.py::test_one_training_step_updates_randomly_initialized_baseline_weights
+src/tests/test_few_shot_training.py::test_validation_reports_both_primary_context_counts
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+    warnings.warn(
+
+src/tests/test_bn_drift_probe.py::test_recorder_finds_all_bns
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_bn_drift_probe.py::test_recorder_finds_all_bns
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+src/tests/test_cond_dispatch.py::test_dispatch_all_three_sites
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/amp/autocast_mode.py:266: UserWarning: User provided device_type of 'cuda', but CUDA is not available. Disabling
+    warnings.warn(
+
+src/tests/test_fewshot_rir.py::test_model_retains_independent_context_tokens_and_deterministic_griffin_lim
+src/tests/test_fewshot_rir.py::test_factory_training_wrapper_and_official_spectral_losses
+src/tests/test_fewshot_rir.py::test_upstream_query_mask_contract_is_all_valid_and_not_sent_to_transformer
+src/tests/test_fewshot_rir.py::test_fewshot_rir_checkpoint_loader_uses_exact_public_name
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.self_attn.batch_first was not True(use batch_first for better inference performance)
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_fem_solver.py::test_mkl_pardiso_complex_symmetric_session_reuses_symbolic_analysis
+FAILED src/tests/test_fem_solver.py::test_mkl_pardiso_multi_rhs_preserves_column_layout
+2 failed, 956 passed, 2 skipped, 21 warnings in 216.65s (0:03:36)
+rc=1
+--- exp_37 tests collected at the same code: 687 (all passed: only the 2 pre-existing test_fem_solver.py MKL PARDISO tests fail)
+--- the runbook's read-only preflight after the Planner moved the incident material out: check P0.1 -> READY, exit 0 (no log, receipt or command); check P0.2 -> refused, predecessor P0.1 (expected)

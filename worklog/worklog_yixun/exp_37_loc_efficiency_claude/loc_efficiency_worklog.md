@@ -451,6 +451,8 @@ Append-only, one entry per action (SOP template). The Planner's notebook for exp
   logged and receipted command is the executed one.
 - **N-02** (`ddb9aea2` / `206c5b6e`; `test_exp37_c2f_docs.py`): the two module docs now state the three-seed
   sequential c2f policy.
+- **Tests (CPU).** 687 exp_37 tests, all passing; the full CPU suite 956 passed, 2 skipped, 2 failed (the same 2 pre-existing `test_fem_solver.py` MKL PARDISO tests); log `loc_efficiency_*_final_fix_round_full_cpu_suite.log`.
+- **B-02 preflight (after the Planner moved the untracked incident material out).** `bash exp37_runbook.sh check P0.1` -> READY, exit 0 (no log, receipt or command); the tree is clean apart from the allowlisted `AcousticRooms`.
 - **B-02 support** (`1393b935` / `1bc1d621`):
   - `check STEP` is a read-only preflight: no log, gate, receipt or command.
   - Untracked incident material is never allowlisted, and a test pins that. The allowlist is unchanged.
