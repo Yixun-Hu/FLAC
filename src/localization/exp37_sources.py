@@ -75,11 +75,18 @@ def dump_coverage(run_dir, manifest: dict, counts: dict) -> dict:
     bound = all(payload.get(k) == identity.get(k) for k in ("checkpoint_sha256", "sample_seed", "attention_backend"))
     if payload["mode"] != dump["mode"] or payload["replay_of"] != identity.get("replay_of") or not bound:
         raise RuntimeError(f"{run_dir}: the dump manifest's mode / replay / checkpoint / seed / backend is not the run's")
+    subset = identity.get("candidate_subset") is not None
     for index in counts:
-        named = query_record(run_dir, manifest, index)[0].get("waveforms") or {}
+        query = query_record(run_dir, manifest, index)[0]
+        named = query.get("waveforms") or {}
         entry = payload["coverage"]["files"][str(int(index))]
-        if any(named.get(k) != entry[k] for k in ("path", "sha256", "full_indices_sha256")):
-            raise RuntimeError(f"{run_dir}: query {index} does not name its dumped waveform file")
+        if any(named.get(k) != entry.get(k) for k in ("path", "sha256", "indices_path", "indices_sha256",
+                                                      "full_indices_sha256")):
+            raise RuntimeError(f"{run_dir}: query {index} does not name its dumped waveform / index files")
+        rows = wav.dump_indices(dump["dir"], entry).astype(np.int64)    # review 2 BLOCKING 2: the actual mapping
+        if (subset and entry["full_indices_sha256"] != query.get("candidate_indices_sha256")) or (
+                not subset and not np.array_equal(rows, np.arange(int(counts[index])))):
+            raise RuntimeError(f"{run_dir}: query {index}'s dumped index vector is not its candidate mapping")
     return {"dump_dir": dump["dir"], "dump_manifest_sha256": payload["sha256"], "mode": payload["mode"]}
 
 

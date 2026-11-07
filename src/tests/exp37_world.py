@@ -101,10 +101,13 @@ class World:
                     c, s = np.array(arrays["candidates"]), np.array(arrays["similarities"])
                 extra = {k: source[k] for k in ("candidate_indices_sha256", "parent_candidate_indices_sha256",
                                                 "candidate_subset") if k in source}
+                rows = (np.asarray(source["c2f"]["union_indices"]) if "c2f" in source else grid.nested_subset(HALF)
+                        if "candidate_subset" in source else np.arange(len(c)))       # the actual row mapping
             else:
                 c = cands(r) if callable(cands) else cands
                 s = (sims(HALF, 42)[sims_rows] if sims_rows is not None else sims(c, seed)).reshape(-1, 1)
                 extra = {"candidate_indices_sha256": r["candidate_indices_sha256"]}
+                rows = np.asarray(sims_rows) if sims_rows is not None else np.arange(len(c))
             result = {"run_manifest_sha256": manifest["sha256"], "query_index": r["index"], "query_id": r["query_id"],
                       "room": r["room"], "candidate_count": len(c), "peak_memory_bytes": 7, "source_global": TRUTH,
                       "metrics": {"1": grid.recomputed_k1_metrics(c, s, TRUTH, 0.1)}, **extra}
@@ -116,8 +119,7 @@ class World:
                                                "core_forward_total": core})
             result.update((per_query or {}).get(r["index"], {}))
             if store:
-                entry = store.write(r["index"], np.full((len(c), 1, 10240), 0.001 * r["index"], np.float32),
-                                    np.arange(len(c)))
+                entry = store.write(r["index"], np.full((len(c), 1, 10240), 0.001 * r["index"], np.float32), rows)
                 result["waveforms"] = {"dump_dir": str(store.dir), **entry}
             save_query_result(run_dir, result=result, candidates=c, similarities=s)
         if store:

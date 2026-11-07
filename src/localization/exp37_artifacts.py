@@ -54,6 +54,10 @@ def check_dump_request(output_dir, dump_waveforms, replay_of, *, timed: bool, ex
                          f"({Path(output_dir).name!r}) directly under the registered root")
     if dump_dir.exists():
         raise RuntimeError(f"{dump_dir} exists (waveform dumps are write-once)")
+    from src.localization.exp37_waveforms import staging_leftovers
+    if staging_leftovers(root, dump_dir.name):
+        raise RuntimeError(f"an unpublished dump of {dump_dir.name} is staged under {root}: quarantine it first "
+                           "(tools/exp37_quarantine.py) and re-run into a fresh run directory")
 
 
 def _verified(path: Path) -> dict:
