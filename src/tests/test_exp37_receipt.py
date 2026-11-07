@@ -44,6 +44,7 @@ def test_every_mismatch_is_refused(tmp_path):
     assert _check(path, "--max-age-hours", "6").returncode == 2             # stale
     assert _check(tmp_path / "missing.json").returncode == 2
     body = json.loads(path.read_text())
+    path.chmod(0o644)                                                       # receipts are written read-only
     path.write_text(json.dumps({**body, "status": "skipped"}))              # tampered
     assert _check(path).returncode == 2
     other = tmp_path / "other.json"
