@@ -77,6 +77,7 @@ def test_an_accuracy_only_run_is_accepted_with_its_inline_dump(tmp_path):
 def test_a_tampered_or_unnamed_waveform_file_is_refused(tmp_path):
     pilot = _pilot({1: 3})
     run, _ = make_run(tmp_path, "acc", "P1", pilot, timing=False, seed=43)
+    (tmp_path / "waves" / "acc" / "query_00001.npy").chmod(0o644)          # r2: published files are read-only
     np.save(tmp_path / "waves" / "acc" / "query_00001.npy", np.zeros((3, 1, 10240), np.float32))
     with pytest.raises(RuntimeError, match="sha256"):
         sources.accuracy_source(run, arm="P1", selection=pilot, audit=AUDIT, seed=43, timing=False)

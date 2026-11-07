@@ -105,7 +105,9 @@ def test_tampered_sources_are_refused(world):
     again = World(world.root / "again").build()
     again.external()                                                     # the same synthetic references
     spec = _spec(again)
-    np.save(world.root / "again" / "waves" / "b2_0p50_P1_s43" / "query_00001.npy", np.zeros((15, 1, 10240), np.float32))
+    target = world.root / "again" / "waves" / "b2_0p50_P1_s43" / "query_00001.npy"
+    target.chmod(0o644)                                                   # r2: published files are read-only
+    np.save(target, np.zeros((15, 1, 10240), np.float32))
     with pytest.raises(RuntimeError, match="sha256"):
         tool.build_summary(spec)
 

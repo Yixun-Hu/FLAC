@@ -42,7 +42,7 @@ def test_the_untimed_executor_computes_the_headline_and_dumps_the_scored_tensors
     dump = _dump(tmp_path, f"a_{cond_method}")
     result, a_cands, a_sims = art.execute_query_artifacts(cond_method=cond_method, dump=dump, **inputs)
     assert np.array_equal(a_cands, cands) and np.array_equal(a_sims, sims)                  # bitwise, same batches
-    waves = np.load(dump.dir / result["waveforms"]["path"])
+    waves = np.load(dump.path(result["waveforms"]["path"]))            # r2: staged until finish()
     assert waves.shape == (len(GRID), 1, 10240) and waves.dtype == np.float32
     module = inputs["module"]
     first = runner._cache_branch(module, runner.candidate_metadata(_fake_query(inputs["record"], ".")[1], GRID[:8],
@@ -96,5 +96,5 @@ def test_the_executor_is_never_timed(inputs, tmp_path):
 def test_a_rotated_run_dumps_its_scored_waveforms_inline(inputs, tmp_path):
     dump = _dump(tmp_path, "rot")
     result, cands, _ = exp37_rotation.execute_query_rotated(cond_method="vanilla", rotate_deg=90.0, dump=dump, **inputs)
-    waves = np.load(dump.dir / result["waveforms"]["path"])
+    waves = np.load(dump.path(result["waveforms"]["path"]))            # r2: staged until finish()
     assert waves.shape == (len(cands), 1, 10240) and result["waveforms"]["sha256"] == dump.files[4467]["sha256"]

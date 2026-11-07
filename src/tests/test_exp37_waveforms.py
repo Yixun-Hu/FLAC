@@ -24,7 +24,7 @@ def _waves(m, seed=0):
 def test_a_dump_is_write_once_under_its_run_stem(tmp_path):
     root = tmp_path / "exp37_pred_waveforms"
     dump = wav.WaveformDump(root / "b2_0p50_P1_s43", run_stem="b2_0p50_P1_s43", root=root)
-    with pytest.raises(RuntimeError, match="exists"):
+    with pytest.raises(RuntimeError, match="exists|quarantine"):          # r2: its staging blocks the stem
         wav.WaveformDump(root / "b2_0p50_P1_s43", run_stem="b2_0p50_P1_s43", root=root)
     with pytest.raises(ValueError, match="run stem"):
         wav.WaveformDump(root / "other", run_stem="b2_0p50_P1_s43", root=root)
@@ -32,9 +32,9 @@ def test_a_dump_is_write_once_under_its_run_stem(tmp_path):
         wav.WaveformDump(tmp_path / "elsewhere" / "x", run_stem="x", root=root)
     entry = dump.write(7, _waves(3), np.array([0, 4, 9]))
     assert entry["path"] == "query_00007.npy" and entry["shape"] == [3, 1, 10240] and entry["dtype"] == "float32"
-    assert entry["sha256"] == hashlib.sha256((dump.dir / "query_00007.npy").read_bytes()).hexdigest()
+    assert entry["sha256"] == hashlib.sha256(dump.path("query_00007.npy").read_bytes()).hexdigest()
     assert entry["full_indices_sha256"] == hashlib.sha256(np.array([0, 4, 9], dtype="<u4").tobytes()).hexdigest()
-    assert np.array_equal(np.load(dump.dir / "query_00007.npy"), _waves(3))
+    assert np.array_equal(np.load(dump.path("query_00007.npy")), _waves(3))
     with pytest.raises(RuntimeError, match="written"):
         dump.write(7, _waves(3), np.arange(3))
 
@@ -75,6 +75,7 @@ def test_a_dump_that_is_not_the_run_s_or_was_changed_is_refused(tmp_path):
         wav.load_dump_manifest(root / "r", run_manifest_sha256="m" * 64, query_counts={1: 2, 2: 3})
     with pytest.raises(RuntimeError, match="shape"):
         wav.load_dump_manifest(root / "r", run_manifest_sha256="m" * 64, query_counts={1: 3})
+    (root / "r" / "query_00001.npy").chmod(0o644)                         # r2: published files are read-only
     np.save(root / "r" / "query_00001.npy", _waves(2, 9))
     with pytest.raises(RuntimeError, match="sha256"):
         wav.load_dump_manifest(root / "r", run_manifest_sha256="m" * 64, query_counts={1: 2})
