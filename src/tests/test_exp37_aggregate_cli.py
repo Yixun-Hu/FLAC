@@ -183,3 +183,40 @@ def test_the_cli_refuses_an_incomplete_spec_before_writing(world, tmp_path, monk
     out = tmp_path / "o" / "b2b3.json"
     assert _main(monkeypatch, ["--spec", spec, "--output-json", out, "--output-md", out.with_suffix(".md")]) == 2
     assert not (tmp_path / "o").exists()
+
+
+def test_publication_is_one_transaction(world, tmp_path, monkeypatch):
+    """Review 2 HIGH 7: a figure failure, or a failure while linking the outputs into place, leaves NO final output
+    (JSON, markdown, PNG, PDF) and no staging behind; a later clean run publishes all four."""
+    import os
+    monkeypatch.setenv("MPLCONFIGDIR", str(tmp_path / "mpl"))
+    spec = tmp_path / "spec.json"
+    spec.write_text(json.dumps(_spec(world)))
+    out, stem = tmp_path / "out" / "b2b3.json", tmp_path / "out" / "b2_pareto"
+    argv = ["--spec", spec, "--output-json", out, "--output-md", out.with_suffix(".md"), "--figure-stem", stem]
+    finals = [out, out.with_suffix(".md"), stem.with_suffix(".png"), stem.with_suffix(".pdf")]
+    real = tool.render_figure
+
+    def half(summary, where):
+        real(summary, where)
+        raise RuntimeError("figure backend failed after the PNG")
+    monkeypatch.setattr(tool, "render_figure", half)
+    with pytest.raises(RuntimeError, match="figure"):
+        _main(monkeypatch, argv)
+    assert not any(p.exists() for p in finals) and not list((tmp_path / "out").glob(".publish-*"))
+    monkeypatch.setattr(tool, "render_figure", real)
+    calls, link = [], os.link
+
+    def flaky(src, dst):
+        calls.append(dst)
+        if len(calls) == 3:
+            raise OSError("link failed")
+        return link(src, dst)
+    monkeypatch.setattr(os, "link", flaky)
+    with pytest.raises(OSError, match="link"):
+        _main(monkeypatch, argv)
+    assert not any(p.exists() for p in finals)
+    monkeypatch.setattr(os, "link", link)
+    assert _main(monkeypatch, argv) == 0 and all(p.exists() for p in finals)
+    published = json.loads(out.read_text())["published_files"]
+    assert set(published) == {p.name for p in finals[1:]}

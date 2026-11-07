@@ -3,6 +3,7 @@ the bundle's statistics, peak memory as separate quantities (whole-query peak, s
 loaded-weight footprint), co-tenancy validity, and the stage split only when it agrees with the headline within
 2 %. CPU only, synthetic runs. Written by the exp_37 Coder (Claude Opus 5.5, max effort), round B-b.
 """
+import hashlib
 import json
 import subprocess
 import sys
@@ -129,6 +130,18 @@ def _registered(run, *, k1_splits=True, busy=None):
     return runs, splits
 
 
+def _replays(tmp_path, selection, runs, splits):
+    """D-c: every pass's untimed artifact replay (bitwise, dumped), as --replay / --split-replay arguments."""
+    from exp37_world import World
+    w = World(tmp_path / "replays")
+    out = []
+    for flag, items in (("--replay", runs), ("--split-replay", splits)):
+        for arm, k, d in items:
+            out += [flag, arm, k, w.make(f"{Path(d).name}_replay", arm, selection, AUDIT, kind="replay", of=d,
+                                         context_count=k)]
+    return out
+
+
 def _argv(sel_path, selector, tmp_path, runs, splits, out, extra=()):
     argv = ["--selection", sel_path, "--selector", selector, "--geometry-audit", tmp_path / "audit.json",
             "--output-json", out, "--output-md", out.with_suffix(".md")]
@@ -144,53 +157,70 @@ def _main(monkeypatch, argv):
     return summ.main()
 
 
-def test_the_registered_table_publishes_once_with_its_inventory(world, tmp_path, monkeypatch):
+def _complete(world, tmp_path, **kw):
     selection, sel_path, selector, run = world
-    runs, splits = _registered(run)
+    runs, splits = _registered(run, **kw)
+    return runs, splits, _replays(tmp_path, selection, runs, splits) + ["--require-replays"]
+
+
+def test_the_registered_table_publishes_once_with_its_inventory(world, tmp_path, monkeypatch):
+    selection, sel_path, selector, _run = world
+    runs, splits, extra = _complete(world, tmp_path)
     out = tmp_path / "b1" / "summary.json"
-    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out)) == 0
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out, extra)) == 0
     summary = json.loads(out.read_text())
     inventory = summary["inventory"]
     assert set(inventory["runs"]) == {str(d) for _a, _k, d in runs + splits}
-    assert all(len(e["attestation"]["monitor_head_sha256"]) == 64 for e in inventory["runs"].values())
+    assert all(len(e["attestation"]["monitor_head_sha256"]) == 64 and e["replay"]["waveforms"]["mode"] == "replay"
+               for e in inventory["runs"].values())
     assert inventory["selector"]["binding_sha256"] and inventory["selection"]["sha256"] == selection["sha256"]
-    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out)) == 2          # write-once
+    assert summary["published_files"] == {out.with_suffix(".md").name: hashlib.sha256(
+        out.with_suffix(".md").read_bytes()).hexdigest()}
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out, extra)) == 2          # write-once
 
 
 def test_the_k1_splits_are_all_or_none_and_the_rows_are_exactly_registered(world, tmp_path, monkeypatch):
-    _selection, sel_path, selector, run = world
-    runs, splits = _registered(run, k1_splits=False)                     # NIT 2: the K_ctx 1 splits dropped
-    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, tmp_path / "a" / "s.json")) == 0
-    for bad_runs, bad_splits in ((runs[:-1], splits), (runs, splits[:2]),
-                                 (runs, splits + [("P1", 1, run("s1_only", "P1", k=1, split=True))])):
+    selection, sel_path, selector, run = world
+    runs, splits, extra = _complete(world, tmp_path, k1_splits=False)       # NIT 2: the K_ctx 1 splits dropped
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, tmp_path / "a" / "s.json", extra)) == 0
+    for bad_runs, bad_splits in ((runs[:-1], splits), (runs, splits[:2])):
         out = tmp_path / "bad" / "s.json"
-        assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, bad_runs, bad_splits, out)) == 2
+        assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, bad_runs, bad_splits, out, extra)) == 2
         assert not out.parent.exists()
 
 
 def test_an_unattested_row_writes_only_a_diagnostic(world, tmp_path, monkeypatch):
-    _selection, sel_path, selector, run = world
-    runs, splits = _registered(run, busy=("BF", 1))
+    selection, sel_path, selector, run = world
+    runs, splits, extra = _complete(world, tmp_path, busy=("BF", 1))
     out = tmp_path / "b1" / "summary.json"
-    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out)) == 3
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out, extra)) == 3
     assert not out.exists() and not out.with_suffix(".md").exists()
     diagnostic = json.loads((tmp_path / "b1" / "summary.DIAGNOSTIC.json").read_text())
     assert diagnostic["publishable"] is False and any("BF" in r for r in diagnostic["reasons"])
     assert (tmp_path / "b1" / "summary.DIAGNOSTIC.md").read_text().startswith("# DIAGNOSTIC")
 
 
-def test_replays_are_validated_and_can_be_required(world, tmp_path, monkeypatch):
-    from exp37_world import World
+def test_the_replays_are_mandatory(world, tmp_path, monkeypatch):
+    """D-c: no written exp_37 exemption -- --require-replays and one validated replay per pass, always."""
     selection, sel_path, selector, run = world
-    runs, splits = _registered(run)
+    runs, splits, extra = _complete(world, tmp_path)
     out = tmp_path / "r" / "s.json"
-    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out, ["--require-replays"])) == 2
-    w = World(tmp_path / "w")
-    replays = [("--replay", a, k, w.make(f"{Path(d).name}_replay", a, selection, AUDIT, kind="replay", of=d,
-                                          context_count=k)) for a, k, d in runs]
-    replays += [("--split-replay", a, k, w.make(f"{Path(d).name}_replay", a, selection, AUDIT, kind="replay", of=d,
-                                                 context_count=k)) for a, k, d in splits]
-    extra = [str(x) for item in replays for x in item] + ["--require-replays"]
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out)) == 2                 # none
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out, extra[:-1])) == 2     # no flag
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out, extra[4:])) == 2      # one missing
+    assert not out.parent.exists()
     assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out, extra)) == 0
-    entry = json.loads(out.read_text())["inventory"]["runs"][str(runs[0][2])]
-    assert entry["replay"]["waveforms"]["mode"] == "replay"
+
+
+def test_publication_is_one_transaction(world, tmp_path, monkeypatch):
+    """Review 2 HIGH 7: a failure while rendering or publishing leaves NO final output (and no staging)."""
+    selection, sel_path, selector, run = world
+    runs, splits, extra = _complete(world, tmp_path)
+    out = tmp_path / "t" / "s.json"
+
+    def broken(summary):
+        raise RuntimeError("markdown renderer failed")
+    monkeypatch.setattr(summ, "render_markdown", broken)
+    with pytest.raises(RuntimeError, match="renderer"):
+        _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out, extra))
+    assert not out.exists() and not out.with_suffix(".md").exists() and not list(out.parent.glob(".publish-*"))
