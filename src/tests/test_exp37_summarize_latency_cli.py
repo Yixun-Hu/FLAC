@@ -224,3 +224,18 @@ def test_publication_is_one_transaction(world, tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="renderer"):
         _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out, extra))
     assert not out.exists() and not out.with_suffix(".md").exists() and not list(out.parent.glob(".publish-*"))
+
+
+@pytest.mark.parametrize("key", ["pid", "pid_start_ticks", "hostname", "card_uuid"])
+def test_an_incomplete_producer_record_refuses_cleanly(world, tmp_path, monkeypatch, key):
+    """Review 3 H-05: a hash-valid producer.json missing one field is a timing-invalid row (exit 3, diagnostic only),
+    never a KeyError traceback."""
+    selection, sel_path, selector, _run = world
+    runs, splits, extra = _complete(world, tmp_path)
+    path = Path(runs[0][2]) / "producer.json"
+    body = {k: v for k, v in json.loads(path.read_text()).items() if k not in ("sha256", key)}
+    path.write_text(json.dumps({**body, "sha256": canonical_sha256(body)}))
+    out = tmp_path / "b1" / "summary.json"
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out, extra)) == 3
+    diagnostic = json.loads((tmp_path / "b1" / "summary.DIAGNOSTIC.json").read_text())
+    assert not out.exists() and any(key in r for r in diagnostic["reasons"])
