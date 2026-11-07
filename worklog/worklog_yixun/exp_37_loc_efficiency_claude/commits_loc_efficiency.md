@@ -137,3 +137,8 @@ Changed code lines exclude worklog records (the bash asset script `exp37_assets.
 | `c06ddc7e` | RED | 125 | the executable runbook tests |
 | `a43e6f83` | GREEN | 207 | `exp37_runbook.sh` (OVER 200: the 207-line script) + inputs + planned spec (data) |
 | `5d14de19` | records | 0 | `exp37_runbook_r2.md`; B-a / B-b / B-c SUPERSEDED; the B1 -> B2 note qualified |
+| `08ec3824` | records | 0 | the fix-round note, this table, the runbook P0 logs, the CPU waveform dry-run log |
+| `9b2ca5bb` | RED | 11 | a gate writes into a fresh directory (the runbook's `gates/`) |
+| `697e2b0f` | GREEN | 1 | `--gate-only` creates its directory |
+| `8d0721c7` | RED | 12 | a dump must be named after its own run |
+| `5eddbba8` | GREEN | 2 | `dump_coverage` checks the stem |

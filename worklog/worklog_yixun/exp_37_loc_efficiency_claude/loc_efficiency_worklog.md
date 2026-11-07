@@ -234,3 +234,9 @@ Append-only, one entry per action (SOP template). The Planner's notebook for exp
      denied.
   7. **B3 synthesis** is a placeholder until the Planner supplies the exp_36 leaf commit, commands and cells.
 - **Next.** Codex code review 2 (round 2 of 3, Planner); GPU runs per `exp37_runbook_r2.md` after the handshake.
+- **Addendum (19:35 EST).** Walking the runbook step by step found two gaps; each was fixed RED then GREEN:
+  - `9b2ca5bb` / `697e2b0f`: `--gate-only` now creates the runbook's `gates/` directory. Before this, the first gate
+    step in a fresh checkout would have failed with FileNotFoundError.
+  - `8d0721c7` / `5eddbba8`: a run's dump directory must be named after the run, so a copied run cannot claim another
+    run's dump.
+  - exp_37 suites are now 400 passed. The full CPU suite is 669 passed, 2 skipped, 2 failed (the same 2 FEM tests).
