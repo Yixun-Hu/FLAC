@@ -13,14 +13,17 @@ from pathlib import Path
 
 import pytest
 
-from exp37_world import World
+from exp37_world import World, patch_synthesis
 from src.localization import exp37_synthesis as syn
 
 
 @pytest.fixture
-def section(tmp_path):
+def section(tmp_path, monkeypatch):
     world = World(tmp_path)
-    return world, json.loads(world.synthesis().read_text())
+    patch_synthesis(monkeypatch, world)
+    body = json.loads(world.synthesis().read_text())
+    monkeypatch.setattr(syn, "REUSED", world.reused)
+    return world, body
 
 
 def test_a_complete_section_validates_from_its_own_artifacts(section):
@@ -92,4 +95,40 @@ def test_a_swapped_receipt_names_another_cell(section):
     a["receipt"], b["receipt"] = b["receipt"], a["receipt"]
     a["receipt_sha256"], b["receipt_sha256"] = b["receipt_sha256"], a["receipt_sha256"]
     with pytest.raises(RuntimeError, match="cell|stem"):
+        syn.validate_section(body)
+
+
+def test_the_registered_synthesis_identity_is_pinned():
+    """The Planner's leaf (exp-37-b3-synthesis launch commit d3013734, its run worktree) and the reused exp_35
+    phase-(i) C4 cells with their full digests (the leaf's 19-26-27 record)."""
+    assert syn.LEAF_COMMIT == "d30137349027914af7f04462b05347f0f9e03c02"
+    assert syn.LEAF_ROOT == "/home/yixunhu/codespace/exp-37-b3-synthesis"
+    assert syn.EXP35_ROOT == "/home/yixunhu/codespace/exp-35-orbitrir-yaw"
+    assert syn.REUSED["exp35_BF_T_S40000_K1_s42"]["metrics_sha256"].startswith("1e1768e3")
+    assert syn.REUSED["exp35_BF_C4_S40000_K8_s42_th90"]["dump_manifest_sha256"].startswith("975cb721")
+    assert sorted(syn.REUSED) == sorted(syn.cell_name(o, t, k)[0] for o in ("c4",) for t in (0, 90) for k in (1, 8))
+
+
+def test_the_artifacts_must_sit_at_the_pinned_layout(section, tmp_path):
+    _world, body = section
+    cell = body["cells"][0]
+    moved = tmp_path / "elsewhere.json"
+    moved.write_bytes(Path(cell["metrics_json"]).read_bytes())
+    cell["metrics_json"] = str(moved)
+    with pytest.raises(RuntimeError, match="layout"):
+        syn.validate_section(body)
+
+
+def test_a_reused_cell_must_be_the_pinned_exp35_evidence(section, monkeypatch):
+    _world, body = section
+    name = next(c["cell"] for c in body["cells"] if c["source"] == "reused_exp35")
+    monkeypatch.setitem(syn.REUSED, name, {**syn.REUSED[name], "receipt_sha256": "0" * 64})
+    with pytest.raises(RuntimeError, match="pinned"):
+        syn.validate_section(body)
+
+
+def test_the_section_must_name_the_leaf_launch_commit(section):
+    _world, body = section
+    body["leaf_commit"] = "f" * 40
+    with pytest.raises(RuntimeError, match="leaf commit"):
         syn.validate_section(body)

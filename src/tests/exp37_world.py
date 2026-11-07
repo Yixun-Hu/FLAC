@@ -186,7 +186,8 @@ class World:
         from src.localization import exp37_synthesis as syn
         name, block, source = syn.cell_name(orbit, theta, k)
         stem, pin = syn.cell_stem(orbit, theta, k), leaf_commit if source == "new" else syn.H35_PIN
-        folder = self.root / "synthesis" / source
+        paths = syn.cell_paths(orbit, theta, k)
+        folder = Path(paths["metrics_json"]).parent
         folder.mkdir(parents=True, exist_ok=True)
         value = 10.0 + k + theta / 90 + len(syn.ORBITS[orbit])
         metrics = {"metrics": {key: value + i for i, key in enumerate(keys)},
@@ -197,7 +198,7 @@ class World:
                    "weights_source": "ema", "device": "cuda", "ckpt_sha256_loaded": syn.CKPT_SHA256,
                    "ckpt_bytes_loaded": 1, "by_scene": {scene: {key: value + i + j for i, key in enumerate(keys)}
                                                          for j, scene in enumerate(("Cafe", "Office"))}}
-        metrics_path = folder / f"{stem}.json"
+        metrics_path = Path(paths["metrics_json"])
         metrics_path.write_text(json.dumps(metrics))
         metrics_sha = hashlib.sha256(metrics_path.read_bytes()).hexdigest()
         wave = hashlib.sha256(stem.encode()).hexdigest()
@@ -207,7 +208,7 @@ class World:
                     "metrics_sha256": metrics_sha, "stream_sidecar_path": f"outputs_FLAC/exp25_depth_canon/BF/{stem}.stream.json",
                     "stream_sidecar_sha256": "2" * 64, "canon_sidecar_path": None, "canon_sidecar_sha256": None}
         manifest_bytes = json.dumps(manifest, indent=2).encode()
-        manifest_path = self.root / "synthesis_dumps" / stem / "manifest.json"
+        manifest_path = Path(paths["dump_manifest"])
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
         manifest_path.write_bytes(manifest_bytes)
         argv = ["--model-config", syn.MODEL_CONFIG[0], "--dataset-config", syn.DATASET[k][0], "--cond-method",
@@ -228,7 +229,7 @@ class World:
                   "dump_evidence": {"manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(), "manifest": manifest,
                                     "marker": f"{wave}\n", "waveforms_sidecar": f"{wave}  waveforms.npy\n"},
                   "lane": 0, "log": f"worklog/{name}.log", "rc": 0, **syn.NO_FLASH}
-        receipt_path = folder / f"{stem}.cell.json"
+        receipt_path = Path(paths["receipt"])
         receipt_path.write_text(json.dumps({key: values[key] for key in syn.RECEIPT_KEYS}, indent=2))
         sha = lambda path: hashlib.sha256(Path(path).read_bytes()).hexdigest()
         return {"orbit": orbit, "theta": theta, "k_context": k, "seed": 42, "source": source, "cell": name,
@@ -236,10 +237,19 @@ class World:
                 "receipt_sha256": sha(receipt_path), "dump_manifest": str(manifest_path),
                 "dump_manifest_sha256": sha(manifest_path)}
 
+    def synthesis_roots(self):
+        """Where this world's synthesis artifacts live (the leaf / exp_35 worktrees and the dump root stand-ins)."""
+        return {"LEAF_ROOT": str(self.root / "leaf"), "EXP35_ROOT": str(self.root / "exp35"),
+                "DUMP_ROOT": str(self.root / "exp25_dumps"), "LEAF_COMMIT": "e" * 40}
+
     def synthesis(self, *, status="complete", leaf_commit="e" * 40):
+        """The synthesis section (call with exp37_synthesis's roots patched to ``synthesis_roots``); the reused
+        cells' digests are kept in ``self.reused`` for the pinned table."""
         keys = ["T60", "C50"]
         cells = [self.synthesis_cell(o, t, k, leaf_commit, keys) for o in ("0", "0_180", "c4") for t in (0, 90)
                  for k in (1, 8)] if status == "complete" else []
+        self.reused = {c["cell"]: {key: c[key] for key in ("metrics_sha256", "receipt_sha256", "dump_manifest_sha256")}
+                       for c in cells if c["source"] == "reused_exp35"}
         body = {"status": status, "leaf_commit": leaf_commit if status == "complete" else None,
                 "runbook": "the exp_36 leaf's B3 runbook (Planner)" if status == "complete" else None,
                 "metrics_keys": keys if status == "complete" else [], "cells": cells}
@@ -291,13 +301,27 @@ def add_timing_only_replays(world: World) -> World:
     return world
 
 
-def registered_world(root) -> World:
+def patch_synthesis(monkeypatch, world: World) -> None:
+    """Point exp37_synthesis's pinned roots / leaf commit at the world's stand-ins (tests only)."""
+    from src.localization import exp37_synthesis as syn
+    for name, value in world.synthesis_roots().items():
+        monkeypatch.setattr(syn, name, value)
+
+
+def registered_world(root, monkeypatch=None) -> World:
     """Every registered run: the B2 / B3 runs, the mandatory replays of every timing pass, the seed 43 / 44 c2f
-    accuracy runs, and the synthesis + external inputs."""
-    world = add_timing_only_replays(World(root).build())
+    accuracy runs, and the synthesis + external inputs (the synthesis roots patched when ``monkeypatch`` is given;
+    the reused cells' digests pinned too)."""
+    from src.localization import exp37_synthesis as syn
+    world = World(root)
+    if monkeypatch is not None:
+        patch_synthesis(monkeypatch, world)
+    world = add_timing_only_replays(world.build())
     for arm in ("P1", "BF"):
         for seed in (43, 44):
             world.c2f(f"b2a_c2f_{arm}_s{seed}", arm, seed=seed, kind="acc")
     world.synthesis()
+    if monkeypatch is not None:
+        monkeypatch.setattr(syn, "REUSED", world.reused)
     world.external()
     return world
