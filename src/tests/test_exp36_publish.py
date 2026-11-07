@@ -5,9 +5,8 @@ run by the runner or the chain. Set A = the 24 YAW-C4S cells (48 files), set OFF
 Gates before any write, under the global publication lock: the publisher checkout at its pin with a clean closure; the
 run checkout at the artifacts' pin (H36_I) and the exp-25 worktree at its expected HEAD; the destination the plain YAW
 farm directory of the exp-25 worktree, opened once (every later operation relative to that fd); the YAW replay's
-verdict ``equal`` at the pin AND re-computed identically; the set's cells verified with their dump evidence (offline;
-a dump is never copied), receipt 2 sdpa, under
-the verdict's campaign digest, each WITH its dump (receipt evidence, offline); none of the set's destinations (metrics
+verdict ``equal`` at the pin AND re-computed identically; the set's cells verified, receipt 2 sdpa, under the verdict's
+campaign digest, each WITH its dump evidence (the receipt's, offline; a dump is never copied); none of the set's destinations (metrics
 JSON + stream sidecar; never the replay, never a ``.cell.json``, never a dump) present. Each file is written to a temp named by the publication's transaction id, fsynced,
 hard-linked to its final name (no replace) and re-hashed; the publication manifest (created exclusively, replaced only
 while authenticated) records sources, destinations, hashes, receipts, the pin, the digest, the exp-25 HEAD, the archived
@@ -292,14 +291,14 @@ LAUNCH = os.path.join(T.REPO, "worklog", "worklog_yixun", "exp_36_yaw_c4_spread_
 
 def test_the_final_collector_reproduces_a_verdict_of_the_launch_collector(world, tmp_path, monkeypatch):
     """The publication re-computes the replay verdict and requires PARSED-DICT equality with the recorded one. The
-    chains record it with the collector at the LAUNCH commit (H36_I2, recorded in yaw_c4_spread_launch_commit.txt after
-    it is committed), run in the run checkout with the runner's RELATIVE plan path; the publication re-computes it with
+    chains record it with the collector at the LAUNCH commit (recorded in yaw_c4_spread_launch_commit.txt after it is
+    committed: H36_I3 since review III), run in the run checkout with the runner's RELATIVE plan path; the publication re-computes it with
     this collector from another cwd, the same relative string resolved against --base-dir (review II NIT 2: both
     conditions in one test)."""
     import subprocess
     import types
     if not os.path.isfile(LAUNCH):
-        pytest.skip("no launch commit recorded yet: H36_I2 is recorded in a records commit after it")
+        pytest.skip("no launch commit recorded yet: it is recorded in a records commit after it")
     launch = open(LAUNCH).read().split()[0]
     path = os.path.join(T.EXPDIR, "depth_canon_collect.py")
     src = subprocess.run(["git", "-C", T.REPO, "show", f"{launch}:{os.path.relpath(path, T.REPO)}"], check=True,

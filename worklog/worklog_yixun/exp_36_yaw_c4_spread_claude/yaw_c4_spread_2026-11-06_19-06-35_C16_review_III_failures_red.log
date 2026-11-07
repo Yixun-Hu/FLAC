@@ -1,0 +1,913 @@
+RED, cycle 16 (Codex code review III HIGH 3: an internal I/O failure never strands a publication) at HEAD 8a5b11422cb722f12010e57a787726f54434a75b + the uncommitted tests. Note: the write-injection cases fail here because the current _write_new writes through a buffered file object, which the os.write injection does not reach (DID NOT RAISE / published); the fsync / replace / directory-fsync cases fail for the stated reason (a file or temp left behind, a stop not recorded).
+FFF.FFFFFFFFFFFFFF..FFFF                                                 [100%]
+=================================== FAILURES ===================================
+________ test_write_new_removes_the_file_it_created_on_a_failure[write] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_write_new_removes_the_fil0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a54d2470>
+name = 'write'
+
+    @pytest.mark.parametrize("name", ["write", "fsync"])
+    def test_write_new_removes_the_file_it_created_on_a_failure(tmp_path, monkeypatch, name):
+        path = str(tmp_path / "new.json")
+        inject(monkeypatch, name, lambda t: t == os.path.realpath(path), half=True)
+>       with pytest.raises(OSError, match=f"injected {name}"):
+E       Failed: DID NOT RAISE OSError
+
+src/tests/test_exp36_publish_failures.py:84: Failed
+________ test_write_new_removes_the_file_it_created_on_a_failure[fsync] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_write_new_removes_the_fil1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a54f9210>
+name = 'fsync'
+
+    @pytest.mark.parametrize("name", ["write", "fsync"])
+    def test_write_new_removes_the_file_it_created_on_a_failure(tmp_path, monkeypatch, name):
+        path = str(tmp_path / "new.json")
+        inject(monkeypatch, name, lambda t: t == os.path.realpath(path), half=True)
+        with pytest.raises(OSError, match=f"injected {name}"):
+>           C._write_new(path, b"x" * 4096)
+
+src/tests/test_exp36_publish_failures.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:2635: in _write_new
+    os.fsync(f.fileno())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = (11,), k = {}
+
+    def fn(*a, **k):
+        target = _path_of(a[0]) if name in ("write", "fsync") else os.fspath(a[0])
+        if match(target):
+            hits.append(target)
+            if len(hits) == at or (every and len(hits) >= at):
+                if half:
+>                   real(a[0], bytes(a[1])[: max(1, len(a[1]) // 2)])
+E                   IndexError: tuple index out of range
+
+src/tests/test_exp36_publish_failures.py:54: IndexError
+__________________ test_write_new_relative_to_a_directory_fd ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_write_new_relative_to_a_d0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a56aaa40>
+
+    def test_write_new_relative_to_a_directory_fd(tmp_path, monkeypatch):
+        dfd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            inject(monkeypatch, "fsync", lambda t: t == os.path.realpath(tmp_path / "rel.tmp"))
+            with pytest.raises(OSError, match="injected fsync"):
+                C._write_new("rel.tmp", b"z", dir_fd=dfd)
+>           assert not os.path.lexists(tmp_path / "rel.tmp")
+E           AssertionError: assert not True
+E            +  where True = <function lexists at 0x718793f77400>((PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_write_new_relative_to_a_d0') / 'rel.tmp'))
+E            +    where <function lexists at 0x718793f77400> = <module 'posixpath' from '/home/yixunhu/miniconda3/envs/flac/lib/python3.10/posixpath.py'>.lexists
+E            +      where <module 'posixpath' from '/home/yixunhu/miniconda3/envs/flac/lib/python3.10/posixpath.py'> = os.path
+
+src/tests/test_exp36_publish_failures.py:97: AssertionError
+________ test_write_new_never_removes_a_name_that_is_no_longer_its_file ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_write_new_never_removes_a0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a5a5f5e0>
+
+    def test_write_new_never_removes_a_name_that_is_no_longer_its_file(tmp_path, monkeypatch):
+        path, real = str(tmp_path / "swapped.json"), os.write
+    
+        def write(fd, data):
+            if _path_of(fd) == os.path.realpath(path):
+                os.rename(path, path + ".moved")                              # the new file moved away ...
+                with open(path, "wb") as f:                                   # ... and another put at its name
+                    f.write(b"another")
+                raise OSError(errno.EIO, "injected write failure")
+            return real(fd, data)
+    
+        proxy = types.SimpleNamespace(**vars(os))
+        proxy.write = write
+        monkeypatch.setattr(C, "os", proxy)
+>       with pytest.raises(OSError, match="injected write"):
+E       Failed: DID NOT RAISE OSError
+
+src/tests/test_exp36_publish_failures.py:128: Failed
+________ test_a_failed_initial_manifest_write_leaves_no_manifest[write] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_initial_manifest0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a53d4ee0>
+name = 'write'
+
+    @pytest.mark.parametrize("name", ["write", "fsync"])
+    def test_a_failed_initial_manifest_write_leaves_no_manifest(tmp_path, monkeypatch, name):
+        out = str(tmp_path / "m.json")
+        inject(monkeypatch, name, lambda t: t == os.path.realpath(out), half=True)
+        m = C._Manifest(out, "a" * 32)
+>       with pytest.raises(OSError, match=f"injected {name}"):
+E       Failed: DID NOT RAISE OSError
+
+src/tests/test_exp36_publish_failures.py:146: Failed
+________ test_a_failed_initial_manifest_write_leaves_no_manifest[fsync] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_initial_manifest1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a54d3ca0>
+name = 'fsync'
+
+    @pytest.mark.parametrize("name", ["write", "fsync"])
+    def test_a_failed_initial_manifest_write_leaves_no_manifest(tmp_path, monkeypatch, name):
+        out = str(tmp_path / "m.json")
+        inject(monkeypatch, name, lambda t: t == os.path.realpath(out), half=True)
+        m = C._Manifest(out, "a" * 32)
+        with pytest.raises(OSError, match=f"injected {name}"):
+>           m.write({"n": 0})
+
+src/tests/test_exp36_publish_failures.py:147: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:2668: in write
+    _write_new(self.path, data)
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:2635: in _write_new
+    os.fsync(f.fileno())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = (11,), k = {}
+
+    def fn(*a, **k):
+        target = _path_of(a[0]) if name in ("write", "fsync") else os.fspath(a[0])
+        if match(target):
+            hits.append(target)
+            if len(hits) == at or (every and len(hits) >= at):
+                if half:
+>                   real(a[0], bytes(a[1])[: max(1, len(a[1]) // 2)])
+E                   IndexError: tuple index out of range
+
+src/tests/test_exp36_publish_failures.py:54: IndexError
+_ test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[write] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_manifest_update_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a56adb40>
+name = 'write', half = True
+
+    @pytest.mark.parametrize("name, half", UPDATE, ids=[n for n, _ in UPDATE])
+    def test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces(tmp_path, monkeypatch, name, half):
+        out, m = _manifest(tmp_path)
+        before = open(out, "rb").read()
+        prefix = (out if name == "replace" else os.path.realpath(out)) + ".tmp-"
+        inject(monkeypatch, name, lambda t: t.startswith(prefix), half=half)
+>       with pytest.raises(OSError, match=f"injected {name}"):
+E       Failed: DID NOT RAISE OSError
+
+src/tests/test_exp36_publish_failures.py:162: Failed
+_ test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[fsync] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_manifest_update_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a56a9660>
+name = 'fsync', half = False
+
+    @pytest.mark.parametrize("name, half", UPDATE, ids=[n for n, _ in UPDATE])
+    def test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces(tmp_path, monkeypatch, name, half):
+        out, m = _manifest(tmp_path)
+        before = open(out, "rb").read()
+        prefix = (out if name == "replace" else os.path.realpath(out)) + ".tmp-"
+        inject(monkeypatch, name, lambda t: t.startswith(prefix), half=half)
+        with pytest.raises(OSError, match=f"injected {name}"):
+            m.write({"n": 1})
+>       assert _beside(out) == [] and open(out, "rb").read() == before
+E       AssertionError: assert (['m.json.tmp-...aaaaaaaaaa-1'] == []
+E         
+E         Left contains one more item: 'm.json.tmp-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-1'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_publish_failures.py:164: AssertionError
+_ test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[replace] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_manifest_update_2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a588c820>
+name = 'replace', half = False
+
+    @pytest.mark.parametrize("name, half", UPDATE, ids=[n for n, _ in UPDATE])
+    def test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces(tmp_path, monkeypatch, name, half):
+        out, m = _manifest(tmp_path)
+        before = open(out, "rb").read()
+        prefix = (out if name == "replace" else os.path.realpath(out)) + ".tmp-"
+        inject(monkeypatch, name, lambda t: t.startswith(prefix), half=half)
+        with pytest.raises(OSError, match=f"injected {name}"):
+            m.write({"n": 1})
+>       assert _beside(out) == [] and open(out, "rb").read() == before
+E       AssertionError: assert (['m.json.tmp-...aaaaaaaaaa-1'] == []
+E         
+E         Left contains one more item: 'm.json.tmp-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-1'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_publish_failures.py:164: AssertionError
+__ test_a_failed_directory_fsync_after_a_replace_keeps_the_manifests_identity __
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_directory_fsync_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a53d4580>
+
+    def test_a_failed_directory_fsync_after_a_replace_keeps_the_manifests_identity(tmp_path, monkeypatch):
+        out, m = _manifest(tmp_path)
+        inject(monkeypatch, "fsync", lambda t: t == os.path.dirname(os.path.realpath(out)))
+        with pytest.raises(OSError, match="injected fsync"):
+            m.write({"n": 1})
+        assert json.load(open(out)) == {"n": 1}                               # replaced; only its directory fsync failed
+>       m.write({"n": 2})                                                     # not "changed under the publication"
+
+src/tests/test_exp36_publish_failures.py:175: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <depth_canon_collect._Manifest object at 0x7185a53d5390>, doc = {'n': 2}
+
+    def write(self, doc):
+        data, parent = (json.dumps(doc, indent=1) + "\n").encode(), os.path.dirname(os.path.abspath(self.path))
+        if self.ident is None:
+            _write_new(self.path, data)
+        else:
+            self.n += 1
+            tmp = f"{self.path}.tmp-{self.txid}-{self.n}"
+            _write_new(tmp, data)
+            if _ident(self.path) != self.ident:
+                os.unlink(tmp)
+>               raise ValueError(f"the publication manifest {self.path} changed under the publication; not replaced")
+E               ValueError: the publication manifest /tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_directory_fsync_0/m.json changed under the publication; not replaced
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:2675: ValueError
+_ test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes[write] _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_initial_manifest2/exp25'), 'new': PosixPath('/tmp/...621971dc2659fa74', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a5a33e20>
+name = 'write'
+
+    @pytest.mark.parametrize("name", ["write", "fsync"])
+    def test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes(pub, monkeypatch,
+                                                                                                      name):
+        before = _listing(pub["dest"])
+        inject(monkeypatch, name, lambda t: t == os.path.realpath(pub["out"]), half=True)
+>       with pytest.raises(OSError, match=f"injected {name}"):
+E       Failed: DID NOT RAISE OSError
+
+src/tests/test_exp36_publish_failures.py:185: Failed
+_ test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes[fsync] _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_initial_manifest3/exp25'), 'new': PosixPath('/tmp/...dea469437f163423', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a5a31a20>
+name = 'fsync'
+
+    @pytest.mark.parametrize("name", ["write", "fsync"])
+    def test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes(pub, monkeypatch,
+                                                                                                      name):
+        before = _listing(pub["dest"])
+        inject(monkeypatch, name, lambda t: t == os.path.realpath(pub["out"]), half=True)
+        with pytest.raises(OSError, match=f"injected {name}"):
+>           publish(pub)
+
+src/tests/test_exp36_publish_failures.py:186: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp36_publish.py:58: in publish
+    return C.exp36_publish(**args)
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:2855: in exp36_publish
+    m.write(doc)
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:2668: in write
+    _write_new(self.path, data)
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:2635: in _write_new
+    os.fsync(f.fileno())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = (13,), k = {}
+
+    def fn(*a, **k):
+        target = _path_of(a[0]) if name in ("write", "fsync") else os.fspath(a[0])
+        if match(target):
+            hits.append(target)
+            if len(hits) == at or (every and len(hits) >= at):
+                if half:
+>                   real(a[0], bytes(a[1])[: max(1, len(a[1]) // 2)])
+E                   IndexError: tuple index out of range
+
+src/tests/test_exp36_publish_failures.py:54: IndexError
+_ test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[write] _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_manifest_update_3/exp25'), 'new': PosixPath('/tmp/...f22f0c35bdb45a4b', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a5a5dd20>
+name = 'write', half = True
+
+    @pytest.mark.parametrize("name, half", UPDATE, ids=[n for n, _ in UPDATE])
+    def test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes(pub, monkeypatch, name, half):
+        prefix = (pub["out"] if name == "replace" else os.path.realpath(pub["out"])) + ".tmp-"
+        inject(monkeypatch, name, lambda t: t.startswith(prefix), at=4, half=half)     # the 4th manifest update fails
+        status, doc = publish(pub)
+>       assert status == "partial" and any(f"injected {name}" in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 2, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'partial'
+E         
+E         - partial
+E         + published)
+
+src/tests/test_exp36_publish_failures.py:197: AssertionError
+_ test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[fsync] _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_manifest_update_4/exp25'), 'new': PosixPath('/tmp/...ed99b48b340d5b99', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a5a5c640>
+name = 'fsync', half = False
+
+    @pytest.mark.parametrize("name, half", UPDATE, ids=[n for n, _ in UPDATE])
+    def test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes(pub, monkeypatch, name, half):
+        prefix = (pub["out"] if name == "replace" else os.path.realpath(pub["out"])) + ".tmp-"
+        inject(monkeypatch, name, lambda t: t.startswith(prefix), at=4, half=half)     # the 4th manifest update fails
+        status, doc = publish(pub)
+        assert status == "partial" and any(f"injected {name}" in x for x in doc["reasons"]), doc
+        assert json.load(open(pub["out"]))["status"] == "partial"           # the stop is recorded
+>       assert _beside(pub["out"]) == [] and _dest_temps(pub) == []
+E       AssertionError: assert (['publication...22b13b788e-4'] == []
+E         
+E         Left contains one more item: 'publication_A.json.tmp-e845fad350a34910af06ed22b13b788e-4'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_publish_failures.py:199: AssertionError
+_ test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[replace] _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_manifest_update_5/exp25'), 'new': PosixPath('/tmp/...88369c43d26d0ddf', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a54394b0>
+name = 'replace', half = False
+
+    @pytest.mark.parametrize("name, half", UPDATE, ids=[n for n, _ in UPDATE])
+    def test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes(pub, monkeypatch, name, half):
+        prefix = (pub["out"] if name == "replace" else os.path.realpath(pub["out"])) + ".tmp-"
+        inject(monkeypatch, name, lambda t: t.startswith(prefix), at=4, half=half)     # the 4th manifest update fails
+        status, doc = publish(pub)
+        assert status == "partial" and any(f"injected {name}" in x for x in doc["reasons"]), doc
+        assert json.load(open(pub["out"]))["status"] == "partial"           # the stop is recorded
+>       assert _beside(pub["out"]) == [] and _dest_temps(pub) == []
+E       AssertionError: assert (['publication...613063945c-4'] == []
+E         
+E         Left contains one more item: 'publication_A.json.tmp-10b47aecef19438687f9d9613063945c-4'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_publish_failures.py:199: AssertionError
+_ test_when_even_the_stop_cannot_be_recorded_the_in_progress_manifest_resumes __
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_when_even_the_stop_cannot0/exp25'), 'new': PosixPath('/tmp/...6a32a5e83da3b2c3', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a565b670>
+
+    def test_when_even_the_stop_cannot_be_recorded_the_in_progress_manifest_resumes(pub, monkeypatch):
+        inject(monkeypatch, "replace", lambda t: t.startswith(pub["out"] + ".tmp-"), at=4, every=True)
+        status, doc = publish(pub)
+        assert status == "partial" and any("could not record the stop" in x for x in doc["reasons"]), doc
+>       assert json.load(open(pub["out"]))["status"] == "in_progress" and _beside(pub["out"]) == []
+E       AssertionError: assert ('in_progress' == 'in_progress'
+E         
+E           in_progress and ['publication...412def08c2-5'] == []
+E         
+E         Left contains 2 more items, first extra item: 'publication_A.json.tmp-ab9216be38f44e42b3956e412def08c2-4'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_publish_failures.py:207: AssertionError
+_ test_a_failed_destination_temp_write_stops_partial_with_no_temp_and_resume_publishes[write-True] _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_destination_temp0/exp25'), 'new': PosixPath('/tmp/...c9169d07ff713be3', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a5848eb0>
+name = 'write', half = True
+
+    @pytest.mark.parametrize("name, half", [("write", True), ("fsync", False)])
+    def test_a_failed_destination_temp_write_stops_partial_with_no_temp_and_resume_publishes(pub, monkeypatch, name, half):
+        inject(monkeypatch, name, lambda t: os.path.basename(t).startswith(C.EXP36_TMP_PREFIX), at=5, half=half)
+        status, doc = publish(pub)
+>       assert status == "partial" and any(f"injected {name}" in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 2, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'partial'
+E         
+E         - partial
+E         + published)
+
+src/tests/test_exp36_publish_failures.py:216: AssertionError
+___ test_a_failed_manifest_directory_fsync_is_recorded_as_a_stop_and_resumes ___
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_failed_manifest_directo0/exp25'), 'new': PosixPath('/tmp/...2f2e9d29e6117300', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x718793256e90>
+
+    def test_a_failed_manifest_directory_fsync_is_recorded_as_a_stop_and_resumes(pub, monkeypatch):
+        parent = os.path.dirname(os.path.realpath(pub["out"]))
+        inject(monkeypatch, "fsync", lambda t: t == parent, at=3)            # the directory fsync of the 2nd update
+        status, doc = publish(pub)
+>       assert status == "partial" and json.load(open(pub["out"]))["status"] == "partial", doc
+E       AssertionError: {'schema_version': 2, 'check': 'exp36_publish', 'set': 'A', 'status': 'partial', ...}
+E       assert ('partial' == 'partial'
+E         
+E           partial and 'in_progress' == 'partial'
+E         
+E         - partial
+E         + in_progress)
+
+src/tests/test_exp36_publish_failures.py:233: AssertionError
+_ test_a_resume_whose_first_manifest_write_fails_crashes_and_a_second_resume_publishes _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_resume_whose_first_mani0/exp25'), 'new': PosixPath('/tmp/...de72b14aed3bf062', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a5919270>
+
+    def test_a_resume_whose_first_manifest_write_fails_crashes_and_a_second_resume_publishes(pub, monkeypatch):
+        inject(monkeypatch, "replace", lambda t: t.startswith(pub["out"] + ".tmp-"), at=3)
+        assert publish(pub)[0] == "partial"                                   # the 3rd update failed, the 4th recorded it
+        prior = open(pub["out"], "rb").read()
+        inject(monkeypatch, "replace", lambda t: t.startswith(pub["out"] + ".tmp-"), at=1)      # a fresh counter
+>       with pytest.raises(OSError, match="injected replace"):
+E       Failed: DID NOT RAISE OSError
+
+src/tests/test_exp36_publish_failures.py:243: Failed
+_____ test_a_foreign_writer_temp_is_still_refused_after_a_cleaned_failure ______
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_a_foreign_writer_temp_is_0/exp25'), 'new': PosixPath('/tmp/...c5f284e75b9a6acf', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a54f9b70>
+
+    def test_a_foreign_writer_temp_is_still_refused_after_a_cleaned_failure(pub, monkeypatch):
+        inject(monkeypatch, "replace", lambda t: t.startswith(pub["out"] + ".tmp-"), at=2)
+>       assert publish(pub)[0] == "partial" and _beside(pub["out"]) == []
+E       AssertionError: assert ('partial' == 'partial'
+E         
+E           partial and ['publication...811045777e-2'] == []
+E         
+E         Left contains one more item: 'publication_A.json.tmp-028b828720754650a8803f811045777e-2'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_publish_failures.py:251: AssertionError
+____ test_cli_after_a_crash_before_any_write_says_to_rerun_the_same_command ____
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_cli_after_a_crash_before_0/exp25'), 'new': PosixPath('/tmp/...ef56a696ef7a7fd1', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6716/test_cli_after_a_crash_before_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7185a54fb7c0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7185a54f8f40>
+
+    def test_cli_after_a_crash_before_any_write_says_to_rerun_the_same_command(pub, tmp_path, monkeypatch, capsys):
+        out = tmp_path / "publication_A.json"
+        inject(monkeypatch, "fsync", lambda t: t == os.path.realpath(out))
+        assert _cli(pub, tmp_path, monkeypatch, "--exp36-set", "A") == 3
+        text = capsys.readouterr().out
+>       assert "CRASHED" in text and "nothing was published" in text and not os.path.lexists(out), text
+E       AssertionError: EXP36 PUBLICATION CRASHED (OSError: [Errno 5] injected fsync failure on /tmp/pytest-of-yixunhu/pytest-6716/test_cli_after_a_crash_before_0/publication_A.json): inspect /tmp/pytest-of-yixunhu/pytest-6716/test_cli_after_a_crash_before_0/publication_A.json -- an in_progress manifest is recovered with --exp36-publish-resume
+E         
+E       assert ('CRASHED' in 'EXP36 PUBLICATION CRASHED (OSError: [Errno 5] injected fsync failure on /tmp/pytest-of-yixunhu/pytest-6716/test_cli_a...st_cli_after_a_crash_before_0/publication_A.json -- an in_progress manifest is recovered with --exp36-publish-resume\n' and 'nothing was published' in 'EXP36 PUBLICATION CRASHED (OSError: [Errno 5] injected fsync failure on /tmp/pytest-of-yixunhu/pytest-6716/test_cli_a...st_cli_after_a_crash_before_0/publication_A.json -- an in_progress manifest is recovered with --exp36-publish-resume\n')
+
+src/tests/test_exp36_publish_failures.py:262: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_publish_failures.py::test_write_new_never_touches_a_pre_existing_name
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_destination_temp_write_stops_partial_with_no_temp_and_resume_publishes[fsync-False]
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_destination_fsync_stops_partial_and_resume_completes
+FAILED src/tests/test_exp36_publish_failures.py::test_write_new_removes_the_file_it_created_on_a_failure[write]
+FAILED src/tests/test_exp36_publish_failures.py::test_write_new_removes_the_file_it_created_on_a_failure[fsync]
+FAILED src/tests/test_exp36_publish_failures.py::test_write_new_relative_to_a_directory_fd
+FAILED src/tests/test_exp36_publish_failures.py::test_write_new_never_removes_a_name_that_is_no_longer_its_file
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_initial_manifest_write_leaves_no_manifest[write]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_initial_manifest_write_leaves_no_manifest[fsync]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[write]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[fsync]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[replace]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_directory_fsync_after_a_replace_keeps_the_manifests_identity
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes[write]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes[fsync]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[write]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[fsync]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[replace]
+FAILED src/tests/test_exp36_publish_failures.py::test_when_even_the_stop_cannot_be_recorded_the_in_progress_manifest_resumes
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_destination_temp_write_stops_partial_with_no_temp_and_resume_publishes[write-True]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_directory_fsync_is_recorded_as_a_stop_and_resumes
+FAILED src/tests/test_exp36_publish_failures.py::test_a_resume_whose_first_manifest_write_fails_crashes_and_a_second_resume_publishes
+FAILED src/tests/test_exp36_publish_failures.py::test_a_foreign_writer_temp_is_still_refused_after_a_cleaned_failure
+FAILED src/tests/test_exp36_publish_failures.py::test_cli_after_a_crash_before_any_write_says_to_rerun_the_same_command
+21 failed, 3 passed, 3 warnings in 8.53s
+
+=== re-run after a test bug fix (the injection's half-write applied to fsync calls too: IndexError), Fri Nov  6 07:07:00 PM EST 2026
+FFF.FFFFFFFFFFFFFF..FFFF                                                 [100%]
+=================================== FAILURES ===================================
+________ test_write_new_removes_the_file_it_created_on_a_failure[write] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_write_new_removes_the_fil0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882bede710>
+name = 'write'
+
+    @pytest.mark.parametrize("name", ["write", "fsync"])
+    def test_write_new_removes_the_file_it_created_on_a_failure(tmp_path, monkeypatch, name):
+        path = str(tmp_path / "new.json")
+        inject(monkeypatch, name, lambda t: t == os.path.realpath(path), half=True)
+>       with pytest.raises(OSError, match=f"injected {name}"):
+E       Failed: DID NOT RAISE OSError
+
+src/tests/test_exp36_publish_failures.py:84: Failed
+________ test_write_new_removes_the_file_it_created_on_a_failure[fsync] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_write_new_removes_the_fil1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c2fde40>
+name = 'fsync'
+
+    @pytest.mark.parametrize("name", ["write", "fsync"])
+    def test_write_new_removes_the_file_it_created_on_a_failure(tmp_path, monkeypatch, name):
+        path = str(tmp_path / "new.json")
+        inject(monkeypatch, name, lambda t: t == os.path.realpath(path), half=True)
+        with pytest.raises(OSError, match=f"injected {name}"):
+            C._write_new(path, b"x" * 4096)
+>       assert not os.path.lexists(path)
+E       AssertionError: assert not True
+E        +  where True = <function lexists at 0x788a1a977400>('/tmp/pytest-of-yixunhu/pytest-6717/test_write_new_removes_the_fil1/new.json')
+E        +    where <function lexists at 0x788a1a977400> = <module 'posixpath' from '/home/yixunhu/miniconda3/envs/flac/lib/python3.10/posixpath.py'>.lexists
+E        +      where <module 'posixpath' from '/home/yixunhu/miniconda3/envs/flac/lib/python3.10/posixpath.py'> = os.path
+
+src/tests/test_exp36_publish_failures.py:86: AssertionError
+__________________ test_write_new_relative_to_a_directory_fd ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_write_new_relative_to_a_d0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c202590>
+
+    def test_write_new_relative_to_a_directory_fd(tmp_path, monkeypatch):
+        dfd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            inject(monkeypatch, "fsync", lambda t: t == os.path.realpath(tmp_path / "rel.tmp"))
+            with pytest.raises(OSError, match="injected fsync"):
+                C._write_new("rel.tmp", b"z", dir_fd=dfd)
+>           assert not os.path.lexists(tmp_path / "rel.tmp")
+E           AssertionError: assert not True
+E            +  where True = <function lexists at 0x788a1a977400>((PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_write_new_relative_to_a_d0') / 'rel.tmp'))
+E            +    where <function lexists at 0x788a1a977400> = <module 'posixpath' from '/home/yixunhu/miniconda3/envs/flac/lib/python3.10/posixpath.py'>.lexists
+E            +      where <module 'posixpath' from '/home/yixunhu/miniconda3/envs/flac/lib/python3.10/posixpath.py'> = os.path
+
+src/tests/test_exp36_publish_failures.py:97: AssertionError
+________ test_write_new_never_removes_a_name_that_is_no_longer_its_file ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_write_new_never_removes_a0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c3d5480>
+
+    def test_write_new_never_removes_a_name_that_is_no_longer_its_file(tmp_path, monkeypatch):
+        path, real = str(tmp_path / "swapped.json"), os.write
+    
+        def write(fd, data):
+            if _path_of(fd) == os.path.realpath(path):
+                os.rename(path, path + ".moved")                              # the new file moved away ...
+                with open(path, "wb") as f:                                   # ... and another put at its name
+                    f.write(b"another")
+                raise OSError(errno.EIO, "injected write failure")
+            return real(fd, data)
+    
+        proxy = types.SimpleNamespace(**vars(os))
+        proxy.write = write
+        monkeypatch.setattr(C, "os", proxy)
+>       with pytest.raises(OSError, match="injected write"):
+E       Failed: DID NOT RAISE OSError
+
+src/tests/test_exp36_publish_failures.py:128: Failed
+________ test_a_failed_initial_manifest_write_leaves_no_manifest[write] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_initial_manifest0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c2485e0>
+name = 'write'
+
+    @pytest.mark.parametrize("name", ["write", "fsync"])
+    def test_a_failed_initial_manifest_write_leaves_no_manifest(tmp_path, monkeypatch, name):
+        out = str(tmp_path / "m.json")
+        inject(monkeypatch, name, lambda t: t == os.path.realpath(out), half=True)
+        m = C._Manifest(out, "a" * 32)
+>       with pytest.raises(OSError, match=f"injected {name}"):
+E       Failed: DID NOT RAISE OSError
+
+src/tests/test_exp36_publish_failures.py:146: Failed
+________ test_a_failed_initial_manifest_write_leaves_no_manifest[fsync] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_initial_manifest1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c23bc40>
+name = 'fsync'
+
+    @pytest.mark.parametrize("name", ["write", "fsync"])
+    def test_a_failed_initial_manifest_write_leaves_no_manifest(tmp_path, monkeypatch, name):
+        out = str(tmp_path / "m.json")
+        inject(monkeypatch, name, lambda t: t == os.path.realpath(out), half=True)
+        m = C._Manifest(out, "a" * 32)
+        with pytest.raises(OSError, match=f"injected {name}"):
+            m.write({"n": 0})
+>       assert not os.path.lexists(out) and _beside(out) == []
+E       AssertionError: assert (not True)
+E        +  where True = <function lexists at 0x788a1a977400>('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_initial_manifest1/m.json')
+E        +    where <function lexists at 0x788a1a977400> = <module 'posixpath' from '/home/yixunhu/miniconda3/envs/flac/lib/python3.10/posixpath.py'>.lexists
+E        +      where <module 'posixpath' from '/home/yixunhu/miniconda3/envs/flac/lib/python3.10/posixpath.py'> = os.path
+
+src/tests/test_exp36_publish_failures.py:148: AssertionError
+_ test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[write] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_manifest_update_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c2c4dc0>
+name = 'write', half = True
+
+    @pytest.mark.parametrize("name, half", UPDATE, ids=[n for n, _ in UPDATE])
+    def test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces(tmp_path, monkeypatch, name, half):
+        out, m = _manifest(tmp_path)
+        before = open(out, "rb").read()
+        prefix = (out if name == "replace" else os.path.realpath(out)) + ".tmp-"
+        inject(monkeypatch, name, lambda t: t.startswith(prefix), half=half)
+>       with pytest.raises(OSError, match=f"injected {name}"):
+E       Failed: DID NOT RAISE OSError
+
+src/tests/test_exp36_publish_failures.py:162: Failed
+_ test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[fsync] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_manifest_update_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882bdcd3c0>
+name = 'fsync', half = False
+
+    @pytest.mark.parametrize("name, half", UPDATE, ids=[n for n, _ in UPDATE])
+    def test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces(tmp_path, monkeypatch, name, half):
+        out, m = _manifest(tmp_path)
+        before = open(out, "rb").read()
+        prefix = (out if name == "replace" else os.path.realpath(out)) + ".tmp-"
+        inject(monkeypatch, name, lambda t: t.startswith(prefix), half=half)
+        with pytest.raises(OSError, match=f"injected {name}"):
+            m.write({"n": 1})
+>       assert _beside(out) == [] and open(out, "rb").read() == before
+E       AssertionError: assert (['m.json.tmp-...aaaaaaaaaa-1'] == []
+E         
+E         Left contains one more item: 'm.json.tmp-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-1'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_publish_failures.py:164: AssertionError
+_ test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[replace] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_manifest_update_2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c3f5720>
+name = 'replace', half = False
+
+    @pytest.mark.parametrize("name, half", UPDATE, ids=[n for n, _ in UPDATE])
+    def test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces(tmp_path, monkeypatch, name, half):
+        out, m = _manifest(tmp_path)
+        before = open(out, "rb").read()
+        prefix = (out if name == "replace" else os.path.realpath(out)) + ".tmp-"
+        inject(monkeypatch, name, lambda t: t.startswith(prefix), half=half)
+        with pytest.raises(OSError, match=f"injected {name}"):
+            m.write({"n": 1})
+>       assert _beside(out) == [] and open(out, "rb").read() == before
+E       AssertionError: assert (['m.json.tmp-...aaaaaaaaaa-1'] == []
+E         
+E         Left contains one more item: 'm.json.tmp-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-1'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_publish_failures.py:164: AssertionError
+__ test_a_failed_directory_fsync_after_a_replace_keeps_the_manifests_identity __
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_directory_fsync_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c3e1720>
+
+    def test_a_failed_directory_fsync_after_a_replace_keeps_the_manifests_identity(tmp_path, monkeypatch):
+        out, m = _manifest(tmp_path)
+        inject(monkeypatch, "fsync", lambda t: t == os.path.dirname(os.path.realpath(out)))
+        with pytest.raises(OSError, match="injected fsync"):
+            m.write({"n": 1})
+        assert json.load(open(out)) == {"n": 1}                               # replaced; only its directory fsync failed
+>       m.write({"n": 2})                                                     # not "changed under the publication"
+
+src/tests/test_exp36_publish_failures.py:175: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <depth_canon_collect._Manifest object at 0x78882c3e3b20>, doc = {'n': 2}
+
+    def write(self, doc):
+        data, parent = (json.dumps(doc, indent=1) + "\n").encode(), os.path.dirname(os.path.abspath(self.path))
+        if self.ident is None:
+            _write_new(self.path, data)
+        else:
+            self.n += 1
+            tmp = f"{self.path}.tmp-{self.txid}-{self.n}"
+            _write_new(tmp, data)
+            if _ident(self.path) != self.ident:
+                os.unlink(tmp)
+>               raise ValueError(f"the publication manifest {self.path} changed under the publication; not replaced")
+E               ValueError: the publication manifest /tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_directory_fsync_0/m.json changed under the publication; not replaced
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:2675: ValueError
+_ test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes[write] _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_initial_manifest2/exp25'), 'new': PosixPath('/tmp/...7594611fac050337', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882beb0d00>
+name = 'write'
+
+    @pytest.mark.parametrize("name", ["write", "fsync"])
+    def test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes(pub, monkeypatch,
+                                                                                                      name):
+        before = _listing(pub["dest"])
+        inject(monkeypatch, name, lambda t: t == os.path.realpath(pub["out"]), half=True)
+>       with pytest.raises(OSError, match=f"injected {name}"):
+E       Failed: DID NOT RAISE OSError
+
+src/tests/test_exp36_publish_failures.py:185: Failed
+_ test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes[fsync] _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_initial_manifest3/exp25'), 'new': PosixPath('/tmp/...9839e3a55a971b1f', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882beb1f30>
+name = 'fsync'
+
+    @pytest.mark.parametrize("name", ["write", "fsync"])
+    def test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes(pub, monkeypatch,
+                                                                                                      name):
+        before = _listing(pub["dest"])
+        inject(monkeypatch, name, lambda t: t == os.path.realpath(pub["out"]), half=True)
+        with pytest.raises(OSError, match=f"injected {name}"):
+            publish(pub)
+>       assert not os.path.lexists(pub["out"]) and _beside(pub["out"]) == [] and _listing(pub["dest"]) == before
+E       AssertionError: assert (not True)
+E        +  where True = <function lexists at 0x788a1a977400>('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_initial_manifest3/publication_A.json')
+E        +    where <function lexists at 0x788a1a977400> = <module 'posixpath' from '/home/yixunhu/miniconda3/envs/flac/lib/python3.10/posixpath.py'>.lexists
+E        +      where <module 'posixpath' from '/home/yixunhu/miniconda3/envs/flac/lib/python3.10/posixpath.py'> = os.path
+
+src/tests/test_exp36_publish_failures.py:187: AssertionError
+_ test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[write] _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_manifest_update_3/exp25'), 'new': PosixPath('/tmp/...2906f017d3ce0fc9', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c417b80>
+name = 'write', half = True
+
+    @pytest.mark.parametrize("name, half", UPDATE, ids=[n for n, _ in UPDATE])
+    def test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes(pub, monkeypatch, name, half):
+        prefix = (pub["out"] if name == "replace" else os.path.realpath(pub["out"])) + ".tmp-"
+        inject(monkeypatch, name, lambda t: t.startswith(prefix), at=4, half=half)     # the 4th manifest update fails
+        status, doc = publish(pub)
+>       assert status == "partial" and any(f"injected {name}" in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 2, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'partial'
+E         
+E         - partial
+E         + published)
+
+src/tests/test_exp36_publish_failures.py:197: AssertionError
+_ test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[fsync] _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_manifest_update_4/exp25'), 'new': PosixPath('/tmp/...48caaa1c53a12121', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882bd93a30>
+name = 'fsync', half = False
+
+    @pytest.mark.parametrize("name, half", UPDATE, ids=[n for n, _ in UPDATE])
+    def test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes(pub, monkeypatch, name, half):
+        prefix = (pub["out"] if name == "replace" else os.path.realpath(pub["out"])) + ".tmp-"
+        inject(monkeypatch, name, lambda t: t.startswith(prefix), at=4, half=half)     # the 4th manifest update fails
+        status, doc = publish(pub)
+        assert status == "partial" and any(f"injected {name}" in x for x in doc["reasons"]), doc
+        assert json.load(open(pub["out"]))["status"] == "partial"           # the stop is recorded
+>       assert _beside(pub["out"]) == [] and _dest_temps(pub) == []
+E       AssertionError: assert (['publication...db22e69e9b-4'] == []
+E         
+E         Left contains one more item: 'publication_A.json.tmp-182b1dd5ae1c42e9b3471edb22e69e9b-4'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_publish_failures.py:199: AssertionError
+_ test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[replace] _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_manifest_update_5/exp25'), 'new': PosixPath('/tmp/...7b2f4708e3cfe501', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882bd90880>
+name = 'replace', half = False
+
+    @pytest.mark.parametrize("name, half", UPDATE, ids=[n for n, _ in UPDATE])
+    def test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes(pub, monkeypatch, name, half):
+        prefix = (pub["out"] if name == "replace" else os.path.realpath(pub["out"])) + ".tmp-"
+        inject(monkeypatch, name, lambda t: t.startswith(prefix), at=4, half=half)     # the 4th manifest update fails
+        status, doc = publish(pub)
+        assert status == "partial" and any(f"injected {name}" in x for x in doc["reasons"]), doc
+        assert json.load(open(pub["out"]))["status"] == "partial"           # the stop is recorded
+>       assert _beside(pub["out"]) == [] and _dest_temps(pub) == []
+E       AssertionError: assert (['publication...553053a065-4'] == []
+E         
+E         Left contains one more item: 'publication_A.json.tmp-7b1d2f281f47409e8e3ff3553053a065-4'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_publish_failures.py:199: AssertionError
+_ test_when_even_the_stop_cannot_be_recorded_the_in_progress_manifest_resumes __
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_when_even_the_stop_cannot0/exp25'), 'new': PosixPath('/tmp/...d6d997eaa75a0b60', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c3f4040>
+
+    def test_when_even_the_stop_cannot_be_recorded_the_in_progress_manifest_resumes(pub, monkeypatch):
+        inject(monkeypatch, "replace", lambda t: t.startswith(pub["out"] + ".tmp-"), at=4, every=True)
+        status, doc = publish(pub)
+        assert status == "partial" and any("could not record the stop" in x for x in doc["reasons"]), doc
+>       assert json.load(open(pub["out"]))["status"] == "in_progress" and _beside(pub["out"]) == []
+E       AssertionError: assert ('in_progress' == 'in_progress'
+E         
+E           in_progress and ['publication...ca830f56dd-5'] == []
+E         
+E         Left contains 2 more items, first extra item: 'publication_A.json.tmp-3722b0636dbb4460bb5474ca830f56dd-4'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_publish_failures.py:207: AssertionError
+_ test_a_failed_destination_temp_write_stops_partial_with_no_temp_and_resume_publishes[write-True] _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_destination_temp0/exp25'), 'new': PosixPath('/tmp/...9def1e056e0fcd75', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c3f6e30>
+name = 'write', half = True
+
+    @pytest.mark.parametrize("name, half", [("write", True), ("fsync", False)])
+    def test_a_failed_destination_temp_write_stops_partial_with_no_temp_and_resume_publishes(pub, monkeypatch, name, half):
+        inject(monkeypatch, name, lambda t: os.path.basename(t).startswith(C.EXP36_TMP_PREFIX), at=5, half=half)
+        status, doc = publish(pub)
+>       assert status == "partial" and any(f"injected {name}" in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 2, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'partial'
+E         
+E         - partial
+E         + published)
+
+src/tests/test_exp36_publish_failures.py:216: AssertionError
+___ test_a_failed_manifest_directory_fsync_is_recorded_as_a_stop_and_resumes ___
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_failed_manifest_directo0/exp25'), 'new': PosixPath('/tmp/...bbe4e0e89d0ea7f1', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x788a19c4a920>
+
+    def test_a_failed_manifest_directory_fsync_is_recorded_as_a_stop_and_resumes(pub, monkeypatch):
+        parent = os.path.dirname(os.path.realpath(pub["out"]))
+        inject(monkeypatch, "fsync", lambda t: t == parent, at=3)            # the directory fsync of the 2nd update
+        status, doc = publish(pub)
+>       assert status == "partial" and json.load(open(pub["out"]))["status"] == "partial", doc
+E       AssertionError: {'schema_version': 2, 'check': 'exp36_publish', 'set': 'A', 'status': 'partial', ...}
+E       assert ('partial' == 'partial'
+E         
+E           partial and 'in_progress' == 'partial'
+E         
+E         - partial
+E         + in_progress)
+
+src/tests/test_exp36_publish_failures.py:233: AssertionError
+_ test_a_resume_whose_first_manifest_write_fails_crashes_and_a_second_resume_publishes _
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_resume_whose_first_mani0/exp25'), 'new': PosixPath('/tmp/...27cae35f218447e3', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c417370>
+
+    def test_a_resume_whose_first_manifest_write_fails_crashes_and_a_second_resume_publishes(pub, monkeypatch):
+        inject(monkeypatch, "replace", lambda t: t.startswith(pub["out"] + ".tmp-"), at=3)
+        assert publish(pub)[0] == "partial"                                   # the 3rd update failed, the 4th recorded it
+        prior = open(pub["out"], "rb").read()
+        inject(monkeypatch, "replace", lambda t: t.startswith(pub["out"] + ".tmp-"), at=1)      # a fresh counter
+>       with pytest.raises(OSError, match="injected replace"):
+E       Failed: DID NOT RAISE OSError
+
+src/tests/test_exp36_publish_failures.py:243: Failed
+_____ test_a_foreign_writer_temp_is_still_refused_after_a_cleaned_failure ______
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_a_foreign_writer_temp_is_0/exp25'), 'new': PosixPath('/tmp/...498ecd6d9f011e2a', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c4149a0>
+
+    def test_a_foreign_writer_temp_is_still_refused_after_a_cleaned_failure(pub, monkeypatch):
+        inject(monkeypatch, "replace", lambda t: t.startswith(pub["out"] + ".tmp-"), at=2)
+>       assert publish(pub)[0] == "partial" and _beside(pub["out"]) == []
+E       AssertionError: assert ('partial' == 'partial'
+E         
+E           partial and ['publication...a45c83cc83-2'] == []
+E         
+E         Left contains one more item: 'publication_A.json.tmp-b6fd5b37cca34d998e8694a45c83cc83-2'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_publish_failures.py:251: AssertionError
+____ test_cli_after_a_crash_before_any_write_says_to_rerun_the_same_command ____
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_cli_after_a_crash_before_0/exp25'), 'new': PosixPath('/tmp/...c3bb78ebe206230e', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6717/test_cli_after_a_crash_before_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78882c060280>
+capsys = <_pytest.capture.CaptureFixture object at 0x78882c0634c0>
+
+    def test_cli_after_a_crash_before_any_write_says_to_rerun_the_same_command(pub, tmp_path, monkeypatch, capsys):
+        out = tmp_path / "publication_A.json"
+        inject(monkeypatch, "fsync", lambda t: t == os.path.realpath(out))
+        assert _cli(pub, tmp_path, monkeypatch, "--exp36-set", "A") == 3
+        text = capsys.readouterr().out
+>       assert "CRASHED" in text and "nothing was published" in text and not os.path.lexists(out), text
+E       AssertionError: EXP36 PUBLICATION CRASHED (OSError: [Errno 5] injected fsync failure on /tmp/pytest-of-yixunhu/pytest-6717/test_cli_after_a_crash_before_0/publication_A.json): inspect /tmp/pytest-of-yixunhu/pytest-6717/test_cli_after_a_crash_before_0/publication_A.json -- an in_progress manifest is recovered with --exp36-publish-resume
+E         
+E       assert ('CRASHED' in 'EXP36 PUBLICATION CRASHED (OSError: [Errno 5] injected fsync failure on /tmp/pytest-of-yixunhu/pytest-6717/test_cli_a...st_cli_after_a_crash_before_0/publication_A.json -- an in_progress manifest is recovered with --exp36-publish-resume\n' and 'nothing was published' in 'EXP36 PUBLICATION CRASHED (OSError: [Errno 5] injected fsync failure on /tmp/pytest-of-yixunhu/pytest-6717/test_cli_a...st_cli_after_a_crash_before_0/publication_A.json -- an in_progress manifest is recovered with --exp36-publish-resume\n')
+
+src/tests/test_exp36_publish_failures.py:262: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_publish_failures.py::test_write_new_never_touches_a_pre_existing_name
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_destination_temp_write_stops_partial_with_no_temp_and_resume_publishes[fsync-False]
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_destination_fsync_stops_partial_and_resume_completes
+FAILED src/tests/test_exp36_publish_failures.py::test_write_new_removes_the_file_it_created_on_a_failure[write]
+FAILED src/tests/test_exp36_publish_failures.py::test_write_new_removes_the_file_it_created_on_a_failure[fsync]
+FAILED src/tests/test_exp36_publish_failures.py::test_write_new_relative_to_a_directory_fd
+FAILED src/tests/test_exp36_publish_failures.py::test_write_new_never_removes_a_name_that_is_no_longer_its_file
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_initial_manifest_write_leaves_no_manifest[write]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_initial_manifest_write_leaves_no_manifest[fsync]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[write]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[fsync]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[replace]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_directory_fsync_after_a_replace_keeps_the_manifests_identity
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes[write]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes[fsync]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[write]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[fsync]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[replace]
+FAILED src/tests/test_exp36_publish_failures.py::test_when_even_the_stop_cannot_be_recorded_the_in_progress_manifest_resumes
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_destination_temp_write_stops_partial_with_no_temp_and_resume_publishes[write-True]
+FAILED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_directory_fsync_is_recorded_as_a_stop_and_resumes
+FAILED src/tests/test_exp36_publish_failures.py::test_a_resume_whose_first_manifest_write_fails_crashes_and_a_second_resume_publishes
+FAILED src/tests/test_exp36_publish_failures.py::test_a_foreign_writer_temp_is_still_refused_after_a_cleaned_failure
+FAILED src/tests/test_exp36_publish_failures.py::test_cli_after_a_crash_before_any_write_says_to_rerun_the_same_command
+21 failed, 3 passed, 3 warnings in 8.05s
