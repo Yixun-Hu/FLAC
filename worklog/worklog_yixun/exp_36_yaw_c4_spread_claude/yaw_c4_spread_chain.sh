@@ -10,6 +10,10 @@
 #            exp25_YAW_C4_S40000_K{1,8}_s{43..46}_th{90,180,270} cells. A YAW replay already complete and verified at
 #            this HEAD under this relevant tree is SKIPPED by the runner (its result consumed) and re-checked; else it
 #            is run again first.
+#   b3       (exp_37 B3, the Planner's task after the exp_36 fix round): the replay exp37_BF_C4_S40000_K8_s42_th90 of
+#            exp35_BF_C4_S40000_K8_s42_th90 -> its check -> the 8 B-F@40k orbit cells
+#            exp37_BF_ORB{1,2}_S40000_K{1,8}_s42_th{0,90} (--frame-avg-angles 0 / 0,180); NO publication (the outputs
+#            stay in this checkout's farm); its log, lock and verdict go to the exp_37 folder.
 #   Every cell DUMPS its scored waveforms like its template (the Planner's addendum: announcement 08; each row's own
 #   dump field, the manifest's dump root) after --exp36-dump-preflight found no target dump directory this checkout did
 #   not publish; no-flash, on --lanes 0,1 (A1 §4: both cards). Anything but an equal check is a HARD STOP: nothing
@@ -17,7 +21,7 @@
 #   is a SEPARATE, reviewed command (yaw_c4_spread_command.md of the publisher checkout): this chain never publishes and
 #   prints only that pointer; P1 / B-F / CANON outputs stay in this worktree's farm.
 #
-# Usage:  EXPECT_HEAD=<H36, the 40-hex commit of this worktree> bash yaw_c4_spread_chain.sh {offorbit|A}
+# Usage:  EXPECT_HEAD=<the 40-hex commit of this worktree> bash yaw_c4_spread_chain.sh {offorbit|A|b3}
 #   DRY_RUN=1  both runner steps as DRY_RUNs (every gate, no evaluation); no check is run.
 # GPU: ALLOW_SHARED_GPU=0 and no co-tenant tuple are passed to the runner, whose lane gate waits for a card with no
 #   foreign compute process; nothing is ever signalled.
@@ -55,7 +59,7 @@ LOGDIR="$EXP36"; PLAN_RE="^${EXP25}/depth_canon_[0-9_-]+_eval_plan\.json\$"
 
 die() { echo "$*"; exit 2; }
 
-[ $# -eq 1 ] || die "this chain takes exactly one mode argument (offorbit | A); EXPECT_HEAD / DRY_RUN come from the environment - abort"
+[ $# -eq 1 ] || die "this chain takes exactly one mode argument (offorbit | A | b3); EXPECT_HEAD / DRY_RUN come from the environment - abort"
 MODE="$1"; REPLAYS=(); CELLS=""
 case "$MODE" in
   offorbit)
@@ -70,7 +74,12 @@ case "$MODE" in
     for k in 1 8; do for s in 43 44 45 46; do for d in 90 180 270; do
       CELLS+="${CELLS:+,}exp25_YAW_C4_S40000_K${k}_s${s}_th${d}"; done; done; done
     SET="A" ;;
-  *) die "unknown mode '${MODE}' (offorbit | A) - abort" ;;
+  b3)   # exp_37 B3: the B-F replay, then B-F@40k over the orbits {0} / {0,180}; no publication; exp_37's records
+    REPLAYS=("exp37_BF_${C4}")
+    for o in 1 2; do for k in 1 8; do for d in 0 90; do
+      CELLS+="${CELLS:+,}exp37_BF_ORB${o}_S40000_K${k}_s42_th${d}"; done; done; done
+    SET=""; LOGDIR="worklog/worklog_yixun/exp_37_loc_efficiency_claude" ;;
+  *) die "unknown mode '${MODE}' (offorbit | A | b3) - abort" ;;
 esac
 case "$DRY_RUN" in 0|1) ;; *) die "DRY_RUN must be 0 or 1 (got '${DRY_RUN}') - abort" ;; esac
 case "${ALLOW_SHARED_GPU:-0}" in 0) ;; *) die "ALLOW_SHARED_GPU must be unset or 0: exp_36 runs on exclusive cards - abort" ;; esac
@@ -157,6 +166,10 @@ preflight "$CELLS" "the production cells"
 runner "$TMPD/step3" --only "$CELLS"
 [ "$RC" -eq 0 ] || { echo "the production run exited ${RC}: not complete -- re-run this chain to resume"; exit 6; }
 if [ "$DRY_RUN" = 1 ]; then echo "=== DRY_RUN complete: nothing evaluated, no replay check, nothing published ==="; exit 0; fi
+if [ -z "$SET" ]; then
+  echo "=== CHAIN COMPLETE (${MODE}): the replay EQUAL, the cells complete and verified; no publication (their outputs stay in this checkout's farm, their dumps in the dump root) ==="
+  exit 0
+fi
 echo "=== CHAIN COMPLETE (${MODE}): every replay EQUAL, the production cells complete and verified. Publishing the YAW cells"
 echo "    (set ${SET}) into the exp-25 worktree is a SEPARATE, reviewed step run from the publisher checkout"
 echo "    /home/yixunhu/codespace/exp-36-yaw-c4-spread: see worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_command.md"

@@ -51,7 +51,8 @@ SCHEMA_VERSION = 1
 EXP25_BLOCKS = ("T", "T-dup", "C4+45", "R", "D-i", "D-ii", "S", "P1-pin", "YAW-pin", "TRAJ")
 EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45", "E2-FAIL")
 EXP36_BLOCKS = ("YAW-C4S", "RPL-S42", "OFF-S42")   # exp_36 (+ amendment A1): every row explicitly named
-BLOCKS = EXP25_BLOCKS + EXP35_BLOCKS + EXP36_BLOCKS
+EXP37_BLOCKS = ("RPL-37", "BF-ORB")   # exp_37 B3: the B-F replay + B-F@40k over the orbits {0} / {0,180}, named too
+BLOCKS = EXP25_BLOCKS + EXP35_BLOCKS + EXP36_BLOCKS + EXP37_BLOCKS
 EXP36_REPLAY = "exp36_YAW_C4_S40000_K8_s42_th90"   # = exp25_YAW_C4_S40000_K8_s42_th90 under another name
 SEEDS = (42, 43, 44, 45, 46)
 KS = (1, 8)
@@ -115,9 +116,11 @@ ARMS = {  # model configs == each checkpoint's EMBEDDED model_config (verified 2
 EXP25_ARMS = ("CANON", "P1", "YAW")
 
 
-def _row(block, sub, arm, step, split, k, seed, rot, canonicalize=False, allow=False, dup=False, cell=None):
+def _row(block, sub, arm, step, split, k, seed, rot, canonicalize=False, allow=False, dup=False, cell=None,
+         frame_avg=None):
     """One cell. ``rot`` = ``("fixed", deg)`` or ``("random", None)`` (rotate seed = eval seed). ``cell``: the
-    explicit name a YAW-C4S row needs (exp_36, Codex B2) and no other row takes."""
+    explicit name an exp_36 / exp_37 row needs (Codex B2) and no other row takes; ``frame_avg`` (exp_37 B3): the B-F
+    orbit of the row (``--frame-avg-angles``) instead of the arm's C4."""
     import eval_FLAC
     mode, deg = rot
     tag = {"T-dup": "T", "C4+45": "C4", "D-i": "Di", "D-ii": "Dii", "CTL": "T", "BF-dup": "T"}.get(block, block)
@@ -127,7 +130,7 @@ def _row(block, sub, arm, step, split, k, seed, rot, canonicalize=False, allow=F
     if tag in ("C4", "TRAJ", "OFF"):
         name += f"_th{deg}"
     name += "_dup" if dup else ""
-    if (cell is None) == (block in EXP36_BLOCKS):
+    if (cell is None) == (block in EXP36_BLOCKS + EXP37_BLOCKS):
         raise ValueError(f"block {block!r} with cell name {cell!r}: exactly the exp_36 rows are named explicitly")
     name = cell or name
     trained = ARMS[arm]["trained_canon"]
@@ -137,13 +140,17 @@ def _row(block, sub, arm, step, split, k, seed, rot, canonicalize=False, allow=F
     n = SPLITS[split]["expected_stream_count"]
     rotate_seed = seed if mode == "random" else None
     cond = ARM_COND_FLAGS[arm] + COMMON_FLAGS[2:] if arm in ARM_COND_FLAGS else COMMON_FLAGS
+    if frame_avg is not None:
+        i = cond.index("--frame-avg-angles") + 1
+        cond = cond[:i] + [frame_avg] + cond[i + 1:]
     args = ["--model-config", ARMS[arm]["model_config"], "--dataset-config", config, *cond,
             "--expected-stream-count", str(n), "--seed", str(seed), "--rotate-mode", mode]
     args += ["--rotate-seed", str(seed)] if mode == "random" else ["--rotate-deg", str(deg)]
     args += (["--canonicalize"] if canonicalize else []) + (["--allow-canon-mismatch"] if allow else [])
     args += ["--eval-name", name]
     metrics = eval_FLAC.build_output_paths(
-        "farm/x.ckpt", 1, 1.0, name, cond_method=cond[1], rotate_deg=float(deg or 0), n_angles=4,
+        "farm/x.ckpt", 1, 1.0, name, cond_method=cond[1], rotate_deg=float(deg or 0),
+        n_angles=len(frame_avg.split(",")) if frame_avg else 4,
         rotate_mode=mode, rotate_seed=rotate_seed, are_lambda=None, canonicalize=canonicalize,
         canon_mismatch=mismatch)["metrics"]
     suffix = os.path.basename(metrics)[len("x_metrics_"):-len(".json")]
@@ -214,12 +221,25 @@ def _a1_blocks():
     return {"RPL-S42": rpl, "OFF-S42": off}
 
 
-def build_manifest(exp35=True, exp36=None):
-    """The 386-row manifest; ``exp36=False``: the H35 manifest (exp_25 + exp_35, 346 rows) exactly as committed at H35;
+def _b3_blocks():
+    """exp_37 B3: RPL-37 = the BF-pin C4 K8 s42 th90 row under an exp37_ name (the replay); BF-ORB = the BF-pin T s42
+    (theta 0) / C4 s42 th90 rows at the registered orbits {0} (ORB1) and {0, 180} (ORB2) -- orbit, then K, then theta."""
+    E, U = ENDPOINT, "unseen"
+    rpl = [_row("RPL-37", "C4", "BF", E, U, 8, 42, ("fixed", 90), cell=f"exp37_BF_C4_S{E}_K8_s42_th90")]
+    orb = [_row("BF-ORB", "ORB", "BF", E, U, k, 42, ("fixed", d), cell=f"exp37_BF_ORB{o}_S{E}_K{k}_s42_th{d}",
+                frame_avg=angles) for o, angles in ((1, "0"), (2, "0,180")) for k in KS for d in (0, 90)]
+    return {"RPL-37": rpl, "BF-ORB": orb}
+
+
+def build_manifest(exp35=True, exp36=None, exp37=None):
+    """The 395-row manifest; ``exp37=False``: the exp_36 manifest (386 rows) as at H36_I2; ``exp36=False``: the H35 manifest (exp_25 + exp_35, 346 rows) exactly as committed at H35;
     ``exp35=False``: the exp_25 manifest exactly as committed at its pin (exp36 follows exp35 unless given)."""
     exp36 = exp35 if exp36 is None else exp36
+    exp37 = exp36 if exp37 is None else exp37
     if exp36 and not exp35:
         raise ValueError("the exp_36 rows (orders 346-370) follow the exp_35 rows: exp36=True needs exp35=True")
+    if exp37 and not exp36:
+        raise ValueError("the exp_37 rows (orders 386-394) follow the exp_36 rows: exp37=True needs exp36=True")
     E, U = ENDPOINT, "unseen"
     blocks = {
         "T": [_row("T", "T", "CANON", E, U, k, s, ("fixed", 0), True) for k in KS for s in SEEDS],
@@ -235,9 +255,11 @@ def build_manifest(exp35=True, exp36=None):
         "TRAJ": [_row("TRAJ", "TRAJ", "CANON", step, U, k, 42, ("fixed", d), True)
                  for step in range(CADENCE, ENDPOINT, CADENCE) for k in KS for d in (0,) + C4_ANGLES],
     }
-    names = EXP25_BLOCKS + (EXP35_BLOCKS if exp35 else ()) + (EXP36_BLOCKS if exp36 else ())
+    names = EXP25_BLOCKS + (EXP35_BLOCKS if exp35 else ()) + (EXP36_BLOCKS if exp36 else ()) + (
+        EXP37_BLOCKS if exp37 else ())
     blocks.update(_exp35_blocks() if exp35 else {})
     blocks.update(dict({"YAW-C4S": _exp36_block()}, **_a1_blocks()) if exp36 else {})
+    blocks.update(_b3_blocks() if exp37 else {})
     cells = []
     for priority, block in enumerate(names):
         for row in blocks[block]:
@@ -246,7 +268,8 @@ def build_manifest(exp35=True, exp36=None):
             "plan": "plan_depth_canon.md v9 §5" + (
                 "; exp_35 rows: plan_orbitrir_yaw_evidence.md r2 §1, §11, §14 A1" if exp35 else "") + (
                 "; exp_36 rows: plan_yaw_c4_spread.md r0 §2 + its Codex plan review (B2)"
-                " + amendment A1 (the seed-42 off-orbit run)" if exp36 else ""),
+                " + amendment A1 (the seed-42 off-orbit run)" if exp36 else "") + (
+                "; exp_37 B3 rows: the B-F orbit-size cells (orbits {0} / {0,180}) + their B-F replay" if exp37 else ""),
             "blocks": list(names), "block_counts": {b: len(blocks[b]) for b in names}, "common_flags": COMMON_FLAGS}
     head.update({"arm_cond_flags": ARM_COND_FLAGS} if exp35 else {})
     return {**head, "img_w": IMG_W, "seeds": list(SEEDS), "dump_root": DUMP_ROOT, "farm_root": FARM_ROOT,

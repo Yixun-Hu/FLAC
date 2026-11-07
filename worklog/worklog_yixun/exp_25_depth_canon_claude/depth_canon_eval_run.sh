@@ -137,8 +137,8 @@ N_NOFLASH="$("$PY" "$COLLECT" --count-no-flash --cells "$CELLS" "${SEL_ARGS[@]}"
 # Codex C3a HIGH 1: the model configs of the relevant tree follow the selection -- an exp_25-only selection takes the
 # exp_25 arms' configs (the d6ca307a set), any exp_35 selection every arm's (ONE digest across its single-cell chunks)
 if [ "$N_NOFLASH" -gt 0 ]; then ARMS_JQ='.arms[].model_config'
-else ARMS_JQ='. as $m | [.cells[] | select((.cell | startswith("exp35_") | not)   # exp_36 rows (no-flash, all arms) apart:
-                 and (.block | IN("YAW-C4S", "RPL-S42", "OFF-S42") | not)) | .arm] | unique[] | $m.arms[.].model_config'; fi
+else ARMS_JQ='. as $m | [.cells[] | select(.block | IN("T", "T-dup", "C4+45", "R", "D-i", "D-ii", "S", "P1-pin",   # the exp_25
+                 "YAW-pin", "TRAJ")) | .arm] | unique[] | $m.arms[.].model_config'; fi     # blocks only (exp_37 B3)
 mapfile -t MODEL_CFGS < <(jq -r "$ARMS_JQ" "$CELLS")
 RELEVANT=(eval_FLAC.py src ':(exclude)src/tests' data/AR "${MODEL_CFGS[@]}" "$SELF" "$COLLECT" "$MAKE_CELLS"
           "$EXPDIR/depth_canon_cells.json" "$EXPDIR/depth_canon_audit_gate.py")

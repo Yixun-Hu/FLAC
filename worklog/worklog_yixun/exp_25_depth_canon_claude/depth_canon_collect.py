@@ -46,7 +46,8 @@ EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CAN
                 "E2-FAIL")                                                                  # + §14 A1
 EXPLICIT_BLOCKS = ("E2-FAIL",)   # §14 A1.3: selected only when named (the block or its cells), never by default
 EXP36_BLOCKS = ("YAW-C4S", "RPL-S42", "OFF-S42")   # exp_36 (plan r0; Codex B1, H1) + amendment A1 (off-orbit s42)
-DEFAULT_EXCLUDED_BLOCKS = EXPLICIT_BLOCKS + EXP36_BLOCKS   # Codex H1: never in a default selection (E2 semantics apart)
+EXP37_BLOCKS = ("RPL-37", "BF-ORB")   # exp_37 B3: the B-F replay + B-F@40k over the orbits {0} / {0,180}
+DEFAULT_EXCLUDED_BLOCKS = EXPLICIT_BLOCKS + EXP36_BLOCKS + EXP37_BLOCKS   # Codex H1: never in a default selection
 # exp_35 (plan_orbitrir_yaw_evidence.md r2 §3 P2): ONE per-arm evaluation protocol, vanilla by default and
 # frame-averaged for B-F; it drives record validation, the artifact paths, the probe binding and rendering
 VANILLA_PROTOCOL = {"cond_method": "vanilla", "frame_avg_angles": None, "orbit_execution": "n/a",
@@ -77,6 +78,15 @@ def arm_protocol(arm):
     return copy.deepcopy(ARM_PROTOCOL.get(arm, VANILLA_PROTOCOL))
 
 
+def row_protocol(row):
+    """exp_37 B3: ``arm_protocol`` with a frame-averaged row's OWN orbit (its ``--frame-avg-angles``); every row before
+    exp_37 carries its arm's C4 orbit there, so its protocol is unchanged."""
+    P, a = arm_protocol(row["arm"]), row["eval_args"]
+    if P["frame_avg_angles"] is not None and "--frame-avg-angles" in a:
+        P["frame_avg_angles"] = [float(x) for x in a[a.index("--frame-avg-angles") + 1].split(",")]
+    return P
+
+
 def is_exp35(row):
     """An exp_35 row: one of the blocks plan_orbitrir_yaw_evidence.md r2 §1 appends."""
     return row["block"] in EXP35_BLOCKS
@@ -86,7 +96,7 @@ def uses_no_flash(row):
     """A row spawned through the no-flash launcher (exp_36, Codex plan review B1): every exp_35 and exp_36 block.
     It drives the plan's ``no_flash``, receipt schema 2, the backend-log check, ``build_receipt`` and
     ``--count-no-flash``; ``is_exp35`` stays the exp_35 identity (names, collection)."""
-    return row["block"] in EXP35_BLOCKS + EXP36_BLOCKS
+    return row["block"] in EXP35_BLOCKS + EXP36_BLOCKS + EXP37_BLOCKS
 
 
 EXP36_REPLAY = "exp36_YAW_C4_S40000_K8_s42_th90"   # = exp25_YAW_C4_S40000_K8_s42_th90 (YAW-pin) under another name
@@ -97,16 +107,18 @@ EXP36_NAMES = {   # Codex B1 + amendment A1: exactly these names, each in its ow
     "YAW-C4S": (EXP36_REPLAY,) + EXP36_CELLS,
     "RPL-S42": tuple(f"exp36_{a}_C4_S40000_K8_s42_th90" for a in ("P1", "BF", "CANON")),
     "OFF-S42": tuple(f"exp35_{a}_OFF_S40000_K{k}_s42_th315" for a in ("P1", "BF", "CANON") for k in (1, 8))
-    + EXP36_YAW_OFF}
+    + EXP36_YAW_OFF,
+    "RPL-37": ("exp37_BF_C4_S40000_K8_s42_th90",),                                   # exp_37 B3
+    "BF-ORB": tuple(f"exp37_BF_ORB{o}_S40000_K{k}_s42_th{d}" for o in (1, 2) for k in (1, 8) for d in (0, 90))}
 
 
 def exp36_name_reasons(row):
     """Codex B1 / A1: an exp_36 row carries exactly one of its block's registered names; those names (and every
     ``exp36_`` name) belong to that block only."""
     name, block = row["cell"], row["block"]
-    if block in EXP36_BLOCKS and name not in EXP36_NAMES[block]:
+    if block in EXP36_NAMES and name not in EXP36_NAMES[block]:
         return [f"{name!r} is not one of the registered exp_36 names of block {block}"]
-    if block not in EXP36_BLOCKS and (name.startswith("exp36_") or any(name in v for v in EXP36_NAMES.values())):
+    if block not in EXP36_NAMES and (name.startswith(("exp36_", "exp37_")) or any(name in v for v in EXP36_NAMES.values())):
         return [f"{name!r} is an exp_36 name in block {block!r} (exp_36 names belong to their exp_36 block only)"]
     return []
 
@@ -171,7 +183,7 @@ def record_reasons(rec, row, *, pin, link):
     want = expected_record_keys(row)
     if list(rec) != want:
         reasons.append(f"record key order {list(rec)} != {want} (eval_FLAC's for this cell class)")
-    random, P = row["rotate_mode"] == "random", arm_protocol(row["arm"])
+    random, P = row["rotate_mode"] == "random", row_protocol(row)
     expect = {"ckpt_path": link, "rotate_deg": None if random else float(row["rotate_deg"]),
               "cond_method": P["cond_method"], "frame_avg_angles": P["frame_avg_angles"],
               "cond_autocast": P["cond_autocast"], "orbit_execution": P["orbit_execution"],
@@ -561,8 +573,8 @@ class CellPaths(NamedTuple):
 
 def cell_paths(row, link, dump_root):
     """Every path of one cell, derived exactly as eval_FLAC derives them from ``link`` (the arm's
-    ``cond_method`` names it: a B-F cell carries ``_fa_invariant_a4``)."""
-    P = arm_protocol(row["arm"])
+    ``cond_method`` names it: a B-F cell carries ``_fa_invariant_a<orbit size>``)."""
+    P = row_protocol(row)
     m = eval_FLAC.build_output_paths(
         link, 1, 1.0, row["cell"], cond_method=P["cond_method"], rotate_deg=float(row["rotate_deg"] or 0),
         n_angles=4 if P["frame_avg_angles"] is None else len(P["frame_avg_angles"]), rotate_mode=row["rotate_mode"],
@@ -2354,6 +2366,7 @@ EXP36_REPLAYS = {   # replay -> its archived reference: worktree, pin, raw diges
                            "receipt_sha256": "3fc4ed172ac0e8b7efefe15cb035f55de08f76c2591b9f8498d8b5cb4c6a87ac",
                            "log_sha256": "a201c970a65bd06a439bfb99615516528d98072000a06b7255bb6685e868269a",
                            "loaded": ["52c64b525c8a34f1721b73abd5c4aad67295ea2f729426e9330104b6d1441ace", 723922667]}}
+EXP36_REPLAYS["exp37_BF_C4_S40000_K8_s42_th90"] = dict(EXP36_REPLAYS[f"exp36_BF_{_C4}"])   # exp_37 B3: the same reference
 EXP36_REFERENCE = EXP36_REPLAYS[EXP36_REPLAY]
 EXP36_TEMPLATE = EXP36_REFERENCE["reference"]
 EXP25_FALLBACK = ("No module named 'flash_attn'", NO_FLASH["fallback_line"])   # flash-attn not installed then (H2)
