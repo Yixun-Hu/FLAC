@@ -55,6 +55,8 @@ def dump_coverage(run_dir, manifest: dict, counts: dict) -> dict:
     dump = identity.get("waveform_dump")
     if not isinstance(dump, dict) or not dump.get("dir"):
         raise RuntimeError(f"{run_dir}: no waveform dump (announcement 08)")
+    if Path(dump["dir"]).name != Path(run_dir).name:
+        raise RuntimeError(f"{run_dir}: its dump {dump['dir']} is not named after the run (<root>/<run stem>)")
     payload = wav.load_dump_manifest(dump["dir"], run_manifest_sha256=manifest["sha256"], query_counts=counts)
     bound = all(payload.get(k) == identity.get(k) for k in ("checkpoint_sha256", "sample_seed", "attention_backend"))
     if payload["mode"] != dump["mode"] or payload["replay_of"] != identity.get("replay_of") or not bound:
