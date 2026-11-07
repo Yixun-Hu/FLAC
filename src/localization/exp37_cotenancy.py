@@ -4,6 +4,9 @@
 standard library only, a minimal environment) in a write-once directory, waits for its first sample, and writes the
 hash-chained markers ``gpu_resident`` (the models are on the card), ``timed_start`` (before the warm-up) and
 ``timed_end`` (after the last timed query); ``stop`` creates the stop file and requires exit 0.
+Fix round 2 (Codex code review 2, HIGH 1 / 2, BLOCKING 1): the verdict binds the stream to the PRODUCER fixed before the
+measurement (pid + /proc start time, host, card) and to the pinned exp_36 root set, and the foreign-CPU mean is
+time-weighted, ``sum(foreign x overlap) / sum(overlap)`` with [timed_start, timed_end].
 
 ``monitor_verdict`` is ``timing_valid`` only if: both chains are intact (sha256, seq, links) and bound to the run's
 binding sha256; the stream is start / samples / stop with the stop on the stop file; the three markers come from the
@@ -132,7 +135,24 @@ def _apps(lines) -> list[tuple[str, int]] | None:
         return None
 
 
-def monitor_verdict(directory, *, binding_sha256: str) -> dict:
+PRODUCER_KEYS = ("pid", "pid_start_ticks", "hostname", "card_uuid")
+
+
+def producer_reasons(start: dict, producer: dict) -> list[str]:
+    """The monitor must have watched exactly the producer bound before the measurement (pid + /proc start time, host,
+    card) and must have run with the pinned exp_36 root set."""
+    bad = []
+    if not isinstance(producer, dict) or any(producer.get(k) in (None, "") for k in PRODUCER_KEYS):
+        return ["no complete producer identity (pid, /proc start time, host, card) to bind the monitor to"]
+    watched = (start.get("target_pid"), start.get("target_start"), start.get("hostname"), _uuid(start.get("card_uuid")))
+    if watched != (producer["pid"], producer["pid_start_ticks"], producer["hostname"], _uuid(producer["card_uuid"])):
+        bad.append(f"the monitor watched {watched}, not the producer {tuple(producer[k] for k in PRODUCER_KEYS)}")
+    if start.get("exp36_roots") != list(EXP36_ROOTS):
+        bad.append(f"the monitor's exp_36 root set {start.get('exp36_roots')} is not the pinned root set")
+    return bad
+
+
+def monitor_verdict(directory, *, binding_sha256: str, producer: dict) -> dict:
     directory, problems = Path(directory), {}
 
     def flag(reason, seq=None):
@@ -146,6 +166,8 @@ def monitor_verdict(directory, *, binding_sha256: str) -> dict:
     start, stop, samples = records[0], records[-1], [r for r in records if r.get("kind") == "sample"]
     if start.get("kind") != "start" or stop.get("kind") != "stop" or len(samples) != len(records) - 2:
         flag("the monitor stream is not start, samples, stop")
+    for reason in producer_reasons(start, producer):
+        flag(reason)
     if start.get("proc") != "/proc":
         flag(f"the monitor watched {start.get('proc')!r}, not the host's /proc")
     if stop.get("reason") != "stop_file":
@@ -153,7 +175,8 @@ def monitor_verdict(directory, *, binding_sha256: str) -> dict:
     times = [m.get("t_monotonic") for m in markers]
     if [m.get("marker") for m in markers] != list(MARKERS) or any(m.get("pid") != start.get("target_pid") for m in markers) \
             or not all(isinstance(t, (int, float)) for t in times) or times != sorted(times):
-        return {"timing_valid": False, "reasons": [f"the markers are not {list(MARKERS)} in order from the run"]}
+        return {"timing_valid": False, "reasons": [f"the markers are not {list(MARKERS)} in order from the run"]
+                + producer_reasons(start, producer)}
     resident, t0, t1 = times
     stamps = [s["t_monotonic"] for s in samples]
     before, after = [t for t in stamps if t <= t0], [t for t in stamps if t >= t1]
@@ -166,7 +189,7 @@ def monitor_verdict(directory, *, binding_sha256: str) -> dict:
         if gap > MAX_GAP_SECONDS:
             flag(f"an observation gap of {gap:.2f} s inside the timed interval (limit {MAX_GAP_SECONDS} s)")
     card, pid, last = _uuid(start.get("card_uuid")), start.get("target_pid"), after[0] if after else t1
-    foreign, seconds = [], {}
+    intervals, seconds = [], {}
     for s in samples:
         gpu, t = s.get("gpu") or {}, s["t_monotonic"]
         apps = None if gpu.get("error") or gpu.get("returncode") != 0 else _apps(gpu.get("lines", []))
@@ -181,19 +204,29 @@ def monitor_verdict(directory, *, binding_sha256: str) -> dict:
             flag("exp_36 was on the host", s["seq"])
         if not s.get("target_alive"):
             flag("the run was not alive", s["seq"])
-        if t0 < t <= last and isinstance(s.get("cpu"), dict) and "foreign_cores" in s["cpu"]:
-            foreign.append(float(s["cpu"]["foreign_cores"]))
-            for row in s.get("foreign_processes", []):
-                key = (row["pid"], row["comm"])
-                seconds[key] = seconds.get(key, 0.0) + float(row["cores"]) * float(s["cpu"]["interval_seconds"])
-    mean = sum(foreign) / len(foreign) if foreign else None
+        cpu = s.get("cpu")
+        if isinstance(cpu, dict) and {"interval_start", "interval_end", "foreign_cores"} <= set(cpu):
+            overlap = min(float(cpu["interval_end"]), t1) - max(float(cpu["interval_start"]), t0)
+            if overlap > 0:                                   # time-weighted over the exact timed interval
+                intervals.append({"start": float(cpu["interval_start"]), "end": float(cpu["interval_end"]),
+                                  "overlap_seconds": overlap, "foreign_cores": float(cpu["foreign_cores"])})
+                for row in s.get("foreign_processes", []):
+                    key = (row["pid"], row["comm"])
+                    seconds[key] = seconds.get(key, 0.0) + float(row["cores"]) * overlap
+        elif t0 < t <= last:
+            flag("a sample inside the timed interval has no CPU interval", s["seq"])
+    covered = sum(i["overlap_seconds"] for i in intervals)
+    mean = sum(i["foreign_cores"] * i["overlap_seconds"] for i in intervals) / covered if covered > 0 else None
+    if covered > 0 and abs(covered - (t1 - t0)) > MAX_GAP_SECONDS:
+        flag(f"the CPU intervals cover {covered:.2f} s of the {t1 - t0:.2f} s timed interval")
     if mean is None or mean > FOREIGN_CPU_MEAN_LIMIT_CORES:
         flag(f"the foreign CPU over the timed interval ({mean} cores) is unmeasured or above "
              f"{FOREIGN_CPU_MEAN_LIMIT_CORES} cores")
     reasons = [f"{reason} ({count} sample(s), first seq {first})" for reason, (count, first) in problems.items()]
     return {"timing_valid": not reasons, "reasons": reasons, "sample_count": len(samples),
             "timed_seconds": t1 - t0, "max_gap_seconds": gap, "foreign_cpu_cores_mean": mean,
-            "foreign_cpu_cores_max": max(foreign, default=None),
+            "foreign_cpu_cores_max": max((i["foreign_cores"] for i in intervals), default=None),
+            "foreign_cpu_intervals": intervals,
             "foreign_cpu_processes": [{"pid": p, "comm": c, "cpu_seconds": v} for (p, c), v in
                                       sorted(seconds.items(), key=lambda item: -item[1])],
             "monitor_head_sha256": records[-1]["sha256"], "markers_head_sha256": markers[-1]["sha256"]}

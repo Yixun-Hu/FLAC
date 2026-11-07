@@ -41,7 +41,8 @@ def events(monkeypatch, stubbed):
             log.append(("stop",))
             return 0
     monkeypatch.setattr(exp37_cotenancy, "Monitor", FakeMonitor)
-    monkeypatch.setattr(runner, "card_uuid", lambda device: "6ac2604a-1111")
+    monkeypatch.setattr(runner, "producer_identity", lambda device: {"pid": os.getpid(), "pid_start_ticks": 7,
+                                                                      "hostname": "h", "card_uuid": "6ac2604a-1111"})
     monkeypatch.setattr(runner, "attention_identity", lambda root, require: {"attention_backend": "sdpa"})
     monkeypatch.setattr(runner, "no_flash_launch_handoff", lambda root: {"pid": os.getpid()})
     monkeypatch.setattr(runner, "weights_footprint", lambda device: {"memory_allocated_bytes": 1})
@@ -56,6 +57,9 @@ def test_an_exp37_timing_pass_is_monitored_over_its_whole_timed_interval(frozen,
     _run(frozen, tmp_path, query_limit=2, warmup_query_count=1, require_attention_backend="sdpa", **TIMED)
     sha = json.loads((tmp_path / "run" / "run_manifest.json").read_text())["sha256"]
     assert events[0] == ("monitor", str(tmp_path / "run" / "cotenancy"), sha, "6ac2604a-1111")
+    producer = json.loads((tmp_path / "run" / "producer.json").read_text())
+    assert (producer["run_manifest_sha256"], producer["pid"], producer["pid_start_ticks"], producer["card_uuid"]) == (
+        sha, os.getpid(), 7, "6ac2604a-1111")                     # bound before the monitor starts
     kinds = [e[0] if e[0] != "marker" else e[1] for e in events]
     assert kinds == ["monitor", "start", "load_flac", "load_agree", "gpu_resident", "timed_start",
                      "query", "query", "query", "timed_end", "stop"]            # warm-up + 2 queries inside

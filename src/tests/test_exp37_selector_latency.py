@@ -129,7 +129,8 @@ def test_a_cuda_selector_run_is_monitored_around_its_measurement(tmp_path, monke
             events.append(("stop",))
             return 0
     monkeypatch.setattr(sel, "Monitor", FakeMonitor)
-    monkeypatch.setattr(sel, "card_uuid", lambda device: "6ac2604a-1111")
+    monkeypatch.setattr(sel, "producer_identity", lambda device: {"pid": 9, "pid_start_ticks": 7, "hostname": "h",
+                                                                   "card_uuid": "6ac2604a-1111"})
     monkeypatch.setattr(sel, "load_agree_retrieval", lambda path, device: events.append(("load",)) or FakeRetrieval())
     monkeypatch.setattr(sel, "measure_selector", lambda *a, **k: events.append(("measure",)) or [])
     monkeypatch.setattr(sel, "host_snapshot", lambda device: {"pid": 1})
@@ -148,6 +149,8 @@ def test_a_cuda_selector_run_is_monitored_around_its_measurement(tmp_path, monke
     sel.main()
     payload = json.loads(output.read_text())
     assert events[0] == ("monitor", f"{output}.cotenancy", payload["binding"]["sha256"], "6ac2604a-1111")
+    assert (payload["binding"]["pid"], payload["binding"]["pid_start_ticks"], payload["binding"]["card_uuid"]) == (
+        9, 7, "6ac2604a-1111")
     assert [e[1] if e[0] == "marker" else e[0] for e in events[1:]] == ["load", "gpu_resident", "timed_start", "measure",
                                                                          "timed_end", "stop"]
     output.unlink()

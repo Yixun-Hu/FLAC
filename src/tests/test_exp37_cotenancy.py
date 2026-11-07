@@ -48,7 +48,7 @@ def world(tmp_path, *, edit=None, marks=(2.0, 3.0, 18.0), stop="stop_file", bind
                       {"pid": 7, "comm": "kworker", "uid": 0, "cores": 0.5}]}
         out.write(edit(t, sample) if edit else sample)
     out.write({"kind": "stop", "reason": stop})
-    markers = cot.ChainWriter(folder / "markers.jsonl", binding_sha256=B, producer=PRODUCER)
+    markers = cot.ChainWriter(folder / "markers.jsonl", binding_sha256=B)
     for name, t in zip(cot.MARKERS, marks):
         markers.write({"marker": name, "pid": 100, "t_monotonic": t})
     return folder

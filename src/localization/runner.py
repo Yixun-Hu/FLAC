@@ -37,7 +37,7 @@ from src.localization.mesh_remap import resolve_mesh_root
 from src.localization.pilot import canonical_sha256, resolve_pilot_records
 from src.localization.run_provenance import (
     attention_identity,
-    card_uuid,
+    producer_identity,
     no_flash_launch_handoff,
     weights_footprint,
     write_host_record,
@@ -632,8 +632,10 @@ def run_localization(
     if monitored:                  # BLOCKING 3: the run-bound co-tenancy monitor over the whole timed interval
         from src.localization import exp37_cotenancy
 
+        producer = {"record_type": "exp37_producer", "run_manifest_sha256": run_sha256, **producer_identity(device)}
+        _atomic_json(Path(output_dir) / "producer.json", _hashed_payload(producer))
         monitor = exp37_cotenancy.Monitor(Path(output_dir) / "cotenancy", binding_sha256=run_sha256,
-                                          card_uuid=card_uuid(device)).start()
+                                          card_uuid=producer["card_uuid"]).start()
 
     torch.set_float32_matmul_precision("medium")
     torch.backends.cuda.matmul.allow_tf32 = True

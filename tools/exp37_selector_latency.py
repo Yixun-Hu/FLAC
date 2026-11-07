@@ -31,7 +31,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.localization.engine import encode_audio_features, load_agree_retrieval, load_frozen_query  # noqa: E402
 from src.localization.exp37_cotenancy import Monitor  # noqa: E402
 from src.localization.pilot import canonical_sha256  # noqa: E402
-from src.localization.run_provenance import card_uuid, host_snapshot  # noqa: E402
+from src.localization.run_provenance import host_snapshot, process_start_ticks, producer_identity  # noqa: E402
 from tools.benchmark_localization_selector_latency import benchmark_agree_query  # noqa: E402
 
 RECORD_TYPE = "exp37_agree_selector_latency"
@@ -88,12 +88,16 @@ def measure_selector(selection: dict, context_records: dict, dataset_root: Path,
 
 
 def make_binding(*, selection: dict, context_sha256: str, agree_sha256: str, device: str, batch_size: int,
-                 repeat_count: int, output: Path) -> dict:
-    """BLOCKING 3: what the co-tenancy monitor binds to, fixed BEFORE the measurement (exp37_latency.SELECTOR_BOUND)."""
+                 repeat_count: int, output: Path, producer: dict | None = None) -> dict:
+    """BLOCKING 3 / review 2 HIGH 1: what the co-tenancy monitor binds to, fixed BEFORE the measurement -- the
+    exp37_latency.SELECTOR_BOUND fields, the output, and the producer (pid + /proc start time, host, card)."""
+    import socket
+    producer = producer or {"pid": os.getpid(), "pid_start_ticks": process_start_ticks(),
+                            "hostname": socket.gethostname(), "card_uuid": None}
     body = {"record_type": "exp37_selector_binding", "selection_sha256": selection["sha256"],
             "context_manifest_sha256": context_sha256, "agree_checkpoint_file_sha256": agree_sha256, "device": device,
             "candidate_batch_size": int(batch_size), "repeat_count": int(repeat_count), "output": str(output),
-            "pid": os.getpid(), "started_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+            **producer, "started_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat()}
     return {**body, "sha256": canonical_sha256(body)}
 
 
@@ -131,12 +135,13 @@ def main() -> None:
         raise RuntimeError("the selection and the context manifest do not match")
     agree_path = args.agree_checkpoint.resolve()
     agree_sha256 = hashlib.sha256(agree_path.read_bytes()).hexdigest()
+    cuda = torch.device(args.device).type == "cuda"     # a CPU smoke is never a timing source (no attestation)
     binding = make_binding(selection=selection, context_sha256=context["sha256"], agree_sha256=agree_sha256,
                            device=args.device, batch_size=args.candidate_batch_size, repeat_count=args.repeat_count,
-                           output=args.output)
+                           output=args.output, producer=producer_identity(args.device) if cuda else None)
     monitor = None
-    if torch.device(args.device).type == "cuda":          # a CPU smoke is never a timing source (no attestation)
-        monitor = Monitor(attestation, binding_sha256=binding["sha256"], card_uuid=card_uuid(args.device)).start()
+    if cuda:
+        monitor = Monitor(attestation, binding_sha256=binding["sha256"], card_uuid=binding["card_uuid"]).start()
     retrieval = load_agree_retrieval(agree_path, args.device)
     if monitor is not None:
         monitor.marker("gpu_resident")

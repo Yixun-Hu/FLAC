@@ -108,6 +108,18 @@ def _cuda_device(device: str) -> dict | None:
             "total_memory_bytes": int(props.total_memory)}
 
 
+def process_start_ticks(pid: int | None = None) -> int:
+    """The /proc start time (clock ticks since boot) of ``pid`` (default: this process)."""
+    with open(f"/proc/{os.getpid() if pid is None else int(pid)}/stat") as handle:
+        return int(handle.read().rpartition(")")[2].split()[19])
+
+
+def producer_identity(device: str) -> dict:
+    """What a timed pass binds BEFORE its measurement (Codex code review 2, HIGH 1): pid + /proc start time, host, card."""
+    return {"pid": os.getpid(), "pid_start_ticks": process_start_ticks(), "hostname": socket.gethostname(),
+            "card_uuid": card_uuid(device)}
+
+
 def card_uuid(device: str) -> str:
     """The timed pass's CUDA card UUID (the co-tenancy monitor binds to it); RuntimeError when it is unknown."""
     card = _cuda_device(device)

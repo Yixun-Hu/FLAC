@@ -109,33 +109,56 @@ def load_selector(path: Path, selection: dict) -> dict:
     return out
 
 
+def snapshot_reasons(snapshot, producer: dict, label: str) -> list[str]:
+    """A host snapshot taken by the producer itself on its card, with both host commands successful."""
+    from src.localization import exp37_cotenancy as cot
+
+    if not isinstance(snapshot, dict):
+        return [f"{label}: no host snapshot"]
+    bad = []
+    if (snapshot.get("pid"), snapshot.get("hostname")) != (producer["pid"], producer["hostname"]) or cot._uuid(
+            (snapshot.get("cuda_device") or {}).get("uuid")) != cot._uuid(producer["card_uuid"]):
+        bad.append(f"{label}: the snapshot's pid / host / card are not the producer's")
+    for command in ("gpu_compute_apps", "top_cpu_processes"):
+        done = snapshot.get(command) or {}
+        if done.get("error") or done.get("returncode") != 0 or not isinstance(done.get("lines"), list):
+            bad.append(f"{label}: the host command {command} failed or is incomplete")
+    return bad
+
+
 def host_cotenancy(run_dir: Path) -> dict:
-    """A run's timing attestation (Codex code review 1, BLOCKING 3): the run-bound monitor's verdict over the whole
-    timed interval (``exp37_cotenancy.monitor_verdict``) plus exactly one hashed start / loaded / end host record,
-    each bound to the run manifest. Anything missing, unhashed or foreign withholds the timing."""
+    """A run's timing attestation (Codex code reviews 1 / 2, BLOCKING 3 / HIGH 1): the producer record (pid + /proc
+    start time, host, card; bound to the run manifest before the measurement), the monitor's verdict over the whole
+    timed interval for exactly that producer, and exactly one hashed start / loaded / end host record, each bound to the
+    run, labelled as its file, taken by the producer on its card with both host commands successful."""
     from src.localization import exp37_cotenancy as cot
 
     run_dir = Path(run_dir)
     try:
         manifest = _hashed(run_dir / "run_manifest.json")
+        producer = _hashed(run_dir / "producer.json")
     except (OSError, ValueError, RuntimeError) as error:
-        return {"timing_valid": False, "reasons": [f"no readable run manifest: {error}"]}
+        return {"timing_valid": False, "reasons": [f"no readable run manifest / producer record: {error}"]}
     reasons, records = [], {}
+    if producer.get("record_type") != "exp37_producer" or producer.get("run_manifest_sha256") != manifest["sha256"]:
+        reasons.append("the producer record is not this run's")
     for path in sorted((run_dir / "host_records").glob("*.json")):
         try:
             record = _hashed(path)
         except (OSError, ValueError, RuntimeError):
             reasons.append(f"host record {path.name} is unhashed or corrupt")
             continue
-        if record.get("run_manifest_sha256") != manifest["sha256"]:
-            reasons.append(f"host record {path.name} is bound to another run")
+        if record.get("run_manifest_sha256") != manifest["sha256"] or record.get("label") != path.name.split("_")[0]:
+            reasons.append(f"host record {path.name} is bound to another run or mislabelled")
+        reasons += snapshot_reasons(record.get("snapshot"), producer, f"host record {path.name}")
         records[path.name] = record["sha256"]
     labels = sorted(name.split("_")[0] for name in records)
     if labels != ["end", "loaded", "start"]:
         reasons.append(f"the host records {labels} are not exactly start / loaded / end")
-    verdict = cot.monitor_verdict(run_dir / "cotenancy", binding_sha256=manifest["sha256"])
+    verdict = cot.monitor_verdict(run_dir / "cotenancy", binding_sha256=manifest["sha256"],
+                                  producer={k: producer.get(k) for k in cot.PRODUCER_KEYS})
     return {"timing_valid": bool(verdict["timing_valid"] and not reasons), "reasons": verdict["reasons"] + reasons,
-            "monitor": verdict, "host_records": records}
+            "monitor": verdict, "host_records": records, "producer_sha256": producer["sha256"]}
 
 
 SELECTOR_BOUND = ("selection_sha256", "context_manifest_sha256", "agree_checkpoint_file_sha256", "candidate_batch_size",
@@ -143,8 +166,9 @@ SELECTOR_BOUND = ("selection_sha256", "context_manifest_sha256", "agree_checkpoi
 
 
 def selector_cotenancy(path: Path) -> dict:
-    """A selector vector's attestation: its binding (hashed, naming this file and the payload's selection / AGREE /
-    context / batch / repeats / device) and the monitor verdict in ``<file>.cotenancy`` bound to it."""
+    """A selector vector's attestation: its binding (hashed before the measurement: this file, the payload's selection /
+    AGREE / context / batch / repeats / device, and the producer pid + /proc start time, host, card), the monitor
+    verdict in ``<file>.cotenancy`` for exactly that producer, and the payload's host snapshot by the same producer."""
     from src.localization import exp37_cotenancy as cot
 
     path = Path(path)
@@ -161,9 +185,16 @@ def selector_cotenancy(path: Path) -> dict:
         differ.append("output")
     if differ:
         return {"timing_valid": False, "reasons": [f"the selector binding does not describe this vector: {differ}"]}
-    verdict = cot.monitor_verdict(Path(f"{path}.cotenancy"), binding_sha256=binding["sha256"])
-    return {"timing_valid": bool(verdict["timing_valid"]), "reasons": verdict["reasons"], "monitor": verdict,
+    producer = {k: binding.get(k) for k in cot.PRODUCER_KEYS}
+    verdict = cot.monitor_verdict(Path(f"{path}.cotenancy"), binding_sha256=binding["sha256"], producer=producer)
+    reasons = verdict["reasons"] + (snapshot_reasons(payload.get("host"), producer, "the selector's host snapshot")
+                                    if not producer_missing(producer) else [])
+    return {"timing_valid": bool(verdict["timing_valid"] and not reasons), "reasons": reasons, "monitor": verdict,
             "binding_sha256": binding["sha256"]}
+
+
+def producer_missing(producer: dict) -> bool:
+    return any(producer.get(k) in (None, "") for k in ("pid", "pid_start_ticks", "hostname", "card_uuid"))
 
 
 def load_arm_run(run_dir: Path, *, arm: str, selection: dict, audit: dict, seed: int = 42, context_count: int = 8,
