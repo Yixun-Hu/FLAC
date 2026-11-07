@@ -1,0 +1,4 @@
+HEAD 091e9c5ec1cd0c269dded3a2db45f5478ef00fad (CPU; the schema-3 planned spec, no run directories required; synthesis pending)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+{"output": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/b2b3/b2b3_spec.planned.json", "b2_runs": 12, "b3_runs": 15, "synthesis": "pending"}
+EXIT 0

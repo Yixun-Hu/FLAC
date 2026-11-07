@@ -1,0 +1,283 @@
+{
+  "audit_0p50": "worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/geometry_audit.json",
+  "audit_0p75": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/audit_0p75/geometry_audit_0p75.json",
+  "b2_c2f_runs": [
+    {
+      "arm": "P1",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2a_c2f_P1_s43",
+      "seed": 43
+    },
+    {
+      "arm": "P1",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2a_c2f_P1_s44",
+      "seed": 44
+    },
+    {
+      "arm": "BF",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2a_c2f_BF_s43",
+      "seed": 43
+    },
+    {
+      "arm": "BF",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2a_c2f_BF_s44",
+      "seed": 44
+    }
+  ],
+  "b2_runs": [
+    {
+      "arm": "P1",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p50_P1_s42",
+      "grid": "0.50",
+      "replay": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p50_P1_s42_replay",
+      "seed": 42,
+      "timing": true
+    },
+    {
+      "arm": "P1",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p50_P1_s43",
+      "grid": "0.50",
+      "replay": null,
+      "seed": 43,
+      "timing": false
+    },
+    {
+      "arm": "P1",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p50_P1_s44",
+      "grid": "0.50",
+      "replay": null,
+      "seed": 44,
+      "timing": false
+    },
+    {
+      "arm": "P1",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p75_P1_s42",
+      "grid": "0.75",
+      "replay": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p75_P1_s42_replay",
+      "seed": 42,
+      "timing": true
+    },
+    {
+      "arm": "P1",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p75_P1_s43",
+      "grid": "0.75",
+      "replay": null,
+      "seed": 43,
+      "timing": false
+    },
+    {
+      "arm": "P1",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p75_P1_s44",
+      "grid": "0.75",
+      "replay": null,
+      "seed": 44,
+      "timing": false
+    },
+    {
+      "arm": "BF",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p50_BF_s42",
+      "grid": "0.50",
+      "replay": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p50_BF_s42_replay",
+      "seed": 42,
+      "timing": true
+    },
+    {
+      "arm": "BF",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p50_BF_s43",
+      "grid": "0.50",
+      "replay": null,
+      "seed": 43,
+      "timing": false
+    },
+    {
+      "arm": "BF",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p50_BF_s44",
+      "grid": "0.50",
+      "replay": null,
+      "seed": 44,
+      "timing": false
+    },
+    {
+      "arm": "BF",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p75_BF_s42",
+      "grid": "0.75",
+      "replay": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p75_BF_s42_replay",
+      "seed": 42,
+      "timing": true
+    },
+    {
+      "arm": "BF",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p75_BF_s43",
+      "grid": "0.75",
+      "replay": null,
+      "seed": 43,
+      "timing": false
+    },
+    {
+      "arm": "BF",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2_0p75_BF_s44",
+      "grid": "0.75",
+      "replay": null,
+      "seed": 44,
+      "timing": false
+    }
+  ],
+  "b2_timing": [
+    {
+      "arm": "P1",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2t_nested_P1_s42",
+      "kind": "nested_1m",
+      "replay": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2t_nested_P1_s42_replay"
+    },
+    {
+      "arm": "P1",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2t_c2f_P1_s42",
+      "kind": "c2f",
+      "replay": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2t_c2f_P1_s42_replay"
+    },
+    {
+      "arm": "BF",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2t_nested_BF_s42",
+      "kind": "nested_1m",
+      "replay": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2t_nested_BF_s42_replay"
+    },
+    {
+      "arm": "BF",
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2t_c2f_BF_s42",
+      "kind": "c2f",
+      "replay": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b2t_c2f_BF_s42_replay"
+    }
+  ],
+  "b3_latency": {
+    "runs": [
+      {
+        "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_lat_o0_s42",
+        "orbit": "0",
+        "replay": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_lat_o0_s42_replay"
+      },
+      {
+        "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_lat_o0_180_s42",
+        "orbit": "0_180",
+        "replay": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_lat_o0_180_s42_replay"
+      },
+      {
+        "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b1_k8_BF_s42",
+        "orbit": "c4",
+        "replay": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b1_k8_BF_s42_replay"
+      }
+    ],
+    "selection": "NeurIPS_2026_Workshop_Latency_Reproducibility/data/selection/frozen_16room_128.json",
+    "selector": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/selector/selector_128.json"
+  },
+  "b3_runs": [
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_o0_t0_s42",
+      "orbit": "0",
+      "seed": 42,
+      "theta": 0
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_o0_t0_s43",
+      "orbit": "0",
+      "seed": 43,
+      "theta": 0
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_o0_t0_s44",
+      "orbit": "0",
+      "seed": 44,
+      "theta": 0
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_o0_t90_s42",
+      "orbit": "0",
+      "seed": 42,
+      "theta": 90
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_o0_t90_s43",
+      "orbit": "0",
+      "seed": 43,
+      "theta": 90
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_o0_t90_s44",
+      "orbit": "0",
+      "seed": 44,
+      "theta": 90
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_o0_180_t0_s42",
+      "orbit": "0_180",
+      "seed": 42,
+      "theta": 0
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_o0_180_t0_s43",
+      "orbit": "0_180",
+      "seed": 43,
+      "theta": 0
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_o0_180_t0_s44",
+      "orbit": "0_180",
+      "seed": 44,
+      "theta": 0
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_o0_180_t90_s42",
+      "orbit": "0_180",
+      "seed": 42,
+      "theta": 90
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_o0_180_t90_s43",
+      "orbit": "0_180",
+      "seed": 43,
+      "theta": 90
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_o0_180_t90_s44",
+      "orbit": "0_180",
+      "seed": 44,
+      "theta": 90
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_c4_t90_s42",
+      "orbit": "c4",
+      "seed": 42,
+      "theta": 90
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_c4_t90_s43",
+      "orbit": "c4",
+      "seed": 43,
+      "theta": 90
+    },
+    {
+      "dir": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/runs/b3_c4_t90_s44",
+      "orbit": "c4",
+      "seed": 44,
+      "theta": 90
+    }
+  ],
+  "b3_synthesis": {
+    "cells": [],
+    "leaf_commit": null,
+    "metrics_keys": [],
+    "note": "PENDING -- the 8 new eval_FLAC synthesis cells ({0}, {0,180} x theta {0, 90} x K {1, 8}, seed 42, no-flash) run by the leaf chain b3 (exp-37-b3-synthesis at d3013734, runbook step B3S.run); the 4 C4 cells are reused from exp_35 phase (i) (H35 5b065801). Runbook step B3S.cells (tools/exp37_build_synthesis_cells.py) validates all 12 against their embedded identities and writes the complete section; until then the B2 / B3 summary is diagnostic only.",
+    "runbook": null,
+    "status": "pending"
+  },
+  "external": {
+    "accuracy": "worklog/worklog_yixun/exp_23_five_method_64_random_fallback/summary.json",
+    "latency_csv": "NeurIPS_2026_Workshop_Latency_Reproducibility/expected/latency_per_query.csv"
+  },
+  "nested_manifest": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/manifests/nested_1m_pilot_seed42_4_per_room.json",
+  "pilot_0p50": "worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_manifest_seed42_4_per_room.json",
+  "pilot_0p75": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/audit_0p75/pilot_manifest_0p75_seed42_4_per_room.json",
+  "require_timing_replays": true,
+  "schema_version": 3,
+  "selector_0p50": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/selector/selector_128.json",
+  "selector_0p75": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/selector/selector_0p75.json",
+  "selector_nested": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/selector/selector_nested_1m.json"
+}
