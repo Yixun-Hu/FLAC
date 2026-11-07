@@ -4,7 +4,9 @@ review 2, BLOCKING 2). Never deletes: it MOVES the partial run directory, every 
 stem whose owner process is dead, and (only with --include-published) a published dump of the stem, into
 ``<runs>/.quarantine/<stem>.<UTC>/`` and ``<dump root>/.quarantine/<stem>.<UTC>/``, and writes a hashed record
 ``<runs>/.quarantine/<stem>.<UTC>.json``. A staging directory whose owner (pid + /proc start time) is still alive is
-never touched (exit 2). Standard library only. Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix round 2.
+never touched (exit 2). Every move is one ``renameat2(RENAME_NOREPLACE)`` (review 3, B-01: no check-then-rename;
+a filesystem without it refuses, exit 2). Standard library only. Written by the exp_37 Coder (Claude Opus 5.5, max
+effort), fix round 2; the final fix round (fixed after review 3, not re-reviewed (cap)).
 """
 
 from __future__ import annotations
@@ -20,6 +22,23 @@ from pathlib import Path
 
 def canonical_sha256(payload) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def rename_noreplace(source, target) -> None:
+    """renameat2(RENAME_NOREPLACE) only: an existing target is FileExistsError; a libc / filesystem without the atomic
+    no-replace rename raises OSError -- never a check-then-rename fallback."""
+    import ctypes
+    import errno
+    try:
+        renameat2 = ctypes.CDLL(None, use_errno=True).renameat2
+    except (OSError, AttributeError) as error:
+        raise OSError(errno.ENOSYS, "renameat2(RENAME_NOREPLACE) is unavailable") from error
+    if renameat2(-100, os.fsencode(source), -100, os.fsencode(target), 1) == 0:      # AT_FDCWD, RENAME_NOREPLACE
+        return
+    code = ctypes.get_errno()
+    if code in (errno.EEXIST, errno.ENOTEMPTY):
+        raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), str(target))
+    raise OSError(code, os.strerror(code), str(target))
 
 
 def _start_ticks(pid):
@@ -64,10 +83,14 @@ def main(argv=None) -> int:
         return 0
     for source, target in moves:
         target.parent.mkdir(parents=True, exist_ok=True)
-        if os.path.lexists(target):
+        try:
+            rename_noreplace(source, target)                  # atomic no-replace (review 3, B-01)
+        except FileExistsError:
             print(f"REFUSED: {target} exists", file=sys.stderr)
             return 2
-        os.rename(source, target)
+        except OSError as error:
+            print(f"REFUSED: cannot move {source} -> {target} atomically ({error})", file=sys.stderr)
+            return 2
     body = {"schema_version": 1, "record_type": "exp37_quarantine", "stem": stem, "at_utc": stamp,
             "moved": [{"from": str(s), "to": str(t)} for s, t in moves]}
     record = runs / ".quarantine" / f"{stem}.{stamp}.json"

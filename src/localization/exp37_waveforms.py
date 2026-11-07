@@ -6,13 +6,18 @@ run's query record, its ACTUAL row -> full-grid index vector (``<u4``, strictly 
 ``arange(M)`` for a full-grid run, the subset / union indices otherwise), and a hashed ``dump_manifest.json`` bound to
 the run manifest, the checkpoint, the seed, the backend and the complete query coverage.
 
-Crash safety (review 2): everything is written into a uniquely owned staging directory
+Crash safety (reviews 2 / 3): everything is written into a uniquely owned staging directory
 ``<root>/.staging-<stem>-<pid>-<token>`` (``.owner.json``: pid + /proc start time), each file created exclusively,
 fsync'd and made read-only, directories fsync'd; ``finish`` writes the manifest exclusively LAST and publishes by ONE
-no-replace rename into ``<root>/<stem>`` (refused when the name exists; a second ``finish`` refused). A crash therefore
-leaves only the staging directory; the stem is refused until ``tools/exp37_quarantine.py`` has moved it away.
+``renameat2(RENAME_NOREPLACE)`` into ``<root>/<stem>`` (refused when the name exists; a second ``finish`` refused).
+There is NO fallback (review 3, B-01): a libc or filesystem without the atomic no-replace rename, and any directory
+fsync that fails or is unsupported, raise ``DurabilityError`` -- no weaker filesystem protocol is authorized -- and
+the staging stays (a root fsync failure after the rename unpublishes the dump back to its staging name). A crash or
+a refusal therefore leaves only the staging directory; the stem is refused until ``tools/exp37_quarantine.py`` has
+moved it away.
 Timing passes never dump: an untimed deterministic replay (``mode = replay``) regenerates and dumps them.
-Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix rounds 1-2.
+Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix rounds 1-2; the final fix round (fixed after review
+3, not re-reviewed (cap)).
 """
 
 from __future__ import annotations
@@ -56,18 +61,25 @@ def start_ticks(pid: int) -> int | None:
         return None
 
 
+class DurabilityError(RuntimeError):
+    """The filesystem cannot give the atomic no-replace rename or the directory fsync that publication requires."""
+
+
 def fsync_dir(path: Path) -> str:
-    """fsync a directory; a filesystem that cannot (EINVAL / ENOTSUP) is reported, never hidden."""
-    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    """fsync a directory and return "ok"; ANY failure -- an unsupported directory fsync (EINVAL / ENOTSUP / EBADF)
+    included -- is fatal (review 3, B-01: no weaker filesystem protocol is authorized)."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    except OSError as error:
+        raise DurabilityError(f"cannot open the directory {path} for its fsync: {error}") from error
     try:
         os.fsync(fd)
-        return "ok"
     except OSError as error:
-        if error.errno in (errno.EINVAL, errno.ENOTSUP, errno.EBADF):
-            return f"unsupported ({errno.errorcode.get(error.errno, error.errno)})"
-        raise
+        raise DurabilityError(f"the directory fsync of {path} failed or is unsupported "
+                              f"({errno.errorcode.get(error.errno, error.errno)}): publication refused") from error
     finally:
         os.close(fd)
+    return "ok"
 
 
 def write_exclusive(path: Path, data: bytes) -> None:
@@ -93,25 +105,23 @@ def _npy_bytes(array: np.ndarray) -> bytes:
 
 
 def rename_noreplace(source: Path, target: Path) -> str:
-    """Atomically rename ``source`` to ``target`` unless ``target`` exists (renameat2 RENAME_NOREPLACE; a filesystem
-    without it falls back to an existence check immediately before os.rename). Returns the method used."""
+    """Atomically rename ``source`` to ``target`` unless ``target`` exists: ``renameat2(RENAME_NOREPLACE)`` and
+    nothing else (review 3, B-01). An existing target is FileExistsError; a libc without renameat2 or a filesystem
+    refusing the flag (ENOSYS / EINVAL / ENOTSUP) is DurabilityError -- never a check-then-rename fallback."""
     try:
-        libc = ctypes.CDLL(None, use_errno=True)
-        renameat2 = libc.renameat2
-    except (OSError, AttributeError):
-        renameat2 = None
-    if renameat2 is not None:
-        if renameat2(-100, os.fsencode(source), -100, os.fsencode(target), 1) == 0:     # AT_FDCWD, RENAME_NOREPLACE
-            return "renameat2(RENAME_NOREPLACE)"
-        code = ctypes.get_errno()
-        if code == errno.EEXIST:
-            raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), str(target))
-        if code not in (errno.EINVAL, errno.ENOSYS, errno.ENOTSUP):
-            raise OSError(code, os.strerror(code), str(target))
-    if os.path.lexists(target):
+        renameat2 = ctypes.CDLL(None, use_errno=True).renameat2
+    except (OSError, AttributeError) as error:
+        raise DurabilityError("renameat2(RENAME_NOREPLACE) is unavailable: publication refused (no check-then-rename "
+                              "fallback)") from error
+    if renameat2(-100, os.fsencode(source), -100, os.fsencode(target), 1) == 0:         # AT_FDCWD, RENAME_NOREPLACE
+        return "renameat2(RENAME_NOREPLACE)"
+    code = ctypes.get_errno()
+    if code in (errno.EEXIST, errno.ENOTEMPTY):
         raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), str(target))
-    os.rename(source, target)
-    return "os.rename after an existence check"
+    if code in (errno.EINVAL, errno.ENOSYS, errno.ENOTSUP):
+        raise DurabilityError(f"the filesystem refuses renameat2(RENAME_NOREPLACE) for {target} "
+                              f"({errno.errorcode.get(code, code)}): publication refused (no fallback)")
+    raise OSError(code, os.strerror(code), str(target))
 
 
 def staging_leftovers(root: Path, run_stem: str) -> list[Path]:
@@ -197,7 +207,14 @@ class WaveformDump:
             self.publish_method = rename_noreplace(self.staging, self.dir)
         except FileExistsError as error:
             raise RuntimeError(f"{self.dir} exists: the dump is not published over it (staging kept)") from error
-        fsync_dir(self.root)
+        try:
+            fsync_dir(self.root)
+        except DurabilityError as error:                     # not durable: unpublish (the stem stays refused)
+            try:
+                rename_noreplace(self.dir, self.staging)
+            except BaseException as undo:
+                raise DurabilityError(f"{error}; and unpublishing {self.dir} failed ({undo})") from error
+            raise DurabilityError(f"{error}; the dump was unpublished back to {self.staging.name}") from error
         self.finished = True
         return self.dir / MANIFEST
 

@@ -3,9 +3,11 @@
 ``publish(finals, render)``: every final output path must be new; ``render(staging)`` writes all of them (by basename)
 into a fresh, uniquely owned staging directory next to the first output; each staged file must exist and be nonempty
 and is fsync'd; the files are then hard-linked into their final names IN ORDER (no-replace: an existing name fails)
--- the LAST one is the publication record (the summary JSON) -- and the directories are fsync'd. Any failure while
-rendering or linking unlinks the finals already linked (rollback) and leaves no final output path; the staging
-directory is always removed. Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix round 2.
+-- the LAST one is the publication record (the summary JSON) -- and the directories are fsync'd; a directory fsync
+that fails or is unsupported is fatal (``exp37_waveforms.DurabilityError``; review 3, B-01). Any failure while
+rendering, fsyncing or linking unlinks the finals already linked (rollback) and leaves no final output path; the
+staging directory is always removed. Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix round 2; the final
+fix round (fixed after review 3, not re-reviewed (cap)).
 """
 
 from __future__ import annotations
