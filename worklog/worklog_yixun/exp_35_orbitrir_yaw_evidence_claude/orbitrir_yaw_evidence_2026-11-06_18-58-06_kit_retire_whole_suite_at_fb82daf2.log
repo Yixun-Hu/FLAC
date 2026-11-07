@@ -1,0 +1,14 @@
+exp_35 kit retirement: the whole suite at HEAD fb82daf24e121c00467be2536cc3ea6a3b9d19e0 on a clean tree (0 tracked changes) -- 2026-11-06T18:58:06-05:00 -- CPU only (CUDA_VISIBLE_DEVICES empty)
+kit files: 356f6d158bd6078533f5cefb34e69601f36d86c78b7d7827393972cfa87b7ad6 exp35_phase_ii.sh; 3b073edff04bc62f0e79e5e2321e192c77044cca35c34ea0f73a474f52ed3cf8 exp35_phase_ii.py
+-- the retirement + CLI test files
+72 passed in 10.11s
+pytest rc 0
+-- the whole exp_35 phase-(ii) kit suite (src/tests/test_exp35_phase_ii*.py, 14 files)
+654 passed in 49.48s
+pytest rc 0
+-- every exp_35 test file (src/tests/test_exp35*.py: the kit suite + test_exp35_no_flash_launch.py)
+693 passed in 72.16s (0:01:12)
+pytest rc 0
+-- the self-pin of the committed kit files (kit_evidence; the run path redirected to scratch, nothing outside this checkout read)
+kit_evidence(fb82daf2): PASS (the committed, clean bytes)
+kit_evidence(7743ef4f): REFUSED: worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_ii.sh is not the committed, clean bytes of the kit commit 7743ef4faadfc545dcce8dc5f7b58364babf1719; worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_ii.py is not the committed, clean bytes of the kit commit 7743ef4faadfc545dcce8dc5f7b58364babf1719
