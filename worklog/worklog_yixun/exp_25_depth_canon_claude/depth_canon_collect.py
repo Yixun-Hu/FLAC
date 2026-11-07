@@ -2579,7 +2579,9 @@ EXP36_RECOVERY = (f"Every destination is absent or complete: each file is writte
                   "stop or a crash, re-run the same command with --exp36-publish-resume: it authenticates this manifest "
                   "(in_progress / partial; every identity field and entry recomputed), accepts a present destination only "
                   "if byte-identical to its source, removes only the temps this manifest names and copies the rest; "
-                  "nothing else is ever replaced or removed. A complete publication is final.")
+                  "nothing else is ever replaced or removed. A complete publication is final. A failed write removes its own "
+                  "temp; a manifest writer temp left by a hard kill inside an update is never removed automatically: "
+                  "resume refuses until a reviewed manual step removes it.")
 _PRESENT = "present (resume: byte-identical to its source)"
 
 
@@ -2626,13 +2628,36 @@ def _fsync_dir(path):
         os.close(fd)
 
 
+def _unlink_created(path, created, dir_fd=None):
+    """Review III HIGH 3: remove ``path`` only while it is still the inode ``created`` (an ``os.stat_result``); a
+    failure to remove it is left to the caller's error (a temp left behind keeps a resume refused)."""
+    try:
+        now = os.stat(path, dir_fd=dir_fd, follow_symlinks=False)
+        if (now.st_dev, now.st_ino) == (created.st_dev, created.st_ino):
+            os.unlink(path, dir_fd=dir_fd)
+    except OSError:
+        pass
+
+
 def _write_new(path, data, dir_fd=None):
-    """``data`` into a NEW file: O_CREAT | O_EXCL | O_NOFOLLOW (never replacing, never through a symlink), fsynced."""
+    """``data`` into a NEW file: O_CREAT | O_EXCL | O_NOFOLLOW (never replacing, never through a symlink), fsynced.
+    Review III HIGH 3: when the write, the fsync or the close fails, the file this call created is removed (only while
+    the name is still that inode); a pre-existing name fails the open before anything is written."""
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=dir_fd)
-    with os.fdopen(fd, "wb") as f:
-        f.write(data)
-        f.flush()
-        os.fsync(f.fileno())
+    created, done = None, False
+    try:
+        try:
+            created = os.fstat(fd)
+            view = memoryview(data)
+            while view:
+                view = view[os.write(fd, view):]
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        done = True
+    finally:
+        if not done and created is not None:
+            _unlink_created(path, created, dir_fd)
 
 
 def _ident(path, dir_fd=None):
@@ -2657,7 +2682,9 @@ def _lexists_at(dfd, name):
 
 class _Manifest:
     """Review II HIGH 2: created exclusively, then replaced -- through an exclusive no-follow temp -- only while it is
-    still the file this publication wrote or authenticated (inode + bytes); every write fsynced with its directory."""
+    still the file this publication wrote or authenticated (inode + bytes); every write fsynced with its directory.
+    Review III HIGH 3: a failed write leaves no file of its own behind (``_write_new``; the update's temp is removed
+    unless the replacement consumed it), and the replaced manifest's identity is taken before the directory fsync."""
 
     def __init__(self, path, txid, ident=None):
         self.path, self.txid, self.ident, self.n = path, txid, ident, 0
@@ -2668,14 +2695,18 @@ class _Manifest:
             _write_new(self.path, data)
         else:
             self.n += 1
-            tmp = f"{self.path}.tmp-{self.txid}-{self.n}"
+            tmp, mine = f"{self.path}.tmp-{self.txid}-{self.n}", None
             _write_new(tmp, data)
-            if _ident(self.path) != self.ident:
-                os.unlink(tmp)
-                raise ValueError(f"the publication manifest {self.path} changed under the publication; not replaced")
-            os.replace(tmp, self.path)
-        _fsync_dir(parent)
+            try:
+                mine = os.stat(tmp, follow_symlinks=False)
+                if _ident(self.path) != self.ident:
+                    raise ValueError(f"the publication manifest {self.path} changed under the publication; not replaced")
+                os.replace(tmp, self.path)
+            finally:                                  # this transaction's temp, unless the replacement consumed it
+                if mine is not None:
+                    _unlink_created(tmp, mine)
         self.ident = _ident(self.path)
+        _fsync_dir(parent)
 
 
 def _publication_lock(root):
@@ -3013,8 +3044,9 @@ def main(argv=None):
                                         resume=args.exp36_publish_resume, git_head=_git_head,
                                         publisher_check=publisher_closure)
         except Exception as err:   # noqa: BLE001 -- never exit 0 / 1 / 2 by accident
-            print(f"EXP36 PUBLICATION CRASHED ({type(err).__name__}: {err}): inspect {out} -- "
-                  "an in_progress manifest is recovered with --exp36-publish-resume")
+            print(f"EXP36 PUBLICATION CRASHED ({type(err).__name__}: {err}): " + (
+                f"inspect {out} -- an in_progress manifest is recovered with --exp36-publish-resume" if os.path.lexists(
+                    out) else f"no manifest {out} exists, so nothing was published: re-run the same command"))
             return 3
         head = {"published": f"EXP36 PUBLISHED {len(doc.get('entries', []))} file(s) (set {args.exp36_set}) into "
                 f"{EXP36_PUBLISH_DEST}; manifest {out}", "partial": "EXP36 PUBLICATION PARTIAL (see the manifest's "

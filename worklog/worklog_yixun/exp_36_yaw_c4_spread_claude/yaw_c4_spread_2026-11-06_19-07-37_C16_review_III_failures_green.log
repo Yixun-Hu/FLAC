@@ -1,0 +1,143 @@
+GREEN, cycle 16 at HEAD ecd4ee643f418bb829565faf81588060c0d2abcc + the uncommitted fix: _unlink_created, _write_new (os.write loop + fsync + close; on any failure removes the file it created, same inode only), _Manifest.write (try/finally: its temp removed unless the replacement consumed it; the identity taken before the directory fsync), the CLI crash message (no manifest = nothing published: re-run the same command), EXP36_RECOVERY (a hard-kill writer temp needs a reviewed manual step)
+........................................................................ [ 85%]
+............                                                             [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+____ test_cli_after_a_crash_before_any_write_says_to_rerun_the_same_command ____
+----------------------------- Captured stdout call -----------------------------
+EXP36 PUBLISHED 48 file(s) (set A) into /tmp/pytest-of-yixunhu/pytest-6718/test_cli_after_a_crash_before_0/exp25/outputs_FLAC/exp25_depth_canon/YAW; manifest /tmp/pytest-of-yixunhu/pytest-6718/test_cli_after_a_crash_before_0/publication_A.json
+_______ test_the_parsed_cli_routes_each_set_to_its_own_default_manifest ________
+----------------------------- Captured stderr call -----------------------------
+usage: __main__.py [-h] [--verify-cell STEM] [--pin PIN] [--cells CELLS]
+                   [--farm-root FARM_ROOT] [--dump-root DUMP_ROOT]
+                   [--base-dir BASE_DIR]
+                   [--canon-ckpt-manifest CANON_CKPT_MANIFEST]
+                   [--dump-check {full,manifest,receipt}] [--no-dump]
+                   [--no-link-check] [--plan OUT] [--blocks BLOCKS]
+                   [--only ONLY] [--limit LIMIT]
+                   [--no-dump-blocks NO_DUMP_BLOCKS] [--write-receipt CELL]
+                   [--plan-json PLAN_JSON] [--lane LANE] [--log LOG] [--rc RC]
+                   [--ckpt-sha CKPT_SHA] [--ckpt-bytes CKPT_BYTES]
+                   [--campaign-digest CAMPAIGN_DIGEST]
+                   [--spawn-digest SPAWN_DIGEST] [--post-digest POST_DIGEST]
+                   [--collect] [--nas-retention-audit] [--partial]
+                   [--probe-json PROBE_JSON] [--tie-audit-json TIE_AUDIT_JSON]
+                   [--out-md OUT_MD] [--out-json OUT_JSON] [--verify-after]
+                   [--check-backend-log LOG] [--finalize-bf-probe JSON]
+                   [--probe-log PROBE_LOG] [--exp35-ctl-check K] [--exp35-e2]
+                   [--a6-csv A6_CSV] [--exp35] [--exp35-out EXP35_OUT]
+                   [--exp25-base-dir EXP25_BASE_DIR]
+                   [--exp25-dump-root EXP25_DUMP_ROOT]
+                   [--bf-probe-json BF_PROBE_JSON] [--count-no-flash]
+                   [--backend-target BACKEND_TARGET]
+                   [--attention-backend ATTENTION_BACKEND]
+                   [--no-flash-overlay-sha256 NO_FLASH_OVERLAY_SHA256]
+                   [--no-flash-launcher-sha256 NO_FLASH_LAUNCHER_SHA256]
+                   [--exp36-replay-check] [--verdict-out VERDICT_OUT]
+                   [--exp36-replay EXP36_REPLAY]
+                   [--exp36-ref-dir EXP36_REF_DIR] [--exp36-dump-preflight]
+                   [--exp36-publish] [--exp36-verdict EXP36_VERDICT]
+                   [--exp36-set {A,OFF}] [--publisher-pin PUBLISHER_PIN]
+                   [--exp36-publish-resume]
+__main__.py: error: unrecognized arguments: --publish-manifest-out x.json
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_publish_failures.py::test_write_new_removes_the_file_it_created_on_a_failure[write]
+PASSED src/tests/test_exp36_publish_failures.py::test_write_new_removes_the_file_it_created_on_a_failure[fsync]
+PASSED src/tests/test_exp36_publish_failures.py::test_write_new_relative_to_a_directory_fd
+PASSED src/tests/test_exp36_publish_failures.py::test_write_new_never_touches_a_pre_existing_name
+PASSED src/tests/test_exp36_publish_failures.py::test_write_new_never_removes_a_name_that_is_no_longer_its_file
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_initial_manifest_write_leaves_no_manifest[write]
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_initial_manifest_write_leaves_no_manifest[fsync]
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[write]
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[fsync]
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[replace]
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_directory_fsync_after_a_replace_keeps_the_manifests_identity
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes[write]
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes[fsync]
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[write]
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[fsync]
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[replace]
+PASSED src/tests/test_exp36_publish_failures.py::test_when_even_the_stop_cannot_be_recorded_the_in_progress_manifest_resumes
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_destination_temp_write_stops_partial_with_no_temp_and_resume_publishes[write-True]
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_destination_temp_write_stops_partial_with_no_temp_and_resume_publishes[fsync-False]
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_destination_fsync_stops_partial_and_resume_completes
+PASSED src/tests/test_exp36_publish_failures.py::test_a_failed_manifest_directory_fsync_is_recorded_as_a_stop_and_resumes
+PASSED src/tests/test_exp36_publish_failures.py::test_a_resume_whose_first_manifest_write_fails_crashes_and_a_second_resume_publishes
+PASSED src/tests/test_exp36_publish_failures.py::test_a_foreign_writer_temp_is_still_refused_after_a_cleaned_failure
+PASSED src/tests/test_exp36_publish_failures.py::test_cli_after_a_crash_before_any_write_says_to_rerun_the_same_command
+PASSED src/tests/test_exp36_publish.py::test_the_48_files_are_published_and_recorded
+PASSED src/tests/test_exp36_publish.py::test_any_present_destination_refuses_everything
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g0]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g1]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g2]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g3]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g4]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g5]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g6]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g7]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g8]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g9]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g10]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g11]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g12]
+PASSED src/tests/test_exp36_publish.py::test_a_symlinked_destination_is_refused
+PASSED src/tests/test_exp36_publish.py::test_a_stop_part_way_is_partial_and_resume_completes_it
+PASSED src/tests/test_exp36_publish.py::test_resume_refuses_a_foreign_destination_or_temp_file
+PASSED src/tests/test_exp36_publish.py::test_cli_publish_needs_a_set
+PASSED src/tests/test_exp36_publish.py::test_cli_publish_exit_codes
+PASSED src/tests/test_exp36_publish.py::test_cli_a_crashed_publication_exits_3_never_0
+PASSED src/tests/test_exp36_publish.py::test_the_off_set_publishes_its_12_files_only
+PASSED src/tests/test_exp36_publish.py::test_each_set_needs_its_own_cells_and_the_yaw_verdict
+PASSED src/tests/test_exp36_publish.py::test_a_verdict_of_another_replay_is_refused
+PASSED src/tests/test_exp36_publish.py::test_a_relative_plan_path_resolves_against_the_base_dir
+PASSED src/tests/test_exp36_publish.py::test_the_final_collector_reproduces_a_verdict_of_the_launch_collector
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_held_lock_refuses_before_anything_and_the_lock_spans_every_write
+PASSED src/tests/test_exp36_publish_concurrency.py::test_two_concurrent_same_set_publications
+PASSED src/tests/test_exp36_publish_concurrency.py::test_concurrent_a_and_off_publications
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_destination_path_swap_cannot_redirect_the_owner
+PASSED src/tests/test_exp36_publish_concurrency.py::test_temps_are_named_by_the_transaction_and_a_resume_removes_only_those
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[none]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[json]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[file]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[symlink]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[other_set]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[verdict]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[entries]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[source]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[complete]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[txid]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[writer_temp]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_the_initial_manifest_is_created_exclusively
+PASSED src/tests/test_exp36_publish_concurrency.py::test_an_update_never_replaces_a_manifest_it_did_not_write
+PASSED src/tests/test_exp36_publish_publisher.py::test_a_clean_closure_at_the_pin_is_recorded
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[collector]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[dependency]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[untracked]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[deleted]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[cells]
+PASSED src/tests/test_exp36_publish_publisher.py::test_test_files_and_files_outside_the_closure_do_not_count
+PASSED src/tests/test_exp36_publish_publisher.py::test_a_wrong_or_short_pin_or_a_missing_head_is_refused
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_closure_names_this_collector_and_its_cells_manifest
+PASSED src/tests/test_exp36_publish_publisher.py::test_a_refused_publisher_refuses_the_publication_before_any_write
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_cli_requires_the_publisher_pin_and_the_collectors_own_cells
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_parsed_cli_routes_each_set_to_its_own_default_manifest
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_cli_help_names_both_sets
+PASSED src/tests/test_exp36_publish_provenance.py::test_cli_publishes_the_off_set_into_its_own_manifest
+PASSED src/tests/test_exp36_publish_provenance.py::test_the_default_manifest_paths_differ_per_set
+PASSED src/tests/test_exp36_publish_provenance.py::test_the_manifest_keeps_the_artifact_pin_apart_from_the_publishing_head
+84 passed, 3 warnings in 15.41s
+
+=== mutation checks (HIGH 3), each applied alone to the collector, then restored byte-exactly ===
+mutation [_write_new keeps its failed file]: rc 1; ['12 failed, 12 passed, 3 warnings in 8.23s']; failing (12): ['test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes[fsync]', 'test_a_failed_initial_manifest_write_crashes_with_nothing_written_and_a_plain_retry_publishes[write]', 'test_a_failed_initial_manifest_write_leaves_no_manifest[fsync]', 'test_a_failed_initial_manifest_write_leaves_no_manifest[write]', 'test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[fsync]', 'test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[write]', 'test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[fsync]', 'test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[write]', 'test_cli_after_a_crash_before_any_write_says_to_rerun_the_same_command', 'test_write_new_relative_to_a_directory_fd', 'test_write_new_removes_the_file_it_created_on_a_failure[fsync]', 'test_write_new_removes_the_file_it_created_on_a_failure[write]']
+mutation [_unlink_created without the inode check]: rc 1; ['1 failed, 23 passed, 3 warnings in 8.65s']; failing (1): ['test_write_new_never_removes_a_name_that_is_no_longer_its_file']
+mutation [the manifest update keeps its temp]: rc 1; ['5 failed, 19 passed, 3 warnings in 8.33s']; failing (5): ['test_a_failed_manifest_update_removes_its_temp_and_the_next_one_replaces[replace]', 'test_a_failed_manifest_update_stops_partial_with_no_temp_and_resume_publishes[replace]', 'test_a_foreign_writer_temp_is_still_refused_after_a_cleaned_failure', 'test_a_resume_whose_first_manifest_write_fails_crashes_and_a_second_resume_publishes', 'test_when_even_the_stop_cannot_be_recorded_the_in_progress_manifest_resumes']
+mutation [the identity taken after the directory fsync]: rc 1; ['2 failed, 22 passed, 3 warnings in 9.07s']; failing (2): ['test_a_failed_directory_fsync_after_a_replace_keeps_the_manifests_identity', 'test_a_failed_manifest_directory_fsync_is_recorded_as_a_stop_and_resumes']
+mutation [the old crash message]: rc 1; ['1 failed, 23 passed, 3 warnings in 9.03s']; failing (1): ['test_cli_after_a_crash_before_any_write_says_to_rerun_the_same_command']
+collector restored
