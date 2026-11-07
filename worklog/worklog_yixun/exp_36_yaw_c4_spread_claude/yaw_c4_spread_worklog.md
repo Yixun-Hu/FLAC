@@ -178,3 +178,12 @@
   From the 2026-11-06T18:50:52 entry on, each header is the clock time at writing, at or before its commit.
 - **Next** (not done at this entry's commit) — the full suites at this checkout's head; the exp_37 B3 leaf rebased onto
   this head.
+
+## 2026-11-06T19:50:13-05:00 — Coder r1: the full suites at the final exp_36 head
+- **Result** — every depth_canon / exp_35 / exp_36 suite in this publisher checkout at `74093f23` (code `20200cb4` +
+  records; the launch-commit file names H36_I3, so the cross-version guard ran ENABLED: the H36_I3 collector's verdict
+  reproduced by the final one): 1730 passed, 1 skipped (needs a CUDA device), 0 failed, rc 0; 19:10:56-19:49:58 EST
+  (`yaw_c4_spread_2026-11-06_19-10-56_SUITES_at_final_head_74093f23_publisher_checkout.log`). H35 baseline for
+  comparison: 1513 passed / 1 skipped; H36_I2: 1704 passed / 2 skipped (the guard skipped there).
+- **Next** — none for the Coder in exp_36: chain I / II are the Planner's (commands at H36_I3 in
+  `yaw_c4_spread_command.md`), after review III HIGH 2 (another agent); the publications after the chains.

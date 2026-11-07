@@ -47,6 +47,7 @@ RED commits hold the tests (and the RED log), GREEN commits the implementation (
 | `8a5b1142` | records | the run worktree detached at H36_I3; both DRY_RUNs at H36_I3 (28 / 25 cells, tree digest `f4b7056e`); the H36_I2 suite (1704 passed, 2 skipped); command file | 0 | 0 | data only |
 | `ecd4ee64` | 16 RED | Codex code review III HIGH 3: injected write / fsync / `os.replace` / directory-fsync failures (a proxy of the collector's own `os`) -- `_write_new` cleanup (same inode only), manifest-update temp cleanup, identity before the directory fsync, the initial-write crash leaves nothing (plain retry; the CLI says so), later failures stop partial with no temp and resume publishes, a foreign writer temp still refused (21 RED, 3 regression guards pass) | 0 | +186 / -1 | +761 |
 | `20200cb4` | 16 GREEN | **the final exp_36 code commit** (fixed after review III, not re-reviewed (cap)): `_unlink_created`, `_write_new` (os.write + fsync + close; removes its own file on failure), `_Manifest.write` (try/finally temp cleanup; identity before the directory fsync), the CLI crash message, the recovery text; 84 publication tests; 5 mutation checks, all caught | +37 / -13 | 0 | +139 |
+| `74093f23` | records | review III step 2 records: HIGH 3, the NIT 3 chronology correction, the command file (publisher pin = HEAD at publication; closure = `20200cb4`) | 0 | 0 | data only |
 
 Every code commit is < 200 changed code lines; one test commit (`65f9fcd4`, 243 test lines) exceeds 200 because it
 removes a duplicated clone fixture (-97) while adding the A1 tests.
