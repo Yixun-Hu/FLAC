@@ -176,3 +176,14 @@ def test_gate_only_writes_one_hashed_record(tmp_path):
     again = subprocess.run([sys.executable, "-I", "-B", str(SCRIPT), "--gate-only", "--proc", str(proc), "--output",
                             str(tmp_path / "gate2.json")], env=_env(tmp_path, ""), capture_output=True, text=True)
     assert again.returncode == 2                                                 # write-once
+
+
+def test_gate_only_creates_its_record_directory(tmp_path):
+    """The runbook's gate steps write $D/gates/<name>.json into a directory that does not exist yet."""
+    proc = tmp_path / "proc"
+    fake_proc(proc, {30: ("python", 1, "/tmp", ["python", "x.py"])}, busy=1, total=2)
+    out = tmp_path / "gates" / "p0.json"
+    done = subprocess.run([sys.executable, "-I", "-B", str(SCRIPT), "--gate-only", "--proc", str(proc), "--output",
+                           str(out)], env=_env(tmp_path, ""), capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
+    assert json.loads(out.read_text())["gate"] == "clean"
