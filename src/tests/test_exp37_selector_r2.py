@@ -49,7 +49,7 @@ def _mutate(selection, change):
 @pytest.mark.parametrize("change, needle", [
     (lambda b: b["queries"].append(dict(b["queries"][0])), "duplicate"),
     (lambda b: b.update(query_count=1), "query_count"),
-    (lambda b: b["queries"].pop(), "coverage"),
+    (lambda b: (b["queries"].pop(), b.update(query_count=1)), "coverage"),      # a consistent but partial vector
     (lambda b: b["queries"][0].pop("candidate_indices_sha256"), "identity"),
     (lambda b: b.update(device="cuda:1"), "device"),
     (lambda b: b.update(timed_function="mine"), "timed function"),

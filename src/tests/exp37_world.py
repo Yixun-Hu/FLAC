@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-from exp37_fakes import attest_run, attest_selector, example_identity, host_snapshot, selector_binding
+from exp37_fakes import attest_run, attest_selector, example_identity, selector_binding, selector_fields
 from src.localization import exp37_grid as grid
 from src.localization import exp37_identity as ident
 from src.localization import exp37_waveforms as wav
@@ -65,12 +65,7 @@ class World:
         return hashed(self.root / name, {"schema_version": 1, "query_count": 2, "records": records})
 
     def selector(self, name, selection, seconds, **attest):
-        rows = [{"query_index": r["index"], "query_id": r["query_id"], "room": r["room"],
-                 "candidate_count": r["candidate_count"], "peak_memory_allocated_bytes": 5,
-                 "agree": {"median_seconds": {"scoring_total_seconds": seconds}}} for r in selection["records"]]
-        fields = {"record_type": "exp37_agree_selector_latency", "repeat_count": 3, "candidate_batch_size": 64,
-                  "queries": rows, "selection_sha256": selection["sha256"], "device": "cuda:0", "host": host_snapshot(),
-                  "agree_checkpoint_file_sha256": ident.AGREE_SHA256, "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256}
+        fields = selector_fields(selection, seconds)                    # complete repeat evidence (review 2)
         path = self.root / "selector" / name
         binding = selector_binding(fields, path)
         hashed(path, {**fields, "binding": binding})

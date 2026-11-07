@@ -27,9 +27,13 @@ ARM_PROTOCOL = ident.ARMS
 SELECTOR_RECORD_TYPES = ("exp37_agree_selector_latency", "localization_selector_latency_kctx8_kgen1")
 # a selection served by a selector vector measured on a registered superset (records contained identically)
 REGISTERED_SUPERSETS = {
-    "6eeeec401c3f63e47ab446b4b43efe2f1db260bad9decf74de423d0872b659a2":          # the 64-query seed-42 pilot
-        ("9bf75810a7fe6972049650748e015f9856b586f0c66d0554ef1b67c6bf8e041b",),   # the 128-query latency selection
+    "6eeeec401c3f63e47ab446b4b43efe2f1db260bad9decf74de423d0872b659a2": {        # the 64-query seed-42 pilot
+        "sha256": "9bf75810a7fe6972049650748e015f9856b586f0c66d0554ef1b67c6bf8e041b",   # the 128-query selection
+        "path": "NeurIPS_2026_Workshop_Latency_Reproducibility/data/selection/frozen_16room_128.json"},
 }
+SELECTOR_FIELDS = ("observed_encode_seconds", "generated_encode_seconds", "similarity_seconds", "argmax_seconds",
+                   "scoring_total_seconds")
+SELECTOR_TIMED_FUNCTION = "tools/benchmark_localization_selector_latency.py::benchmark_agree_query"
 SPLIT_TOLERANCE = 0.02          # plan §10: outside 2 % the split is withheld, never the headline
 STAGES = ("context_conditioning", "candidate_conditioning", "dit", "vae_decode")
 C4 = [0.0, 90.0, 180.0, 270.0]
@@ -78,36 +82,85 @@ def ordered_subsequence(small: list, big: list) -> bool:
     return True
 
 
-def load_selector(path: Path, selection: dict) -> dict:
-    """Per selection query: the selector term and its peak. The vector must be the registered AGREE on the registered
-    context manifest, measured on this selection or on a REGISTERED superset; each row must name the same query,
-    room, candidate count (and candidate hash when recorded)."""
+def _claimed_selection(payload: dict, selection: dict, path) -> dict:
+    """The selection a vector claims: this one, or its REGISTERED superset (loaded from its registered path and
+    hash-checked) of which this selection must be an ordered subsequence."""
+    claimed = payload.get("selection_sha256")
+    if claimed == selection["sha256"]:
+        return selection
+    entry = REGISTERED_SUPERSETS.get(selection["sha256"])
+    if not entry or claimed != entry["sha256"]:
+        raise RuntimeError(f"{path}: measured on another selection that is not a registered superset of this one")
+    location = Path(entry["path"])
+    superset = _hashed(location if location.is_absolute() else ident.REPO_ROOT / location)
+    if superset["sha256"] != entry["sha256"] or not ordered_subsequence(selection["records"], superset["records"]):
+        raise RuntimeError(f"{path}: the registered superset on disk is not the claimed one or does not contain "
+                           "this selection identically and in order")
+    return superset
+
+
+def _selector_row_reasons(row: dict, *, peaks: bool) -> list[str]:
+    agree = row.get("agree") or {}
+    repeats, medians = agree.get("repeat_seconds"), agree.get("median_seconds")
+    if not isinstance(repeats, dict) or not isinstance(medians, dict) or set(repeats) != set(SELECTOR_FIELDS) or \
+            set(medians) != set(SELECTOR_FIELDS):
+        return ["the repeat / median fields are not the bundle's five"]
+    if not all(isinstance(repeats[f], list) and len(repeats[f]) == 3 and all(queries.finite_nonnegative(v)
+                                                                            for v in repeats[f]) for f in repeats):
+        return ["a field does not hold three finite nonnegative repeats"]
+    bad = []
+    if any(medians[f] != float(statistics.median(float(v) for v in repeats[f])) for f in SELECTOR_FIELDS):
+        bad.append("a recorded median is not the median of its three repeats")
+    if any(repeats["scoring_total_seconds"][r] != repeats["observed_encode_seconds"][r]
+           + repeats["generated_encode_seconds"][r] + repeats["similarity_seconds"][r] + repeats["argmax_seconds"][r]
+           for r in range(3)):
+        bad.append("a repeat's scoring total is not the sum of its four parts")
+    if peaks and not all(isinstance(row.get(k), int) and not isinstance(row.get(k), bool) and row[k] >= 0
+                         for k in ("peak_memory_allocated_bytes", "peak_memory_reserved_bytes")):
+        bad.append("the peak memory fields are not nonnegative integers")
+    return bad
+
+
+def load_selector(path: Path, selection: dict, *, bundle: bool = False) -> dict:
+    """Per selection query: the selector term and its peaks, from a vector validated in full (Codex code review 2,
+    HIGH 3): the registered exp_37 vector (``bundle``: the latency bundle's own, for its oracle test only) on the
+    registered AGREE / context manifest, measured on this selection or its registered superset, whose rows UNIQUELY
+    and EXACTLY cover the claimed selection with the same query / room / count / candidate hash and complete,
+    recomputable repeat evidence."""
     payload = _hashed(path)
-    if payload.get("record_type") not in SELECTOR_RECORD_TYPES or int(payload.get("repeat_count", -1)) != 3 \
-            or int(payload.get("candidate_batch_size", -1)) != 64:
-        raise RuntimeError(f"{path}: not a 3-repeat, batch-64 AGREE selector record")
+    if payload.get("record_type") != ("localization_selector_latency_kctx8_kgen1" if bundle
+                                      else "exp37_agree_selector_latency"):
+        raise RuntimeError(f"{path}: not the expected selector record type")
+    if not bundle and payload.get("timed_function") != SELECTOR_TIMED_FUNCTION:
+        raise RuntimeError(f"{path}: the timed function is not the bundle's benchmark_agree_query")
+    if payload.get("device") != "cuda:0" or payload.get("repeat_count") != 3 or payload.get("candidate_batch_size") != 64:
+        raise RuntimeError(f"{path}: not a 3-repeat, batch-64 AGREE selector record on device cuda:0")
     if payload.get("agree_checkpoint_file_sha256") != ident.AGREE_SHA256:
         raise RuntimeError(f"{path}: not the registered AGREE checkpoint")
     if payload.get("context_manifest_sha256") != ident.CONTEXT_MANIFEST_SHA256:
         raise RuntimeError(f"{path}: not the registered context manifest")
-    if payload.get("selection_sha256") != selection["sha256"] and payload.get("selection_sha256") not in \
-            REGISTERED_SUPERSETS.get(selection["sha256"], ()):
-        raise RuntimeError(f"{path}: measured on another selection that is not a registered superset of this one")
-    rows = {int(row["query_index"]): row for row in payload["queries"]}
-    out = {}
-    for record in selection["records"]:
-        index = int(record["index"])
-        row = rows.get(index)
-        if row is None:
-            raise RuntimeError(f"{path}: selector coverage misses query {index}")
-        keys = ["query_id", "room", "candidate_count"] + (
-            ["candidate_indices_sha256"] if "candidate_indices_sha256" in record and row.get("candidate_indices_sha256") else [])
-        if any(row[key] != record[key] for key in keys):
-            raise RuntimeError(f"{path}: selector identity mismatch at query {index}")
-        out[index] = {"scoring_total_seconds": float(row["agree"]["median_seconds"]["scoring_total_seconds"]),
-                      "peak_memory_allocated_bytes": row.get("peak_memory_allocated_bytes"),
-                      "peak_memory_reserved_bytes": row.get("peak_memory_reserved_bytes")}
-    return out
+    claimed = _claimed_selection(payload, selection, path)
+    rows = payload.get("queries") or []
+    indices = [int(row["query_index"]) for row in rows]
+    if len(set(indices)) != len(indices):
+        raise RuntimeError(f"{path}: duplicate query rows")
+    if payload.get("query_count") != len(rows):
+        raise RuntimeError(f"{path}: query_count does not match its rows")
+    if sorted(indices) != sorted(int(r["index"]) for r in claimed["records"]):
+        raise RuntimeError(f"{path}: the rows' coverage is not exactly the claimed selection")
+    by_index = {int(row["query_index"]): row for row in rows}
+    for record in claimed["records"]:
+        row = by_index[int(record["index"])]
+        if any(row.get(k) != record.get(k) for k in ("query_id", "room", "candidate_count", "candidate_indices_sha256")) \
+                or not record.get("candidate_indices_sha256"):
+            raise RuntimeError(f"{path}: selector identity mismatch at query {record['index']}")
+        bad = _selector_row_reasons(row, peaks=not bundle)
+        if bad:
+            raise RuntimeError(f"{path}: query {record['index']}: {bad}")
+    return {int(r["index"]): {"scoring_total_seconds": float(by_index[int(r["index"])]["agree"]["median_seconds"][
+        "scoring_total_seconds"]), "peak_memory_allocated_bytes": by_index[int(r["index"])].get("peak_memory_allocated_bytes"),
+        "peak_memory_reserved_bytes": by_index[int(r["index"])].get("peak_memory_reserved_bytes")}
+        for r in selection["records"]}
 
 
 def snapshot_reasons(snapshot, producer: dict, label: str) -> list[str]:

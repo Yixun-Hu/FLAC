@@ -206,7 +206,7 @@ def selector_row(record: dict, seconds: float, peak: int = 5) -> dict:
             "peak_memory_allocated_bytes": peak, "peak_memory_reserved_bytes": peak}
 
 
-def selector_fields(selection: dict, seconds: float, **over) -> dict:
+def selector_fields(selection: dict, seconds: float, peak: int = 5, **over) -> dict:
     """A complete exp_37 selector payload body (before its binding and sha256)."""
     from src.localization import exp37_identity as ident
     return {"schema_version": 1, "record_type": "exp37_agree_selector_latency", "device": "cuda:0",
@@ -214,4 +214,4 @@ def selector_fields(selection: dict, seconds: float, **over) -> dict:
             "repeat_count": 3, "candidate_batch_size": 64, "selection_sha256": selection["sha256"],
             "agree_checkpoint_file_sha256": ident.AGREE_SHA256, "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256,
             "query_count": len(selection["records"]), "host": host_snapshot(),
-            "queries": [selector_row(r, seconds) for r in selection["records"]], **over}
+            "queries": [selector_row(r, seconds, peak) for r in selection["records"]], **over}

@@ -38,11 +38,8 @@ def world(tmp_path):
     selection = {"schema_version": 1, "query_count": 2, "records": records}
     selection = {**selection, "sha256": canonical_sha256(selection)}
     sel_path = _write_hashed(tmp_path / "selection.json", {k: v for k, v in selection.items() if k != "sha256"})
-    rows = [{**r, "agree": {"median_seconds": {"scoring_total_seconds": 0.5}}, "peak_memory_allocated_bytes": 3000,
-             "query_index": r["index"]} for r in records]
-    fields = {"record_type": "exp37_agree_selector_latency", "repeat_count": 3, "candidate_batch_size": 64,
-              "queries": rows, "selection_sha256": selection["sha256"], "device": "cuda:0", "host": host_snapshot(),
-              "agree_checkpoint_file_sha256": ident.AGREE_SHA256, "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256}
+    from exp37_fakes import selector_fields
+    fields = selector_fields(selection, 0.5, peak=3000)
     binding = selector_binding(fields, tmp_path / "selector.json")
     selector = _write_hashed(tmp_path / "selector.json", {**fields, "binding": binding})
     attest_selector(selector, binding)

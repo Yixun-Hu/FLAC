@@ -68,13 +68,9 @@ def test_the_registered_seed_is_required(tmp_path):
 
 
 def _selector(tmp_path, selection, **over):
-    rows = [{"query_index": r["index"], "query_id": r["query_id"], "room": r["room"], "candidate_count": r["candidate_count"],
-             "candidate_indices_sha256": r["candidate_indices_sha256"],
-             "agree": {"median_seconds": {"scoring_total_seconds": 0.5}}} for r in selection["records"]]
-    body = {"record_type": "exp37_agree_selector_latency", "repeat_count": 3, "candidate_batch_size": 64,
-            "selection_sha256": selection["sha256"], "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256,
-            "agree_checkpoint_file_sha256": ident.AGREE_SHA256, "queries": rows, **over}
-    path = tmp_path / f"selector_{len(rows)}_{len(over)}.json"
+    from exp37_fakes import selector_fields
+    body = selector_fields(selection, 0.5, **over)
+    path = tmp_path / f"selector_{len(selection['records'])}_{len(over)}_{selection['sha256'][:6]}.json"
     path.write_text(json.dumps({**body, "sha256": canonical_sha256(body)}))
     return path
 
@@ -92,10 +88,14 @@ def test_another_selection_is_accepted_only_as_a_registered_superset(tmp_path, m
     small = _selection({1: 3, 3: 5})
     with pytest.raises(RuntimeError, match="superset"):
         lat.load_selector(_selector(tmp_path, big), small)
-    monkeypatch.setitem(lat.REGISTERED_SUPERSETS, small["sha256"], (big["sha256"],))
+    def register(selection):
+        path = tmp_path / f"sel_{selection['sha256'][:8]}.json"
+        path.write_text(json.dumps(selection))
+        monkeypatch.setitem(lat.REGISTERED_SUPERSETS, small["sha256"], {"sha256": selection["sha256"], "path": str(path)})
+    register(big)
     assert sorted(lat.load_selector(_selector(tmp_path, big), small)) == [1, 3]
     reordered = _selection({1: 3, 3: 5, 2: 4})
-    monkeypatch.setitem(lat.REGISTERED_SUPERSETS, small["sha256"], (reordered["sha256"],))
+    register(reordered)
     assert sorted(lat.load_selector(_selector(tmp_path, reordered), small)) == [1, 3]
 
 
@@ -106,5 +106,5 @@ def test_the_real_64_pilot_is_an_ordered_subsequence_of_the_registered_128_selec
     repo = Path(__file__).resolve().parents[2]
     pilot = load_pilot_manifest(repo / "worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_manifest_seed42_4_per_room.json")
     big = load_pilot_manifest(repo / "NeurIPS_2026_Workshop_Latency_Reproducibility/data/selection/frozen_16room_128.json")
-    assert lat.REGISTERED_SUPERSETS[pilot["sha256"]] == (big["sha256"],)
+    assert lat.REGISTERED_SUPERSETS[pilot["sha256"]]["sha256"] == big["sha256"]
     assert lat.ordered_subsequence(pilot["records"], big["records"])

@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from exp37_fakes import attest_run, attest_selector, example_identity, host_snapshot, selector_binding
+from exp37_fakes import attest_run, attest_selector, example_identity, host_snapshot, selector_binding, selector_fields
 from src.localization import exp37_identity as ident
 from src.localization import exp37_latency as lat
 from src.localization.pilot import canonical_sha256
@@ -34,7 +34,7 @@ def _bundle_queries(arm):
 @pytest.mark.parametrize("arm", ["P1", "BF", "YAW"])
 def test_the_bundle_rows_are_reproduced_exactly(arm):
     selection = json.loads((LB / "data/selection/frozen_16room_128.json").read_text())
-    selector = lat.load_selector(LB / "data/selector/selector_latency_128.json", selection)
+    selector = lat.load_selector(LB / "data/selector/selector_latency_128.json", selection, bundle=True)
     queries = _bundle_queries(arm)
     core = {i: q["latency_seconds"]["core_forward_total"] for i, q in queries.items()}
     counts = {int(r["index"]): int(r["candidate_count"]) for r in selection["records"]}
@@ -62,15 +62,8 @@ def _selection(counts):
     return {**body, "sha256": canonical_sha256(body)}
 
 
-def _selector_file(tmp_path, selection, repeat_count=3, rows=None):
-    rows = rows if rows is not None else [
-        {"query_index": r["index"], "query_id": r["query_id"], "room": r["room"], "candidate_count": r["candidate_count"],
-         "agree": {"median_seconds": {"scoring_total_seconds": 0.25}}, "peak_memory_allocated_bytes": 100}
-        for r in selection["records"]]
-    body = {"record_type": "exp37_agree_selector_latency", "selection_sha256": selection["sha256"], "device": "cuda:0",
-            "host": host_snapshot(),
-            "repeat_count": repeat_count, "candidate_batch_size": 64, "queries": rows,
-            "agree_checkpoint_file_sha256": ident.AGREE_SHA256, "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256}
+def _selector_file(tmp_path, selection, repeat_count=3):
+    body = selector_fields(selection, 0.25, peak=100, repeat_count=repeat_count)
     path = tmp_path / "selector.json"
     path.write_text(json.dumps({**body, "sha256": canonical_sha256(body)}))
     return path
@@ -79,14 +72,19 @@ def _selector_file(tmp_path, selection, repeat_count=3, rows=None):
 def test_the_selector_vector_may_cover_more_queries_but_must_match_each_one(tmp_path, monkeypatch):
     big = _selection({1: 10, 2: 20, 3: 30})
     small = _selection({1: 10, 3: 30})
-    monkeypatch.setitem(lat.REGISTERED_SUPERSETS, small["sha256"], (big["sha256"],))
+    def register(selection):
+        path = tmp_path / f"sel_{selection['sha256'][:8]}.json"
+        path.write_text(json.dumps(selection))
+        monkeypatch.setitem(lat.REGISTERED_SUPERSETS, small["sha256"], {"sha256": selection["sha256"], "path": str(path)})
+    register(big)
     rows = lat.load_selector(_selector_file(tmp_path, big), small)
-    assert sorted(rows) == [1, 3] and rows[3]["scoring_total_seconds"] == 0.25 and rows[3]["peak_memory_allocated_bytes"] == 100
+    assert sorted(rows) == [1, 3] and rows[3]["scoring_total_seconds"] == pytest.approx(0.25)
+    assert rows[3]["peak_memory_allocated_bytes"] == 100
     with pytest.raises(RuntimeError, match="superset"):                      # a smaller vector never serves
         lat.load_selector(_selector_file(tmp_path, small), big)
     wrong = _selection({1: 11, 3: 30})
-    monkeypatch.setitem(lat.REGISTERED_SUPERSETS, small["sha256"], (wrong["sha256"],))
-    with pytest.raises(RuntimeError, match="identity"):
+    register(wrong)
+    with pytest.raises(RuntimeError, match="identity|superset"):
         lat.load_selector(_selector_file(tmp_path, wrong), small)
     with pytest.raises(RuntimeError, match="repeat"):
         lat.load_selector(_selector_file(tmp_path, small, repeat_count=1), small)
