@@ -1,0 +1,11 @@
+Fri Nov  6 06:55:08 PM EST 2026
+Codex code review III step 1: the detached run worktree /home/yixunhu/codespace/exp-36-run moves from H36_I2 d92aef10 to the replacement launch commit H36_I3 6be49f46ec31e899f1bee01f72c6a5827e701c6c; no process had its cwd there (scan of /proc/*/cwd: none; lsof +D: none; my own H36_I2 suite there had exited at 18:54:44 EST, rc 0)
+before: HEAD d92aef106de09496715b26ecc42f924ead104090
+after: HEAD 6be49f46ec31e899f1bee01f72c6a5827e701c6c
+tracked changes: 0
+untracked (not ignored): 31
+asset links:
+lrwxrwxrwx 1 yixunhu yixunhu 45 Nov  6 16:03 /home/yixunhu/codespace/exp-36-run/AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms
+lrwxrwxrwx 1 yixunhu yixunhu 42 Nov  6 16:03 /home/yixunhu/codespace/exp-36-run/weights/AGREE -> /home/yixunhu/codespace/FLAC/weights/AGREE
+lrwxrwxrwx 1 yixunhu yixunhu 50 Nov  6 16:03 /home/yixunhu/codespace/exp-36-run/weights/FLAC/VAE.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt
+Fri Nov  6 06:55:08 PM EST 2026

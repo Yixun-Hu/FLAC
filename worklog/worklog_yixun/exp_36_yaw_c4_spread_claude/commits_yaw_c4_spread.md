@@ -43,6 +43,7 @@ RED commits hold the tests (and the RED log), GREEN commits the implementation (
 | `d373c18e` | records | H36_I2 recorded as the launch commit; the run worktree move + both DRY_RUNs at H36_I2; command file, ledger, notebook | 0 | 0 | data only |
 | `9a8440dc` | 15 RED | Codex code review III HIGH 1 + NIT 1: the preflight's authenticated-receipt cases (symlink, dangling, unrelated / malformed JSON, cell, stem, pin, farm root, dump root, dump false; owned complete + owned damaged dump left to the runner; bad pins; the CLI needs `--pin`); the chain passes `--pin EXPECT_HEAD` and prints only the pointer to the command document (an incomplete printed command fails) | 0 | +61 / -11 | +436 |
 | `6be49f46` | 15 GREEN | **H36_I3** = the replacement launch commit (fixed after review III, not re-reviewed (cap)): `_owned` (one no-follow non-blocking descriptor, regular file, JSON, cell + stem + expect_head + ckpt_link + dump_root + dump), `exp36_dump_preflight(pin=...)`, the chain's `--pin` + the publication pointer, NIT 2 descriptions; 2 regression cases added at GREEN (a directory, a FIFO at the receipt path); 11 mutation checks, all caught (in the GREEN log) | +35 / -12 | +18 / -2 | +383 |
+| `b7aec94b` | records | H36_I3 recorded in `yaw_c4_spread_launch_commit.txt`; ledger; notebook (the move and DRY_RUNs not yet done at that commit) | 0 | 0 | data only |
 
 Every code commit is < 200 changed code lines; one test commit (`65f9fcd4`, 243 test lines) exceeds 200 because it
 removes a duplicated clone fixture (-97) while adding the A1 tests.

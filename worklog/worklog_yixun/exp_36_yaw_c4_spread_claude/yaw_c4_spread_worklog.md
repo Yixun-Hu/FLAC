@@ -137,3 +137,18 @@
 - **Next** (not done at this entry's commit) — move `~/codespace/exp-36-run` to H36_I3 after the /proc + lsof check
   (my own H36_I2 suite still runs there, ETA ≈ 18:56 EST), repeat both DRY_RUNs, send the Planner the chain commands;
   then HIGH 3 + NIT 3 (step 2); then the exp_37 B3 leaf on top.
+
+## 2026-11-06T19:00:29-05:00 — Coder r1: review III step 1 done -- the run worktree at H36_I3, both DRY_RUNs repeated
+- **Result** — my H36_I2 full suite in the run worktree finished 18:54:44 EST: 1704 passed, 2 skipped (no CUDA; the
+  cross-version guard, skipped because the launch commit was recorded only after that suite started), rc 0
+  (`*_SUITES_at_H36_I2_d92aef10_in_the_run_worktree.log`; superseded by H36_I3). At 18:55:08 EST no process had its cwd
+  in `~/codespace/exp-36-run` (/proc/*/cwd scan and lsof +D: none); it was detached from H36_I2 to H36_I3 `6be49f46`,
+  0 tracked changes (`*_run_worktree_moved_to_H36_I3.log`). DRY_RUNs at H36_I3: chain I offorbit 18:55:47-18:58:02 EST
+  exit 0, 28 cells; chain II A 18:58:13-18:59:41 EST exit 0, 25 cells; every argv = its row's eval_args +
+  `--ckpt-path <farm link>` + `--dump-scored-waveforms <NAS root>`, all through the no-flash launcher; each dump
+  preflight called with `--pin 6be49f46...` and OK against the real NAS; no quarantine; one tree digest `f4b7056e...`.
+- **Between H36_I2 `d92aef10` and H36_I3 `6be49f46`** -- changed: `depth_canon_collect.py` (`_owned`, the preflight's pin
+  + authenticated-receipt rule, its CLI help, the comparator docstring), `yaw_c4_spread_chain.sh` (`--pin` to the
+  preflight, the publication pointer, a header comment), tests, records. Byte-identical: the runner, the generator, the
+  cells manifest, `overlays/no_flash/*`, `eval_FLAC.py`, `src/` (but `src/tests`).
+- **Next** — send the Planner the chain commands (`yaw_c4_spread_command.md`); then review III HIGH 3 + NIT 3.
