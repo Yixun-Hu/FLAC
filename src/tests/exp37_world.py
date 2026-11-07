@@ -100,7 +100,7 @@ class World:
                         if "candidate_subset" in source else np.arange(len(c)))       # the actual row mapping
             else:
                 c = cands(r) if callable(cands) else cands
-                s = (sims(HALF, 42)[sims_rows] if sims_rows is not None else sims(c, seed)).reshape(-1, 1)
+                s = (sims(HALF, seed)[sims_rows] if sims_rows is not None else sims(c, seed)).reshape(-1, 1)
                 extra = {"candidate_indices_sha256": r["candidate_indices_sha256"]}
                 rows = np.asarray(sims_rows) if sims_rows is not None else np.arange(len(c))
             result = {"run_manifest_sha256": manifest["sha256"], "query_index": r["index"], "query_id": r["query_id"],
@@ -124,9 +124,10 @@ class World:
             attest_run(run_dir, **(attest or {}))
         return run_dir
 
-    def c2f(self, stem, arm, **kw):
-        """A faithful c2f pass over the arm's seed-42 0.5 m arrays (the registered rule applied to its scores)."""
-        parent = sims(HALF, 42)
+    def c2f(self, stem, arm, *, seed=42, kind="timing", **kw):
+        """A faithful c2f run over the arm's same-seed 0.5 m arrays (the registered rule applied to its scores): the
+        seed-42 timing pass, or (``kind='acc'``) a seed 43 / 44 accuracy-only run with its inline dump."""
+        parent = sims(HALF, seed)
         rule = grid.c2f_indices(HALF, grid.query_scores(parent.reshape(-1, 1), 0.1), k=5)
         union, new = rule["union"], np.setdiff1d(rule["refined"], rule["coarse"])
         sha = hashlib.sha256(union.astype("<u4").tobytes()).hexdigest()
@@ -136,16 +137,16 @@ class World:
         winner = int(union[int(np.argmax(grid.query_scores(parent[union].reshape(-1, 1), 0.1)))])
         from src.localization.exp37_latency import c2f_protocol
         core = float(parts["context_conditioning"] + parts["coarse_generation"] + parts["refined_generation"])
-        per_query = {i: {"candidate_indices_sha256": sha, "parent_candidate_indices_sha256": f"h{i}",
-                         "latency_protocol": c2f_protocol(5),
-                         "latency_seconds": {**parts, "c2f_total": float(sum(parts.values())), "core_forward_total": core},
-                         "selector_repeat_seconds": {p: [parts[p]] * 3 for p in selector},
+        timing = {"latency_protocol": c2f_protocol(5),
+                  "latency_seconds": {**parts, "c2f_total": float(sum(parts.values())), "core_forward_total": core},
+                  "selector_repeat_seconds": {p: [parts[p]] * 3 for p in selector}} if kind == "timing" else {}
+        per_query = {i: {"candidate_indices_sha256": sha, "parent_candidate_indices_sha256": f"h{i}", **timing,
                          "c2f": {"full_candidate_count": len(HALF), "coarse_count": len(rule["coarse"]),
                                  "top_indices": rule["top"].tolist(), "refined_count": len(rule["refined"]),
                                  "new_count": len(new), "union_indices": union.tolist(),
                                  "generated_count": len(rule["coarse"]) + len(new), "winner_full_index": winner,
                                  "union_indices_sha256": sha, "top_k": 5, "chebyshev_radius_m": 0.5}} for i in (1, 2)}
-        return self.make(stem, arm, self.pilot, self.audits["audit_0p50"], kind="timing", cands=HALF[union],
+        return self.make(stem, arm, self.pilot, self.audits["audit_0p50"], kind=kind, seed=seed, cands=HALF[union],
                          per_query=per_query, sims_rows=union, candidate_subset="c2f", c2f_top_k=5, **kw)
 
     def build(self, *, seeds_43_44_timing=False):
@@ -287,4 +288,16 @@ def add_timing_only_replays(world: World) -> World:
     for orbit, stem in (("0", "b3_lat_o0_s42"), ("0_180", "b3_lat_o0_180_s42"), ("c4", "b1_k8_BF_s42")):
         world.make(f"{stem}_replay", "BF", world.pilot, a50, kind="replay", of=world.runs / stem,
                    frame_angles=ORBIT_ANGLES[orbit])
+    return world
+
+
+def registered_world(root) -> World:
+    """Every registered run: the B2 / B3 runs, the mandatory replays of every timing pass, the seed 43 / 44 c2f
+    accuracy runs, and the synthesis + external inputs."""
+    world = add_timing_only_replays(World(root).build())
+    for arm in ("P1", "BF"):
+        for seed in (43, 44):
+            world.c2f(f"b2a_c2f_{arm}_s{seed}", arm, seed=seed, kind="acc")
+    world.synthesis()
+    world.external()
     return world
