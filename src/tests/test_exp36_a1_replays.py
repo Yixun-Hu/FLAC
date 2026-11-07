@@ -89,7 +89,8 @@ def check(w, **kw):
 
 
 def test_the_registry_holds_the_four_replays_with_the_amendment_digests():
-    assert list(C.EXP36_REPLAYS) == [f"exp36_{a}_{C4}" for a in ("YAW", "P1", "BF", "CANON")]
+    assert list(C.EXP36_REPLAYS) == [f"exp36_{a}_{C4}" for a in ("YAW", "P1", "BF", "CANON")] + [
+        f"exp37_BF_{C4}"]                                 # + exp_37 B3's B-F replay, the B-F entry's copy (test_exp37_b3.py)
     for arm, (metrics, receipt, canon) in REAL.items():
         e = C.EXP36_REPLAYS[f"exp36_{arm}_{C4}"]
         assert (e["dump_manifest_sha256"], e["waveform_sha256"]) == DUMPS[arm]
