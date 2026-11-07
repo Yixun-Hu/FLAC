@@ -577,14 +577,18 @@ def main() -> int:
     except SpecError as error:
         print(f"REFUSED (spec): {error}", file=sys.stderr)
         return 2
-    targets = published[:2] if summary["publishable"] else diagnostic
-    for path, text in zip(targets, (json.dumps(summary, indent=2, sort_keys=True) + "\n", render_markdown(summary))):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.write_text(text)
-        os.replace(temporary, path)
-    if summary["publishable"] and args.figure_stem is not None:
-        render_figure(summary, args.figure_stem)
+    from src.localization import exp37_publish
+    record, others = (published[0], published[1:]) if summary["publishable"] else (diagnostic[0], diagnostic[1:])
+
+    def render(staging):                                  # review 2 HIGH 7: one transaction, the JSON last
+        (staging / others[0].name).write_text(render_markdown(summary))
+        if summary["publishable"] and args.figure_stem is not None:
+            render_figure(summary, staging / args.figure_stem.name)
+        body = {k: v for k, v in summary.items() if k != "sha256"}
+        body["published_files"] = exp37_publish.staged_sha256(staging, others)
+        (staging / record.name).write_text(json.dumps({**body, "sha256": canonical_sha256(body)}, indent=2,
+                                                      sort_keys=True) + "\n")
+    exp37_publish.publish(others + [record], render)
     print(render_markdown(summary))
     return 0 if summary["publishable"] else 3
 

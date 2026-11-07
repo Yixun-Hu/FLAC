@@ -216,7 +216,10 @@ def main() -> int:
         if arm not in LABELS:
             raise ValueError(f"unknown arm {arm}")
     try:
-        check_coverage(args.run, args.split, args.replay, args.split_replay, require_replays=args.require_replays)
+        if not args.require_replays:
+            raise CoverageError("--require-replays is mandatory: every pass has its artifact replay (announcement 08; "
+                                "no written exp_37 exemption)")
+        check_coverage(args.run, args.split, args.replay, args.split_replay, require_replays=True)
     except CoverageError as error:
         print(f"REFUSED (coverage): {error}", file=sys.stderr)
         return 2
@@ -224,12 +227,16 @@ def main() -> int:
                             [(a, int(k), Path(d)) for a, k, d in args.split], audit=load_audit(args.geometry_audit),
                             replays={(a, int(k)): Path(d) for a, k, d in args.replay},
                             split_replays={(a, int(k)): Path(d) for a, k, d in args.split_replay})
-    targets = outputs[:2] if summary["publishable"] else outputs[2:]
-    for path, text in zip(targets, (json.dumps(summary, indent=2, sort_keys=True) + "\n", render_markdown(summary))):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.write_text(text)
-        os.replace(temporary, path)
+    from src.localization import exp37_publish
+    record, markdown = outputs[:2] if summary["publishable"] else outputs[2:]
+
+    def render(staging):                                  # review 2 HIGH 7: one transaction, the JSON last
+        (staging / markdown.name).write_text(render_markdown(summary))
+        body = {k: v for k, v in summary.items() if k != "sha256"}
+        body["published_files"] = exp37_publish.staged_sha256(staging, [markdown])
+        (staging / record.name).write_text(json.dumps({**body, "sha256": canonical_sha256(body)}, indent=2,
+                                                      sort_keys=True) + "\n")
+    exp37_publish.publish([markdown, record], render)
     print(render_markdown(summary))
     return 0 if summary["publishable"] else 3
 
