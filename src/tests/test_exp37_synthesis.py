@@ -33,7 +33,7 @@ def test_a_complete_section_validates_from_its_own_artifacts(section):
     c4 = [c for c in out["cells"] if c["orbit"] == "c4"]
     assert len(c4) == 4 and all(c["pin"] == syn.H35_PIN for c in c4)
     assert all(c["pin"] == "e" * 40 for c in out["cells"] if c["orbit"] != "c4")
-    assert all(set(c["per_scene_mean"]) == {"T60", "C50"} for c in out["cells"])
+    assert all(set(c["per_scene_mean"]) == {"T60", "C50", "EDT", "FD"} for c in out["cells"])
 
 
 def _rehash(cell, key):

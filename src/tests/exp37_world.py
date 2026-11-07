@@ -245,7 +245,7 @@ class World:
     def synthesis(self, *, status="complete", leaf_commit="e" * 40):
         """The synthesis section (call with exp37_synthesis's roots patched to ``synthesis_roots``); the reused
         cells' digests are kept in ``self.reused`` for the pinned table."""
-        keys = ["T60", "C50"]
+        keys = ["T60", "C50", "EDT", "FD"]                               # = exp37_build_synthesis_cells.METRICS
         cells = [self.synthesis_cell(o, t, k, leaf_commit, keys) for o in ("0", "0_180", "c4") for t in (0, 90)
                  for k in (1, 8)] if status == "complete" else []
         self.reused = {c["cell"]: {key: c[key] for key in ("metrics_sha256", "receipt_sha256", "dump_manifest_sha256")}
