@@ -23,7 +23,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src.localization import exp37_synthesis as syn  # noqa: E402
 
-METRICS = ("T60", "C50", "EDT", "FD")
+METRICS = syn.METRICS_KEYS                                        # the one registered list (review 3 H-02)
 CHAIN = "worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh"
 
 

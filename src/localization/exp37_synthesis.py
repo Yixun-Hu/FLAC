@@ -73,6 +73,7 @@ DUMP_MANIFEST_KEYS = ("schema_version", "n", "dtype", "shape", "sha256", "input_
                       "ckpt_path", "metrics_path", "metrics_sha256", "stream_sidecar_path", "stream_sidecar_sha256",
                       "canon_sidecar_path", "canon_sidecar_sha256")
 ORBITS = {"0": [0.0], "0_180": [0.0, 180.0], "c4": [0.0, 90.0, 180.0, 270.0]}
+METRICS_KEYS = ("T60", "C50", "EDT", "FD")                       # the registered synthesis metrics, in order (H-02)
 SHA_KEY = {"metrics_json": "metrics_sha256", "receipt": "receipt_sha256", "dump_manifest": "dump_manifest_sha256"}
 CELL_KEYS = ("orbit", "theta", "k_context", "seed", "source", "cell", "metrics_json", "metrics_sha256", "receipt",
              "receipt_sha256", "dump_manifest", "dump_manifest_sha256")
@@ -108,7 +109,11 @@ def _sha(path) -> str:
 
 
 def _hex64(value) -> bool:
+    """A lowercase 64-hex digest (a real predicate: length AND alphabet)."""
     return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
+
+
+is_hex64 = _hex64
 
 
 def _flags(argv) -> dict:
@@ -205,6 +210,8 @@ def validate_section(section: dict) -> dict:
     """The complete synthesis section: 12 unique cells whose own artifacts carry their identities; RuntimeError
     otherwise (a pending section is the caller's diagnostic)."""
     cells, keys = section["cells"], list(section["metrics_keys"])
+    if keys != list(METRICS_KEYS):
+        raise RuntimeError(f"the synthesis metrics are {keys}, not exactly the registered {list(METRICS_KEYS)}")
     if section.get("leaf_commit") != LEAF_COMMIT:
         raise RuntimeError(f"the synthesis section does not name the leaf commit {LEAF_COMMIT}")
     paths = [Path(c[key]).resolve() for c in cells for key in ("metrics_json", "receipt", "dump_manifest")]

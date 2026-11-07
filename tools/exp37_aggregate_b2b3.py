@@ -100,11 +100,12 @@ def _synthesis_reasons(section) -> list[str]:
         return ["b3_synthesis (complete) keys are not exactly status / leaf_commit / runbook / metrics_keys / cells"]
     bad, cells = [], section["cells"] if isinstance(section["cells"], list) else []
     commit = section["leaf_commit"]
-    if not (isinstance(commit, str) and len(commit) == 40 and all(c in "0123456789abcdef" for c in commit)):
+    if not (isinstance(commit, str) and len(commit) == 40 and all(c in "0123456789abcdef" for c in commit)):  # 40-hex
         bad.append("b3_synthesis.leaf_commit must be the 40-hex exp_36 leaf commit")
-    if not _path(section["runbook"]) or not (isinstance(section["metrics_keys"], list) and section["metrics_keys"]
-                                             and all(_path(k) for k in section["metrics_keys"])):
-        bad.append("b3_synthesis needs its runbook and nonempty metrics_keys")
+    if not _path(section["runbook"]):
+        bad.append("b3_synthesis needs its runbook")
+    if section["metrics_keys"] != list(syn.METRICS_KEYS):            # review 3 H-02: exactly, in order
+        bad.append(f"b3_synthesis.metrics_keys must be exactly {list(syn.METRICS_KEYS)}, not {section['metrics_keys']!r}")
     if not all(isinstance(c, dict) and set(c) == set(syn.CELL_KEYS) for c in cells):
         return bad + [f"b3_synthesis cells must be objects with exactly the keys {list(syn.CELL_KEYS)}"]
     bad += _coverage("b3_synthesis.cells", [(c["orbit"], c["theta"], c["k_context"]) for c in cells],
@@ -114,7 +115,7 @@ def _synthesis_reasons(section) -> list[str]:
                                                             for k in SYNTHESIS_K]:
             continue
         name, _block, source = syn.cell_name(c["orbit"], c["theta"], c["k_context"])
-        hexes = all(isinstance(c[k], str) and len(c[k]) == 64 for k in syn.SHA_KEY.values())
+        hexes = all(syn.is_hex64(c[k]) for k in syn.SHA_KEY.values())         # lowercase 64-hex (H-02)
         if (c["seed"], c["source"], c["cell"]) != (42, source, name) or not hexes or not all(
                 _path(c[k]) for k in syn.SHA_KEY):
             bad.append(f"b3_synthesis cell {name}: seed 42, source {source}, its paths and 64-hex sha256 are required")
