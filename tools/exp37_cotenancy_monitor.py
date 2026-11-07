@@ -31,7 +31,10 @@ import subprocess
 import sys
 import time
 
-EXP36_ROOTS = ("/home/yixunhu/codespace/exp-36-yaw-c4-spread", "/home/yixunhu/codespace/.exp36-baseline-H35")
+# the single pinned set of exp_36 execution roots (the exp_36 run worktree, its code worktree, the H35 baseline, the
+# B3 synthesis leaf); identical in src/localization/exp37_cotenancy.py (pinned by a test)
+EXP36_ROOTS = ("/home/yixunhu/codespace/exp-36-run", "/home/yixunhu/codespace/exp-36-yaw-c4-spread",
+               "/home/yixunhu/codespace/.exp36-baseline-H35", "/home/yixunhu/codespace/exp-37-b3-synthesis")
 GPU_QUERY = ["nvidia-smi", "--query-compute-apps=gpu_uuid,pid,process_name,used_memory", "--format=csv,noheader"]
 TARGET_GONE, EXISTS, EXP36_PRESENT = 3, 2, 3
 
@@ -83,6 +86,10 @@ def read_process(proc, pid):
             "all": own + int(rest[13]) + int(rest[14])}
 
 
+def _under(path, root: str) -> bool:
+    return bool(path) and (path == root or path.startswith(root + "/"))
+
+
 def _mentions(text: str, root: str) -> bool:
     """``root`` occurs in ``text`` as a whole path (followed by '/' or the end)."""
     start = text.find(root)
@@ -97,6 +104,7 @@ def _mentions(text: str, root: str) -> bool:
 class Sampler:
     def __init__(self, *, proc, target_pid: int, monitor_pid: int, roots, run, clock):
         self.proc, self.target, self.me, self.roots = str(proc), int(target_pid), int(monitor_pid), tuple(roots)
+        self.forms = tuple(sorted({form for root in self.roots for form in (root, os.path.realpath(root))}))
         self.run, self.clock, self.tick, self.previous = run, clock, 1.0 / os.sysconf("SC_CLK_TCK"), None
 
     def pids(self) -> list[int]:
@@ -131,24 +139,47 @@ class Sampler:
         target, mine, host = delta(self.target, "all"), delta(self.me, "all"), busy - busy_before
         foreign = [{"pid": pid, "comm": row["comm"], "uid": self._uid(pid), "cores": cores(delta(pid, "own"))}
                    for pid, row in sorted(table.items()) if pid not in (self.target, self.me) and delta(pid, "own") > 0]
-        return ({"interval_seconds": seconds, "host_busy_cores": cores(host), "target_cores": cores(target),
-                 "monitor_cores": cores(mine), "foreign_cores": max(0.0, cores(host - target - mine))}, foreign)
+        return ({"interval_start": then, "interval_end": now, "interval_seconds": seconds,
+                 "host_busy_cores": cores(host), "target_cores": cores(target), "monitor_cores": cores(mine),
+                 "foreign_cores": max(0.0, cores(host - target - mine))}, foreign)
+
+    def _link(self, pid, name):
+        try:
+            return os.readlink(os.path.join(self.proc, str(pid), name))
+        except OSError:
+            return None
+
+    def _rule(self, cwd, exe, argv):
+        """Why a process is exp_36 (resolved cwd, executable, a script on its argv, an embedded path), or None."""
+        inside = lambda path: any(_under(os.path.realpath(path), form) or _under(path, form) for form in self.forms)
+        if cwd and inside(cwd):
+            return "cwd"
+        if exe and inside(exe):
+            return "exe"
+        for arg in argv[1:]:
+            for text in (arg, arg.partition("=")[2]):
+                if text and (os.path.isabs(text) or ("/" in text and cwd) or text.endswith((".py", ".sh"))):
+                    path = text if os.path.isabs(text) else os.path.join(cwd or "/", text)
+                    if inside(path):
+                        return "script"
+        if any(_mentions(text, form) for form in self.forms for text in argv):
+            return "argv"
+        return None
 
     def exp36_hits(self) -> list[dict]:
         hits = []
         for pid in self.pids():
-            base = os.path.join(self.proc, str(pid))
+            cwd, exe = self._link(pid, "cwd"), self._link(pid, "exe")
             try:
-                cwd = os.readlink(os.path.join(base, "cwd"))
-            except OSError:
-                cwd = None
-            try:
-                with open(os.path.join(base, "cmdline"), "rb") as handle:
+                with open(os.path.join(self.proc, str(pid), "cmdline"), "rb") as handle:
                     argv = [arg.decode(errors="replace") for arg in handle.read().split(b"\0") if arg]
             except OSError:
                 argv = []
-            if any(_mentions(text, root) for root in self.roots for text in ([cwd] if cwd else []) + argv):
-                hits.append({"pid": pid, "cwd": cwd, "argv": argv[:8]})
+            rule = self._rule(cwd, exe, argv)
+            if rule:
+                row = read_process(self.proc, pid)
+                hits.append({"pid": pid, "comm": row and row["comm"], "cwd": cwd, "exe": exe, "rule": rule,
+                             "argv": argv[:8]})
         return hits
 
     def gpu_sample(self) -> dict:
@@ -174,7 +205,8 @@ def run_monitor(args) -> int:
     sampler = Sampler(proc=args.proc, target_pid=args.target_pid, monitor_pid=os.getpid(), roots=EXP36_ROOTS,
                       run=subprocess.run, clock=time.monotonic)
     target = read_process(args.proc, args.target_pid)
-    writer.write({"kind": "start", "target_pid": args.target_pid, "target_start": target and target["start"],
+    writer.write({"kind": "start", "target_pid": args.target_pid, "target_start": target and int(target["start"]),
+                  "target_comm": target and target["comm"],
                   "monitor_pid": os.getpid(), "card_uuid": args.card_uuid, "interval_seconds": args.interval,
                   "exp36_roots": list(EXP36_ROOTS), "proc": args.proc, "clk_tck": os.sysconf("SC_CLK_TCK"),
                   "cpu_count": os.cpu_count(),

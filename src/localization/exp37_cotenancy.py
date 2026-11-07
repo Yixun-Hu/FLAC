@@ -31,6 +31,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MONITOR_SCRIPT = REPO_ROOT / "tools" / "exp37_cotenancy_monitor.py"
 ENVIRONMENT_KEPT = ("PATH", "HOME", "LANG", "LC_ALL")
 MARKERS = ("gpu_resident", "timed_start", "timed_end")
+# the single pinned set of exp_36 execution roots; identical in tools/exp37_cotenancy_monitor.py (pinned by a test)
+EXP36_ROOTS = ("/home/yixunhu/codespace/exp-36-run", "/home/yixunhu/codespace/exp-36-yaw-c4-spread",
+               "/home/yixunhu/codespace/.exp36-baseline-H35", "/home/yixunhu/codespace/exp-37-b3-synthesis")
 MAX_GAP_SECONDS = 3.0
 FOREIGN_CPU_MEAN_LIMIT_CORES = 4.0      # mean foreign cores over the timed interval (48-core host; a Planner decision)
 
