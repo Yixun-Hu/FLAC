@@ -29,15 +29,18 @@ there: `yaw_c4_spread_2026-11-06_18-55-06_run_worktree_moved_to_H36_I3.log`).
   retired) must be committed first -- not the Coder's (another agent, main checkout).
 1. Chain I (off-orbit, FIRST): `cd /home/yixunhu/codespace/exp-36-run && EXPECT_HEAD=6be49f46ec31e899f1bee01f72c6a5827e701c6c bash worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh offorbit`
 2. Chain II (A, after chain I): `cd /home/yixunhu/codespace/exp-36-run && EXPECT_HEAD=6be49f46ec31e899f1bee01f72c6a5827e701c6c bash worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh A`
-3. Publication of the 6 YAW off-orbit cells (after chain I AND after the review-III HIGH 3 fix is committed; `<V_I>` =
-   chain I's YAW verdict
+3. Publication of the 6 YAW off-orbit cells (after chain I; `<V_I>` = chain I's YAW verdict
    `~/codespace/exp-36-run/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_<TS>_offorbit_verdict_exp36_YAW_C4_S40000_K8_s42_th90.json`;
-   `<P>` = the full SHA of this checkout's HEAD once it holds the HIGH 3 fix (the publication code, clean closure) --
-   recorded in this document when committed; NOT YET):
+   `<P>` = this checkout's HEAD at publication time (`git -C /home/yixunhu/codespace/exp-36-yaw-c4-spread rev-parse HEAD`).
+   The publication code is the final exp_36 code commit `20200cb4715e199377face082db0d4a9baf54671` (review III HIGH 3,
+   fixed after review III, not re-reviewed (cap)); records-only commits may follow it. Confirm the closure first:
+   `git -C /home/yixunhu/codespace/exp-36-yaw-c4-spread diff --quiet 20200cb4715e199377face082db0d4a9baf54671 HEAD -- eval_FLAC.py src ':(exclude)src/tests' worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cells.json && echo CLOSURE-OK`):
    `cd /home/yixunhu/codespace/exp-36-yaw-c4-spread && CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 /home/yixunhu/miniconda3/envs/flac/bin/python worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py --exp36-publish --exp36-set OFF --pin 6be49f46ec31e899f1bee01f72c6a5827e701c6c --base-dir /home/yixunhu/codespace/exp-36-run --exp36-verdict <V_I> --publisher-pin <P>`
    -> 12 files (metrics + stream; never a dump, receipt or replay); manifest `yaw_c4_spread_publication_manifest_OFF.json`.
 4. Publication of the 24 YAW-C4S cells (after chain II; `<V_II>` = chain II's `..._A_verdict_exp36_YAW_C4_S40000_K8_s42_th90.json`):
    the same command with `--exp36-set A --exp36-verdict <V_II>` -> 48 files; manifest `..._publication_manifest_A.json`.
    Exit 0 published / 1 partial (re-run the SAME command + `--exp36-publish-resume`, same publisher pin) / 2 refused
-   (nothing written; also when another publication holds the global lock) / 3 crashed. Never publish with the
-   run worktree's collector.
+   (nothing written; also when another publication holds the global lock) / 3 crashed (no manifest: nothing was
+   published, re-run the same command; an in_progress manifest: re-run with `--exp36-publish-resume`). A manifest writer
+   temp beside the manifest (only a hard kill inside an update leaves one) makes the resume refuse: report it, never
+   delete it by hand without a reviewed step. Never publish with the run worktree's collector.

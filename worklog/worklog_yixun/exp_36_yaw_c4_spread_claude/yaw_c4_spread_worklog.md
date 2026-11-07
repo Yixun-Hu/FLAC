@@ -152,3 +152,29 @@
   preflight, the publication pointer, a header comment), tests, records. Byte-identical: the runner, the generator, the
   cells manifest, `overlays/no_flash/*`, `eval_FLAC.py`, `src/` (but `src/tests`).
 - **Next** — send the Planner the chain commands (`yaw_c4_spread_command.md`); then review III HIGH 3 + NIT 3.
+
+## 2026-11-06T19:10:42-05:00 — Coder r1: Codex code review III step 2 -- HIGH 3 (publication-manifest cleanup) and NIT 3 (chronology)
+- **Change** (cycle 16: `ecd4ee64` RED, committed 19:07:17 EST / `20200cb4` GREEN, committed 19:09:15 EST; fixed after
+  review III, not re-reviewed (cap)) -- `_write_new` writes with `os.write` + fsync + close and, when any of them
+  fails, removes the file it created (only while the name is still that inode: `_unlink_created`); `_Manifest.write`
+  removes its own writer temp in a `finally` unless `os.replace` consumed it, and takes the replaced manifest's identity
+  before the directory fsync; the CLI's crash message: no manifest = nothing published, re-run the same command; a
+  manifest = `--exp36-publish-resume`; the recovery text: a writer temp left by a hard kill inside an update is never
+  removed automatically (resume refuses until a reviewed manual step removes it). Foreign writer / destination temps are
+  still refused. The chain, the runner, the generator, the cells manifest, the overlays, `eval_FLAC.py` and `src/` are
+  unchanged since H36_I3: the launch commit stays H36_I3 `6be49f46`; the publication code is `20200cb4`.
+- **Result** — GREEN: 84 passed (the five publication modules, the cross-version guard ENABLED: the H36_I3 collector's
+  verdict reproduced by this one); 5 mutation checks of HIGH 3, all caught (`*_C16_review_III_failures_green.log`).
+- **Chronology correction** (Codex code review III NIT 3; appended, nothing above rewritten). Three entries above carry a
+  header time LATER than the commit that holds them (completion estimates written before committing):
+  - "2026-11-06T16:20:00" is in `071a52fa`, committed 16:13:56 EST. At that commit the full suites at H36_I (started
+    16:07:29) were still running; their result (1645 passed, 1 skipped; finished 16:46:48) was first recorded in the
+    "16:50:00" entry. The "Result — passed" of the 16:20 entry covers the checks it lists that had finished, not that suite.
+  - "2026-11-06T16:50:00" is in `5ee1d6fe`, committed 16:48:13 EST; its "branch pushed" happened after that commit (the
+    push updated origin at 16:48:22 EST).
+  - "2026-11-06T18:20:00" is in `d373c18e`, committed 18:16:37 EST (the entry the review names). At that commit the
+    full suites at H36_I2 (started 18:15:54) were running; their result (1704 passed, 2 skipped; finished 18:54:44) is
+    in the 2026-11-06T19:00:29 entry.
+  From the 2026-11-06T18:50:52 entry on, each header is the clock time at writing, at or before its commit.
+- **Next** (not done at this entry's commit) — the full suites at this checkout's head; the exp_37 B3 leaf rebased onto
+  this head.
