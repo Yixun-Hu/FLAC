@@ -187,3 +187,24 @@ Changed code lines exclude worklog records (the bash asset script `exp37_assets.
 | `a60d616f` | GREEN | 58 | exactly one B1 summary variant runs |
 | `83ef1eb8` | RED | 37 | INCIDENT: the fixture must never write outside its root (not run before the guard, on purpose) |
 | `ad6c5840` | GREEN | 29 | INCIDENT: World._inside guard; registered_world requires the patch |
+
+## Final fix round (Coder, Claude Opus 5.5 max effort; after Codex code review 3 = REQUEST-CHANGES; every row: fixed after review 3, not re-reviewed (cap))
+
+| SHA | kind | code lines | what |
+|---|---|---:|---|
+| `d84572d5` | RED | 160 | B-01 tests: atomic no-replace only, fatal directory fsync, injected targets, publish rollback |
+| `92fbcd74` | GREEN | 110 | B-01: renameat2(RENAME_NOREPLACE) only; DurabilityError; unpublish on a late fsync failure; quarantine |
+| `8948d9e3` | RED | 93 | H-05 tests: every PRODUCER_KEYS field (missing / mistyped / empty), CLI exit 3 |
+| `36475287` | GREEN | 53 | H-05: producer_field_reasons before any use; aggregation test (RED verified: KeyError) |
+| `900e5c51` | RED | 37 | H-02 tests: exact metric list, lowercase-64-hex digests |
+| `9cab93c9` | GREEN | 20 | H-02: METRICS_KEYS, is_hex64 |
+| `d2db0340` | RED | 78 | B-03 tests: pinned tree digests, exact ordered argv, restored receipts; fixture pins |
+| `911bea59` | GREEN | 63 | B-03: LEAF_TREE_DIGEST / H35_TREE_DIGEST, expected_argv, receipt_identity_reasons |
+| `3c7e36b7` | RED | 103 | H-04 tests: the reuse check tool; fixture stream sidecars |
+| `4862fba6` | GREEN | 102 | H-04: tools/exp37_b3_reuse_check.py |
+| `1393b935` | RED | 162 | H-01 / H-04 / N-01 / B-02 runbook tests |
+| `1bc1d621` | GREEN | 105 | runbook: collective K1 decision, B3S.reuse.*, env -C leaf argv, check mode (100 steps) |
+| `0b5d5a78` | RED | 152 | H-03 tests: copies from an unrelated cwd, decoy, stand-ins, exclusive (RED read the real roots, disclosed) |
+| `f5db2ea7` | GREEN | 202 | H-03: the two incident scripts confined (OVER 200: 202, two script rewrites) |
+| `ddb9aea2` | RED | 28 | N-02 tests: the c2f policy in the docs |
+| `206c5b6e` | GREEN | 22 | N-02: the two module docs |

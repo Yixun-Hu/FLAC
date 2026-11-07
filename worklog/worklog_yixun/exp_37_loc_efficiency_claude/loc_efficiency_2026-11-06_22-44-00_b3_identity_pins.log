@@ -1,0 +1,65 @@
+HEAD 911bea5927a28f614dfedae11211517ba26320c7 (CPU, read-only: git objects of the leaf commits; nothing in the leaf / exp_35 / NAS roots is read)
+=== 1. the exp_25 runner's evaluator tree digest recomputed from git objects (script below)
+e1de4155 a0aa83520a0e8de6b80f643a2b4e4d66e523a0552b6f2010b3053caa809496c4 117 4
+d3013734 a0aa83520a0e8de6b80f643a2b4e4d66e523a0552b6f2010b3053caa809496c4 117 4
+EXIT 0
+=== 2. the 8 new cells' dry-run argv vs exp37_synthesis.expected_argv (script below)
+exp37_BF_ORB1_S40000_K1_s42_th0 argv == expected_argv: True
+exp37_BF_ORB1_S40000_K8_s42_th0 argv == expected_argv: True
+exp37_BF_ORB1_S40000_K1_s42_th90 argv == expected_argv: True
+exp37_BF_ORB1_S40000_K8_s42_th90 argv == expected_argv: True
+exp37_BF_ORB2_S40000_K1_s42_th0 argv == expected_argv: True
+exp37_BF_ORB2_S40000_K8_s42_th0 argv == expected_argv: True
+exp37_BF_ORB2_S40000_K1_s42_th90 argv == expected_argv: True
+exp37_BF_ORB2_S40000_K8_s42_th90 argv == expected_argv: True
+8 of 8; the dry run printed LEAF_TREE_DIGEST: True
+EXIT 0
+=== script 1 (verbatim)
+#   """Recompute the exp_25 runner's evaluator tree digest at a commit from git objects only (read-only)."""
+#   import hashlib, json, subprocess, sys
+#   
+#   def git(*args, data=None):
+#       return subprocess.run(["git", *args], input=data, capture_output=True, check=True).stdout
+#   
+#   def digest(commit):
+#       runner = git("show", f"{commit}:worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh").decode()
+#       exp = "worklog/worklog_yixun/exp_25_depth_canon_claude"
+#       cells = json.loads(git("show", f"{commit}:{exp}/depth_canon_cells.json"))
+#       cfgs = [arm["model_config"] for arm in cells["arms"].values()] if isinstance(cells["arms"], dict) else [
+#           a["model_config"] for a in cells["arms"]]
+#       exact = set(cfgs) | {"eval_FLAC.py", f"{exp}/depth_canon_eval_run.sh", f"{exp}/depth_canon_collect.py",
+#                            f"{exp}/depth_canon_make_cells.py", f"{exp}/depth_canon_cells.json",
+#                            f"{exp}/depth_canon_audit_gate.py",
+#                            "worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_gpu_identity.py",
+#                            "worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh"}
+#       prefixes = ("src/", "data/AR/", "overlays/no_flash/")
+#       rows = [line.split(b"\t", 1) for line in git("ls-tree", "-r", "-z", commit).split(b"\0") if line]
+#       paths = sorted({p.decode() for meta, p in rows if (p.decode() in exact or p.decode().startswith(prefixes))
+#                       and not p.decode().startswith("src/tests/")}, key=lambda s: s.encode())
+#       lines = []
+#       for path in paths:
+#           blob = git("show", f"{commit}:{path}")
+#           lines.append(f"{hashlib.sha256(blob).hexdigest()}  {path}")
+#       return hashlib.sha256(("\n".join(lines) + "\n").encode()).hexdigest(), len(paths), len(cfgs)
+#   
+#   for commit in sys.argv[1:]:
+#       print(commit[:8], *digest(commit))
+=== script 2 (verbatim)
+#   """Read-only: the 8 new cells' dry-run argv (the leaf's committed DRYRUN log, read from git objects) vs expected_argv."""
+#   import json, re, subprocess, sys
+#   sys.path.insert(0, "/home/yixunhu/codespace/exp-37-loc-efficiency")
+#   from src.localization import exp37_synthesis as syn
+#   text = subprocess.run(["git", "show", "d30137349027914af7f04462b05347f0f9e03c02:worklog/worklog_yixun/exp_37_loc_efficiency_claude/"
+#                          "loc_efficiency_2026-11-06_19-23-35_B3_DRYRUN_chain_b3_at_e1de4155.log"],
+#                         capture_output=True, text=True, check=True).stdout
+#   found = dict(re.findall(r"DRYRUN (exp37_BF_ORB\S+) argv: (\[.*\])", text))
+#   ok = 0
+#   for orbit in ("0", "0_180"):
+#       for theta in (0, 90):
+#           for k in (1, 8):
+#               name = syn.cell_name(orbit, theta, k)[0]
+#               same = tuple(json.loads(found[name])) == syn.expected_argv(orbit, theta, k, name)
+#               ok += same
+#               print(name, "argv == expected_argv:", same)
+#   print(f"{ok} of 8; the dry run printed LEAF_TREE_DIGEST: {syn.LEAF_TREE_DIGEST in text}")
+#   sys.exit(0 if ok == 8 and syn.LEAF_TREE_DIGEST in text else 1)

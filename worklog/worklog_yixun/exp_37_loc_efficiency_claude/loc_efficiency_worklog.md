@@ -384,3 +384,73 @@ Append-only, one entry per action (SOP template). The Planner's notebook for exp
   - The foreign-CPU limit (4 cores, time-weighted) is still the Planner's.
   - `exp37_runbook_r3.md` (the prose runbook) and the commits-table rows for this round are still to write. The
     `exp37_runbook.sh` header, `list` and this note are complete.
+
+## 2026-11-07 — final fix round (after Codex code review 3 = REQUEST-CHANGES; the last review, Yixun's cap): every finding below is FIXED AFTER REVIEW 3, NOT RE-REVIEWED (CAP)
+
+- **Query.** The Planner's final fix round. Mine: B-01, B-03, H-01..H-05, N-01, N-02, plus a B-02 check after the
+  Planner's move. B-04 (the two missing exp_35 metrics JSONs) and NIT-2 are the Planner's. Each finding below is fixed
+  RED then GREEN, with tests. Each is fixed after review 3 and not re-reviewed (cap).
+- **B-01** (`d84572d5` / `92fbcd74`; `test_exp37_durability.py`): atomic no-replace publication only.
+  - `exp37_waveforms.rename_noreplace` is now `renameat2(RENAME_NOREPLACE)` and nothing else.
+    - The check-then-rename fallback is gone.
+    - A missing libc symbol, ENOSYS, EINVAL or ENOTSUP raises `DurabilityError` and keeps the staging.
+    - An injected target, including an empty directory a plain rename would replace, is never replaced.
+  - `fsync_dir` raises on ANY failure, an unsupported directory fsync included.
+    - The dump refuses before anything publishes.
+    - A root fsync failure after the rename unpublishes the dump back to its staging name.
+  - `exp37_publish` inherits this: no final output path, no staging.
+  - `tools/exp37_quarantine.py` moves with its own stdlib `renameat2(RENAME_NOREPLACE)`.
+  - **Caveat (untested here, because I may not write to the NAS):** the campaign dump root is CIFS (SMB 3.1.1, kernel
+    6.17). Its RENAME_NOREPLACE and directory fsync are expected to work. If either is refused, every dump fails
+    closed at its first publication (G0.YAW.replay, minutes into the campaign), leaving staging for `clean`.
+- **B-03** (`d2db0340` / `911bea59`; `test_exp37_synthesis.py`; log `loc_efficiency_*_b3_identity_pins.log`):
+  - `LEAF_TREE_DIGEST` is pinned to `a0aa8352…`: the exp_25 runner's evaluator tree digest at the leaf launch commit.
+    - The leaf's dry run at `e1de4155` printed it.
+    - `e1de4155 → d3013734` changes only `src/tests` and records outside that tree.
+    - My recomputation from the git objects of both commits gives the same value.
+  - `H35_TREE_DIGEST` is pinned to `da82d012…`.
+  - All three receipt digests must equal the pin of the cell's source, so the 8 new cells share one digest.
+  - The argv must equal `expected_argv()`, the full ordered registered command line, valueless flags included.
+  - The 4 byte-exact restored exp_35 receipts pass the new rule. The 8 new cells' dry-run argv equal `expected_argv`
+    8/8.
+- **H-01** (`1393b935` / `1bc1d621`; `test_exp37_runbook.py`): the K_ctx 1 split decision is now one collective
+  decision.
+  - `skip B1.split_k1` is `B1.split_k1.P1`. YAW / BF, TR.split_k1.* and B1S follow P1.
+  - The 6 mixed combinations (fabricated receipts) refuse the next step with nothing launched. A partly mixed state
+    refuses the next split pass.
+- **H-02** (`900e5c51` / `9cab93c9`): `exp37_synthesis.METRICS_KEYS = ("T60","C50","EDT","FD")`, exact and in order,
+  in the builder, `check_spec` and `validate_section`. `is_hex64` (length AND lowercase alphabet) is the digest
+  predicate.
+- **H-03** (`0b5d5a78` / `f5db2ea7`; `test_exp37_incident_scripts.py`): both incident scripts are confined.
+  - `HERE = Path(__file__).resolve().parent` and `OUT = HERE / "restore"`.
+  - Every destination must sit directly under OUT. A pre-existing destination is refused before any write; otherwise
+    each file is created exclusively.
+  - The sibling is imported from the resolved directory, never the cwd.
+  - `--farm` / `--dumps` / `--expected` exist for stand-ins. The scripts were not re-run against the real roots.
+  - **Disclosure:** the RED run executed copies of the OLD scripts. Those ignore the stand-in arguments, so they READ
+    the real exp_35 farm and NAS dump root (read-only). Their writes went to pytest's tmp directory, and the receipts
+    script stopped at the decoy import.
+- **H-04** (`3c7e36b7` / `4862fba6`, `1393b935` / `1bc1d621`; `test_exp37_b3_reuse_check.py`, runbook tests):
+  `tools/exp37_b3_reuse_check.py`.
+  - `--stage run` checks the C4 / K8 reference (metrics `ef2840c7…`); `--stage cells` checks all four reused cells.
+  - Each cell's metrics JSON, receipt and dump manifest must match the pinned digests. The stream sidecar must match
+    the digest its pinned receipt binds.
+  - A pass writes a hashed write-once record; anything else exits 2 and writes nothing.
+  - The runbook now has 100 steps: B3S.reuse.run before B3S.run, and B3S.reuse.cells before B3S.cells. Their receipts
+    bind the record's sha256, and a failed check refuses its consumer.
+- **H-05** (`8948d9e3` / `36475287`; `test_exp37_producer_fields.py`, both CLI suites):
+  - `exp37_cotenancy.producer_field_reasons` validates every PRODUCER_KEYS field before use:
+    - pid must be a positive int;
+    - pid_start_ticks must be a nonnegative int, never a bool;
+    - hostname and card_uuid must be nonempty strings.
+  - An incomplete producer record is a timing-invalid row with a named reason. The B1 summarizer exits 3 and the
+    aggregation withholds, with no traceback.
+  - RED was verified: a KeyError at `exp37_latency.py:173-174`.
+- **N-01** (`1393b935` / `1bc1d621`): the leaf step is the argv
+  `env -C <leaf> EXPECT_HEAD=<commit> bash <chain> b3`. It is run by the same `"${CMD[@]}"` as every step, so the
+  logged and receipted command is the executed one.
+- **N-02** (`ddb9aea2` / `206c5b6e`; `test_exp37_c2f_docs.py`): the two module docs now state the three-seed
+  sequential c2f policy.
+- **B-02 support** (`1393b935` / `1bc1d621`):
+  - `check STEP` is a read-only preflight: no log, gate, receipt or command.
+  - Untracked incident material is never allowlisted, and a test pins that. The allowlist is unchanged.
