@@ -33,7 +33,7 @@ def _run(tmp_path, name, selection, *, arm="P1", seed=42, over=None):
     for r in selection["records"]:
         n = r["candidate_count"]
         result = {"run_manifest_sha256": manifest["sha256"], "query_index": r["index"], "query_id": r["query_id"],
-                  "candidate_count": n, "peak_memory_bytes": 1,
+                  "candidate_count": n, "peak_memory_bytes": 1, "candidate_indices_sha256": r["candidate_indices_sha256"],
                   "latency_protocol": {"name": "fem_core_aligned_kctx8_kgen1", "context_count": 8},
                   "latency_seconds": {"context_conditioning": 0.1, "candidate_conditioning_and_generation": 0.2,
                                       "core_forward_total": 0.3}}

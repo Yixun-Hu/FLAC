@@ -56,7 +56,8 @@ def test_statistics_follow_the_bundle_formulas_on_a_toy():
 
 
 def _selection(counts):
-    records = [{"index": i, "query_id": f"q{i}.wav", "room": "r", "candidate_count": c} for i, c in counts.items()]
+    records = [{"index": i, "query_id": f"q{i}.wav", "room": "r", "candidate_count": c, "candidate_indices_sha256": f"h{i}"}
+               for i, c in counts.items()]
     body = {"schema_version": 1, "query_count": len(records), "records": records}
     return {**body, "sha256": canonical_sha256(body)}
 
@@ -101,6 +102,7 @@ def _arm_run(tmp_path, name, arm, selection, *, context_count=8, over=None, quer
         n = r["candidate_count"]
         result = {"schema_version": 1, "run_manifest_sha256": manifest["sha256"], "query_index": r["index"],
                   "query_id": r["query_id"], "room": r["room"], "candidate_count": n, "peak_memory_bytes": 1000 + n,
+                  "candidate_indices_sha256": r["candidate_indices_sha256"],
                   "latency_protocol": {"name": f"fem_core_aligned_kctx{context_count}_kgen1",
                                        "context_count": context_count},
                   "latency_seconds": {"context_conditioning": 0.1, "candidate_conditioning_and_generation": n / 100,

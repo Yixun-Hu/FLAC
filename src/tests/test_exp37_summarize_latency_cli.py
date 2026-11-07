@@ -33,7 +33,8 @@ def _write_hashed(path, body):
 
 @pytest.fixture
 def world(tmp_path):
-    records = [{"index": i, "query_id": f"q{i}.wav", "room": "r", "candidate_count": c} for i, c in COUNTS.items()]
+    records = [{"index": i, "query_id": f"q{i}.wav", "room": "r", "candidate_count": c, "candidate_indices_sha256": f"h{i}"}
+               for i, c in COUNTS.items()]
     selection = {"schema_version": 1, "query_count": 2, "records": records}
     selection = {**selection, "sha256": canonical_sha256(selection)}
     sel_path = _write_hashed(tmp_path / "selection.json", {k: v for k, v in selection.items() if k != "sha256"})
@@ -56,7 +57,7 @@ def world(tmp_path):
         for i, n in COUNTS.items():
             core = (0.1 + n / 100) * scale
             result = {"run_manifest_sha256": manifest["sha256"], "query_index": i, "query_id": f"q{i}.wav",
-                      "candidate_count": n, "peak_memory_bytes": 1000 + n,
+                      "candidate_count": n, "peak_memory_bytes": 1000 + n, "candidate_indices_sha256": f"h{i}",
                       "latency_protocol": {"name": f"fem_core_aligned_kctx{k}_kgen1", "context_count": k,
                                            **({"stage_split": True} if split else {})},
                       "latency_seconds": {"context_conditioning": 0.1, "candidate_conditioning_and_generation": core - 0.1,

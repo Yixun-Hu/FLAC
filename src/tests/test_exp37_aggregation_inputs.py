@@ -41,6 +41,7 @@ def _run(tmp_path, name, arm, pilot, *, identity=None, per_query=None, counts=No
         metrics = grid.recomputed_k1_metrics(candidates, sims, [0.0, 0.0, 1.0], 0.1)
         result = {"run_manifest_sha256": manifest["sha256"], "query_index": record["index"], "query_id": record["query_id"],
                   "room": "r", "candidate_count": n, "peak_memory_bytes": 10, "source_global": [0.0, 0.0, 1.0],
+                  "candidate_indices_sha256": record["candidate_indices_sha256"],
                   "metrics": {"1": metrics},
                   "latency_protocol": {"name": "fem_core_aligned_kctx8_kgen1", "context_count": 8},
                   "latency_seconds": {"context_conditioning": 0.1, "candidate_conditioning_and_generation": 0.2,
@@ -78,7 +79,7 @@ def test_a_nested_timing_pass_is_bound_to_its_subset_manifest(tmp_path):
     parentless = _run(tmp_path, "nested_parentless", "P1", pilot, identity={"candidate_subset": "nested_1m"},
                       counts={1: 2, 2: 3}, per_query={i: {**per_query[i], "parent_candidate_indices_sha256": "x"}
                                                         for i in (1, 2)})
-    with pytest.raises(RuntimeError, match="subset"):
+    with pytest.raises(RuntimeError, match="subset|parent"):
         lat.load_arm_run(parentless, arm="P1", selection=pilot, context_count=8, subset_manifest=subset, audit=AUDIT)
     bad = _run(tmp_path, "nested_bad", "P1", pilot, identity={"candidate_subset": "nested_1m"}, counts={1: 2, 2: 3},
                per_query={1: per_query[1], 2: {"candidate_subset": {"indices_sha256": "other"}}})

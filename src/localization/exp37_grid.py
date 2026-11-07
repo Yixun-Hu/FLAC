@@ -97,6 +97,8 @@ def readout_run(run_dir: Path, pilot: dict, full_only: bool = False) -> dict:
                                         score_sample_counts=tuple(identity["score_sample_counts"]))
         if result is None:
             raise RuntimeError(f"{run_dir}: query {record['index']} is incomplete")
+        from src.localization.exp37_queries import check_query
+        check_query(result, record, run_sha256=run["sha256"], label=f"{run_dir}: ")
         with np.load(run_dir / result["arrays_file"]) as arrays:
             candidates, similarities = arrays["candidates"], arrays["similarities"]
         scores, truth = query_scores(similarities, float(identity["tau"])), np.asarray(result["source_global"])

@@ -20,6 +20,7 @@ from pathlib import Path
 import numpy as np
 
 from src.localization import exp37_identity as ident
+from src.localization import exp37_queries as queries
 from src.localization.pilot import canonical_sha256
 
 ARM_PROTOCOL = ident.ARMS
@@ -220,20 +221,23 @@ def load_arm_run(run_dir: Path, *, arm: str, selection: dict, audit: dict, seed:
     for record in selection["records"]:
         index = int(record["index"])
         query = _hashed(run_dir / "queries" / f"query_{index:05d}.json")
-        expected = subset_rows[index]["candidate_count"] if subset_manifest is not None else record["candidate_count"]
-        if query.get("run_manifest_sha256") != manifest["sha256"] or int(query["candidate_count"]) != int(
-                expected) or query.get("query_id") != record["query_id"]:
-            raise RuntimeError(f"{run_dir}: query {index} does not belong to this run / selection")
-        if subset_manifest is not None and not (
-                (query.get("candidate_subset") or {}).get("indices_sha256") == query.get("candidate_indices_sha256")
-                == subset_rows[index]["candidate_indices_sha256"]
-                and query.get("parent_candidate_indices_sha256") == record.get("candidate_indices_sha256")):
-            raise RuntimeError(f"{run_dir}: query {index} ran another candidate subset than the subset manifest's "
-                               "(active / parent hashes)")
+        if subset_manifest is None:
+            queries.check_query(query, record, run_sha256=manifest["sha256"], label=f"{run_dir}: ")
+        else:
+            sub = subset_rows.get(index) or {}
+            if sub.get("query_id") != record["query_id"] or (query.get("candidate_subset") or {}).get(
+                    "indices_sha256") != sub.get("candidate_indices_sha256"):
+                raise RuntimeError(f"{run_dir}: query {index} ran another candidate subset than the subset manifest's")
+            queries.check_query(query, record, run_sha256=manifest["sha256"], label=f"{run_dir}: ",
+                                active_sha256=sub["candidate_indices_sha256"], count=int(sub["candidate_count"]))
         given = query.get("latency_protocol") or {}
         if any(given.get(k) != v for k, v in protocol.items()) or bool(given.get("stage_split")) != stage_split:
             raise RuntimeError(f"{run_dir}: query {index} latency_protocol is not {protocol} (stage_split={stage_split})")
         seconds = query["latency_seconds"]
+        if not all(queries.finite_nonnegative(seconds.get(k)) for k in (
+                "core_forward_total", "context_conditioning", "candidate_conditioning_and_generation")) or not \
+                isinstance(query.get("peak_memory_bytes"), int) or query["peak_memory_bytes"] < 0:
+            raise RuntimeError(f"{run_dir}: query {index} latency / memory fields are not finite nonnegative numbers")
         rows[index] = {"core": float(seconds["core_forward_total"]), "context": float(seconds["context_conditioning"]),
                        "candidate": float(seconds["candidate_conditioning_and_generation"]),
                        "peak_memory_bytes": int(query["peak_memory_bytes"]),

@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 
 from src.localization import exp37_identity as ident
+from src.localization import exp37_queries as queries
 from src.localization import exp37_waveforms as wav
 from src.localization.pilot import canonical_sha256
 
@@ -41,6 +42,19 @@ def query_record(run_dir, manifest: dict, index: int):
             hashlib.sha256(arrays.read_bytes()).hexdigest() != query.get("arrays_sha256"):
         raise RuntimeError(f"{run_dir}: query {index} is not this run's, or its arrays changed")
     return query, arrays
+
+
+def check_against_selection(run_dir, manifest: dict, selection: dict, *, subset: bool) -> dict:
+    """Review 2 HIGH 4: every query record of a source against its selection record (full: the selection's count and
+    candidate hash; subset: the selection as parent; the active hash is bound to the dumped index vector)."""
+    records = {}
+    for record in selection["records"]:
+        query = query_record(run_dir, manifest, record["index"])[0]
+        queries.check_query(query, record, run_sha256=manifest["sha256"], label=f"{run_dir}: ",
+                            **({"active_sha256": query.get("candidate_indices_sha256"),
+                                "count": query.get("candidate_count")} if subset else {}))
+        records[int(record["index"])] = query
+    return records
 
 
 def query_inventory(run_dir, manifest: dict, indices) -> dict:
@@ -99,6 +113,7 @@ def accuracy_source(run_dir, *, arm: str, selection: dict, audit: dict, seed: in
     if bad:
         raise RuntimeError(f"{run_dir}: {bad} (the {arm} seed-{seed} {'timing' if timing else 'accuracy-only'} source)")
     indices = [int(r["index"]) for r in selection["records"]]
+    check_against_selection(run_dir, manifest, selection, subset=bool(modes.get("candidate_subset")))
     entry = {"run_dir": str(run_dir), "run_manifest_sha256": manifest["sha256"], "timing": bool(timing),
              "queries": query_inventory(run_dir, manifest, indices)}
     if not timing:
@@ -111,4 +126,7 @@ def accuracy_source(run_dir, *, arm: str, selection: dict, audit: dict, seed: in
     replay_modes = {k: v for k, v in modes.items() if k != "stage_split"}
     expected = ident.registered_identity(arm, selection=selection, audit=audit, seed=seed, timing=False,
                                          waveform_mode="replay", replay_of_sha256=manifest["sha256"], **replay_modes)
-    return {**entry, "replay": replay_coverage(replay_dir, run_dir, manifest, expected=expected, audit=audit)}
+    replay = replay_coverage(replay_dir, run_dir, manifest, expected=expected, audit=audit)
+    check_against_selection(Path(replay_dir), _hashed(Path(replay_dir) / "run_manifest.json"), selection,
+                            subset=bool(modes.get("candidate_subset")))
+    return {**entry, "replay": replay}
