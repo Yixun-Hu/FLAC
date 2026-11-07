@@ -240,3 +240,147 @@ Append-only, one entry per action (SOP template). The Planner's notebook for exp
   - `8d0721c7` / `5eddbba8`: a run's dump directory must be named after the run, so a copied run cannot claim another
     run's dump.
   - exp_37 suites are now 400 passed. The full CPU suite is 669 passed, 2 skipped, 2 failed (the same 2 FEM tests).
+
+## 2026-11-06 21:10 EST — INCIDENT: my test fixture wrote into the exp_35 run worktree, the B3 leaf worktree and the NAS (exp_37 Coder, Opus 5.5)
+
+- **What happened.** `src/tests/test_exp37_b2b3_spec.py` had a module fixture that called
+  `registered_world(tmp_path_factory.mktemp("world"))` WITHOUT the monkeypatch. Commit `2209c6ef` (r2-9 RED)
+  introduced it. `World.synthesis()` then wrote its synthetic synthesis cells at `exp37_synthesis.cell_paths(...)`,
+  which still pointed at the REAL pinned roots (`LEAF_ROOT`, `EXP35_ROOT`, `DUMP_ROOT`).
+  - This happened on every full exp_37 suite run from about 20:21:16 EST (when the directories were created) to
+    20:52:26 EST (the last write).
+  - It is a breach of my brief: I may not touch `~/codespace/exp-35-orbitrir-yaw`, and the leaf worktree is
+    read-only for me.
+  - I found it at 21:00 EST, when the first real-artifact check of my synthesis validator failed on the reused
+    digests.
+- **Extent (36 files, 9 directories; the list and the current digests are in `incident_2026-11-06/`).**
+  - **Overwritten, exp_35 run worktree** (`outputs_FLAC/exp25_depth_canon/BF/`, 8 files): the metrics JSON and the
+    `.cell.json` receipt of the 4 reused phase-(i) B-F cells. These are `exp35_BF_T_S40000_K{1,8}_s42` and
+    `exp35_BF_C4_S40000_K{1,8}_s42_th90`. They now hold synthetic content (e.g. T60 15.0).
+  - **Overwritten, NAS** (`/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms/<stem>/manifest.json`, 4 files): the
+    same 4 cells' dump manifests.
+  - **Intact:** their `waveforms.npy`, `waveforms.sha256`, `COMPLETE` and `.stream.json` sidecars; every other cell.
+  - **Created, leaf worktree:** 16 files `outputs_FLAC/exp25_depth_canon/BF/*exp37_BF_ORB*` (8 metrics JSONs, 8
+    receipts), plus the `BF/` directory itself (created 20:21:16).
+  - **Created, NAS:** 8 directories `exp25_pred_waveforms/epoch=8-step=40000_metrics_1_1.0_exp37_BF_ORB*`, each with
+    one synthetic `manifest.json`.
+  - Nothing else: the suite writes exactly these 36 targets. A find over `~/codespace` (excluding this worktree and the
+    running exp-36-run) and over the NAS FLAC root, after the fix, shows no other write. No running process uses these
+    files: exp_36 chain I in exp-36-run runs `exp36_*` cells only, and its scripts do not reference them.
+- **Fix (RED `83ef1eb8`, GREEN `ad6c5840`, pushed).**
+  - The fixture checks every target before its first write and refuses anything outside its own root.
+  - `registered_world` now requires the monkeypatch, and the module fixture patches through
+    `pytest.MonkeyPatch.context()`.
+  - The RED commit was not run before the guard existed, on purpose: running it would have written again.
+  - After the fix, the 36 paths were stat-compared before and after every suite run: unchanged.
+- **Recovery (read-only towards the sources; nothing restored — that needs the Planner's / Yixun's go).**
+  `incident_2026-11-06/reconstruct.py` and `reconstruct_receipts.py` rebuilt 9 of the 12 overwritten files
+  byte-exactly. Each is verified against the digest the leaf recorded at 19:26:27, before the incident
+  (`loc_efficiency_2026-11-06_19-26-27_B3_reused_exp35_phase_i_cells.log` in the leaf).
+  - The 4 NAS manifests: from the intact markers, stream sidecars and recorded digests.
+  - The 4 receipts: from the intact T-dup receipt, the rebuilt manifests and the cells' eval logs.
+  - The T K1 metrics JSON: from its bitwise-identical T-dup twin.
+  - The files are in `incident_2026-11-06/restore/`; the log is `loc_efficiency_*_incident_reconstruction.log`.
+  - **Not recoverable from any record:** the metrics JSONs of `exp35_BF_T_S40000_K8_s42`,
+    `exp35_BF_C4_S40000_K1_s42_th90` and `exp35_BF_C4_S40000_K8_s42_th90`. Their per-scene values exist only in those
+    files: the logs print the overall means only, and git, other worktrees and the NAS hold no copy.
+- **Decisions for the Planner / Yixun (incident). I have not executed any of these.**
+  1. **Restore the 9 verified files** (recommended, now). Copy them from `incident_2026-11-06/restore/`:
+     - `<stem>.cell.json` and `T_K1 <stem>.json` → the exp_35 run worktree farm;
+     - `<stem>.manifest.json` → `<NAS dump root>/<stem>/manifest.json`.
+     Then `sha256sum` each one against the leaf's 19:26:27 log.
+  2. **The 3 unrecoverable metrics JSONs.**
+     - Recommended: move the 3 synthetic files out now, because absent is safer than wrong.
+     - Then re-run those 3 cells on a GPU at H35 into a scratch location. Adopt a result only if it is a byte-exact
+       sha256 match: `f167470e…` (T K8), `9674cfff…` (C4 K1 θ90), `ef2840c7…` (C4 K8 θ90). The T-dup cell reproduced
+       its twin bitwise on this stack.
+     - Alternative: declare them lost and re-run them as new evidence. That changes exp_35's records and exp_37's
+       pinned `REUSED` digests (a code change plus a review).
+  3. **Quarantine the 24 synthetic leaf / NAS entries before `B3S.run`** (required). The exp_25 runner refuses an
+     existing dump directory, and the leaf's `BF/` directory did not exist before the incident.
+  4. **Yixun should be told**, because his exp_35 phase-(i) evidence was modified.
+
+## 2026-11-06 21:15 EST — fix round 2 (after Codex code review 2 = REQUEST-CHANGES: 5 BLOCKING, 8 HIGH, 2 NIT)
+
+- **Query.** The coordinator's fix round 2 (the next review is round 3 of 3, the last). It carried the Planner's
+  decisions:
+  - D-a: seeds 43 / 44 are accuracy-only, and the fork is removed;
+  - D-b: a time-weighted ≤ 4-core mean;
+  - D-c: XR is mandatory;
+  - the exp_36 root set;
+  - the B3 synthesis loader / validator.
+  The B3 leaf details came later: launch commit `d3013734`, the chain `b3` command, the reused exp_35 cells. Every
+  finding is fixed RED then GREEN.
+- **c2f parity choice: sequential c2f accuracy for all three seeds** (Codex's stated alternative).
+  - Bitwise parity of the c2f timing pass with the parent 0.5 m run cannot be guaranteed: batch composition differs
+    between the two passes.
+  - An uncalibrated tolerance would be arbitrary.
+  - So the c2f point's accuracy comes from the seed-42 timed pass, whose untimed replay supplies the waveforms, plus
+    the seed-43 / 44 c2f accuracy runs (`b2a_c2f_{P1,BF}_s{43,44}`, 4 more GPU runs).
+  - The parent-derived offline readout is reported as a cross-check (`c2f_parity`) and a sensitivity row
+    (`c2f_k5_offline`). It is never a gate.
+- **Finding → commits → tests.**
+  - **BLOCKING 1** (exp_36 roots): `081ec88c` / `71ac1105`, plus `e1254786` / `5800e949`. The single pinned 4-root set
+    lives in the monitor and the verdict. A process is matched by resolved cwd, then exe, then script, then any
+    embedded argv path. A shell and a worker are tested in each root (`test_exp37_monitor_r2.py`).
+  - **BLOCKING 2** (waveform store): `3434b032` / `f6ab382a` / `f30c06d5`, plus `60e7cf83` / `1aa590c2`. Schema 2:
+    - a uniquely owned staging directory, exclusive files, fsync of files and directories;
+    - a no-replace atomic publish, and a second `finish()` is refused;
+    - `<u4` index companions validated against the active / parent hashes;
+    - the quarantine tool.
+    Tests: `test_exp37_waveforms_r2.py`, `test_exp37_sources.py`.
+  - **BLOCKING 3** (c2f vs parent): `eafc024d` / `86fbfc68`, plus `38e2c3e3` / `d294aaa6`. Sequential c2f accuracy for
+    all seeds, and `load_c2f_run` with the exact schema and parent checks (`test_exp37_c2f_r2.py`,
+    `test_exp37_aggregate_cli.py`).
+  - **BLOCKING 4** (XR mandatory, D-c):
+    - `2209c6ef` / `573c59fb`: the spec's `require_timing_replays`;
+    - `f16428b5` / `e929861a`: the B1 summarizer refuses without `--require-replays`;
+    - `1252bde5` / `b06f61e0` / `cdd125ce` / `a60d616f`: TR mandatory, both B1S variants with every replay,
+      AGG.spec with `--require-timing-replays`.
+  - **BLOCKING 5** (B3 synthesis):
+    - `d43484b6` / `986482ba` / `79a88b8b` / `5a019867`: every cell is bound by its own metrics JSON, schema-2
+      receipt and dump manifest; files and digests are unique; the leaf commit, layout and reused digests are pinned;
+    - `1c30d6df` / `67a7168f`: `tools/exp37_build_synthesis_cells.py`;
+    - `b06f61e0` / `3e76ef87`: the gated B3S steps.
+    Tests: `test_exp37_synthesis.py`, `test_exp37_synthesis_cells.py`.
+  - **HIGH 1** (PID / start time / card cross-binding): `e1254786` / `5800e949`. These add `producer.json` and the
+    producer in `monitor_verdict`. `host_cotenancy` cross-binds the labels, pid, host and card, plus command success;
+    the selector binding carries the producer.
+  - **HIGH 2** (time-weighted CPU): `081ec88c` / `71ac1105` / `e1254786` / `5800e949`. Samples carry the interval
+    start / end. The verdict is Σ foreign·overlap / Σ overlap over the timed interval, with coverage checked; the raw
+    intervals, max and per-process CPU seconds are kept.
+  - **HIGH 3** (strict selector loader): `4cddd6dc` / `bc1bfa94` (`test_exp37_selector_r2.py`).
+  - **HIGH 4** (query vs selection): `dba20d17` / `c570efed` (`exp37_queries.query_reasons`, used by every loader,
+    source and readout; `test_exp37_queries.py`).
+  - **HIGH 5** (c2f repeat schema): `eafc024d` / `86fbfc68`. The exact 5-key × 3-repeat schema with recomputed medians
+    and every latency component.
+  - **HIGH 6** (exact spec schema; the fork removed): `2209c6ef` / `573c59fb` (`test_exp37_b2b3_spec.py`).
+  - **HIGH 7** (transactional publication): `f16428b5` / `e929861a` (`exp37_publish.publish`;
+    `test_exp37_summarize_latency_cli.py`, `test_exp37_aggregate_cli.py`).
+  - **HIGH 8** (runbook order / clean tree / gates), with tests in `test_exp37_receipt.py` and
+    `test_exp37_runbook.py`:
+    - `f43d730a` / `8feee108`: receipts;
+    - `1252bde5` / `5a3bd1ad` / `b06f61e0`: the 98-step enforced sequence, the untracked allowlist, `all`, `clean`,
+      `check-leaf`;
+    - `2fb8869d` / `3e76ef87`: a pre-step gate with a fresh bound receipt, and one campaign HEAD;
+    - `cdd125ce` / `a60d616f`: decision vs conditional optional steps.
+  - **NIT 1** (tee status): `b06f61e0` / `3e76ef87`. An exclusive new log per attempt; the header, command and gate
+    tee statuses are all checked; a nonzero command status wins, otherwise a log failure is exit 74.
+  - **NIT 2**: the Planner's.
+  - **Incident**: `83ef1eb8` / `ad6c5840` (`test_exp37_fixture_isolation.py`).
+  - **Records / data**: `091e9c5e` (builder placeholder text; the schema-2 planned spec archived) and `5078d853` (the
+    schema-3 planned spec and its log).
+- **The runbook (98 registered steps, all executable).** That is 95 plus the gated B3S: `B3S.gate`, then `B3S.run`
+  (the Planner's leaf chain `b3` at `d3013734`, run from the leaf worktree after `check_leaf`), then `B3S.cells`.
+  - Compared with review 2's 93 + placeholder: +4 c2f accuracy runs; the 4 `B2R` and 18 `XR` replays become the 22
+    mandatory `TR` steps; `AGGP` (the pending-synthesis variant) goes; B3S becomes 3 executable steps.
+  - B3S comes after every exp_37 timing pass. The Planner still confirms that exp_36 chains I and II are finished:
+    the gate proves only that nothing runs in an exp_36 / leaf root.
+- **Tests (CPU, at `ad6c5840`).** exp_37 suites 529 passed; the full CPU suite 798 passed, 2 skipped, 2 failed (the same 2 pre-existing `test_fem_solver.py` MKL PARDISO tests as in round 1; log `loc_efficiency_*_fix_round_2_full_cpu_suite.log`).
+- **Notes for the Planner.**
+  - The 6 h phase-gate age limit was removed because it deadlocks a phase longer than 6 h. Every timed / selector /
+    leaf step is now gated immediately before it starts.
+  - An idle shell in an exp_36 / leaf root trips every gate.
+  - The foreign-CPU limit (4 cores, time-weighted) is still the Planner's.
+  - `exp37_runbook_r3.md` (the prose runbook) and the commits-table rows for this round are still to write. The
+    `exp37_runbook.sh` header, `list` and this note are complete.

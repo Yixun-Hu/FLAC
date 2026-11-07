@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "n": 6337,
+  "dtype": "float32",
+  "shape": [
+    6337,
+    10240
+  ],
+  "sha256": "7a26aeba2c9d2892080b13ea979428219cdb646f815181e7cada5295ba9cb4a5",
+  "input_hash": "4c950c1e2ed021a352f5c454b67e3b21234cdbd52060debc1c58919c9e3645ac",
+  "metrics_stem": "epoch=8-step=40000_metrics_1_1.0_exp35_BF_T_S40000_K8_s42_fa_invariant_a4",
+  "source_sha": "5b065801e9d1c1844461ec84cd0558702c714326",
+  "ckpt_path": "outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000.ckpt",
+  "metrics_path": "outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000_metrics_1_1.0_exp35_BF_T_S40000_K8_s42_fa_invariant_a4.json",
+  "metrics_sha256": "f167470e3501bcc7c4f116b0c26164523a8bd140b55c5e72e935d88d3f373adb",
+  "stream_sidecar_path": "outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000_metrics_1_1.0_exp35_BF_T_S40000_K8_s42_fa_invariant_a4.stream.json",
+  "stream_sidecar_sha256": "8d8018cabfd803be559b4224ef7c8833fe0af7b96542cbce65cd0a3e1d1d4af6",
+  "canon_sidecar_path": null,
+  "canon_sidecar_sha256": null
+}

@@ -1,0 +1,22 @@
+HEAD ad6c58404a7209ae586632cf18a48d36e7a93cc7 (CPU, read-only towards the exp_35 run worktree and the NAS; writes only worklog/worklog_yixun/exp_37_loc_efficiency_claude/incident_2026-11-06/restore/)
+exp35_BF_T_S40000_K1_s42_fa_invariant_a4: stream intact True; manifest reconstructed byte-exact True
+exp35_BF_T_S40000_K8_s42_fa_invariant_a4: stream intact True; manifest reconstructed byte-exact True
+exp35_BF_C4_S40000_K1_s42_th90_fa_invariant_a4_rot90: stream intact True; manifest reconstructed byte-exact True
+exp35_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90: stream intact True; manifest reconstructed byte-exact True
+T K1 metrics JSON reconstructed byte-exact from the T-dup: True
+EXIT 0
+exp35_BF_T_S40000_K1_s42: receipt reconstructed byte-exact: True (block BF-pin, lane 1)
+exp35_BF_T_S40000_K8_s42: receipt reconstructed byte-exact: True (block BF-pin, lane 1)
+exp35_BF_C4_S40000_K1_s42_th90: receipt reconstructed byte-exact: True (block BF-pin, lane 1)
+exp35_BF_C4_S40000_K8_s42_th90: receipt reconstructed byte-exact: True (block BF-pin, lane 1)
+EXIT 0
+--- sha256 of the reconstructed files
+983f9d5f9842a1256ad697663725b174fd4ae1405d56e097b6c4e4cd90e6c6da  restore/epoch=8-step=40000_metrics_1_1.0_exp35_BF_C4_S40000_K1_s42_th90_fa_invariant_a4_rot90.cell.json
+4923d48e954b3b23b7788d42d93ae99f7288aa1c76001ed9ef84d27a821713ee  restore/epoch=8-step=40000_metrics_1_1.0_exp35_BF_C4_S40000_K1_s42_th90_fa_invariant_a4_rot90.manifest.json
+431ceba60189490e85d53d942f43025c493a863cddec928ec7555d34ed5b16fd  restore/epoch=8-step=40000_metrics_1_1.0_exp35_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90.cell.json
+975cb72125977b6724cda82501bff4b356accb80278db7f8341c69566630fd5c  restore/epoch=8-step=40000_metrics_1_1.0_exp35_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90.manifest.json
+fa529324216c88832466a31d1b86fb4e4c8409aa037f45debdde1bc30befebef  restore/epoch=8-step=40000_metrics_1_1.0_exp35_BF_T_S40000_K1_s42_fa_invariant_a4.cell.json
+1e1768e3adf0d6513b705fa23f5a3ea7d9f357479755fb9d3fe9cc9d2a9efb46  restore/epoch=8-step=40000_metrics_1_1.0_exp35_BF_T_S40000_K1_s42_fa_invariant_a4.json
+7dde0aa70ce01f0e108f12b6fce4eb72a0bf30ca79f2690853db21c0ab7fbf8f  restore/epoch=8-step=40000_metrics_1_1.0_exp35_BF_T_S40000_K1_s42_fa_invariant_a4.manifest.json
+79817d0b100005ed91172e80ea09ea3c1d250aeb549e0f0ef29bdaea16f141ad  restore/epoch=8-step=40000_metrics_1_1.0_exp35_BF_T_S40000_K8_s42_fa_invariant_a4.cell.json
+dda03a0e318f65b216108c166e9cae10bdd44bd3473811c56dbfd10f844894d2  restore/epoch=8-step=40000_metrics_1_1.0_exp35_BF_T_S40000_K8_s42_fa_invariant_a4.manifest.json

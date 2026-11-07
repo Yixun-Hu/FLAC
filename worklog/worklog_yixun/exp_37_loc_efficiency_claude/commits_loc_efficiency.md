@@ -142,3 +142,48 @@ Changed code lines exclude worklog records (the bash asset script `exp37_assets.
 | `697e2b0f` | GREEN | 1 | `--gate-only` creates its directory |
 | `8d0721c7` | RED | 12 | a dump must be named after its own run |
 | `5eddbba8` | GREEN | 2 | `dump_coverage` checks the stem |
+
+## Fix round 2 (Coder, Claude Opus 5.5 max effort; after Codex code review 2 = REQUEST-CHANGES)
+
+| SHA | kind | code lines | what |
+|---|---|---:|---|
+| `081ec88c` | RED | 92 | the pinned exp_36 root set; resolved cwd / exe / script / argv rules; CPU interval bounds |
+| `71ac1105` | GREEN | 59 | monitor + verdict root set; interval fields |
+| `e1254786` | RED | 161 | producer binding; time-weighted foreign CPU; host-record cross-binding |
+| `5800e949` | GREEN | 158 | producer.json; monitor_verdict(producer); host_cotenancy; selector producer |
+| `dba20d17` | RED | 83 | one query-versus-selection rule |
+| `eafc024d` | RED | 140 | sequential c2f accuracy (3 seeds); exact c2f repeat schema |
+| `c570efed` | GREEN | 108 | src/localization/exp37_queries.py, used by every loader / source / readout |
+| `86fbfc68` | GREEN | 201 | untimed adaptive c2f execution; load_c2f_run exact schema (OVER 200: 201, one coupled loader) |
+| `3434b032` | RED | 132 | the crash-safe write-once waveform store |
+| `f6ab382a` | GREEN | 204 | exp37_waveforms.py schema 2: staging, fsync, no-replace publish, index vectors (OVER 200: 204, one module rewrite) |
+| `f30c06d5` | GREEN | 81 | tools/exp37_quarantine.py |
+| `60e7cf83` | RED | 23 | dumped index vectors are the query's mapping |
+| `1aa590c2` | GREEN | 23 | dump_coverage checks index files and the dump stem |
+| `4cddd6dc` | RED | 132 | the strict selector loader |
+| `bc1bfa94` | GREEN | 177 | load_selector validates the whole vector |
+| `d43484b6` | RED | 172 | synthesis cells bound by their own artifacts |
+| `986482ba` | GREEN | 181 | src/localization/exp37_synthesis.py |
+| `2209c6ef` | RED | 164 | spec schema 3 (introduced the unpatched module fixture of the incident) |
+| `573c59fb` | GREEN | 171 | check_spec exact schema 3; the D-a fork removed |
+| `79a88b8b` | RED | 83 | the synthesis identity pinned (leaf commit, layout, reused digests) |
+| `5a019867` | GREEN | 45 | exp37_synthesis pins d3013734 / the reused exp_35 cells |
+| `1c30d6df` | RED | 48 | the synthesis section builder |
+| `67a7168f` | GREEN | 72 | tools/exp37_build_synthesis_cells.py |
+| `38e2c3e3` | RED | 47 | aggregation on schema 3 + the registered world |
+| `d294aaa6` | GREEN | 98 | the aggregator on schema 3 (sequential c2f, c2f_parity, synthesis validation) |
+| `f16428b5` | RED | 119 | transactional publication; mandatory B1 replays |
+| `e929861a` | GREEN | 104 | src/localization/exp37_publish.py; both tools publish through it |
+| `f43d730a` | RED | 51 | the runbook's step receipts |
+| `8feee108` | GREEN | 90 | tools/exp37_receipt.py |
+| `1252bde5` | RED | 201 | the runbook as an enforced sequence (OVER 200: 201, one test file) |
+| `5a3bd1ad` | RED | 6 | the list's optional marker |
+| `b06f61e0` | GREEN | 285 | exp37_runbook.sh rewritten as the 98-step enforced sequence (OVER 200: 285, a rewrite of one script) |
+| `2fb8869d` | RED | 71 | pre-step gates; one campaign HEAD |
+| `3e76ef87` | GREEN | 73 | receipt --record; the pre-step gate; a new log per attempt |
+| `091e9c5e` | records | 17 | the builder's placeholder text; the schema-2 planned spec archived |
+| `5078d853` | records | 0 | the schema-3 planned spec (data) + its log |
+| `cdd125ce` | RED | 49 | decision vs conditional optional steps |
+| `a60d616f` | GREEN | 58 | exactly one B1 summary variant runs |
+| `83ef1eb8` | RED | 37 | INCIDENT: the fixture must never write outside its root (not run before the guard, on purpose) |
+| `ad6c5840` | GREEN | 29 | INCIDENT: World._inside guard; registered_world requires the patch |
