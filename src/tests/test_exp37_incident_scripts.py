@@ -147,6 +147,7 @@ def test_every_destination_must_sit_directly_under_restore(tmp_path):
 
 
 def test_the_committed_scripts_are_never_rerun_in_place():
-    """In place, every destination of the committed restore/ already exists: a rerun refuses before writing."""
-    names = sorted(p.name for p in (SRC / "restore").iterdir())
-    assert len(names) == 9 and all(not os.access(SRC / "restore" / n, os.W_OK) or True for n in names)
+    """In place, every destination of the committed restore/ already exists, so a rerun refuses before writing."""
+    stems = [f"epoch=8-step=40000_metrics_1_1.0_{s}" for s in SUFFIXES]
+    wanted = {f"{s}.manifest.json" for s in stems} | {f"{s}.cell.json" for s in stems} | {f"{stems[0]}.json"}
+    assert {p.name for p in (SRC / "restore").iterdir()} == wanted
