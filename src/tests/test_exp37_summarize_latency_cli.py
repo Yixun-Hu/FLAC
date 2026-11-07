@@ -238,4 +238,6 @@ def test_an_incomplete_producer_record_refuses_cleanly(world, tmp_path, monkeypa
     out = tmp_path / "b1" / "summary.json"
     assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out, extra)) == 3
     diagnostic = json.loads((tmp_path / "b1" / "summary.DIAGNOSTIC.json").read_text())
-    assert not out.exists() and any(key in r for r in diagnostic["reasons"])
+    row = next(r for r in diagnostic["rows"] if r["run_dir"] == str(runs[0][2]))
+    assert not out.exists() and row["timing_valid"] is False and any(key in r for r in row["host"]["reasons"])
+    assert any(f"{runs[0][0]} K_ctx {runs[0][1]}" in r for r in diagnostic["reasons"])

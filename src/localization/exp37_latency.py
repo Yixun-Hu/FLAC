@@ -169,6 +169,9 @@ def snapshot_reasons(snapshot, producer: dict, label: str) -> list[str]:
 
     if not isinstance(snapshot, dict):
         return [f"{label}: no host snapshot"]
+    invalid = cot.producer_field_reasons(producer)                  # review 3 H-05: validated before any use
+    if invalid:
+        return [f"{label}: cannot be bound to the producer: {reason}" for reason in invalid]
     bad = []
     if (snapshot.get("pid"), snapshot.get("hostname")) != (producer["pid"], producer["hostname"]) or cot._uuid(
             (snapshot.get("cuda_device") or {}).get("uuid")) != cot._uuid(producer["card_uuid"]):
@@ -196,6 +199,7 @@ def host_cotenancy(run_dir: Path) -> dict:
     reasons, records = [], {}
     if producer.get("record_type") != "exp37_producer" or producer.get("run_manifest_sha256") != manifest["sha256"]:
         reasons.append("the producer record is not this run's")
+    reasons += cot.producer_field_reasons(producer)                 # review 3 H-05: before any field is used
     for path in sorted((run_dir / "host_records").glob("*.json")):
         try:
             record = _hashed(path)
@@ -248,7 +252,9 @@ def selector_cotenancy(path: Path) -> dict:
 
 
 def producer_missing(producer: dict) -> bool:
-    return any(producer.get(k) in (None, "") for k in ("pid", "pid_start_ticks", "hostname", "card_uuid"))
+    """True unless every producer field is present and valid (review 3 H-05)."""
+    from src.localization import exp37_cotenancy as cot
+    return bool(cot.producer_field_reasons(producer))
 
 
 def load_arm_run(run_dir: Path, *, arm: str, selection: dict, audit: dict, seed: int = 42, context_count: int = 8,

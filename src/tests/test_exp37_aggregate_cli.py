@@ -96,6 +96,23 @@ def test_an_unattested_timing_withholds_publication_and_the_frontier(world, tmp_
     assert out["record_type"] == "exp37_b2_b3_DIAGNOSTIC" and any("BF 0.50" in r for r in out["reasons"])
 
 
+@pytest.mark.parametrize("key, value", [("pid", "missing"), ("hostname", "missing"), ("card_uuid", "missing"),
+                                        ("pid_start_ticks", "123"), ("hostname", ""), ("card_uuid", 7)])
+def test_an_incomplete_producer_record_withholds_cleanly(world, key, value):
+    """Review 3 H-05: a hash-valid producer.json with a missing / mistyped / empty field is a timing-invalid row of the
+    aggregation (diagnostic only), never a KeyError / TypeError traceback."""
+    from src.localization.pilot import canonical_sha256
+    path = world.runs / "b2_0p50_BF_s42" / "producer.json"
+    body = {k: v for k, v in json.loads(path.read_text()).items() if k != "sha256"}
+    if value == "missing":
+        body.pop(key)
+    else:
+        body[key] = value
+    path.write_text(json.dumps({**body, "sha256": canonical_sha256(body)}))
+    out = tool.build_summary(_spec(world))
+    assert out["publishable"] is False and out["b2"]["frontier"] is None and any("BF 0.50" in r for r in out["reasons"])
+
+
 def test_a_pending_synthesis_is_diagnostic_only(world):
     out = tool.build_summary(_spec(world, synthesis=None))
     assert out["publishable"] is False and any("synthesis" in r for r in out["reasons"])

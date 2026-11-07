@@ -138,12 +138,30 @@ def _apps(lines) -> list[tuple[str, int]] | None:
 PRODUCER_KEYS = ("pid", "pid_start_ticks", "hostname", "card_uuid")
 
 
+def producer_field_reasons(producer) -> list[str]:
+    """Every PRODUCER_KEYS field, validated before any use (review 3, H-05): pid a positive int, pid_start_ticks a
+    nonnegative int (never a bool), hostname and card_uuid nonempty strings; one reason per bad field, never raises."""
+    if not isinstance(producer, dict):
+        return [f"the producer identity is not an object ({type(producer).__name__}): pid, pid_start_ticks, hostname, "
+                "card_uuid are required"]
+    bad = []
+    for key in PRODUCER_KEYS:
+        value = producer.get(key)
+        if key in ("pid", "pid_start_ticks"):
+            ok = isinstance(value, int) and not isinstance(value, bool) and (value > 0 if key == "pid" else value >= 0)
+        else:
+            ok = isinstance(value, str) and value.strip() != ""
+        if not ok:
+            bad.append(f"the producer's {key} is missing, mistyped or empty ({value!r})")
+    return bad
+
+
 def producer_reasons(start: dict, producer: dict) -> list[str]:
     """The monitor must have watched exactly the producer bound before the measurement (pid + /proc start time, host,
     card) and must have run with the pinned exp_36 root set."""
-    bad = []
-    if not isinstance(producer, dict) or any(producer.get(k) in (None, "") for k in PRODUCER_KEYS):
-        return ["no complete producer identity (pid, /proc start time, host, card) to bind the monitor to"]
+    bad = producer_field_reasons(producer)
+    if bad:
+        return bad
     watched = (start.get("target_pid"), start.get("target_start"), start.get("hostname"), _uuid(start.get("card_uuid")))
     if watched != (producer["pid"], producer["pid_start_ticks"], producer["hostname"], _uuid(producer["card_uuid"])):
         bad.append(f"the monitor watched {watched}, not the producer {tuple(producer[k] for k in PRODUCER_KEYS)}")
