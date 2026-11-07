@@ -1,0 +1,10 @@
+2026-11-06T22:07:26-05:00 PAUSED by the host-A exp_07 session, on Yixun's direct instruction "Finish tail, hold evals" (given in that session ~18:55).
+Both cards are free of A's jobs since 22:06:24; no A process remains (verified: no exp30 trainer, evaluator or supervisor alive).
+- s43 MAIN training: COMPLETE at step 40,000 (finished 18:30, uninterrupted).
+  Evaluations HELD at 22:03:44: 17 of 40 cells done; 23 remain.
+  Resumes from /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s43/epoch=8-step=40000.ckpt.
+- s43 TAIL training: COMPLETE at step 40,000 (finished 22:05, uninterrupted).
+  Evaluations HELD at 22:06:24: 0 of 40 cells done; 40 remain.
+  Resumes from /home/yixunhu/codespace/flac-fork-attn-eqtail/outputs_FLAC/exp30_ACEattneqtail_s43/epoch=8-step=40000.ckpt.
+Both resumes are evaluation-only, on GPU 1 (one cell at a time per run, ~3 GB each). Completed cells are kept; the two interrupted cells re-run from scratch.
+A watches for RELEASE here and then resumes both.

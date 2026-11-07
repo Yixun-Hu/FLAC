@@ -46,3 +46,7 @@ State at 16:09: main step 39,000 (final 40k about 18:45-19:00 at the shared rate
 
 ## 2026-11-06T22:41:01-05:00 — Planner: chain I — all four replay hard stops EQUAL; production running since 22:39
 - GPU work began 22:06:27 (both cards empty at once: Yixun's s43 tail had ended and no evaluation was running); replays YAW + P1 (22:06–22:19), B-F + CANON (22:19–22:38); runner summary "selected 4 | ran ok 4 | failed 0"; comparators 22:39: YAW EQUAL, P1 EQUAL, B-F EQUAL, CANON EQUAL (exact JSON + waveform checks vs the archived exp_25 / exp_35 cells; verdicts copied here: YAW `fce4adeb…`, P1 `06cbe045…`, B-F `c7096530…`, CANON `9b720daa…`). Step 3/3 (the 24 cells, dumps on) started 22:39 on GPUs 0 / 1. orbitrir-haa informed by an appended `FLAC_STATUS.txt` line (22:07).
+
+## 2026-11-07T00:39:40-05:00 — Planner: the handshake completed (PAUSED 22:07:26 Nov 6); chain I at 15 / 24
+- `PAUSED` (verbatim copy `claude_gpu_yield_PAUSED_2026-11-06_22-07-26.txt`): orbitrir-haa paused on Yixun's direct instruction ("Finish tail, hold evals", given in that session ≈ 18:55); both s43 trainings COMPLETE at step 40,000 (main 18:30, tail 22:05), their evaluations HELD (main 17 / 40 done, tail 0 / 40) — they resume on GPU 1 when `RELEASE` appears. The Planner noticed it only at 00:38 Nov 7 (the handshake watch had ended at chain I's first GPU work, 22:06:27); no consequence — chain I already held both cards, which A had left at 22:06:24.
+- Chain I at 00:38: 19 DONE lines = the 4 replays + 15 of the 24 production cells, all "complete and verified"; ETA ≈ 01:45–02:00.
