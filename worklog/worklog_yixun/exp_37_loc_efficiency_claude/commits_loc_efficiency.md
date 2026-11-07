@@ -90,3 +90,50 @@ Changed code lines exclude worklog records (the bash asset script `exp37_assets.
 | `4d0ec371` | records | 0 | `exp37_runbook_bc.md` |
 | `8bac953d` | RED | 10 | per-seed timing validity |
 | `31a2ad23` | GREEN | 9 | the fix |
+
+## Fix round 1 (Coder, Claude Opus 5.5 max effort; after Codex code review 1 = REQUEST-CHANGES)
+
+| SHA | kind | code lines | what |
+|---|---|---:|---|
+| `0edeaa16` | RED | 95 | registered identity tests (HIGH 1) |
+| `97dd01bd` | GREEN | 128 | `src/localization/exp37_identity.py` |
+| `01907005` | RED | 110 | loader provenance tests |
+| `da132cfb` | GREEN 1/2 | 153 | loaders enforce the registered identity; selector provenance |
+| `b9051205` | GREEN 2/2 | 98 | B1 summarizer `--geometry-audit`; fixtures on registered identities |
+| `d933df42` | RED | 30 | every recorded K=1 field reproduced (NIT 1) |
+| `10514542` | GREEN | 21 | `recomputed_k1_metrics` |
+| `c18efbc3` | RED | 41 | c2f selector parts median-of-3 on exact tensors (BLOCKING 2) |
+| `8f19a86c` | GREEN | 92 | `execute_query_c2f` repeats + union hash |
+| `301ba953` | RED | 99 | c2f loader re-verification (HIGH 2) |
+| `f417fbd9` | GREEN | 162 | `load_c2f_run` vs its parent run |
+| `92509672` | RED | 21 | nested active / parent hashes |
+| `6c8a2afc` | GREEN | 18 | the nested hashes |
+| `934ee06d` | RED | 80 | write-once waveform store (BLOCKING 1) |
+| `f5802996` | GREEN | 113 | `src/localization/exp37_waveforms.py` |
+| `6f46787b` | RED | 100 | artifact executor + bitwise replay |
+| `f9247c1b` | GREEN | 138 | `src/localization/exp37_artifacts.py`; rotated inline dumps |
+| `be8e8e90` | RED | 130 | runner / CLI waveform contract |
+| `acbf5d54` | GREEN | 143 | `--dump-waveforms` / `--replay-of` wiring |
+| `94ba0b73` | RED | 122 | accuracy sources (HIGH 3) |
+| `a29c2325` | GREEN | 115 | `src/localization/exp37_sources.py`; unknown identity fields |
+| `cd4f697c` | RED | 178 | co-tenancy monitor script (BLOCKING 3) |
+| `a46b7637` | GREEN | 238 | `tools/exp37_cotenancy_monitor.py` (OVER 200: one new file, 183 code lines excl. docstring / blank) |
+| `6672220e` | RED | 120 | client + verdict |
+| `36485195` | GREEN | 211 | `src/localization/exp37_cotenancy.py` (OVER 200: one new module) |
+| `535c42d2` | RED | 228 | attestation-based verdicts (OVER 200: fixture migration across five test files) |
+| `a2da2236` | GREEN | 120 | `host_cotenancy` / `selector_cotenancy`; hashed full host records |
+| `2ec6338d` | RED | 110 | runner monitor wiring + narrowed spawn guard |
+| `79f2ca34` | GREEN | 31 | the runner monitors every exp_37 timing pass |
+| `3ec1a767` | RED | 60 | selector binding + monitor |
+| `9c6d4fe4` | GREEN | 40 | `tools/exp37_selector_latency.py` |
+| `edb73be5` | RED | 338 | the registered synthetic world + spec tests (OVER 200: the 229-line world test-support file + its tests) |
+| `84635841` | GREEN | 188 | `check_spec` + `tools/exp37_build_b2b3_spec.py` |
+| `dcc5e428` | RED | 380 | aggregation on the registered world (OVER 200: the B-c test file rewritten, 184 added / 196 removed) |
+| `70dbbd6d` | GREEN 1/3 | 79 | pins, `load_external`, inventory helpers (additive) |
+| `5046f159` | GREEN 2/3 | 238 | the coupled B2 / B3 build switch (OVER 200: one atomic switch) |
+| `bc6faaa9` | GREEN 3/3 | 49 | diagnostic-only outputs, write-once CLI |
+| `4dfc12c6` | RED | 95 | B1 registered table, replays, inventory, diagnostics |
+| `116c2778` | GREEN | 89 | `tools/exp37_summarize_latency.py` |
+| `c06ddc7e` | RED | 125 | the executable runbook tests |
+| `a43e6f83` | GREEN | 207 | `exp37_runbook.sh` (OVER 200: the 207-line script) + inputs + planned spec (data) |
+| `5d14de19` | records | 0 | `exp37_runbook_r2.md`; B-a / B-b / B-c SUPERSEDED; the B1 -> B2 note qualified |

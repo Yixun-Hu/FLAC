@@ -1,0 +1,13 @@
+HEAD 5d14de19748503e9533c192d7891a2512591ea81 -- CPU dry runs of the waveform contract on the real inputs (CUDA hidden; nothing may be written)
+=== timed_dump
+    raise ValueError("timing passes never dump waveforms: replay them untimed with --replay-of")
+ValueError: timing passes never dump waveforms: replay them untimed with --replay-of
+exit 1; run dir exists: no; dump dir exists: no
+=== acc_nodump
+    raise ValueError("an accuracy-only exp_37 run must dump its scored waveforms: --dump-waveforms <root>/<run stem>")
+ValueError: an accuracy-only exp_37 run must dump its scored waveforms: --dump-waveforms <root>/<run stem>
+exit 1; run dir exists: no; dump dir exists: no
+=== acc_dump
+    raise RuntimeError("formal localization requires an available CUDA device")
+RuntimeError: formal localization requires an available CUDA device
+exit 1; run dir exists: no; dump dir exists: no

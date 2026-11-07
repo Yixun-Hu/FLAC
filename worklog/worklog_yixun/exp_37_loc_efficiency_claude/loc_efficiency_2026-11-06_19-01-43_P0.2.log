@@ -1,0 +1,6 @@
+HEAD 5d14de19748503e9533c192d7891a2512591ea81 step=P0.2 phase=P0
+COMMAND env CUDA_VISIBLE_DEVICES= /home/yixunhu/miniconda3/envs/flac/bin/python overlays/no_flash/exp37_no_flash_launch.py --preflight
+exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA
+flash_attn not installed, disabling Flash Attention
+EXP37_NO_FLASH_LAUNCHER attention_backend=sdpa overlay_sha256=0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023 launcher_sha256=8fd288ea9d768665c21277789a88477234400e1de9b2118a976dfc605c1b4fe0 target=--preflight
+EXIT 0

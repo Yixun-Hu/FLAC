@@ -127,3 +127,110 @@ Append-only, one entry per action (SOP template). The Planner's notebook for exp
   uses the documented-validated slots 1–2 unchanged; (6) B3 synthesis cells are on a separate H35 leaf (Codex split) and
   B4 has no checkpoint -- neither is in this branch.
 - **Next** — the batched Codex review of B-a + B-b + B-c (Planner); GPU runs per the three runbooks after the handshake.
+
+## 2026-11-06T19:20:00-05:00 — FIX ROUND 1 CLOSED by the Coder (after Codex code review 1 = REQUEST-CHANGES; pushed; GPU commands NOT run)
+
+- **Goal.** The Planner's fix-round brief: fix every finding of Codex code review 1, round 1 of 3 (5 BLOCKING, 4
+  HIGH, 2 NIT; verbatim in the Planner's scratchpad `r3a/codex_exp37_code_1_extract.md`), each with tests, applying the
+  Planner's decisions:
+  - write-once waveform artifacts;
+  - timing passes never dump; a bitwise ARTIFACT REPLAY instead;
+  - dedicated seed-42 B2 timing runs;
+  - the strict 2 % split gate;
+  - B3 synthesis as an external placeholder.
+- **Change.**
+  - New modules:
+    - `src/localization/{exp37_identity, exp37_waveforms, exp37_artifacts, exp37_sources, exp37_cotenancy}.py`;
+    - `tools/{exp37_cotenancy_monitor, exp37_build_b2b3_spec}.py`;
+    - the executable runbook `exp37_runbook.sh`.
+  - Reworked:
+    - `src/localization/{exp37_latency, exp37_c2f, exp37_grid, exp37_rotation, runner, run_provenance}.py`;
+    - `tools/{exp37_aggregate_b2b3, exp37_summarize_latency, exp37_selector_latency}.py`;
+    - `localize_FLAC.py` (`--dump-waveforms`, `--replay-of`).
+  - Tests: 13 new test files, the shared fakes extended (attestations), a complete synthetic registered B2 / B3 world
+    (`src/tests/exp37_world.py`), and the narrowed spawn guard.
+  - Records: `exp37_runbook_r2.md` (the verbatim 94-step list), `b2b3/b2b3_inputs.json`, `b2b3/b2b3_spec.planned.json`,
+    and SUPERSEDED banners on runbooks B-a / B-b / B-c.
+- **Version Control.** 42 commits `0edeaa16..5d14de19` plus this records commit (table in
+  `commits_loc_efficiency.md`); RED before GREEN.
+  - Seven commits exceed the 200-line guideline. Each is disclosed in the table with its reason: new single files,
+    test rewrites, and one coupled switch.
+  - Two pushed commit messages were corrected before their push (test counts).
+- **Command / Validation.**
+  - Full CPU suite: **667 passed, 2 skipped, 2 failed**. The 2 failures are the pre-existing FEM `sparse_dot_mkl`
+    ones. The suite grew by 156 tests.
+  - Through the runbook on the real checkout: `P0.1` asset verify PASS, `P0.2` launcher `--preflight` SDPA sentinel,
+    `P0.3` exp_37 suite 398 passed (logs `loc_efficiency_2026-11-06_19-01-*_P0.*.log`).
+  - CPU dry runs of the waveform contract on the real inputs, through the launcher with CUDA hidden
+    (`loc_efficiency_2026-11-06_19-03-13_cpu_preflight_waveforms.log`). In every case nothing was written:
+    - a timed run that dumps is refused;
+    - an accuracy-only run without a dump is refused;
+    - an accuracy-only run with a dump passes every pre-CUDA check (launcher, hand-off, waveform rules, 16 mesh
+      digests) and stops at the CUDA requirement.
+  - The planned spec was built by the builder (`..._18-59-42_b2b3_planned_spec.log`).
+- **Result.** Passed (CPU). Every finding is fixed; the fix map is below.
+- **Fix map** (finding → commits → tests):
+  - **BLOCKING 1** (waveform artifacts):
+    - `934ee06d` / `f5802996`: the write-once store (`test_exp37_waveforms.py`).
+    - `6f46787b` / `f9247c1b`: the untimed artifact executor, the replay with bitwise similarities, c2f / nested replay
+      plans, inline dumps for rotated runs (`test_exp37_artifacts.py`).
+    - `be8e8e90` / `acbf5d54`: runner / CLI refusals, the identity, the dump manifest (`test_exp37_runner_waveforms.py`).
+    - `94ba0b73` / `a29c2325`: accuracy sources with waveform coverage (`test_exp37_sources.py`).
+  - **BLOCKING 2** (c2f timing):
+    - `c18efbc3` / `8f19a86c`: every selector component measured three times on the exact tensors, with
+      component medians and stable scores / top-k / winner asserted (`test_exp37_c2f.py`).
+  - **BLOCKING 3** (co-tenancy):
+    - `cd4f697c` / `a46b7637`: the stdlib monitor (`test_exp37_monitor.py`).
+    - `6672220e` / `36485195`: the client and the verdict (`test_exp37_cotenancy.py`).
+    - `535c42d2` / `a2da2236`: the verdicts in the loaders; host records hashed and bound, with no top-20 cut
+      (`test_exp37_latency_summary.py`, `test_exp37_run_provenance.py`).
+    - `2ec6338d` / `79f2ca34`: runner wiring and the narrowed spawn guard (`test_exp37_runner_monitor.py`).
+    - `3ec1a767` / `9c6d4fe4`: the selector binding and monitor (`test_exp37_selector_latency.py`).
+    - The exp_36 gate: `--gate-only`, plus every sample.
+  - **BLOCKING 4** (completeness / publication):
+    - `edb73be5` / `84635841`: the exact-coverage spec check and the deterministic builder
+      (`test_exp37_b2b3_spec.py`).
+    - `dcc5e428` / `70dbbd6d` / `5046f159` / `bc6faaa9`: n = 3, sources, the frontier only from attested timings,
+      diagnostic-only outputs, write-once (`test_exp37_aggregate_cli.py`).
+    - `4dfc12c6` / `116c2778`: the same for B1 (`test_exp37_summarize_latency_cli.py`).
+  - **BLOCKING 5** (runbooks):
+    - `c06ddc7e` / `a43e6f83`: the executable runbook (`test_exp37_runbook.py`).
+    - `5d14de19`: `exp37_runbook_r2.md`.
+  - **HIGH 1** (registered identity):
+    - `0edeaa16` / `97dd01bd` (`test_exp37_identity.py`);
+    - `01907005` / `da132cfb` / `b9051205` (`test_exp37_loader_provenance.py`);
+    - `a29c2325`: an unknown identity field is now a deviation too.
+  - **HIGH 2** (c2f identity):
+    - `8f19a86c`: the active hash is the union's;
+    - `301ba953` / `f417fbd9`: full re-verification against the parent (`test_exp37_c2f_loader.py`);
+    - `92509672` / `6c8a2afc`: nested subsets keep active and parent hashes (`test_exp37_headline_variants.py`).
+  - **HIGH 3** (external hashes / inventory):
+    - `70dbbd6d` / `5046f159`: the pinned exp_23 summary `674998f9…` and latency CSV `3cac4a9c…`, plus the inventory
+      (`test_exp37_aggregate_cli.py`);
+    - `116c2778` for B1.
+  - **HIGH 4** (B1 → B2 reuse):
+    - `5d14de19`: the B-a note is qualified as accuracy-only; the dedicated seed-42 B2 timing runs stay (spec check);
+    - no superset-accuracy mode (optional; not implemented).
+  - **NIT 1**: `d933df42` / `10514542` (`test_exp37_grid_readout.py`).
+  - **NIT 2**: `4dfc12c6` / `116c2778`: the K_ctx 1 splits are all or none; the runbook's `B1S.noK1` step is the
+    alternate invocation.
+- **Analysis / decisions** (flags for the Planner / Codex):
+  1. **B2 seeds 43 / 44 are accuracy-only** (inline dumps) under the Planner's waveform decision. Plan §4 had
+     registered them as timing repeats. The aggregator also accepts repeats (`--seeds-43-44-timing`, each with a
+     replay).
+  2. **The foreign-CPU limit of 4 cores** (mean over the timed interval) is a NEW fail-closed threshold and the
+     Planner's decision. The monitor keeps the raw samples, so the verdict can be recomputed offline with another
+     limit without GPU time.
+     - On this CPU box today, the end-to-end client test measured about 14.6 foreign cores. The exp_36 Coder was
+       active then.
+     - An idle shell left in an exp_36 directory trips the exp_36 gate.
+  3. **Replays are bitwise by construction on the CPU fakes.** On the GPU, the replay itself is the check: it refuses
+     on any drift.
+  4. **The artifact executor mirrors the headline computation** (same caches, seeds, batches, generator and scoring)
+     without timers. θ = 0 accuracy-only runs therefore take this executor, not the rotation code.
+  5. **The monitor is the only Python child of the localize_FLAC tree** (`python -I -B`, stdlib only). The spawn
+     guard now admits exactly that call.
+  6. **The B1 exemption from announcement 08** is pending with Yixun. Runbook phase **XR** holds the replays if it is
+     denied.
+  7. **B3 synthesis** is a placeholder until the Planner supplies the exp_36 leaf commit, commands and cells.
+- **Next.** Codex code review 2 (round 2 of 3, Planner); GPU runs per `exp37_runbook_r2.md` after the handshake.

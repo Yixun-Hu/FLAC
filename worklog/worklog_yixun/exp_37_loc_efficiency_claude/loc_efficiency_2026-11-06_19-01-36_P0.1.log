@@ -1,0 +1,78 @@
+HEAD 5d14de19748503e9533c192d7891a2512591ea81 step=P0.1 phase=P0
+COMMAND bash worklog/worklog_yixun/exp_37_loc_efficiency_claude/exp37_assets.sh verify /home/yixunhu/codespace/exp-37-loc-efficiency
+=== exp37_assets verify -- 2026-11-06T19:01:36-05:00 -- /home/yixunhu/codespace/exp-37-loc-efficiency @ 5d14de19748503e9533c192d7891a2512591ea81 -- this script e4c5920f2ba5743e7f9e56b818a819333aabff50ef536142401ba4f3da6dbf5d
+--- ls -la (links, then their targets)
+lrwxrwxrwx 1 yixunhu yixunhu   45 Nov  6 15:38 /home/yixunhu/codespace/exp-37-loc-efficiency/AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms
+
+/home/yixunhu/codespace/exp-37-loc-efficiency/weights:
+total 16
+drwxrwxr-x  4 yixunhu yixunhu 4096 Nov  6 15:38 .
+drwxrwxr-x 13 yixunhu yixunhu 4096 Nov  6 17:17 ..
+drwxrwxr-x  2 yixunhu yixunhu 4096 Nov  6 15:38 AGREE
+drwxrwxr-x  2 yixunhu yixunhu 4096 Nov  6 15:38 exp20
+
+/home/yixunhu/codespace/exp-37-loc-efficiency/weights/AGREE:
+total 8
+drwxrwxr-x 2 yixunhu yixunhu 4096 Nov  6 15:38 .
+drwxrwxr-x 4 yixunhu yixunhu 4096 Nov  6 15:38 ..
+lrwxrwxrwx 1 yixunhu yixunhu   58 Nov  6 15:38 AGREE_fullAR.pt -> /home/yixunhu/codespace/FLAC/weights/AGREE/AGREE_fullAR.pt
+
+/home/yixunhu/codespace/exp-37-loc-efficiency/weights/exp20:
+total 8
+drwxrwxr-x 2 yixunhu yixunhu 4096 Nov  6 15:38 .
+drwxrwxr-x 4 yixunhu yixunhu 4096 Nov  6 15:38 ..
+lrwxrwxrwx 1 yixunhu yixunhu   54 Nov  6 15:38 BF_40k.ckpt -> /home/yixunhu/codespace/FLAC/weights/exp20/BF_40k.ckpt
+lrwxrwxrwx 1 yixunhu yixunhu   54 Nov  6 15:38 P1_40k.ckpt -> /home/yixunhu/codespace/FLAC/weights/exp20/P1_40k.ckpt
+lrwxrwxrwx 1 yixunhu yixunhu   55 Nov  6 15:38 YAW_40k.ckpt -> /home/yixunhu/codespace/FLAC/weights/exp20/YAW_40k.ckpt
+-rw-rw-r-- 1 yixunhu yixunhu 348872140 Aug 19 15:34 /home/yixunhu/codespace/exp-37-loc-efficiency/weights/AGREE/AGREE_fullAR.pt
+-rwxrwxr-x 1 yixunhu yixunhu 723922667 Aug 21 23:07 /home/yixunhu/codespace/exp-37-loc-efficiency/weights/exp20/BF_40k.ckpt
+-rwxrwxr-x 1 yixunhu yixunhu 723927531 Aug 21 23:07 /home/yixunhu/codespace/exp-37-loc-efficiency/weights/exp20/P1_40k.ckpt
+-rwxrwxr-x 1 yixunhu yixunhu 723922667 Aug 21 23:07 /home/yixunhu/codespace/exp-37-loc-efficiency/weights/exp20/YAW_40k.ckpt
+
+/home/yixunhu/codespace/exp-37-loc-efficiency/AcousticRooms/:
+total 0
+drwxrwxrwx 2 root root 0 Aug 23 16:14 .
+drwxrwxrwx 2 root root 0 Oct 29 10:55 ..
+drwxrwxrwx 2 root root 0 Aug 19 15:43 depth_map
+drwxrwxrwx 2 root root 0 Aug 19 15:45 metadata
+drwxrwxrwx 2 root root 0 Aug 25 00:14 room_mesh_obj_format
+drwxrwxrwx 2 root root 0 Aug 19 16:23 single_channel_ir_1
+drwxrwxrwx 2 root root 0 Aug 19 16:28 single_channel_ir_zip
+---
+OK: AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms
+OK: required AcousticRooms/single_channel_ir_1/
+OK: required AcousticRooms/depth_map/
+OK: required AcousticRooms/room_mesh_obj_format/
+OK: weights/ is a real directory
+OK: weights/exp20/ is a real directory
+OK: weights/AGREE/ is a real directory
+OK: weights/ holds exactly the pinned links
+OK: weights/exp20/P1_40k.ckpt -> /home/yixunhu/codespace/FLAC/weights/exp20/P1_40k.ckpt (same device + inode)
+OK: sha256 weights/exp20/P1_40k.ckpt = c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c
+OK: weights/exp20/BF_40k.ckpt -> /home/yixunhu/codespace/FLAC/weights/exp20/BF_40k.ckpt (same device + inode)
+OK: sha256 weights/exp20/BF_40k.ckpt = 5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328
+OK: weights/exp20/YAW_40k.ckpt -> /home/yixunhu/codespace/FLAC/weights/exp20/YAW_40k.ckpt (same device + inode)
+OK: sha256 weights/exp20/YAW_40k.ckpt = ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7
+OK: weights/AGREE/AGREE_fullAR.pt -> /home/yixunhu/codespace/FLAC/weights/AGREE/AGREE_fullAR.pt (same device + inode)
+OK: sha256 weights/AGREE/AGREE_fullAR.pt = 3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787
+--- the 16 audit meshes under AcousticRooms/room_mesh_obj_format (vs the audit's mesh_sha256)
+OK: Apartments_idx_42: AcousticRooms/room_mesh_obj_format/Apartments/Apartments_idx_42.obj sha256 8ecaa300f953504a19a3a8ac8b1e449f0ff0a3aa1d030809b0e3f755545d34d9 audit 8ecaa300f953504a19a3a8ac8b1e449f0ff0a3aa1d030809b0e3f755545d34d9
+OK: Apartments_idx_50: AcousticRooms/room_mesh_obj_format/Apartments/Apartments_idx_50.obj sha256 b48bd0c7e68dae5c61e712864ce9c7295a1b4bc5b46a74cf9fd12c4d04f56cd3 audit b48bd0c7e68dae5c61e712864ce9c7295a1b4bc5b46a74cf9fd12c4d04f56cd3
+OK: Auditorium_idx_1: AcousticRooms/room_mesh_obj_format/Auditorium/Auditorium_idx_1.obj sha256 fc0bebef01d1370cf3f7ae3aaee9f1f0474d1de72965bf4ed20c2d1b2084d51f audit fc0bebef01d1370cf3f7ae3aaee9f1f0474d1de72965bf4ed20c2d1b2084d51f
+OK: Bathrooms_idx_14: AcousticRooms/room_mesh_obj_format/Bathrooms/Bathrooms_idx_14.obj sha256 8232123112854998ccee22c6e904942105e3e918137db23e5c724ca0e0aa34da audit 8232123112854998ccee22c6e904942105e3e918137db23e5c724ca0e0aa34da
+OK: Bathrooms_idx_18: AcousticRooms/room_mesh_obj_format/Bathrooms/Bathrooms_idx_18.obj sha256 a4d5ca924962c9669b2e3fcc942bab885fe8021fd9df75a2401d38a64db4e0ff audit a4d5ca924962c9669b2e3fcc942bab885fe8021fd9df75a2401d38a64db4e0ff
+OK: Bedrooms_idx_18: AcousticRooms/room_mesh_obj_format/Bedrooms/Bedrooms_idx_18.obj sha256 c9b119c91c095e8709f0de0c40cf41aee6b219a4229cab46c37f54f65a2372af audit c9b119c91c095e8709f0de0c40cf41aee6b219a4229cab46c37f54f65a2372af
+OK: Bedrooms_idx_33: AcousticRooms/room_mesh_obj_format/Bedrooms/Bedrooms_idx_33.obj sha256 f745e455a7acc2da5126a1c5875a3abccd05fbccd87fe867e17b42064ebadb8a audit f745e455a7acc2da5126a1c5875a3abccd05fbccd87fe867e17b42064ebadb8a
+OK: Cafe_idx_1: AcousticRooms/room_mesh_obj_format/Cafe/Cafe_idx_1.obj sha256 e7a0b7b97db3a31f1194726eb35d8033d712d46e17b637493cbff76c058d8b67 audit e7a0b7b97db3a31f1194726eb35d8033d712d46e17b637493cbff76c058d8b67
+OK: LivingRoomsWithHallway_idx_25: AcousticRooms/room_mesh_obj_format/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25.obj sha256 6da405f5bd203520f7e108a61a3424e2ef28484d2ea66197e69cd9103814b5bb audit 6da405f5bd203520f7e108a61a3424e2ef28484d2ea66197e69cd9103814b5bb
+OK: LivingRoomsWithHallway_idx_30: AcousticRooms/room_mesh_obj_format/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30.obj sha256 8fc1847d3280a66553090c323ba2f0b62493adabd88df814bad570e01dc00205 audit 8fc1847d3280a66553090c323ba2f0b62493adabd88df814bad570e01dc00205
+OK: MeetingRoom_idx_20: AcousticRooms/room_mesh_obj_format/MeetingRoom/MeetingRoom_idx_20.obj sha256 29ab35aff50eeb578cdd45f4d34b383ffa763986edec529b22f969beddce383e audit 29ab35aff50eeb578cdd45f4d34b383ffa763986edec529b22f969beddce383e
+OK: MeetingRoom_idx_32: AcousticRooms/room_mesh_obj_format/MeetingRoom/MeetingRoom_idx_32.obj sha256 27a6501b4e62f421679570d81762113ffc675f34258e4cdb6457cf72dc3e0518 audit 27a6501b4e62f421679570d81762113ffc675f34258e4cdb6457cf72dc3e0518
+OK: Office_idx_10: AcousticRooms/room_mesh_obj_format/Office/Office_idx_10.obj sha256 e14b8c02650484fda13cfecae1e628802a736a0369df0eb245aef0baa3cc1e6e audit e14b8c02650484fda13cfecae1e628802a736a0369df0eb245aef0baa3cc1e6e
+OK: Office_idx_11: AcousticRooms/room_mesh_obj_format/Office/Office_idx_11.obj sha256 dc070a8fc1999f950e5ba8bc3f3da9878e003907bb3d3d2cdb20b4e595ff64b2 audit dc070a8fc1999f950e5ba8bc3f3da9878e003907bb3d3d2cdb20b4e595ff64b2
+OK: Restaurants_idx_22: AcousticRooms/room_mesh_obj_format/Restaurants/Restaurants_idx_22.obj sha256 a8e86fc229016fc1ef3d6c2f39668ba50e356d2c4ded290a794873175c4ae00c audit a8e86fc229016fc1ef3d6c2f39668ba50e356d2c4ded290a794873175c4ae00c
+OK: Restaurants_idx_24: AcousticRooms/room_mesh_obj_format/Restaurants/Restaurants_idx_24.obj sha256 afddcad24ada306c0197c238b764952cb5a3c3d2942431d45a38b0f905565daa audit afddcad24ada306c0197c238b764952cb5a3c3d2942431d45a38b0f905565daa
+16/16 meshes match
+OK: 16/16 audit meshes
+VERIFY PASS
+EXIT 0
