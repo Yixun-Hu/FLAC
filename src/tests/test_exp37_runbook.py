@@ -4,8 +4,9 @@
 of every timing pass, the B2A / B3A accuracy runs incl. the seed 43 / 44 c2f runs, the two B1 summaries consuming every
 replay with --require-replays, the gated B3S synthesis (host gate, the Planner's leaf chain b3 at its launch commit,
 the synthesis section) and the aggregation with --require-timing-replays) with each step's kind and exact command.
-``run`` / ``all`` enforce the order through hashed receipts (every earlier step done; every earlier MODEL step at this
-HEAD), a fresh clean gate receipt before every timed / selector step, a tracked tree that is clean and untracked
+``run`` / ``all`` enforce the order through hashed receipts (every earlier step done; every earlier campaign step --
+P0, the gates, the model and leaf steps -- at this HEAD), a pre-step exp_36 gate run immediately before every timed /
+selector / leaf step and its fresh receipt (bound to the gate record), a tracked tree that is clean and untracked
 content only under the allowlist, an exclusive log whose tee status is checked (a logging failure is exit 74), and
 the command's own exit status; ``skip`` only for optional steps (the K_ctx 1 splits and the B1 summary variant);
 ``clean`` quarantines a failed model step; ``check-leaf`` verifies the leaf worktree.
@@ -124,11 +125,30 @@ def checkout(tmp_path):
                  ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init"]):
         subprocess.run(argv, cwd=repo, check=True)
     ok, seven = tmp_path / "ok", tmp_path / "seven"
-    ok.write_text("#!/bin/sh\nexit 0\n")
+    ok.write_text(FAKE_PY)
     seven.write_text("#!/bin/sh\nexit 7\n")
     ok.chmod(0o755)
     seven.chmod(0o755)
-    return repo, {"REPO_DIR": str(repo), "PY": str(ok), "TOOLS": str(REPO / "tools")}, str(seven)
+    calls = tmp_path / "calls.txt"
+    return repo, {"REPO_DIR": str(repo), "PY": str(ok), "TOOLS": str(REPO / "tools"), "CALLS": str(calls)}, str(seven)
+
+
+# a stand-in interpreter: logs its argv; a gate (--gate-only --output X) writes its record and exits GATE_STATUS
+FAKE_PY = """#!/bin/sh
+echo "$*" >> "$CALLS"
+out=""; gate=0; prev=""
+for a in "$@"; do
+  [ "$prev" = "--output" ] && out=$a
+  [ "$a" = "--gate-only" ] && gate=1
+  prev=$a
+done
+if [ $gate = 1 ]; then
+  mkdir -p "$(dirname "$out")"
+  if [ "${GATE_STATUS:-0}" = 0 ]; then echo '{"gate": "clean"}' > "$out"; else echo '{"gate": "exp36_present"}' > "$out"; fi
+  exit "${GATE_STATUS:-0}"
+fi
+exit 0
+"""
 
 
 def _receipts(repo):
@@ -176,7 +196,7 @@ def test_a_dirty_tree_stray_untracked_content_or_an_unwritable_log_refuses(check
         (repo / D).chmod(0o755)
 
 
-def test_timed_steps_need_a_fresh_gate_receipt(checkout):
+def test_campaign_steps_share_one_head(checkout):
     repo, env, _seven = checkout
     assert _bash("run", "P0.1", "P0.2", "P0.3", env=env).returncode == 0
     assert _bash("skip", "P0.4", env=env).returncode == 2                    # a gate is never skipped
@@ -184,8 +204,24 @@ def test_timed_steps_need_a_fresh_gate_receipt(checkout):
     subprocess.run([sys.executable, str(REPO / "tools" / "exp37_receipt.py"), "write", "--path", str(receipt), "--step",
                     "P0.4", "--phase", "P0", "--status", "ok", "--head", "0" * 40, "--command", "x", "--log", "x",
                     "--started", "2026-01-01T00:00:00+00:00", "--finished", "2026-01-01T00:00:00+00:00"], check=True)
-    done = _bash("run", "G0.YAW.run", env=env)                                 # stale and at another HEAD
-    assert done.returncode == 2 and "gate" in done.stderr
+    done = _bash("run", "G0.YAW.run", env=env)                                 # the P0 gate ran at another HEAD
+    assert done.returncode == 2 and "HEAD" in done.stderr
+
+
+def test_every_timed_step_is_gated_immediately_before_it_starts(checkout):
+    repo, env, _seven = checkout
+    calls = Path(env["CALLS"])
+    assert _bash("run", "P0.1", "P0.2", "P0.3", "P0.4", env=env).returncode == 0
+    done = _bash("run", "G0.YAW.run", env={**env, "GATE_STATUS": "3"})    # exp_36 is on the host
+    assert done.returncode == 2 and "gate" in done.stderr and "G0.YAW.run" not in _receipts(repo)
+    assert "localize_FLAC.py" not in calls.read_text()                       # the timed pass never started
+    assert len(list((repo / D / "gates" / "pre").glob("G0.YAW.run.*.json"))) == 1
+    assert _bash("run", "G0.YAW.run", env=env).returncode == 0              # a clean gate on retry
+    assert "localize_FLAC.py" in calls.read_text() and "G0.YAW.run" in _receipts(repo)
+    receipts = list((repo / D / "receipts" / "pregate").glob("G0.YAW.run.*.json"))
+    assert len(receipts) == 1
+    payload = json.loads(receipts[0].read_text())
+    assert payload["status"] == "ok" and payload["step"] == "G0.YAW.run.pregate" and len(payload["record_sha256"]) == 64
 
 
 def test_clean_quarantines_a_failed_model_step_only(checkout, tmp_path):
