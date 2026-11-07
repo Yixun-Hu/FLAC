@@ -182,3 +182,36 @@ def selector_binding(payload_fields: dict, output) -> dict:
 
 def attest_selector(path, binding: dict, **kwargs):
     return write_attestation(Path(str(path) + ".cotenancy"), binding["sha256"], **kwargs)
+
+
+# --------------------------------------------------------------------------- #
+# selector vectors with the full repeat evidence (Codex code review 2, HIGH 3)
+# --------------------------------------------------------------------------- #
+SELECTOR_FIELDS = ("observed_encode_seconds", "generated_encode_seconds", "similarity_seconds", "argmax_seconds",
+                   "scoring_total_seconds")
+
+
+def selector_row(record: dict, seconds: float, peak: int = 5) -> dict:
+    """One query row exactly as tools/exp37_selector_latency.py writes it: three repeats of the bundle's four parts,
+    their per-repeat total, and every per-field median."""
+    import statistics
+    parts = {"observed_encode_seconds": 0.01, "generated_encode_seconds": seconds - 0.013, "similarity_seconds": 0.002,
+             "argmax_seconds": 0.001}
+    repeats = [{**parts, "scoring_total_seconds": parts["observed_encode_seconds"] + parts["generated_encode_seconds"]
+                + parts["similarity_seconds"] + parts["argmax_seconds"]} for _ in range(3)]
+    return {"query_index": record["index"], "query_id": record["query_id"], "room": record["room"],
+            "candidate_count": record["candidate_count"], "candidate_indices_sha256": record["candidate_indices_sha256"],
+            "agree": {"repeat_seconds": {f: [r[f] for r in repeats] for f in SELECTOR_FIELDS},
+                      "median_seconds": {f: float(statistics.median(float(r[f]) for r in repeats)) for f in SELECTOR_FIELDS}},
+            "peak_memory_allocated_bytes": peak, "peak_memory_reserved_bytes": peak}
+
+
+def selector_fields(selection: dict, seconds: float, **over) -> dict:
+    """A complete exp_37 selector payload body (before its binding and sha256)."""
+    from src.localization import exp37_identity as ident
+    return {"schema_version": 1, "record_type": "exp37_agree_selector_latency", "device": "cuda:0",
+            "timed_function": "tools/benchmark_localization_selector_latency.py::benchmark_agree_query",
+            "repeat_count": 3, "candidate_batch_size": 64, "selection_sha256": selection["sha256"],
+            "agree_checkpoint_file_sha256": ident.AGREE_SHA256, "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256,
+            "query_count": len(selection["records"]), "host": host_snapshot(),
+            "queries": [selector_row(r, seconds) for r in selection["records"]], **over}
