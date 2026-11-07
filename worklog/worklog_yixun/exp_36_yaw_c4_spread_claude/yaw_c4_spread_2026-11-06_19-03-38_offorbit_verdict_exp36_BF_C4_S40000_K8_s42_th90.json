@@ -1,0 +1,84 @@
+{
+ "schema_version": 1,
+ "check": "exp36_replay",
+ "result": "equal",
+ "pin": "6be49f46ec31e899f1bee01f72c6a5827e701c6c",
+ "campaign_digest": "f4b7056ea7e2e030c1873d2a3382b39e030205cd23e3e2ce4645834c536b766a",
+ "plan_json": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_19-03-44_eval_plan.json",
+ "plan_sha256": "8fc3e8b30fbd2a71634030484d6db28deb3754dbe75e22e11ca7c1f4ddb8b4bf",
+ "reference": {
+  "cell": "exp35_BF_C4_S40000_K8_s42_th90",
+  "base_dir": "/home/yixunhu/codespace/exp-35-orbitrir-yaw",
+  "pin": "5b065801e9d1c1844461ec84cd0558702c714326",
+  "dump": true,
+  "files": {
+   "metrics": {
+    "path": "outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000_metrics_1_1.0_exp35_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90.json",
+    "sha256": "ef2840c746b871268bddf8ae36609d1ee33186074a9afb01612c5db97606d82f"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000_metrics_1_1.0_exp35_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90.stream.json",
+    "sha256": "e671270fc3cd61f5a47dd68f6f41707db68d6e62b4f2750ae52e9e7f9b7085a8"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000_metrics_1_1.0_exp35_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90.cell.json",
+    "sha256": "431ceba60189490e85d53d942f43025c493a863cddec928ec7555d34ed5b16fd"
+   },
+   "log": {
+    "path": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_07-53-46_eval_exp35_BF_C4_S40000_K8_s42_th90.log",
+    "sha256": "af938eb25007efa472455d679b63a794702df4e61dcf0321623cbc22f25ef4bd"
+   },
+   "dump": {
+    "manifest_sha256": "975cb72125977b6724cda82501bff4b356accb80278db7f8341c69566630fd5c",
+    "waveform_sha256": "d9f46debf8ebf7739a7a1dc4267e1a1ad5a280716b77c9dd8af61f311c39dac6"
+   }
+  },
+  "backend": "sdpa (the exp_35 no-flash launcher: receipt 2 and the pinned log's sentinel)"
+ },
+ "replay": {
+  "cell": "exp36_BF_C4_S40000_K8_s42_th90",
+  "base_dir": "/home/yixunhu/codespace/exp-36-run",
+  "pin": "6be49f46ec31e899f1bee01f72c6a5827e701c6c",
+  "dump": true,
+  "receipt_schema": 2,
+  "files": {
+   "metrics": {
+    "path": "outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000_metrics_1_1.0_exp36_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90.json",
+    "sha256": "9fb87d2123c5f3ca2aaa8ff24536706425dcba0c9965cd64773a602949553e11"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000_metrics_1_1.0_exp36_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90.stream.json",
+    "sha256": "e671270fc3cd61f5a47dd68f6f41707db68d6e62b4f2750ae52e9e7f9b7085a8"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000_metrics_1_1.0_exp36_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90.cell.json",
+    "sha256": "4d8c8dc79fd9642fa9971aff814b873ba1a3a805637bba28069929fd41554c18"
+   },
+   "log": {
+    "path": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_19-03-44_eval_exp36_BF_C4_S40000_K8_s42_th90.log",
+    "sha256": "8316938f64a8f166162130f132591e88f2af57f6e61d77fc85f443cabf7c4710"
+   },
+   "dump": {
+    "dir": "/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms/epoch=8-step=40000_metrics_1_1.0_exp36_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90",
+    "manifest_sha256": "d850bdc4a5be2513cae9d9381439a15fe933107dffb478963c8d937ff87cba3e",
+    "waveform_sha256": "d9f46debf8ebf7739a7a1dc4267e1a1ad5a280716b77c9dd8af61f311c39dac6"
+   }
+  },
+  "attention_backend": "sdpa",
+  "no_flash_overlay_sha256": "0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023",
+  "no_flash_launcher_sha256": "bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de"
+ },
+ "loaded": [
+  "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328",
+  723922667
+ ],
+ "compared": [
+  "metrics",
+  "by_scene",
+  "every other record key but source_sha / eval_name, key order",
+  "raw stream (and canon) sidecar sha256",
+  "loaded checkpoint sha256 + bytes (records, receipts)",
+  "the dump: waveform sha256, COMPLETE marker, n / dtype / shape, input_hash (exp_35 CTL style)"
+ ],
+ "reasons": []
+}

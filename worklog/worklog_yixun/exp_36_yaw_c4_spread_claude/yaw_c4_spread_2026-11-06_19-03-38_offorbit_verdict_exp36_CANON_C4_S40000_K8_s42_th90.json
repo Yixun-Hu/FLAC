@@ -1,0 +1,92 @@
+{
+ "schema_version": 1,
+ "check": "exp36_replay",
+ "result": "equal",
+ "pin": "6be49f46ec31e899f1bee01f72c6a5827e701c6c",
+ "campaign_digest": "f4b7056ea7e2e030c1873d2a3382b39e030205cd23e3e2ce4645834c536b766a",
+ "plan_json": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_19-03-44_eval_plan.json",
+ "plan_sha256": "8fc3e8b30fbd2a71634030484d6db28deb3754dbe75e22e11ca7c1f4ddb8b4bf",
+ "reference": {
+  "cell": "exp25_CANON_C4_S40000_K8_s42_th90",
+  "base_dir": "/home/yixunhu/codespace/exp-25-depth-canon",
+  "pin": "d6ca307a85b9b0a75ec9d47f4d237e63a3db527e",
+  "dump": true,
+  "files": {
+   "metrics": {
+    "path": "outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000_metrics_1_1.0_exp25_CANON_C4_S40000_K8_s42_th90_canon_rot90.json",
+    "sha256": "51025f3b36075efb3966f757f17cdf43f4348046a55d28b58a1f0b726cbea8aa"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000_metrics_1_1.0_exp25_CANON_C4_S40000_K8_s42_th90_canon_rot90.stream.json",
+    "sha256": "e671270fc3cd61f5a47dd68f6f41707db68d6e62b4f2750ae52e9e7f9b7085a8"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000_metrics_1_1.0_exp25_CANON_C4_S40000_K8_s42_th90_canon_rot90.cell.json",
+    "sha256": "3fc4ed172ac0e8b7efefe15cb035f55de08f76c2591b9f8498d8b5cb4c6a87ac"
+   },
+   "canon": {
+    "path": "outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000_metrics_1_1.0_exp25_CANON_C4_S40000_K8_s42_th90_canon_rot90.canon.json",
+    "sha256": "5e3d6c4f1904038dd0b8eeec49db8c18474a6df992ec5bd3994ebb33f1536700"
+   },
+   "log": {
+    "path": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-29_11-18-16_eval_exp25_CANON_C4_S40000_K8_s42_th90.log",
+    "sha256": "a201c970a65bd06a439bfb99615516528d98072000a06b7255bb6685e868269a"
+   },
+   "dump": {
+    "manifest_sha256": "ca864c12d0ca9058c95f5e129777f3ac12f152d3c526acdf5bcb869d409c311a",
+    "waveform_sha256": "441330a0b8f5159d8cd5c07baf1a8112bb6a296b00e98e703ca7409e0c293180"
+   }
+  },
+  "backend": "sdpa (flash_attn not installed: the pinned log's ImportError + fallback pair)"
+ },
+ "replay": {
+  "cell": "exp36_CANON_C4_S40000_K8_s42_th90",
+  "base_dir": "/home/yixunhu/codespace/exp-36-run",
+  "pin": "6be49f46ec31e899f1bee01f72c6a5827e701c6c",
+  "dump": true,
+  "receipt_schema": 2,
+  "files": {
+   "metrics": {
+    "path": "outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000_metrics_1_1.0_exp36_CANON_C4_S40000_K8_s42_th90_canon_rot90.json",
+    "sha256": "448ab5dd676a5e23b895ffbea9c8f39d77d88b20f8b18d578f8d6a009a2c7028"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000_metrics_1_1.0_exp36_CANON_C4_S40000_K8_s42_th90_canon_rot90.stream.json",
+    "sha256": "e671270fc3cd61f5a47dd68f6f41707db68d6e62b4f2750ae52e9e7f9b7085a8"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000_metrics_1_1.0_exp36_CANON_C4_S40000_K8_s42_th90_canon_rot90.cell.json",
+    "sha256": "213f9c77c0b16a89ac90a6c486772e69c735de5561c3156a252536be7981896f"
+   },
+   "canon": {
+    "path": "outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000_metrics_1_1.0_exp36_CANON_C4_S40000_K8_s42_th90_canon_rot90.canon.json",
+    "sha256": "5e3d6c4f1904038dd0b8eeec49db8c18474a6df992ec5bd3994ebb33f1536700"
+   },
+   "log": {
+    "path": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_19-03-44_eval_exp36_CANON_C4_S40000_K8_s42_th90.log",
+    "sha256": "4802c865b145c91a2429200b14fd5862d637ae141b52d0cffe281f387568fe82"
+   },
+   "dump": {
+    "dir": "/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms/epoch=8-step=40000_metrics_1_1.0_exp36_CANON_C4_S40000_K8_s42_th90_canon_rot90",
+    "manifest_sha256": "f3c42b499429a5a5a1a9a84ca6a9be726a375058914caf2637f6cf1517696699",
+    "waveform_sha256": "441330a0b8f5159d8cd5c07baf1a8112bb6a296b00e98e703ca7409e0c293180"
+   }
+  },
+  "attention_backend": "sdpa",
+  "no_flash_overlay_sha256": "0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023",
+  "no_flash_launcher_sha256": "bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de"
+ },
+ "loaded": [
+  "52c64b525c8a34f1721b73abd5c4aad67295ea2f729426e9330104b6d1441ace",
+  723922667
+ ],
+ "compared": [
+  "metrics",
+  "by_scene",
+  "every other record key but source_sha / eval_name, key order",
+  "raw stream (and canon) sidecar sha256",
+  "loaded checkpoint sha256 + bytes (records, receipts)",
+  "the dump: waveform sha256, COMPLETE marker, n / dtype / shape, input_hash (exp_35 CTL style)"
+ ],
+ "reasons": []
+}

@@ -1,0 +1,4 @@
+armed 2026-11-06T22:07:16-05:00; rebuild script sha256 db12991b2dcbe25fbe3cd9a5f5c210b7871acace56662bfb4b3347f30d6bc95b
+candidate ef2840c746b871268bddf8ae36609d1ee33186074a9afb01612c5db97606d82f 5309 B == pre-incident: True
+restored /home/yixunhu/codespace/exp-35-orbitrir-yaw/outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000_metrics_1_1.0_exp35_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90.json ef2840c746b871268bddf8ae36609d1ee33186074a9afb01612c5db97606d82f OK
+attempt 2026-11-06T22:38:37-05:00 rc=0

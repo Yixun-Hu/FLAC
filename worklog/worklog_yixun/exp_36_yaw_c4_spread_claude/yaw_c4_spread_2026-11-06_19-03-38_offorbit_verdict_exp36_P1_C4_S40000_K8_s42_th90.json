@@ -1,0 +1,84 @@
+{
+ "schema_version": 1,
+ "check": "exp36_replay",
+ "result": "equal",
+ "pin": "6be49f46ec31e899f1bee01f72c6a5827e701c6c",
+ "campaign_digest": "f4b7056ea7e2e030c1873d2a3382b39e030205cd23e3e2ce4645834c536b766a",
+ "plan_json": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_19-03-44_eval_plan.json",
+ "plan_sha256": "8fc3e8b30fbd2a71634030484d6db28deb3754dbe75e22e11ca7c1f4ddb8b4bf",
+ "reference": {
+  "cell": "exp25_P1_C4_S40000_K8_s42_th90",
+  "base_dir": "/home/yixunhu/codespace/exp-25-depth-canon",
+  "pin": "d6ca307a85b9b0a75ec9d47f4d237e63a3db527e",
+  "dump": true,
+  "files": {
+   "metrics": {
+    "path": "outputs_FLAC/exp25_depth_canon/P1/epoch=8-step=40000_metrics_1_1.0_exp25_P1_C4_S40000_K8_s42_th90_rot90.json",
+    "sha256": "88bb41c190da815e8212a2c8a45b559e9eda7df9f8384a04727f7bf83956c74d"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp25_depth_canon/P1/epoch=8-step=40000_metrics_1_1.0_exp25_P1_C4_S40000_K8_s42_th90_rot90.stream.json",
+    "sha256": "e671270fc3cd61f5a47dd68f6f41707db68d6e62b4f2750ae52e9e7f9b7085a8"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp25_depth_canon/P1/epoch=8-step=40000_metrics_1_1.0_exp25_P1_C4_S40000_K8_s42_th90_rot90.cell.json",
+    "sha256": "eb5a588c3b2a3ad6262c8b1edd4b504100ed9b4997803b6c721f2488baa61929"
+   },
+   "log": {
+    "path": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-29_11-18-16_eval_exp25_P1_C4_S40000_K8_s42_th90.log",
+    "sha256": "a9e2dff3a8b93c2235738f64f8dc4e47dd198c3336ddea1cd6e83b825e3b0893"
+   },
+   "dump": {
+    "manifest_sha256": "99de989732a26dbd8b3047e45651129f2b824b5c72a19bc7cb505a02f251a92b",
+    "waveform_sha256": "34dfa66d5c67dc1e945420e8f6aa1aac11ae2f4cb0e43b4fb33e3f660f3eb9b4"
+   }
+  },
+  "backend": "sdpa (flash_attn not installed: the pinned log's ImportError + fallback pair)"
+ },
+ "replay": {
+  "cell": "exp36_P1_C4_S40000_K8_s42_th90",
+  "base_dir": "/home/yixunhu/codespace/exp-36-run",
+  "pin": "6be49f46ec31e899f1bee01f72c6a5827e701c6c",
+  "dump": true,
+  "receipt_schema": 2,
+  "files": {
+   "metrics": {
+    "path": "outputs_FLAC/exp25_depth_canon/P1/epoch=8-step=40000_metrics_1_1.0_exp36_P1_C4_S40000_K8_s42_th90_rot90.json",
+    "sha256": "684925620ca734cdef346bf024a011f99d9e501af6f3e7d49c72609ba6793e63"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp25_depth_canon/P1/epoch=8-step=40000_metrics_1_1.0_exp36_P1_C4_S40000_K8_s42_th90_rot90.stream.json",
+    "sha256": "e671270fc3cd61f5a47dd68f6f41707db68d6e62b4f2750ae52e9e7f9b7085a8"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp25_depth_canon/P1/epoch=8-step=40000_metrics_1_1.0_exp36_P1_C4_S40000_K8_s42_th90_rot90.cell.json",
+    "sha256": "926bfd47b4aead11ff77351eeb9ae36ad5411ae42c738a0886521e9834aeb4a7"
+   },
+   "log": {
+    "path": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_19-03-44_eval_exp36_P1_C4_S40000_K8_s42_th90.log",
+    "sha256": "4319596c825a6012d7bb7ca2fad82ba403850e812aa0d0bc2b2bc656bff06b4e"
+   },
+   "dump": {
+    "dir": "/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms/epoch=8-step=40000_metrics_1_1.0_exp36_P1_C4_S40000_K8_s42_th90_rot90",
+    "manifest_sha256": "73a83bcafc16b7fce584ad742338be0949029564acfc6321a6ab156ecb089960",
+    "waveform_sha256": "34dfa66d5c67dc1e945420e8f6aa1aac11ae2f4cb0e43b4fb33e3f660f3eb9b4"
+   }
+  },
+  "attention_backend": "sdpa",
+  "no_flash_overlay_sha256": "0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023",
+  "no_flash_launcher_sha256": "bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de"
+ },
+ "loaded": [
+  "c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c",
+  723927531
+ ],
+ "compared": [
+  "metrics",
+  "by_scene",
+  "every other record key but source_sha / eval_name, key order",
+  "raw stream (and canon) sidecar sha256",
+  "loaded checkpoint sha256 + bytes (records, receipts)",
+  "the dump: waveform sha256, COMPLETE marker, n / dtype / shape, input_hash (exp_35 CTL style)"
+ ],
+ "reasons": []
+}
