@@ -36,13 +36,15 @@ def fake_proc(root, processes, busy, total):
     """A /proc tree: ``processes`` = {pid: (comm, ticks, cwd or None, argv)}; host ``busy`` / ``total`` ticks."""
     root.mkdir(parents=True, exist_ok=True)
     (root / "stat").write_text(f"cpu  {busy} 0 0 {total - busy} 0 0 0 0 0 0\ncpu0 1 0 0 1 0 0 0 0 0 0\n")
-    for pid, (comm, ticks, cwd, argv) in processes.items():
+    for pid, (comm, ticks, cwd, argv, *exe) in processes.items():
         folder = root / str(pid)
         folder.mkdir(exist_ok=True)
         fields = ["S", "1"] + ["0"] * 9 + [str(ticks), "0", "0", "0"] + ["0"] * 4 + ["123"] + ["0"] * 20
         (folder / "stat").write_text(f"{pid} ({comm}) " + " ".join(fields) + "\n")
         if cwd and not (folder / "cwd").is_symlink():
             os.symlink(cwd, folder / "cwd")
+        if exe and not (folder / "exe").is_symlink():
+            os.symlink(exe[0], folder / "exe")
         (folder / "cmdline").write_bytes(b"".join(a.encode() + b"\0" for a in argv))
 
 
