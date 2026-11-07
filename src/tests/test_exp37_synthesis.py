@@ -132,3 +132,18 @@ def test_the_section_must_name_the_leaf_launch_commit(section):
     body["leaf_commit"] = "f" * 40
     with pytest.raises(RuntimeError, match="leaf commit"):
         syn.validate_section(body)
+
+
+def test_the_registered_metric_list_is_one_constant():
+    from tools import exp37_build_synthesis_cells as cells_tool
+    assert syn.METRICS_KEYS == ("T60", "C50", "EDT", "FD") and tuple(cells_tool.METRICS) == syn.METRICS_KEYS
+    assert syn.is_hex64("a" * 64) and not syn.is_hex64("A" * 64) and not syn.is_hex64("g" * 64)
+
+
+@pytest.mark.parametrize("keys", [["T60", "C50", "EDT"], ["C50", "T60", "EDT", "FD"], ["T60", "C50", "EDT", "FD", "FD"]])
+def test_validate_section_requires_the_registered_metric_list(section, keys):
+    """Review 3 H-02: the validator itself refuses any other metric list."""
+    _world, body = section
+    body["metrics_keys"] = keys
+    with pytest.raises(RuntimeError, match="metrics"):
+        syn.validate_section(body)

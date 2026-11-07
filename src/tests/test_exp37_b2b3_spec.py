@@ -107,3 +107,25 @@ def test_the_cli_requires_the_replay_flag_and_writes_once(world, tmp_path):
     assert builder.main(argv) == 2 and not out.exists()                    # D-c: --require-timing-replays is required
     assert builder.main(argv + ["--require-timing-replays"]) == 0 and json.loads(out.read_text())["schema_version"] == 3
     assert builder.main(argv + ["--require-timing-replays"]) == 2         # write-once
+
+
+@pytest.mark.parametrize("keys", [["T60", "C50", "EDT"], ["T60", "C50", "EDT", "FD", "l1"],
+                                  ["T60", "T60", "C50", "EDT", "FD"], ["C50", "T60", "EDT", "FD"],
+                                  ["T60", "C50", "EDT", "FD", "FD"], []])
+def test_the_synthesis_metrics_are_exactly_the_registered_list(world, keys):
+    """Review 3 H-02: exactly ["T60", "C50", "EDT", "FD"] in that order -- missing, extra, duplicated or reordered
+    metric names are a SpecError."""
+    spec = copy.deepcopy(_spec(world))
+    spec["b3_synthesis"]["metrics_keys"] = keys
+    with pytest.raises(tool.SpecError, match="metrics_keys"):
+        tool.check_spec(spec)
+
+
+@pytest.mark.parametrize("field", ["metrics_sha256", "receipt_sha256", "dump_manifest_sha256"])
+@pytest.mark.parametrize("digest", ["g" * 64, "A" * 64, "0" * 63 + "z", " " * 64, "0x" + "a" * 62, "a" * 63, 7])
+def test_every_synthesis_digest_is_lowercase_64_hex(world, field, digest):
+    """Review 3 H-02: a real lowercase-64-hex predicate (a 64-character string of non-hex characters is refused)."""
+    spec = copy.deepcopy(_spec(world))
+    spec["b3_synthesis"]["cells"][5][field] = digest
+    with pytest.raises(tool.SpecError, match="sha256"):
+        tool.check_spec(spec)
