@@ -22,7 +22,8 @@ from tools import exp37_build_b2b3_spec as builder
 
 @pytest.fixture(scope="module")
 def world(tmp_path_factory):
-    return registered_world(tmp_path_factory.mktemp("world"))
+    with pytest.MonkeyPatch.context() as patch:                  # never the real pinned roots (2026-11-06 incident)
+        yield registered_world(tmp_path_factory.mktemp("world"), patch)
 
 
 def _spec(world, **kw):

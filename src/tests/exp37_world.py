@@ -187,6 +187,7 @@ class World:
         name, block, source = syn.cell_name(orbit, theta, k)
         stem, pin = syn.cell_stem(orbit, theta, k), leaf_commit if source == "new" else syn.H35_PIN
         paths = syn.cell_paths(orbit, theta, k)
+        self._inside(paths.values())                               # the INCIDENT guard: never the real pinned roots
         folder = Path(paths["metrics_json"]).parent
         folder.mkdir(parents=True, exist_ok=True)
         value = 10.0 + k + theta / 90 + len(syn.ORBITS[orbit])
@@ -237,6 +238,15 @@ class World:
                 "receipt_sha256": sha(receipt_path), "dump_manifest": str(manifest_path),
                 "dump_manifest_sha256": sha(manifest_path)}
 
+    def _inside(self, paths) -> None:
+        """Refuse (before any write) a target outside this world's root -- an unpatched exp37_synthesis points at the
+        real leaf / exp_35 worktrees and the NAS dump root (the 2026-11-06 incident)."""
+        root = self.root.resolve()
+        outside = [str(p) for p in paths if not Path(p).resolve().is_relative_to(root)]
+        if outside:
+            raise RuntimeError(f"the synthesis fixture refuses to write outside its root {root}: {outside[:3]} "
+                               "(patch exp37_synthesis with patch_synthesis first)")
+
     def synthesis_roots(self):
         """Where this world's synthesis artifacts live (the leaf / exp_35 worktrees and the dump root stand-ins)."""
         return {"LEAF_ROOT": str(self.root / "leaf"), "EXP35_ROOT": str(self.root / "exp35"),
@@ -246,6 +256,10 @@ class World:
         """The synthesis section (call with exp37_synthesis's roots patched to ``synthesis_roots``); the reused
         cells' digests are kept in ``self.reused`` for the pinned table."""
         keys = ["T60", "C50", "EDT", "FD"]                               # = exp37_build_synthesis_cells.METRICS
+        from src.localization import exp37_synthesis as syn
+        if status == "complete":                                         # every target checked before the first write
+            self._inside(p for o in ("0", "0_180", "c4") for t in (0, 90) for k in (1, 8)
+                         for p in syn.cell_paths(o, t, k).values())
         cells = [self.synthesis_cell(o, t, k, leaf_commit, keys) for o in ("0", "0_180", "c4") for t in (0, 90)
                  for k in (1, 8)] if status == "complete" else []
         self.reused = {c["cell"]: {key: c[key] for key in ("metrics_sha256", "receipt_sha256", "dump_manifest_sha256")}
@@ -308,20 +322,18 @@ def patch_synthesis(monkeypatch, world: World) -> None:
         monkeypatch.setattr(syn, name, value)
 
 
-def registered_world(root, monkeypatch=None) -> World:
+def registered_world(root, monkeypatch) -> World:
     """Every registered run: the B2 / B3 runs, the mandatory replays of every timing pass, the seed 43 / 44 c2f
-    accuracy runs, and the synthesis + external inputs (the synthesis roots patched when ``monkeypatch`` is given;
-    the reused cells' digests pinned too)."""
+    accuracy runs, and the synthesis + external inputs. ``monkeypatch`` is REQUIRED: the synthesis roots are always
+    redirected to the world's stand-ins (and the reused cells' digests pinned) -- the 2026-11-06 incident."""
     from src.localization import exp37_synthesis as syn
     world = World(root)
-    if monkeypatch is not None:
-        patch_synthesis(monkeypatch, world)
+    patch_synthesis(monkeypatch, world)
     world = add_timing_only_replays(world.build())
     for arm in ("P1", "BF"):
         for seed in (43, 44):
             world.c2f(f"b2a_c2f_{arm}_s{seed}", arm, seed=seed, kind="acc")
     world.synthesis()
-    if monkeypatch is not None:
-        monkeypatch.setattr(syn, "REUSED", world.reused)
+    monkeypatch.setattr(syn, "REUSED", world.reused)
     world.external()
     return world
