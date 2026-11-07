@@ -5,9 +5,13 @@ every ``perf_counter`` read): the observed RIR encoded ONCE -> the context cache
 (generation, then AGREE encoding + similarity) -> top-k (score desc, full-grid index asc) + the Chebyshev-0.5 m
 neighbourhood -> refined = only the candidates not yet scored (generation, encoding, similarity) -> argmax over
 coarse U refined in full-grid order. Seeds stay keyed by the full 0.5 m index. ``c2f_total`` is the c2f L_q; the
-generator-only part (context + both generations) is ``core_forward_total``. The c2f ACCURACY of record is the
-offline readout of the 0.5 m runs (``exp37_grid``); this pass's own winner is recorded as a cross-check.
-Written by the exp_37 Coder (Claude Opus 5.5, max effort) per the Coder brief r1, round B-c.
+generator-only part (context + both generations) is ``core_forward_total``. The c2f accuracy comes from
+sequential c2f runs for all three seeds (plan §12; the fix-round-2 c2f-parity choice): this seed-42 timing pass,
+whose untimed replay supplies the waveforms, plus the seed-43 / 44 accuracy-only runs ``b2a_c2f_*`` executed
+untimed with the same adaptive path (``exp37_artifacts``). The offline readout of the parent 0.5 m runs
+(``exp37_grid``) is only a parity cross-check and a sensitivity row, never the accuracy of record.
+Written by the exp_37 Coder (Claude Opus 5.5, max effort) per the Coder brief r1, round B-c; the policy text updated
+in the final fix round (fixed after review 3, not re-reviewed (cap)).
 """
 
 from __future__ import annotations

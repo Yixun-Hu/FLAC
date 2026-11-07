@@ -3,11 +3,13 @@
 markdown table and the two-panel B2 Pareto figure (PNG + PDF).
 
 B2 -- per arm (FLAC P1, OrbitRIR B-F) x grid: accuracy = the pooled 64-query metrics of each seed's run, mean and
-sample SD over seeds 42-44 (0.5 m runs give the 0.5 m, nested-1.0 m and c2f readouts -- offline-exact with full-grid
-common random numbers; 0.75 m runs their own full readout); time = s/query, the query-micro mean of
-L_q = core_forward_total_q + the shape-matched AGREE selector term (seed 42 = the headline, 43 / 44 = repeats;
-nested 1.0 m from its dedicated subset pass + the nested selector vector; c2f = its measured sequential total);
-never ``elapsed_seconds``. The Pareto frontier is computed over these internal points only; FewShotRIR and FEM are
+sample SD over seeds 42-44 (the 0.5 m runs give the 0.5 m and nested-1.0 m readouts -- offline-exact with full-grid
+common random numbers; the 0.75 m runs their own full readout; the c2f point from sequential c2f runs for all three
+seeds: the seed-42 timing pass via its replay and the seed-43 / 44 accuracy runs b2a_c2f_*, the parent-derived
+offline c2f readout reported only as a parity cross-check and the c2f_k5_offline sensitivity row); time = s/query,
+the query-micro mean of L_q = core_forward_total_q + the shape-matched AGREE selector term, measured ONLY at seed 42
+(D-a: seeds 43 / 44 are accuracy-only, no timing variance claim; nested 1.0 m from its dedicated subset pass + the
+nested selector vector; c2f = its measured sequential total); never ``elapsed_seconds``. The Pareto frontier is computed over these internal points only; FewShotRIR and FEM are
 external reference markers. c2f k in {1, 3, 10} is a post-primary sensitivity (accuracy only).
 B3 -- OrbitRIR orbit {0} / {0,180} / C4 x theta {0, 90} x seeds: accuracy per (orbit, theta); orbit latency from
 B1-style passes on the 128-query selection. Written by the exp_37 Coder (Claude Opus 5.5, max effort), round B-c.
