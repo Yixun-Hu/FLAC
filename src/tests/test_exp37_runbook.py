@@ -1,19 +1,23 @@
-"""exp_37 fix round 2 (Codex code review 2, BLOCKING 4 / 5, HIGH 8, NIT 1): the executable runbook ``exp37_runbook.sh``.
+"""exp_37 fix rounds 2-3 (Codex code reviews 2 / 3): the executable runbook ``exp37_runbook.sh``.
 
-``list`` prints the registered sequence (98 steps: P0 / G0 / SEL / B1 / B2 / B3 timed phases, the mandatory TR replays
+``list`` prints the registered sequence (100 steps: P0 / G0 / SEL / B1 / B2 / B3 timed phases, the mandatory TR replays
 of every timing pass, the B2A / B3A accuracy runs incl. the seed 43 / 44 c2f runs, the two B1 summaries consuming every
-replay with --require-replays, the gated B3S synthesis (host gate, the Planner's leaf chain b3 at its launch commit,
-the synthesis section) and the aggregation with --require-timing-replays) with each step's kind and exact command.
-``run`` / ``all`` enforce the order through hashed receipts (every earlier step done; every earlier campaign step --
-P0, the gates, the model and leaf steps -- at this HEAD), a pre-step exp_36 gate run immediately before every timed /
-selector / leaf step and its fresh receipt (bound to the gate record), a tracked tree that is clean and untracked
-content only under the allowlist, an exclusive log whose tee status is checked (a logging failure is exit 74), and
-the command's own exit status; ``skip`` only for the Planner's K_ctx 1 split decisions (B1.split_k1.*), while the
-conditional steps that follow them (their replays, the two B1 summary variants) are run or recorded as skipped by
-``run`` / ``all`` from those decisions -- exactly one B1 summary variant runs;
-``clean`` quarantines a failed model step; ``check-leaf`` verifies the leaf worktree.
-CPU; a scratch git repository stands in for the checkout. Written by the exp_37 Coder (Claude Opus 5.5, max effort).
+replay with --require-replays, the gated B3S synthesis -- host gate, the read-only reuse check of the C4 / K8 reference
+(review 3 H-04), the Planner's leaf chain b3 at its launch commit as one executable ``env -C`` argv (N-01), the reuse
+check of all four reused cells, the synthesis section -- and the aggregation with --require-timing-replays) with each
+step's kind and exact command. ``run`` / ``all`` enforce the order through hashed receipts (every earlier step done;
+every earlier campaign step -- P0, the gates, the reuse checks, the model and leaf steps -- at this HEAD), a pre-step
+exp_36 gate run immediately before every timed / selector / leaf step and its fresh receipt (bound to the gate
+record), a tracked tree that is clean and untracked content only under the allowlist (incident material is never
+allowlisted, B-02), an exclusive log whose tee status is checked (a logging failure is exit 74), and the command's own
+exit status. The K_ctx 1 split decision is ONE collective decision (H-01): ``skip B1.split_k1`` (= B1.split_k1.P1)
+skips all three passes, running B1.split_k1.P1 runs all three; YAW / BF, their replays and the B1 summaries follow it,
+and receipts mixing run and skipped splits refuse every later step. ``check STEP`` is the read-only preflight (no log,
+gate, receipt or command); ``clean`` quarantines a failed model step; ``check-leaf`` verifies the leaf worktree.
+CPU; a scratch git repository stands in for the checkout. Written by the exp_37 Coder (Claude Opus 5.5, max effort);
+the review-3 parts: fixed after review 3, not re-reviewed (cap).
 """
+import hashlib
 import json
 import os
 import shlex
@@ -54,11 +58,12 @@ def _flag(argv, name):
 
 def test_the_registered_sequence(steps):
     rows, text = steps
-    assert len(rows) == len(text.splitlines()) == 98
+    assert len(rows) == len(text.splitlines()) == 100
     phases = [p for p, _k, _c in rows.values()]
     order = ["P0", "G0", "SEL", "B1", "B2", "B3", "TR", "B2A", "B3A", "B1S", "B3S", "AGG"]
     assert [p for i, p in enumerate(phases) if i == 0 or phases[i - 1] != p] == order
-    assert list(rows)[-5:] == ["B3S.gate", "B3S.run", "B3S.cells", "AGG.spec", "AGG.run"]
+    assert list(rows)[-7:] == ["B3S.gate", "B3S.reuse.run", "B3S.run", "B3S.reuse.cells", "B3S.cells", "AGG.spec",
+                               "AGG.run"]
     assert {sid for sid, (_p, kind, _c) in rows.items() if kind.endswith("?")} == {          # optional steps
         "B1.split_k1.P1", "B1.split_k1.YAW", "B1.split_k1.BF", "TR.split_k1.P1", "TR.split_k1.YAW", "TR.split_k1.BF",
         "B1S.all", "B1S.noK1"}
@@ -111,9 +116,22 @@ def test_b3s_runs_the_planners_leaf_chain_at_its_launch_commit(steps):
     rows, _ = steps
     phase, kind, argv = rows["B3S.run"]
     assert (phase, kind) == ("B3S", "leaf")
-    assert argv == ["cd", "/home/yixunhu/codespace/exp-37-b3-synthesis", "&&", "env", f"EXPECT_HEAD={LEAF_COMMIT}",
+    assert argv == ["env", "-C", "/home/yixunhu/codespace/exp-37-b3-synthesis", f"EXPECT_HEAD={LEAF_COMMIT}",
                     "bash", "worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh", "b3"]
     assert rows["B3S.gate"][1] == "gate" and rows["B3S.cells"][2][-2:] == ["--output", f"{D}/b2b3/synthesis_cells.json"]
+    for stage in ("run", "cells"):                                            # review 3 H-04
+        phase, kind, argv = rows[f"B3S.reuse.{stage}"]
+        assert (phase, kind) == ("B3S", "reuse") and "tools/exp37_b3_reuse_check.py" in argv
+        assert argv[-4:] == ["--stage", stage, "--output", f"{D}/gates/b3s_reuse_{stage}.json"]
+
+
+def test_the_leaf_step_executes_exactly_its_logged_command():
+    """Review 3 N-01: the leaf step is an ordinary argv (env -C <leaf> EXPECT_HEAD=... bash <chain> b3), executed by the
+    same "${CMD[@]}" as every step, so the logged / receipted command is the executed one."""
+    source = SCRIPT.read_text()
+    assert 'cd "$LEAF_ROOT"' not in source and source.count('"${CMD[@]}" 2>&1 | tee -a "$log"') == 1
+    done = subprocess.run(["env", "-C", "/tmp", "pwd"], capture_output=True, text=True)
+    assert done.returncode == 0 and done.stdout.strip() == "/tmp"            # env -C changes directory like cd &&
 
 
 @pytest.fixture
@@ -136,19 +154,25 @@ def checkout(tmp_path):
     return repo, {"REPO_DIR": str(repo), "PY": str(ok), "TOOLS": str(REPO / "tools"), "CALLS": str(calls)}, str(seven)
 
 
-# a stand-in interpreter: logs its argv; a gate (--gate-only --output X) writes its record and exits GATE_STATUS
+# a stand-in interpreter: logs its argv; a gate (--gate-only --output X) writes its record and exits GATE_STATUS; the
+# B3 reuse check writes its record and exits 0, or exits REUSE_STATUS writing nothing
 FAKE_PY = """#!/bin/sh
 echo "$*" >> "$CALLS"
-out=""; gate=0; prev=""
+out=""; gate=0; reuse=0; prev=""
 for a in "$@"; do
   [ "$prev" = "--output" ] && out=$a
   [ "$a" = "--gate-only" ] && gate=1
+  case $a in *exp37_b3_reuse_check.py) reuse=1 ;; esac
   prev=$a
 done
 if [ $gate = 1 ]; then
   mkdir -p "$(dirname "$out")"
   if [ "${GATE_STATUS:-0}" = 0 ]; then echo '{"gate": "clean"}' > "$out"; else echo '{"gate": "exp36_present"}' > "$out"; fi
   exit "${GATE_STATUS:-0}"
+fi
+if [ $reuse = 1 ]; then
+  [ "${REUSE_STATUS:-0}" = 0 ] || exit "$REUSE_STATUS"
+  mkdir -p "$(dirname "$out")"; echo '{"verdict": "ok"}' > "$out"
 fi
 exit 0
 """
@@ -268,19 +292,25 @@ def _status(repo, sid):
     return json.loads((repo / D / "receipts" / f"{sid}.json").read_text())["status"]
 
 
-def test_only_the_k1_split_decisions_are_skipped_by_hand(checkout):
+def test_the_k1_split_decision_is_collective(checkout):
+    """Review 3 H-01: one decision for P1 / YAW / BF, taken at B1.split_k1.P1 (skip B1.split_k1); the other two
+    passes, their replays and the B1 summaries follow it and can never be decided one by one."""
     _repo, env, _seven = checkout
-    for sid in ("TR.split_k1.P1", "B1S.all", "B1S.noK1", "P0.1"):
+    for sid in ("B1.split_k1.YAW", "B1.split_k1.BF", "TR.split_k1.P1", "B1S.all", "B1S.noK1", "P0.1"):
         done = _bash("skip", sid, env=env)
         assert done.returncode == 2 and "B1.split_k1" in done.stderr, sid
 
 
-def test_a_skipped_k1_split_skips_its_replay_and_selects_the_nok1_summary(checkout):
+def test_skipping_the_collective_decision_skips_every_k1_split_pass(checkout):
     repo, env, _seven = checkout
     calls = Path(env["CALLS"])
-    _fabricate(repo, "TR.split_k1.P1", {"B1.split_k1.P1": "skipped"})
-    assert _bash("run", "TR.split_k1.P1", env=env).returncode == 0
-    assert _status(repo, "TR.split_k1.P1") == "skipped" and not calls.exists()     # nothing was launched
+    _fabricate(repo, "B1.split_k1.P1")
+    assert _bash("skip", "B1.split_k1", env=env).returncode == 0              # the collective decision
+    assert _bash("run", "B1.split_k1.YAW", "B1.split_k1.BF", env=env).returncode == 0
+    assert [_status(repo, f"B1.split_k1.{a}") for a in ("P1", "YAW", "BF")] == ["skipped"] * 3
+    assert not calls.exists()                                                  # no GPU pass was launched
+    _fabricate(repo, "TR.split_k1.P1")
+    assert _bash("run", "TR.split_k1.P1", env=env).returncode == 0 and _status(repo, "TR.split_k1.P1") == "skipped"
     _fabricate(repo, "B1S.all")
     assert _bash("run", "B1S.all", "B1S.noK1", env=env).returncode == 0
     assert (_status(repo, "B1S.all"), _status(repo, "B1S.noK1")) == ("skipped", "ok")
@@ -288,8 +318,92 @@ def test_a_skipped_k1_split_skips_its_replay_and_selects_the_nok1_summary(checko
     assert len(launched) == 1 and "exp37_summarize_latency.py" in launched[0] and "_noK1split.json" in launched[0]
 
 
+def test_running_the_collective_decision_runs_every_k1_split_pass(checkout):
+    repo, env, _seven = checkout
+    calls = Path(env["CALLS"])
+    _fabricate(repo, "B1.split_k1.P1")
+    assert _bash("run", "B1.split_k1.P1", env=env).returncode == 0
+    assert _bash("skip", "B1.split_k1.YAW", env=env).returncode == 2          # no individual opt-out afterwards
+    assert _bash("run", "B1.split_k1.YAW", env=env).returncode == 0 and _status(repo, "B1.split_k1.YAW") == "ok"
+    assert "b1_split_k1_YAW_s42" in calls.read_text()
+
+
+MIXED = [s for s in __import__("itertools").product(("ok", "skipped"), repeat=3) if len(set(s)) > 1]
+
+
+@pytest.mark.parametrize("statuses", MIXED, ids=["-".join(s) for s in MIXED])
+def test_a_mixed_k1_split_decision_is_refused_before_any_further_work(checkout, statuses):
+    """Review 3 H-01: receipts that mix run and skipped K_ctx 1 splits (only fabricable by hand) refuse every later
+    step before it starts -- no GPU pass, no summary that drops a split silently."""
+    repo, env, _seven = checkout
+    calls = Path(env["CALLS"])
+    _fabricate(repo, "B2.0", dict(zip((f"B1.split_k1.{a}" for a in ("P1", "YAW", "BF")), statuses)))
+    for mode in ("run", "check"):
+        done = _bash(mode, "B2.0", env=env)
+        assert done.returncode == 2 and "mixed" in done.stderr, (mode, statuses)
+    assert not calls.exists() and "B2.0" not in _receipts(repo)
+
+
+@pytest.mark.parametrize("first, second", [("ok", "skipped"), ("skipped", "ok")])
+def test_a_partly_mixed_decision_refuses_the_next_split_pass(checkout, first, second):
+    repo, env, _seven = checkout
+    calls = Path(env["CALLS"])
+    _fabricate(repo, "B1.split_k1.BF", {"B1.split_k1.P1": first, "B1.split_k1.YAW": second})
+    done = _bash("run", "B1.split_k1.BF", env=env)
+    assert done.returncode == 2 and "mixed" in done.stderr and not calls.exists()
+
+
 def test_three_run_k1_splits_select_the_full_summary(checkout):
     repo, env, _seven = checkout
     _fabricate(repo, "B1S.all")
     assert _bash("run", "B1S.all", "B1S.noK1", env=env).returncode == 0
     assert (_status(repo, "B1S.all"), _status(repo, "B1S.noK1")) == ("ok", "skipped")
+
+
+
+# ---- review 3 H-04: the B3 reuse checks gate the leaf and the cells, bound into their receipts
+@pytest.mark.parametrize("stage, consumer", [("run", "B3S.run"), ("cells", "B3S.cells")])
+def test_a_failed_reuse_check_refuses_its_consumer(checkout, stage, consumer):
+    repo, env, _seven = checkout
+    step = f"B3S.reuse.{stage}"
+    _fabricate(repo, step)
+    done = _bash("run", step, env={**env, "REUSE_STATUS": "2"})
+    assert done.returncode == 2 and step not in _receipts(repo)
+    blocked = _bash("run", consumer, env=env)
+    assert blocked.returncode == 2 and f"predecessor {step}" in blocked.stderr
+    assert "yaw_c4_spread_chain" not in Path(env["CALLS"]).read_text()
+
+
+@pytest.mark.parametrize("stage", ["run", "cells"])
+def test_a_passed_reuse_check_is_bound_into_its_receipt(checkout, stage):
+    repo, env, _seven = checkout
+    step = f"B3S.reuse.{stage}"
+    _fabricate(repo, step)
+    assert _bash("run", step, env=env).returncode == 0
+    receipt = json.loads((repo / D / "receipts" / f"{step}.json").read_text())
+    record = repo / D / "gates" / f"b3s_reuse_{stage}.json"
+    assert receipt["record"] == f"{D}/gates/b3s_reuse_{stage}.json"
+    assert receipt["record_sha256"] == hashlib.sha256(record.read_bytes()).hexdigest()
+
+
+# ---- B-02 support: a read-only preflight (check STEP) and the unbroadened allowlist
+def test_check_reports_readiness_without_side_effects(checkout):
+    repo, env, _seven = checkout
+    done = _bash("check", "P0.1", env=env)
+    assert done.returncode == 0 and "READY P0.1" in done.stdout
+    assert not list((repo / D).glob("loc_efficiency_*.log")) and not (repo / D / "receipts").exists()
+    assert _bash("check", "P0.2", env=env).returncode == 2                    # P0.1 is not done yet
+    assert _bash("run", "P0.1", env=env).returncode == 0
+    assert _bash("check", "P0.2", env=env).returncode == 0
+
+
+@pytest.mark.parametrize("stray", [f"{D}/incident_2026-11-06/quarantine/exp35_farm/x.json",
+                                   f"{D}/incident_2026-11-06/restore_run_2026-11-06_22-02-20.log",
+                                   f"{D}/incident_2026-11-06/notes.txt"])
+def test_untracked_incident_material_is_never_allowlisted(checkout, stray):
+    repo, env, _seven = checkout
+    target = repo / stray
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x")
+    done = _bash("check", "P0.1", env=env)
+    assert done.returncode == 2 and "untracked" in done.stderr
