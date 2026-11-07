@@ -7,9 +7,11 @@ registered stem -- B2 ``b2_{0p50,0p75}_{P1,BF}_s{42,43,44}`` (seed 42 the timing
 accuracy-only, D-a), ``b2t_{nested,c2f}_{arm}_s42`` + ``_replay`` (D-c), ``b2a_c2f_{arm}_s{43,44}`` (the c2f accuracy
 runs); B3 ``b3_{o0,o0_180,c4}_t{0,90}_s{seed}``
 (C4 theta 0 is B2's B-F 0.50) and the latency passes ``b3_lat_o0_s42`` / ``b3_lat_o0_180_s42`` / ``b1_k8_BF_s42`` --
-plus the B3 synthesis section (``--synthesis`` JSON from the exp_36 leaf, else the PENDING placeholder) and checks it
-with ``exp37_aggregate_b2b3.check_spec``. Missing run directories are refused unless ``--plan``. Write-once output.
-Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix round 1.
+plus the B3 synthesis section (``--synthesis``: the section ``tools/exp37_build_synthesis_cells.py`` builds at runbook
+step B3S.cells from the leaf's 8 new cells and the 4 reused exp_35 cells, else the PENDING placeholder) and checks it
+with ``exp37_aggregate_b2b3.check_spec``. Missing run directories are refused unless ``--plan`` (the planned spec);
+``--require-timing-replays`` is mandatory (D-c). Write-once output.
+Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix rounds 1-2.
 """
 
 from __future__ import annotations
@@ -26,10 +28,11 @@ sys.path.insert(0, str(REPO_ROOT))
 from tools import exp37_aggregate_b2b3 as tool  # noqa: E402
 
 SYNTHESIS_PLACEHOLDER = (
-    "PENDING -- the 8 new eval_FLAC synthesis cells ({0}, {0,180} x theta {0, 90} x K {1, 8}, seed 42, no-flash) run on "
-    "the exp_36 Coder's H35-compatible leaf; the 4 C4 cells are reused from exp_35 phase (i). The Planner fills "
-    "leaf_commit, runbook, metrics_keys and the 12 cells (orbit, theta, k_context, seed, source, metrics_json, "
-    "metrics_sha256); until then the B2 / B3 summary is diagnostic only.")
+    "PENDING -- the 8 new eval_FLAC synthesis cells ({0}, {0,180} x theta {0, 90} x K {1, 8}, seed 42, no-flash) run "
+    "by the leaf chain b3 (exp-37-b3-synthesis at d3013734, runbook step B3S.run); the 4 C4 cells are reused from "
+    "exp_35 phase (i) (H35 5b065801). Runbook step B3S.cells (tools/exp37_build_synthesis_cells.py) validates all 12 "
+    "against their embedded identities and writes the complete section; until then the B2 / B3 summary is "
+    "diagnostic only.")
 B3_STEM = {"0": "o0", "0_180": "o0_180", "c4": "c4"}
 LATENCY_STEMS = {"0": "b3_lat_o0_s42", "0_180": "b3_lat_o0_180_s42", "c4": "b1_k8_BF_s42"}
 
