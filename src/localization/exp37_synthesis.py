@@ -11,9 +11,13 @@ The leaf (launch commit ``LEAF_COMMIT``, run worktree ``LEAF_ROOT``), the reused
 digests (``REUSED``) and the artifact layout (``cell_paths``) are pinned. ``cell_reasons`` checks that the artifacts
 THEMSELVES carry the cell: the checkpoint (sha256 measured / loaded), the
 SDPA backend with the pinned no-flash overlay and launcher, the frame-average orbit, theta, K (the registered dataset
-config and its sha256), the seed, the evaluator identity (pin = the leaf commit or H35, the tree digests, the model
-config, the full argv), the source type and the stem, and that the dump manifest is the one the receipt recorded and
-binds the metrics file. Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix round 2.
+config and its sha256), the seed, the evaluator identity (pin = the leaf commit or H35; the campaign / spawn / post
+evaluator tree digests ALL equal to the audited digest of that pin -- ``LEAF_TREE_DIGEST`` for the 8 new cells, so they
+share one, ``H35_TREE_DIGEST`` for the reused ones; the model config; the argv EXACTLY the registered ordered command
+line, valueless flags included, nothing missing, duplicated, reordered or extra -- review 3 B-03), the source type and
+the stem, and that the dump manifest is the one the receipt recorded and binds the metrics file.
+Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix round 2; the final fix round (fixed after review 3,
+not re-reviewed (cap)).
 """
 
 from __future__ import annotations
@@ -77,9 +81,11 @@ METRICS_KEYS = ("T60", "C50", "EDT", "FD")                       # the registere
 SHA_KEY = {"metrics_json": "metrics_sha256", "receipt": "receipt_sha256", "dump_manifest": "dump_manifest_sha256"}
 CELL_KEYS = ("orbit", "theta", "k_context", "seed", "source", "cell", "metrics_json", "metrics_sha256", "receipt",
              "receipt_sha256", "dump_manifest", "dump_manifest_sha256")
-FIXED_ARGS = {"--cond-method": "fa_invariant", "--frame-avg-max-fwd-samples": "64", "--cond-autocast": "bf16",
-              "--cfg-scale": "1.0", "--steps": "1", "--batch-size": "64", "--device": "cuda", "--seed": "42",
-              "--rotate-mode": "fixed", "--expected-stream-count": str(STREAMS)}
+# the audited evaluator tree digests (the exp_25 runner's tree_digest over its relevant evaluator / campaign files):
+# at the leaf launch commit d3013734 -- printed by the leaf's dry run at e1de4155 (d3013734 changes only src/tests and
+# records outside that tree) and recomputed from the git objects of both commits -- and at H35 (the reused receipts)
+LEAF_TREE_DIGEST = "a0aa83520a0e8de6b80f643a2b4e4d66e523a0552b6f2010b3053caa809496c4"
+H35_TREE_DIGEST = "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1"
 
 
 def cell_name(orbit: str, theta: int, k: int) -> tuple[str, str, str]:
@@ -116,12 +122,35 @@ def _hex64(value) -> bool:
 is_hex64 = _hex64
 
 
-def _flags(argv) -> dict:
-    out, items = {}, list(argv or [])
-    for i, token in enumerate(items):
-        if isinstance(token, str) and token.startswith("--"):
-            out.setdefault(token, []).append(items[i + 1] if i + 1 < len(items) else None)
-    return out
+def expected_argv(orbit: str, theta: int, k: int, name: str) -> tuple:
+    """The registered ordered eval_FLAC command line of one cell (the exp_25 runner's argv)."""
+    return ("--model-config", MODEL_CONFIG[0], "--dataset-config", DATASET[k][0], "--cond-method", "fa_invariant",
+            "--frame-avg-angles", ",".join(str(int(a)) for a in ORBITS[orbit]), "--frame-avg-max-fwd-samples", "64",
+            "--cond-autocast", "bf16", "--cfg-scale", "1.0", "--steps", "1", "--batch-size", "64", "--device", "cuda",
+            "--record-per-scene", "--record-stream", "--expected-stream-count", str(STREAMS), "--seed", "42",
+            "--rotate-mode", "fixed", "--rotate-deg", str(theta), "--eval-name", name, "--ckpt-path", CKPT_LINK,
+            "--dump-scored-waveforms", DUMP_ROOT)
+
+
+def receipt_identity_reasons(receipt: dict, orbit: str, theta: int, k: int) -> list[str]:
+    """The receipt's evaluator identity (review 3 B-03): all three tree digests equal the audited digest of its source
+    and the argv is exactly the registered ordered command line."""
+    name, _block, source = cell_name(orbit, theta, k)
+    want = LEAF_TREE_DIGEST if source == "new" else H35_TREE_DIGEST
+    bad = []
+    digests = [receipt.get(key) for key in ("campaign_digest", "spawn_digest", "post_digest")]
+    if digests != [want] * 3:
+        bad.append(f"{name}: the receipt's evaluator tree digests {digests} are not all the audited "
+                   f"{'leaf' if source == 'new' else 'H35'} tree digest {want}")
+    argv, registered = receipt.get("argv"), expected_argv(orbit, theta, k, name)
+    if not isinstance(argv, list) or tuple(argv) != registered:
+        got = list(argv) if isinstance(argv, list) else []
+        i = next(j for j in range(max(len(got), len(registered)) + 1)
+                 if j >= len(got) or j >= len(registered) or got[j] != registered[j])
+        bad.append(f"{name}: the receipt's argv is not exactly the registered {len(registered)}-token command line "
+                   f"(first difference at token {i}: {got[i] if i < len(got) else None!r} instead of "
+                   f"{registered[i] if i < len(registered) else None!r}, after {registered[i - 1] if i else None!r})")
+    return bad
 
 
 def cell_reasons(cell: dict, *, leaf_commit: str, metrics_keys) -> tuple[list[str], dict | None]:
@@ -161,17 +190,9 @@ def cell_reasons(cell: dict, *, leaf_commit: str, metrics_keys) -> tuple[list[st
             "expect_head": pin, "rc": 0, **NO_FLASH}
     bad += [f"{name}: receipt {key} is {receipt.get(key)!r}, not {value!r}" for key, value in want.items()
             if receipt.get(key) != value]
-    digests = [receipt.get(key) for key in ("campaign_digest", "spawn_digest", "post_digest")]
-    if not _hex64(digests[0]) or len(set(digests)) != 1:
-        bad.append(f"{name}: the receipt's tree digests are not one sha256 throughout")
+    bad += receipt_identity_reasons(receipt, orbit, theta, k)        # the tree digests + the exact argv (B-03)
     if (receipt.get("artifact_sha256") or {}).get("metrics") != metrics_sha:
         bad.append(f"{name}: the receipt does not bind this metrics file")
-    flags = _flags(receipt.get("argv"))
-    expected_flags = {**FIXED_ARGS, "--frame-avg-angles": ",".join(str(int(a)) for a in ORBITS[orbit]),
-                      "--rotate-deg": str(theta), "--eval-name": name, "--model-config": MODEL_CONFIG[0],
-                      "--dataset-config": dataset, "--ckpt-path": CKPT_LINK, "--dump-scored-waveforms": DUMP_ROOT}
-    bad += [f"{name}: argv {flag} is {flags.get(flag)}, not [{value!r}]" for flag, value in expected_flags.items()
-            if flags.get(flag) != [value]]
     # ---- the evaluator's own record of the run
     want_metrics = {"eval_name": name, "ckpt_path": CKPT_LINK, "ckpt_sha256_loaded": CKPT_SHA256,
                     "cond_method": "fa_invariant", "frame_avg_angles": ORBITS[orbit], "rotate_deg": float(theta),
