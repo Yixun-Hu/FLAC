@@ -131,3 +131,12 @@ def test_the_cli_passes_the_waveform_flags(monkeypatch):
     monkeypatch.setattr(sys, "argv", base + ["--dump-waveforms", "/w/x", "--replay-of", "/r/x"])
     localize_FLAC.main()
     assert seen["dump_waveforms"] == Path("/w/x") and seen["replay_of"] == Path("/r/x")
+
+
+def test_an_unpublished_dump_of_the_stem_blocks_the_run_before_anything_is_written(frozen, tmp_path, dumps):
+    """Review 2 BLOCKING 2: a crashed dump of this stem is still staged -> quarantine it first; nothing is written."""
+    root, _ = dumps
+    (root / ".staging-run-1-abc").mkdir(parents=True)
+    with pytest.raises(RuntimeError, match="quarantine"):
+        _run(frozen, tmp_path, query_index=4467, dump_waveforms=root / "run")
+    assert not (tmp_path / "run").exists() and not (root / "run").exists()

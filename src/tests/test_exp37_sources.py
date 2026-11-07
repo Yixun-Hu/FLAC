@@ -29,7 +29,7 @@ def _pilot(counts):
     return {**body, "sha256": canonical_sha256(body)}
 
 
-def make_run(tmp_path, name, arm, pilot, *, timing, seed=42, replay_of=None, nudge=None, **modes):
+def make_run(tmp_path, name, arm, pilot, *, timing, seed=42, replay_of=None, nudge=None, rows=None, **modes):
     """A synthetic run as the runner writes it; an untimed one dumps (inline, or as the replay of ``replay_of``)."""
     mode = None if timing else ("replay" if replay_of else "inline")
     want = ident.registered_identity(arm, selection=pilot, audit=AUDIT, seed=seed, timing=timing, waveform_mode=mode,
@@ -53,7 +53,8 @@ def make_run(tmp_path, name, arm, pilot, *, timing, seed=42, replay_of=None, nud
                                                                                                [0.0, 0.0, 1.0], 0.1)}}
         if store:
             waves = np.full((n, 1, 10240), 0.01 * record["index"], dtype=np.float32)
-            result["waveforms"] = {"dump_dir": str(store.dir), **store.write(record["index"], waves, np.arange(n))}
+            index_rows = np.arange(n) if rows is None else rows
+            result["waveforms"] = {"dump_dir": str(store.dir), **store.write(record["index"], waves, index_rows)}
         save_query_result(tmp_path / name, result=result, candidates=candidates, similarities=sims)
     if store:
         store.finish(run_manifest_sha256=manifest["sha256"], identity=identity, mode=mode,
@@ -133,3 +134,12 @@ def test_a_dump_must_be_named_after_its_own_run(tmp_path):
     shutil.copytree(run, other)
     with pytest.raises(RuntimeError, match="named after"):
         sources.accuracy_source(other, arm="P1", selection=pilot, audit=AUDIT, seed=43, timing=False)
+
+
+def test_the_dumped_index_vector_is_the_query_s_candidate_mapping(tmp_path):
+    """Review 2 BLOCKING 2: a full-grid run's dumped rows are exactly arange(M) (its candidate hash is the
+    selection's); another mapping is refused."""
+    pilot = _pilot({1: 3})
+    run, _ = make_run(tmp_path, "shifted", "P1", pilot, timing=False, seed=43, rows=np.array([1, 2, 3]))
+    with pytest.raises(RuntimeError, match="index"):
+        sources.accuracy_source(run, arm="P1", selection=pilot, audit=AUDIT, seed=43, timing=False)
