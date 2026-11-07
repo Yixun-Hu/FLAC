@@ -4,7 +4,9 @@
 #   bash exp37_runbook.sh list               the registered sequence: id, phase, kind (? = optional), exact command
 #   bash exp37_runbook.sh all                every remaining step in order; stops at the first failure (its status)
 #   bash exp37_runbook.sh run STEP [STEP..]  named steps, in order (each must be next in the registered sequence)
-#   bash exp37_runbook.sh skip STEP          an OPTIONAL step only (the K_ctx 1 splits / their replays, a B1S variant)
+#   bash exp37_runbook.sh skip STEP          the Planner's K_ctx 1 split decision only (B1.split_k1.{P1,YAW,BF}); the
+#                                            conditional steps after it (TR.split_k1.*, B1S.all / B1S.noK1) are run or
+#                                            recorded as skipped by run / all from those decisions
 #   bash exp37_runbook.sh clean STEP         quarantine a FAILED model step's remains (tools/exp37_quarantine.py)
 #   bash exp37_runbook.sh check-leaf         the B3 leaf worktree is at its launch commit with a clean tree
 #
@@ -48,7 +50,7 @@ IDS=() ; declare -A PHASE RUNNER ARGS OPTIONAL
 
 add() { local id=$1 phase=$2 runner=$3; shift 3; IDS+=("$id"); PHASE[$id]=$phase; RUNNER[$id]=$runner; ARGS[$id]="$*"
         OPTIONAL[$id]=0; }
-optional() { OPTIONAL[$1]=1; }
+optional() { OPTIONAL[$1]=$2; }                                   # decision (skip by hand) | conditional (follows)
 
 # ================================================================ the registered sequence (98 steps)
 add P0.1 P0 cpu bash $D/exp37_assets.sh verify "$REPO_DIR"
@@ -70,7 +72,7 @@ for arm in P1 YAW BF; do add B1.k1.$arm B1 timed b1_k1_${arm}_s42 $arm $S128 $A0
 for arm in P1 YAW BF; do add B1.split_k8.$arm B1 timed b1_split_k8_${arm}_s42 $arm $S128 $A050 42 --stage-split; done
 for arm in P1 YAW BF; do
   add B1.split_k1.$arm B1 timed b1_split_k1_${arm}_s42 $arm $S128 $A050 42 --context-count 1 --stage-split
-  optional B1.split_k1.$arm
+  optional B1.split_k1.$arm decision
 done
 add B2.0 B2 gate b2
 for g in 0p50 0p75; do
@@ -92,7 +94,7 @@ for arm in P1 YAW BF; do
   add TR.b1_k1.$arm TR replay b1_k1_${arm}_s42_replay b1_k1_${arm}_s42 $arm $S128 $A050 42 --context-count 1
   add TR.split_k8.$arm TR replay b1_split_k8_${arm}_s42_replay b1_split_k8_${arm}_s42 $arm $S128 $A050 42
   add TR.split_k1.$arm TR replay b1_split_k1_${arm}_s42_replay b1_split_k1_${arm}_s42 $arm $S128 $A050 42 --context-count 1
-  optional TR.split_k1.$arm
+  optional TR.split_k1.$arm conditional
 done
 for g in 0p50 0p75; do
   for arm in P1 BF; do
@@ -140,11 +142,11 @@ done
 B1X=(--selection $S128 --selector $D/selector/selector_128.json --geometry-audit $A050)
 add B1S.all B1S cpu env CUDA_VISIBLE_DEVICES= $PY tools/exp37_summarize_latency.py ${B1X[*]} ${B1RUNS[*]} ${B1REPLAYS[*]} \
   ${B1K8[*]} ${B1K1[*]} --require-replays --output-json $D/b1/b1_latency_summary.json --output-md $D/b1/b1_latency_summary.md
-optional B1S.all
+optional B1S.all conditional
 add B1S.noK1 B1S cpu env CUDA_VISIBLE_DEVICES= $PY tools/exp37_summarize_latency.py ${B1X[*]} ${B1RUNS[*]} ${B1REPLAYS[*]} \
   ${B1K8[*]} --require-replays --output-json $D/b1/b1_latency_summary_noK1split.json \
   --output-md $D/b1/b1_latency_summary_noK1split.md
-optional B1S.noK1
+optional B1S.noK1 conditional
 # ---- B3 synthesis: the Planner's leaf (chain b3 at its launch commit), after every exp_37 timing pass
 add B3S.gate B3S gate b3s
 add B3S.run B3S leaf
@@ -169,7 +171,7 @@ has_receipt() { "$RPY" "$TOOLS/exp37_receipt.py" check --path "$(receipt "$1")" 
 kind_of() {
   local k=${RUNNER[$1]}
   case $k in acc|replay) k=untimed ;; g0cmp) k=cpu ;; esac
-  [ "${OPTIONAL[$1]}" = 1 ] && k="$k?"
+  [ "${OPTIONAL[$1]}" = 0 ] || k="$k?"
   echo "$k"
 }
 model_step() { case ${RUNNER[$1]} in timed|acc|replay|selector|leaf) return 0 ;; esac; return 1; }
@@ -216,14 +218,15 @@ check_leaf() {
     refuse leaf "the leaf worktree's tracked tree is dirty"; return 2; }
 }
 
-# the condition of an optional step (all: false -> auto-skip)
+# the condition of a conditional step: 0 holds, 1 does not (run / all record it as skipped), 3 none registered;
+# exactly one B1S variant holds
 condition() {
   local id=$1 arm
   case $id in
-    TR.split_k1.*) has_receipt "B1.split_k1.${id##*.}" ok ;;
-    B1S.all) for arm in P1 YAW BF; do has_receipt B1.split_k1.$arm ok || return 1; done ;;
-    B1S.noK1) for arm in P1 YAW BF; do has_receipt B1.split_k1.$arm skipped || return 1; done ;;
-    *) return 0 ;;
+    TR.split_k1.*) has_receipt "B1.split_k1.${id##*.}" ok && return 0; return 1 ;;
+    B1S.all) for arm in P1 YAW BF; do has_receipt B1.split_k1.$arm ok || return 1; done; return 0 ;;
+    B1S.noK1) for arm in P1 YAW BF; do has_receipt B1.split_k1.$arm skipped && return 0; done; return 1 ;;
+    *) refuse "$id" "no condition is registered"; return 3 ;;
   esac
 }
 
@@ -269,10 +272,24 @@ pregate() {
     --max-age-hours "$PREGATE_MAX_AGE_HOURS" || { refuse "$id" "no fresh pre-step gate receipt"; return 2; }
 }
 
+record_skip() {
+  local id=$1 why=$2 now; now=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
+  "$RPY" "$TOOLS/exp37_receipt.py" write --path "$(receipt "$id")" --step "$id" --phase "${PHASE[$id]}" --status skipped \
+    --head "$HEAD_NOW" --command "skipped: $why" --log none --started "$now" --finished "$now" || return 2
+  echo "SKIPPED [$id]: $why"
+}
+
 run_step() {
   local id=$1 log rc trc started path
   preflight "$id" || return $?
-  if [ "${OPTIONAL[$id]}" = 1 ] && ! condition "$id"; then refuse "$id" "its condition does not hold (skip it)"; return 2; fi
+  if [ "${OPTIONAL[$id]}" = conditional ]; then
+    local holds=0; condition "$id" || holds=$?
+    [ "$holds" -le 1 ] || return 2                                  # no registered condition: fail closed
+    if [ "$holds" = 1 ]; then
+      [ "$DRY_RUN" = 1 ] && { echo "DRY_RUN: $id would be recorded as skipped"; return 0; }
+      record_skip "$id" "its condition does not hold (the K_ctx 1 split decisions)"; return $?
+    fi
+  fi
   build_cmd "$id" || return 2
   [ "${RUNNER[$id]}" != leaf ] || check_leaf || return 2
   for path in "${OUTS[@]}"; do [ ! -e "$path" ] || { refuse "$id" "$path exists (outputs are fresh)"; return 2; }; done
@@ -303,12 +320,11 @@ run_step() {
 }
 
 skip_step() {
-  local id=$1 now
-  [ -n "${PHASE[$id]:-}" ] && [ "${OPTIONAL[$id]}" = 1 ] || { refuse "$id" "only an optional step can be skipped"; return 2; }
+  local id=$1
+  [ "${OPTIONAL[$id]:-0}" = decision ] || {
+    refuse "$id" "only the K_ctx 1 split decisions B1.split_k1.{P1,YAW,BF} are skipped by hand"; return 2; }
   preflight "$id" || return $?
-  now=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
-  "$RPY" "$TOOLS/exp37_receipt.py" write --path "$(receipt "$id")" --step "$id" --phase "${PHASE[$id]}" --status skipped \
-    --head "$HEAD_NOW" --command skipped --log none --started "$now" --finished "$now"
+  record_skip "$id" "the Planner's K_ctx 1 split decision"
 }
 
 case ${1:-} in
@@ -318,11 +334,7 @@ case ${1:-} in
        for id in "$@"; do run_step "$id"; rc=$?; [ "$rc" = 0 ] || { echo "STOPPED at $id (exit $rc)" >&2; exit "$rc"; }; done ;;
   all) for id in "${IDS[@]}"; do
          (cd "$REPO_DIR" && has_receipt "$id") && continue
-         if [ "${OPTIONAL[$id]}" = 1 ] && ! (cd "$REPO_DIR" && condition "$id"); then
-           skip_step "$id"; rc=$?
-         else
-           run_step "$id"; rc=$?
-         fi
+         run_step "$id"; rc=$?
          [ "$rc" = 0 ] || { echo "STOPPED at $id (exit $rc)" >&2; exit "$rc"; }
        done ;;
   skip) [ -n "${2:-}" ] || { echo "usage: bash $0 skip STEP" >&2; exit 2; }; skip_step "$2"; exit $? ;;
