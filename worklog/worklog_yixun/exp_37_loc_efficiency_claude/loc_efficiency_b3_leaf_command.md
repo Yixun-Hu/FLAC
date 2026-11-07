@@ -17,10 +17,17 @@
 - The reused exp_35 phase-(i) C4 cells (paths + sha256 + receipt fields):
   `loc_efficiency_2026-11-06_19-26-27_B3_reused_exp35_phase_i_cells.log`.
 
+- 2026-11-06 19:28-20:07 EST, the full depth_canon / exp_35 / exp_36 / exp_37 B3 suites at the leaf `e1de4155`:
+  1 failed / 1746 passed / 1 skipped (CUDA) -- the failure a test expectation (`test_exp36_a1_replays.py`: its registry
+  key list predates the exp_37 replay entry); fixed test-only in `d3013734`, that module re-run: all pass
+  (`loc_efficiency_2026-11-06_19-28-43_B3_SUITES_at_the_leaf_e1de4155.log`).
+- 2026-11-06 20:09 EST, chain b3 DRY_RUN at `d3013734` (the launch commit): exit 0, the same 1 + 8 cells, the same
+  checks, tree digest `a0aa8352...` (= at `e1de4155`): `loc_efficiency_2026-11-06_20-09-33_B3_DRYRUN_chain_b3_at_d3013734.log`.
+
 ## Prepared for the Planner (NOT run by the Coder; a GPU command)
-The worktree `~/codespace/exp-37-b3-synthesis` is detached at the leaf `e1de4155` for the run (the branch head holds
-these records); never commit there while the chain runs.
-- Chain b3: `cd /home/yixunhu/codespace/exp-37-b3-synthesis && EXPECT_HEAD=e1de4155003d5f24a0426c4cdf9d93ea1c7acc14 bash worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh b3`
+The worktree `~/codespace/exp-37-b3-synthesis` is detached at the launch commit `d3013734` (the leaf `e1de4155`'s code
++ records + a test-only fix; the branch head holds later records); never commit there while the chain runs.
+- Chain b3: `cd /home/yixunhu/codespace/exp-37-b3-synthesis && EXPECT_HEAD=d30137349027914af7f04462b05347f0f9e03c02 bash worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh b3`
   Steps: dump preflight -> the replay on `--lanes 0,1` -> `--exp36-replay-check` (exactly 0 with an equal verdict, else
   HARD STOP: exit 4 mismatch / 5 refused) -> dump preflight -> the 8 orbit cells -> exit 0 "CHAIN COMPLETE (b3)"; no
   publication. Exit 2 a gate refused, 3 the replay run failed, 6 the cells incomplete (re-run the same command to resume).

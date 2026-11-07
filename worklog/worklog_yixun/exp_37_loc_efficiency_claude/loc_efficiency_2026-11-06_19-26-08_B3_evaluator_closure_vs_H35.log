@@ -29,3 +29,17 @@ untracked assets (symlinks) -- the leaf worktree vs the exp_35 run worktree (rea
 the checkpoint: both stage /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000.ckpt (manifest sha256 5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328); the exp_35 B-F reference loaded ['5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328', 723922667] and the replay check requires the replay to load the same
 finished Fri Nov  6 07:26:14 PM EST 2026
 the B-F model config explicitly: git diff --quiet H35 leaf -- worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json: no difference
+
+=== Fri Nov  6 08:11:30 PM EST 2026: the launch commit moved to d3013734 (test-only fix + records after the leaf e1de4155); every file that differs e1de4155 -> d3013734:
+ src/tests/test_exp36_a1_replays.py                 |    3 +-
+ ...-06_18-28-52_B3_DRYRUN_chain_b3_at_6f55ff39.log |   84 +
+ ...-06_19-23-35_B3_DRYRUN_chain_b3_at_e1de4155.log |   84 +
+ ...-11-06_19-26-08_B3_evaluator_closure_vs_H35.log |   31 +
+ ...1-06_19-26-27_B3_reused_exp35_phase_i_cells.log |   27 +
+ ...-06_19-28-43_B3_SUITES_at_the_leaf_e1de4155.log | 3069 ++++++++++++++++++++
+ .../loc_efficiency_b3_leaf_command.md              |   33 +
+ .../loc_efficiency_b3_leaf_commits.md              |   15 +
+ .../yaw_c4_spread_2026-11-06_18-28-52_b3_chain.log |   71 +
+ .../yaw_c4_spread_2026-11-06_19-23-35_b3_chain.log |   71 +
+ 10 files changed, 3487 insertions(+), 1 deletion(-)
+the evaluator closure at d3013734 vs H35: no difference
