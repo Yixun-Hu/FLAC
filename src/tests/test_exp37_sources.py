@@ -6,6 +6,8 @@ its artifact replay (registered replay identity bound to the timing manifest, it
 bitwise equal); it returns the inventory entry (manifest / dump / per-query artifact sha256). CPU, synthetic runs.
 Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix round 1.
 """
+import shutil
+
 import numpy as np
 import pytest
 
@@ -120,3 +122,13 @@ def test_an_unknown_identity_field_is_a_deviation():
     assert ident.identity_reasons(identity, want, AUDIT) == []
     assert ident.identity_reasons({**identity, "surprise": 1}, want, AUDIT) == [
         "identity field surprise is not registered"]
+
+
+def test_a_dump_must_be_named_after_its_own_run(tmp_path):
+    """The dump directory is <root>/<run stem>: a run cannot claim another run's dump."""
+    pilot = _pilot({1: 3})
+    run, _ = make_run(tmp_path, "acc_a", "P1", pilot, timing=False, seed=43)
+    other = tmp_path / "acc_b"
+    shutil.copytree(run, other)
+    with pytest.raises(RuntimeError, match="named after"):
+        sources.accuracy_source(other, arm="P1", selection=pilot, audit=AUDIT, seed=43, timing=False)
