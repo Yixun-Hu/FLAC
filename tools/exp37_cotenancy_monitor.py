@@ -209,6 +209,7 @@ def run_gate(args) -> int:
     body = {"schema_version": 1, "record_type": "exp37_exp36_host_gate", "checked_at_utc": utc_now(),
             "hostname": socket.gethostname(), "exp36_roots": list(EXP36_ROOTS), "exp36_processes": hits,
             "gate": "exp36_present" if hits else "clean"}
+    os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
     temporary = f"{args.output}.tmp"
     with open(temporary, "w") as handle:
         handle.write(json.dumps({**body, "sha256": canonical_sha256(body)}, indent=2, sort_keys=True) + "\n")
