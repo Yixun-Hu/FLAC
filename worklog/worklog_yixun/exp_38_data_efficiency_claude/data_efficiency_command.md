@@ -1,6 +1,6 @@
 # exp_38 data_efficiency — commands (every launch is appended here AT LAUNCH TIME; failed / superseded runs stay, marked)
 
-Conventions: dev worktree `~/codespace/exp-38-data-efficiency` (branch `exp-38-data-efficiency`); **campaign tree** `~/codespace/exp-38-campaign` (a detached worktree at the pushed campaign pin `<PIN>`, never committed in while anything runs); conda env `flac`; `E=worklog/worklog_yixun/exp_38_data_efficiency_claude`. Nothing below has been launched for real yet (2026-11-07): only the rungs marked DONE.
+Conventions: dev worktree `~/codespace/exp-38-data-efficiency` (branch `exp-38-data-efficiency`); **campaign tree** `~/codespace/exp-38-campaign` (a detached worktree at the pushed campaign pin — since Yixun's decisions of 2026-11-08 `10063946` (closure `40445808…`), before them `bfc4ea4b` — never committed in while anything runs); conda env `flac`; `E=worklog/worklog_yixun/exp_38_data_efficiency_claude`. Only the sections marked Done have been run.
 
 ## Done (Coder, 2026-11-07, validation ladder)
 ```bash
@@ -44,7 +44,7 @@ offline table validator re-admits). E0a passes only with the exact (ours, refere
 `data_efficiency_e0a_decision.json`; everything else is type-strictly exact.
 ```bash
 # 0. move the campaign tree to the new pin (no exp_38 job may be running in it)
-PIN=<PIN>
+PIN=1006394601542d2e08afe6e4efd66e3d5a9a8bbe   # closure 404458083f4c7531…
 git -C ~/codespace/exp-38-campaign fetch origin exp-38-data-efficiency   # shared object store; harmless if present
 git -C ~/codespace/exp-38-campaign checkout --detach $PIN
 cd ~/codespace/exp-38-campaign

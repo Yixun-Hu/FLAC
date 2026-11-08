@@ -19,7 +19,7 @@ attempt (fail-closed): abandon, then submit again. Each FULL first re-hashes all
 (≈ 15 min) and again after training; the neuronic AcousticRooms tree must be byte-identical to the A6000 one.
 
 ```bash
-PIN=<PIN>      # the pushed exp_38 pin (the coordinator's report names it)
+PIN=1006394601542d2e08afe6e4efd66e3d5a9a8bbe   # the pushed exp_38 pin (10063946; closure 404458083f4c7531…)
 # 0. a campaign worktree at the pin (once; never commit in it while jobs are queued or running)
 cd /n/fs/gatrdp/codespace/FLAC && git fetch origin exp-38-data-efficiency
 git worktree add --detach /n/fs/gatrdp/codespace/exp-38-campaign $PIN

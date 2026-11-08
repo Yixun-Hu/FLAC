@@ -1,0 +1,67 @@
+HEAD 1006394601542d2e08afe6e4efd66e3d5a9a8bbe tracked-clean=yes
+........................................................................ [ 11%]
+........................................................................ [ 22%]
+........................................................................ [ 33%]
+........................................................................ [ 45%]
+........................................................................ [ 56%]
+........................................................................ [ 67%]
+........................................................................ [ 79%]
+........................................................................ [ 90%]
+.............................................................            [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+src/tests/test_exp38_bf_orbit_equivalence.py::test_loop_and_cap_equal_batch_are_bit_identical_in_training_mode
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-2x32]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-8x8]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[p1-2x32]
+src/tests/test_exp38_registry.py::test_audit_ckpt_admits_exp14s_real_dc_van_f025_endpoint
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp38_bf_orbit_equivalence.py::test_loop_and_cap_equal_batch_are_bit_identical_in_training_mode
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-2x32]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-8x8]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[p1-2x32]
+src/tests/test_exp38_registry.py::test_audit_ckpt_admits_exp14s_real_dc_van_f025_endpoint
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-2x32]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-8x8]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[p1-2x32]
+src/tests/test_exp38_registry.py::test_audit_ckpt_admits_exp14s_real_dc_van_f025_endpoint
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_ar_md_restrict_context.py::test_B6_two_workers_two_epochs_only_draw_in_split_contexts
+src/tests/test_ar_md_restrict_context.py::test_B7a_room_removed_from_the_split_after_construction_is_fatal
+src/tests/test_ar_md_restrict_context.py::test_B7b_empty_context_pool_in_a_worker_is_fatal
+src/tests/test_ar_md_restrict_context.py::test_B7b_without_the_flag_the_same_split_trains_happily
+src/tests/test_ar_md_restrict_context.py::test_B9_split_replaced_by_malformed_json_after_construction_is_fatal
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py:665: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+    warnings.warn(warn_msg)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+637 passed, 27 warnings in 704.24s (0:11:44)
+EXIT 0

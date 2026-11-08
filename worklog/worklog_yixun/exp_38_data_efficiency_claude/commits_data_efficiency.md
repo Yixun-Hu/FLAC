@@ -31,6 +31,9 @@ Branch `exp-38-data-efficiency`, cut from `localization-exp` `2b42468c8f429b1d93
 | 25 | 2bb7435b | exp_38 code r2 tests: isolate from leftover launcher variables; eval logs dir patchable |
 | 26 | 61037926 | exp_38 records: clean-HEAD evidence for code review r3 (exp38 suite 587 passed; all-paths dry run) |
 | 27 | 62b0de4a | exp_38 post-review-3 fixes (fixed without re-review, the 3-round cap): every r3 finding addressed and test-covered |
-| 28 | (this) | exp_38 records: Codex code review r3 + its disposition (fixed without re-review), D8 / D9, final evidence (exp38 suite 615 passed at 62b0de4a; all-paths dry run 31 OK + 7 registered refusals) |
+| 28 | bfc4ea4b | exp_38 records: Codex code review r3 + its disposition (fixed without re-review), D8 / D9, final evidence (exp38 suite 615 passed at 62b0de4a; all-paths dry run 31 OK + 7 registered refusals) |
+| 29 | 1a158d73 | exp_38: Yixun's decisions of 2026-11-08 — D6 E0a "Accept, label R@1" (sealed decision: the two E0a cells' R@1 keys only, measured values pinned; FLAC 25/50/75 % retrieval labelled exp_14-evaluator) + D2 = neuronic (seven runs incl. the mandatory de_p1_f025 bridge; FULL / prepare / collect neuronic-only); both command sheets rewritten — fixed without re-review |
+| 30 | 10063946 | exp_38 D2 test follow-up: launcher refusal kw9 moved to SMOKE_DDP, FULL refuses at the D2 gate (new end-to-end case) — fixed without re-review; **the campaign PIN** (closure 40445808…) |
+| 31 | (this) | exp_38 records: E0 at bfc4ea4b (FAIL on E0a only), the decisions' worklog, both sheets with PIN 10063946 resolved, evidence (exp38 suite 637 passed at 10063946; neuronic dry-run 7 OK) |
 
 Note: commit 4's message says '21 green'; after the git-dependent base-commit test moved into the audit tool (Codex plan r1 NIT 6) the file has 20 tests (all green).
