@@ -28,6 +28,7 @@ import torch
 
 import src.training.diffusion as tdiff
 from src.data import yaw_rotation as yr
+from src.data import yaw_offset_step as yq
 from src.training.factory import _parse_yaw_aug_config, create_training_wrapper_from_config
 
 _HERE = Path(__file__).resolve().parent
@@ -186,7 +187,7 @@ def test_c16_draws_are_resume_exact():
 # quantize_yaw_offsets / check_yaw_offset_step
 # --------------------------------------------------------------------------- #
 def test_quantize_is_exactly_uniform_over_the_grid():
-    snapped = yr.quantize_yaw_offsets(torch.arange(512, dtype=torch.long), 512, C16)
+    snapped = yq.quantize_yaw_offsets(torch.arange(512, dtype=torch.long), 512, C16)
     counts = collections.Counter(snapped.tolist())
     assert sorted(counts) == list(range(0, 512, C16))
     assert set(counts.values()) == {C16}
@@ -196,22 +197,22 @@ def test_quantize_is_exactly_uniform_over_the_grid():
 def test_quantize_keeps_dtype_and_device_and_does_not_mutate():
     x = torch.tensor([0, 31, 32, 33, 479, 480, 511], dtype=torch.long)
     before = x.clone()
-    y = yr.quantize_yaw_offsets(x, 512, C16)
+    y = yq.quantize_yaw_offsets(x, 512, C16)
     assert torch.equal(x, before)
     assert y.dtype == torch.long and y.device == x.device
     assert y.tolist() == [0, 0, 32, 32, 448, 480, 480]
-    assert yr.quantize_yaw_offsets(torch.zeros(0, dtype=torch.long), 512, C16).numel() == 0
+    assert yq.quantize_yaw_offsets(torch.zeros(0, dtype=torch.long), 512, C16).numel() == 0
 
 
 @pytest.mark.parametrize("step", [0, -32, 30, 512, 600, True, 32.0, "32", None])
 def test_check_offset_step_refuses(step):
     with pytest.raises(ValueError, match="offset_step"):
-        yr.check_yaw_offset_step(step, 512)
+        yq.check_yaw_offset_step(step, 512)
 
 
 @pytest.mark.parametrize("step", [1, 2, 4, 8, 16, 32, 64, 128, 256])
 def test_check_offset_step_accepts_divisors(step):
-    assert yr.check_yaw_offset_step(step, 512) == step
+    assert yq.check_yaw_offset_step(step, 512) == step
 
 
 @pytest.mark.parametrize("bad", [
@@ -223,7 +224,7 @@ def test_check_offset_step_accepts_divisors(step):
 ])
 def test_quantize_refuses_malformed_offsets(bad):
     with pytest.raises(ValueError, match="offsets"):
-        yr.quantize_yaw_offsets(bad, 512, C16)
+        yq.quantize_yaw_offsets(bad, 512, C16)
 
 
 # --------------------------------------------------------------------------- #
@@ -432,3 +433,12 @@ def test_canonicalize_still_refuses_a_c16_arm():
          "canonicalize": {"enabled": True, "img_w": 512}}
     with pytest.raises(ValueError, match="yaw_aug"):
         _parse_canonicalize_config(t)
+
+
+def test_yaw_rotation_module_is_byte_identical_to_the_exp15_state():
+    """exp_25's audit gate pins src/data/yaw_rotation.py; exp_40 adds its grid helpers in a
+    separate module so that file keeps the exp_15 / base bytes (code-r1 full-suite finding)."""
+    import subprocess
+    base = subprocess.run(["git", "show", "2b42468c8f429b1d93da93b3e4ddb7bd6f8f1932:src/data/yaw_rotation.py"],
+                          capture_output=True, check=True, cwd=Path(__file__).resolve().parents[2]).stdout
+    assert (Path(__file__).resolve().parents[2] / "src/data/yaw_rotation.py").read_bytes() == base

@@ -1,7 +1,7 @@
 import torch
 from torch.nn import Parameter
 from ..data import are_anchor
-from ..data.yaw_rotation import check_yaw_offset_step
+from ..data.yaw_offset_step import check_yaw_offset_step
 from ..models.factory import create_model_from_config
 
 # exp_40 appends the OPTIONAL "offset_step" (a discrete grid for the drawn offsets).

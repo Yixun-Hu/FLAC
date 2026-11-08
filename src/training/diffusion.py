@@ -24,12 +24,11 @@ from ..data.yaw_rotation import (
     POSE_KEYS,
     TIE_CLASSES,
     canonicalize_scene_metadata,
-    check_yaw_offset_step,
     draw_yaw_offsets,
     offsets_to_radians,
-    quantize_yaw_offsets,
     rotate_scene_metadata,
 )
+from ..data.yaw_offset_step import check_yaw_offset_step, quantize_yaw_offsets
 from ..inference.sampling import get_alphas_sigmas, sample, sample_discrete_euler, sample_flow_pingpong, truncated_logistic_normal_rescaled, DistributionShift, sample_timesteps_logsnr
 from ..models.diffusion import ConditionedDiffusionModelWrapper
 from .losses import MSELoss, MultiLoss
