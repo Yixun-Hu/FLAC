@@ -41,3 +41,15 @@
 - **Change** — `plan_yaw_aug_c16.md` r1 (r0 archived in `plan_history/plan_yaw_aug_c16_r0.md`). New decisions D4 (neuronic cadence pull vs end-only), D5 (balanced off-grid coset vs the brief's set), D6 (paper figure owner). Cell list 97 → 85 (exp_36's 12 G45 comparator cells reused through a pinned registry; FILL = 16 off-grid comparators). Pins gathered for the kit: AR sample digest `a6ec8195…` (16 deterministic train items × wav/depth/metadata), DINOv3 `model.safetensors` `4610ad75…`, dataset config `71f11e80…`, `data/AR/train.json` `aa4e52d6…`, A6000 env versions (python 3.10.20, torch 2.7.0+cu126, CUDA 12.6, cuDNN 90501, NCCL 2.26.2, driver 590.48.01, flash-attn 2.7.4.post1, …).
 - **Note** — the scratchpad is shared with sibling agents (exp_38/exp_39 Codex files appeared in `scratchpad/codex/`); exp_40 scratch moved under `scratchpad/exp40/`.
 - **Next** — Codex plan review r2.
+
+## 2026-11-07T21:46:00-05:00 — timestamp correction (append-only)
+
+- The entry above headed `21:58:00` ("plan r1 written") was mis-stamped: plan r1 was committed (`5cb77c11`) and Codex plan review r2 started at 21:46:00 (`date` in the launch command). Nothing was edited.
+
+## 2026-11-07T21:54:00-05:00 — Codex plan review r2: REVISE (2 BLOCKING / 8 HIGH / 3 NIT)
+
+- **Command / Validation** — same invocation as r1 (`-o <scratch>/exp40/codex/plan_r2_review.md`), started 21:46:00; transcript `yaw_aug_c16_2026-11-07_21-46-00_codex_plan_r2.log.gz`; review verbatim `yaw_aug_c16_codex_plan_r2_review.md`.
+- **Result** — REVISE. Resolved: provenance (H1), PILOT/MaxTime (H12); cell count 85 and 17.36 GPU-h confirmed; the evidence-driver interception points confirmed against PL 2.1 / transformer.py / conditioners.py. Still open: Slurm exactly-once needs an execution-side claim (B1); neuronic cadence-to-NAS has no reachable agent (B2); RUNTREE data/DINO closure, FULL evidence receipt + initial-state identity, a machine-wide reservation, an EVALTREE, the exp_36 dump facts (they DO have dumps), the off-grid formula, E1 wording, the figure contract.
+- **Checks made while revising** — W&B offline init does not change the seeded python/NumPy/torch RNG streams (scratch probe: digest `93b15f59…` before and after `WandbLogger(...).experiment`); `renameat2` is available in this libc; DINOv3 `config.json` sha256 `9481247b…`; `VAE.ckpt` `6198ff0d…`; `unseen_eval.json` `9a9d817a…`; wandb 0.15.4, torchvision 0.22.0. AcousticRooms is 261 rooms × (10,000 IR + 100 depth + 10,000 metadata files); a single-thread hash rate of ≈ 105 files/s was measured.
+- **Started** — the one-time full AcousticRooms content manifest (243 train + 17 unseen rooms), CPU/NAS only, `nice -n 15 ionice -c3`, 4 threads, at 21:57:54 from a hashed snapshot of the draft kit (`scratchpad/exp40/ar/`); expected 2–6 h.
+- **Next** — plan r2 → Codex plan review r3 (the last plan round).
