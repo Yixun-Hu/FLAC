@@ -129,3 +129,27 @@ def test_audit_refuses_to_overwrite(tmp_path):
     out = tmp_path / "a.json"
     out.write_text("{}")
     assert audit.main(["--out", str(out)]) == 2
+
+
+ARTIFACT = os.path.join(REPO, "worklog", "worklog_yixun", "exp_38_data_efficiency_claude", "data_efficiency_subset_audit.json")
+
+
+def test_the_artifact_binds_content_not_the_dataset_path():
+    """Codex code r1 HIGH 8: no realpath in the bound map (one artifact serves both platforms);
+    the root is bound by the room-listing fingerprint only; the registry's exact bound set."""
+    res = json.load(open(ARTIFACT))
+    assert set(res["bound"]) == set(audit.reg.SUBSET_AUDIT_BOUND) and not any("realpath" in k for k in res["bound"])
+    assert res["verdict"] == "PASS" and len(res["root_fingerprint"]) == 64
+    assert {t: res["fractions"][t]["n_targets"] for t in ("025", "050", "075")} == \
+        {"025": 73473, "050": 145665, "075": 218463}
+    assert res["bound"] == audit.bound_map()
+
+
+@pytest.mark.skipif(not os.path.isdir(os.path.join(REPO, "AcousticRooms")), reason="AcousticRooms not linked here")
+def test_verify_is_cwd_independent_and_root_content_bound(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert audit.verify(ARTIFACT, "AcousticRooms", REPO) == []
+    assert os.getcwd() == str(tmp_path)                       # no cwd side effect
+    fake = tmp_path / "AR"
+    fake.mkdir()
+    assert audit.verify(ARTIFACT, str(fake), REPO)               # another tree's listings refuse

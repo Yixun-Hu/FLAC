@@ -6,14 +6,14 @@
   "data/AR/train_frac050_s2026.json": "bf33084671130a87735a47f97ff9c5851676f65fe1828bc8f8916e55af113ce4",
   "data/AR/train_frac075_s2026.json": "57388ce870f63d9d64fda0c6722f85625580f5572b44b85add4130a8788d26c1",
   "data/AR/train_frac_manifest_s2026.json": "553534ea7fec8efe65207d6f2a81c7bbb92b9e1ac8e72e14a7cf8defea3048ae",
-  "realpath(AcousticRooms)": "/media/diskstation/yixunhu/FLAC/AcousticRooms",
   "src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json": "7ac8243f94cf9abc652e1a667c51263436041ea7a1fb0e8ed868c7e07fae7a21",
   "src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json": "b74687f7a8f314436a4220eb461a0bf222f65276fb33eff4486a51e6d32a4025",
   "src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json": "cc0e5fb8b5f221f393f19122d60c862763688f088329bcf0e42fb4ac338a17b5",
   "src/configs/dataset_configs/custom_metadata/AR_md.py": "fb2f68821e24f3e9d7f5c38ab2ecaee0235d4c9a36734c5bf4fe35fa86198310",
   "src/data/dataset.py": "dbb9430f4a21ceefd16b6528c45ee0261b7eed866db5da59c6dabb2e457bafbf",
-  "worklog/worklog_yixun/exp_38_data_efficiency_claude/exp38_subset_audit.py": "7ff98941dc97b8d4016293dc0bbd0ddb66b960a32ff6760541c389ffa96adecf"
+  "worklog/worklog_yixun/exp_38_data_efficiency_claude/exp38_subset_audit.py": "b0ee65fb01ef7b3f26d4ff3337d8ecc8d6d3def359ecf198b71474b63f8aef70"
  },
+ "dataset_root_seen": "/media/diskstation/yixunhu/FLAC/AcousticRooms",
  "fractions": {
   "025": {
    "candidates_removed_by_restriction": 2494862,

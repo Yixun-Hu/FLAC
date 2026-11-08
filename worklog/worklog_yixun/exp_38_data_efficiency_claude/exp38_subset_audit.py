@@ -132,9 +132,9 @@ def audit_split(split_rel, restrict, dataset_root, listings=None):
     return summary, per_room, problems
 
 
-def root_fingerprint(dataset_root, listings=None):
+def root_fingerprint(dataset_root, listings=None, repo=None):
     """sha256 over every room directory's sorted listing (the 243 rooms of train.json)."""
-    tr = json.load(open(TRAIN_JSON))
+    tr = json.load(open(os.path.join(repo or reg.REPO, TRAIN_JSON)))
     h = hashlib.sha256()
     for scene in sorted(tr):
         for room in sorted(tr[scene]):
@@ -144,38 +144,46 @@ def root_fingerprint(dataset_root, listings=None):
     return h.hexdigest()
 
 
-def bound_map(dataset_root):
-    files = [AR_MD, DATASET_PY, MANIFEST, TRAIN_JSON, os.path.relpath(os.path.realpath(__file__), reg.REPO)]
+def bound_map(repo=None):
+    """sha256 of every input the audit read, by repo-relative path. The dataset ROOT is bound by
+    content only (``root_fingerprint``), never by its path, so one artifact serves every platform
+    whose AcousticRooms tree lists identically (Codex code r1 HIGH 8)."""
+    repo = repo or reg.REPO
+    files = [AR_MD, DATASET_PY, MANIFEST, TRAIN_JSON, f"{reg.EXP_DIR}/exp38_subset_audit.py"]
     for t in reg.FRACS:
         files += [reg.FRACS[t]["split"], reg.FRACS[t]["dataset_config"]]
-    out = {rel: reg.sha256_file(rel) for rel in sorted(set(files))}
-    out["realpath(" + dataset_root + ")"] = os.path.realpath(dataset_root)
-    return out
+    return {rel: reg.sha256_file(os.path.join(repo, rel)) for rel in sorted(set(files))}
 
 
 def verify(artifact, dataset_root="AcousticRooms", repo=None):
     """Re-check a committed audit against the CURRENT tree: sidecar, PASS, the complete bound map
-    and the root fingerprint (one listing per room, seconds). Returns a list of problems."""
-    os.chdir(repo or reg.REPO)
+    and the root fingerprint (one listing per room, seconds). Returns a list of problems. No cwd
+    change: every path is resolved against ``repo``."""
+    repo = repo or reg.REPO
     try:
         text = open(artifact, "rb").read()
-        side = open(artifact + ".sha256").read().split()[0]
+        side = open(artifact + ".sha256").read().split()
     except OSError as err:
         return [f"artifact unreadable: {err}"]
-    if hashlib.sha256(text).hexdigest() != side:
+    if side != [hashlib.sha256(text).hexdigest(), os.path.basename(artifact)]:
         return ["artifact does not match its .sha256"]
     res = json.loads(text)
     p = [] if res.get("verdict") == "PASS" and not res.get("problems") else [f"verdict {res.get('verdict')}"]
-    if res.get("bound") != bound_map(dataset_root):
-        cur = bound_map(dataset_root)
+    cur = bound_map(repo)
+    if res.get("bound") != cur:
         p.append(f"bound map differs: {sorted(k for k in set(cur) | set(res.get('bound', {})) if cur.get(k) != res.get('bound', {}).get(k))}")
-    if res.get("root_fingerprint") != root_fingerprint(dataset_root):
-        p.append("the AcousticRooms room listings changed since the audit")
+    root = dataset_root if os.path.isabs(dataset_root) else os.path.join(repo, dataset_root)
+    try:
+        if res.get("root_fingerprint") != root_fingerprint(root):
+            p.append("the AcousticRooms room listings changed since the audit")
+    except OSError as err:
+        p.append(f"AcousticRooms tree unreadable: {err}")
     return p
 
 
 def run_audit(dataset_root="AcousticRooms", repo="."):
     problems, out = [], {"schema": 1, "fractions": {}}
+    repo = os.path.realpath(repo)
     os.chdir(repo)
     for (path, name), want in EXP14_FN_SHA256.items():
         got = fn_source_sha256(open(path).read(), name)
@@ -218,7 +226,8 @@ def run_audit(dataset_root="AcousticRooms", repo="."):
         problems.append(f"100 %: in-split histogram {total} != manifest {manifest['full_split_context_histogram']}")
     summary["context_histogram_in_split"] = total
     out["full_split"] = summary
-    out["bound"] = bound_map(dataset_root)
+    out["bound"] = bound_map(repo)
+    out["dataset_root_seen"] = os.path.realpath(dataset_root)     # informational, not bound
     out["root_fingerprint"] = root_fingerprint(dataset_root, listings)
     out["problems"] = problems
     out["verdict"] = "PASS" if not problems else "FAIL"
