@@ -54,6 +54,7 @@ export HF_HOME="$HF_SEALED" HF_HUB_CACHE="$HF_SEALED/hub" HF_HUB_OFFLINE=1 TRANS
 NS="$EXEC_ID"
 RT="$SAVE_ROOT/runtime/$NS"
 TMPDIR="$(mktemp -d /tmp/exp40.XXXXXX)" || die "mktemp failed"     # short: torch_shm_manager socket path
+trap 'rm -rf -- "$TMPDIR"' EXIT                 # replaced by the full cleanup trap below
 export WANDB_MODE=offline WANDB_DIR="$RT/wandb" TMPDIR XDG_CACHE_HOME="$RT/xdg" \
   TORCH_HOME="$RT/torch" TRITON_CACHE_DIR="$RT/triton" MPLCONFIGDIR="$RT/mpl"
 mkdir -p "$WANDB_DIR" "$TMPDIR" "$XDG_CACHE_HOME" "$TORCH_HOME" "$TRITON_CACHE_DIR" "$MPLCONFIGDIR" || die "runtime dirs"
