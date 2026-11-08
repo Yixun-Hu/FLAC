@@ -243,10 +243,31 @@ def test_gpu_locks_race_rollback_and_owner(tmp_path):
 # neuronic: execution-identity claims and the submission state machine
 # --------------------------------------------------------------------------- #
 def test_claim_is_per_execution_and_exclusive(tmp_path):
-    p = kit.claim(str(tmp_path), "exp40_C16_neuronic_2x32", "FULL", "101", "intentA")
+    claims = os.path.join(_control(tmp_path), "claims")
+    p = kit.claim(claims, "exp40_C16_neuronic_2x32", "FULL", "101", "intentA")
     assert os.path.basename(p) == "exp40_C16_neuronic_2x32__FULL.claim" and "intentA" not in p
     with pytest.raises(kit.Refused, match="must not train"):
-        kit.claim(str(tmp_path), "exp40_C16_neuronic_2x32", "FULL", "102", "intentB")
+        kit.claim(claims, "exp40_C16_neuronic_2x32", "FULL", "102", "intentB")
+
+
+def test_a_second_control_namespace_cannot_admit_the_same_execution(tmp_path, capsys):
+    """code-r2 B1: exactly ONE control directory; another one is refused for submission and
+    for the in-job claim, and the CLI offers no override."""
+    _control(tmp_path)
+    other = os.path.realpath(str(tmp_path / "other_control"))
+    with pytest.raises(kit.Refused, match="not THE exp_40 control directory"):
+        kit.neuronic_submit(other, "exp40_C16_neuronic_2x32", "FULL", "exp40_C16_neuronic_2x32", _argv, Sched(),
+                            relaxation="post-run-publish", probe_ok=True)
+    with pytest.raises(kit.Refused, match="claims dir"):
+        kit.claim(os.path.join(other, "claims"), "exp40_C16_neuronic_2x32", "FULL", "7", "i")
+    kit.claim(os.path.join(kit.ALLOWED_CONTROL, "claims"), "exp40_C16_neuronic_2x32", "FULL", "7", "i")
+    with pytest.raises(SystemExit):
+        kit.main(["neuronic-submit", "--control-dir", other, "--run-id", "x", "--mode", "FULL",
+                  "--execution-id", "x", "--sbatch-json", "{}", "--probe-script", "s", "--expect-sha", "a" * 40,
+                  "--maxtime-raw", "1:00:00", "--time-min", "1", "--source-checkout", "/x"])
+    for name in ("exp40_submit_neuronic.sh", "exp40_train.sbatch", "exp40_claim_probe.sbatch"):
+        text = (_EXP / name).read_text()
+        assert "/n/fs/gatrdp/exp40_control" in text, name
 
 
 class Sched:
@@ -281,8 +302,17 @@ def _argv(name, intent):
     return ["sbatch", "--parsable", "--job-name", name, "--comment", intent, "script"]
 
 
+@pytest.fixture(autouse=True)
+def _restore_allowed_control():
+    saved = kit.ALLOWED_CONTROL
+    yield
+    kit.ALLOWED_CONTROL = saved
+
+
 def _control(tmp_path):
-    return os.path.realpath(str(tmp_path / "control"))
+    """THE control directory of this test (code-r2 B1: the kit accepts exactly one)."""
+    kit.ALLOWED_CONTROL = os.path.realpath(str(tmp_path / "control"))
+    return kit.ALLOWED_CONTROL
 
 
 def _submit(tmp_path, sched, exec_id, mode="PILOT", **kw):
@@ -456,6 +486,7 @@ def test_concurrent_submitters_from_two_checkouts_share_one_control_dir(tmp_path
 
 def _race_claim(args):
     claims, i, barrier = args
+    kit.ALLOWED_CONTROL = os.path.dirname(claims)
     barrier.wait()
     try:
         kit.claim(claims, "exp40_C16_neuronic_2x32", "FULL", str(100 + i), f"intent{i}")
@@ -469,7 +500,7 @@ def test_claim_is_exclusive_under_true_concurrency(tmp_path):
     ctx = mp.get_context("fork")
     barrier = ctx.Manager().Barrier(8)
     with ctx.Pool(8) as pool:
-        got = pool.map(_race_claim, [(str(tmp_path / "claims"), i, barrier) for i in range(8)])
+        got = pool.map(_race_claim, [(os.path.join(_control(tmp_path), "claims"), i, barrier) for i in range(8)])
     assert sum(got) == 1
 
 
@@ -1025,7 +1056,7 @@ def _race_probe(args):
 
 
 def _probe(tmp_path):
-    control = os.path.realpath(str(tmp_path / "control"))
+    control = _control(tmp_path)
     d = os.path.join(control, "claims", "probe_123")
     os.makedirs(d)
     import multiprocessing as mp
@@ -1045,23 +1076,41 @@ def test_claim_probe_barrier_rounds_and_receipt_validation(tmp_path):
     out = kit.control_paths(control)["probe"]
     os.makedirs(os.path.dirname(out))
     kit.atomic_write_json(out, rec)
-    assert kit.probe_receipt_reasons(out, control, script) == []
+    here = ranks[0]["mount"]
+    SHA = "a" * 40
+    assert kit.probe_receipt_reasons(out, control, script, SHA, current_mount=here) == []
     for key, val in [("verdict", "FAIL"), ("hosts", ["h", "h"]), ("rounds", 19), ("winners", [0] * 19),
                      ("control_dir", "/elsewhere"), ("dir", "/elsewhere/claims/probe_1"),
                      ("mounts", {"0": {"source": "a", "fstype": "nfs"}, "1": {"source": "b", "fstype": "nfs"}}),
                      ("job_id", ""), ("source_sha", "x"), ("script_sha256", "0" * 64),
                      ("t", time.time() - 15 * 86400), ("t", time.time() + 3600), ("reasons", ["x"])]:
         kit.atomic_write_json(out, {**rec, key: val})
-        assert kit.probe_receipt_reasons(out, control, script), key
+        assert kit.probe_receipt_reasons(out, control, script, SHA, current_mount=here), key
     kit.atomic_write_json(out, {**rec, "extra": 1})
-    assert kit.probe_receipt_reasons(out, control, script)
+    assert kit.probe_receipt_reasons(out, control, script, SHA, current_mount=here)
     kit.atomic_write_json(out, rec)
+    # code-r2 B2: bound to EXPECT_SHA and to an exact, successful, CURRENT mount
+    assert any("not EXPECT_SHA" in x for x in kit.probe_receipt_reasons(out, control, script, "b" * 40,
+                                                                          current_mount=here))
+    m0 = rec["mounts"]["0"]
+    for bad, needle in [({**m0, "source": ""}, "empty or malformed"), ({**m0, "findmnt_rc": 1}, "findmnt failed"),
+                        ({k: v for k, v in m0.items() if k != "dev"}, "exact schema"),
+                        ({**m0, "fstype": "nfs4"}, "different mounts")]:
+        kit.atomic_write_json(out, {**rec, "mounts": {"0": bad, "1": rec["mounts"]["1"]}})
+        assert any(needle in x for x in kit.probe_receipt_reasons(out, control, script, SHA, current_mount=here)), needle
+    empty = {"source": "", "fstype": "", "dev": 0, "findmnt_rc": 1}
+    kit.atomic_write_json(out, {**rec, "mounts": {"0": empty, "1": empty}})              # two failed records
+    assert any("findmnt failed" in x for x in kit.probe_receipt_reasons(out, control, script, SHA, current_mount=here))
+    kit.atomic_write_json(out, rec)
+    moved = {**here, "source": "//elsewhere/share", "fstype": "cifs"}
+    assert any("now on" in x for x in kit.probe_receipt_reasons(out, control, script, SHA, current_mount=moved))
+    assert kit.probe_receipt_reasons(out, control, script, SHA) == []                  # real current mount
     other = tmp_path / "other.json"
     kit.atomic_write_json(str(other), rec)
-    assert kit.probe_receipt_reasons(str(other), control, script)              # not the control's receipt
+    assert any("must be" in x for x in kit.probe_receipt_reasons(str(other), control, script, SHA, current_mount=here))
     script_text = open(script).read()
     open(script, "w").write(script_text + "# edited\n")
-    assert kit.probe_receipt_reasons(out, control, script)
+    assert any("probe script" in x for x in kit.probe_receipt_reasons(out, control, script, SHA, current_mount=here))
 
 
 def test_claim_probe_verdict_fails_on_one_host_two_winners_or_outside_dir(tmp_path):
@@ -1082,7 +1131,8 @@ def test_claim_probe_verdict_fails_on_one_host_two_winners_or_outside_dir(tmp_pa
     kit.atomic_write_json(os.path.join(d, "rank1.json"), r1)
     assert kit.probe_verdict(d, control, "1", script, "a" * 40, 1)["verdict"] == "FAIL"     # srun rc
     elsewhere = os.path.realpath(str(tmp_path / "other_control"))
-    assert kit.probe_verdict(d, elsewhere, "1", script, "a" * 40, 0)["verdict"] == "FAIL"
+    with pytest.raises(kit.Refused, match="not THE exp_40 control directory"):
+        kit.probe_verdict(d, elsewhere, "1", script, "a" * 40, 0)
 
 
 # --------------------------------------------------------------------------- #
@@ -1223,12 +1273,20 @@ def test_nas_capability_probe_and_receipt_validation(tmp_path):
     path = str(tmp_path / "nas_capability_a6000.json")
     kit.atomic_write_json(path, rec)
     assert kit.nas_receipt_reasons(path, dest_root=root) == []
-    for key, val in [("verdict", "FAIL"), ("dest_root", "/x"), ("t", time.time() - 49 * 3600),
-                     ("t", time.time() + 600), ("checks", {**rec["checks"], "o_excl_create": "FAILED"})]:
+    for key, val, needle in [("verdict", "FAIL", "did not PASS"), ("dest_root", "/x", "tested"),
+                             ("t", time.time() - 49 * 3600, "age"), ("t", time.time() + 600, "age"),
+                             ("checks", {**rec["checks"], "o_excl_create": "FAILED"}, "each True"),
+                             ("checks", {f"renamed_{i}": True for i in range(5)}, "not exactly"),
+                             ("mount", {**rec["mount"], "findmnt_rc": 2}, "findmnt failed"),
+                             ("mount", {**rec["mount"], "source": ""}, "empty or malformed"),
+                             ("mount", {"source": rec["mount"]["source"]}, "exact schema")]:
         kit.atomic_write_json(path, {**rec, key: val})
-        assert kit.nas_receipt_reasons(path, dest_root=root), key
+        assert any(needle in x for x in kit.nas_receipt_reasons(path, dest_root=root)), (key, needle)
     kit.atomic_write_json(path, {**rec, "more": 1})
-    assert kit.nas_receipt_reasons(path, dest_root=root)
+    assert any("exact schema" in x for x in kit.nas_receipt_reasons(path, dest_root=root))
+    kit.atomic_write_json(path, rec)
+    moved = {**rec["mount"], "source": "//10.0.0.9/other", "fstype": "cifs"}
+    assert any("now on" in x for x in kit.nas_receipt_reasons(path, dest_root=root, current_mount=moved))
 
 
 def test_mount_identity_takes_the_innermost_mount_of_an_autofs_path(monkeypatch, tmp_path):
@@ -1251,41 +1309,111 @@ def full_stream():
     return kit.expected_stream(kit.ROOT, kit.ENDPOINT, range(2), 32, verbatim=False)
 
 
-def _full_records(tmp_path, stream, run_id="exp40_C16_a6000_2x32"):
+def _fit(r, world=2):
+    sig = hashlib.sha256(b"state").hexdigest()
+    return {"kind": "fit_start", "rank": r, "world_size": world, "local_rank": r,
+            "gpu_name": "NVIDIA RTX A6000", "gpu_uuid": [U0, U1][r][4:], "syncbn_modules": 20,
+            "batchnorm_modules": 20, "yaw_aug": dict(kit.YAW_BLOCK), "flash_attn_func_is_none": False,
+            "state_signature": sig, "param_signature": hashlib.sha256(b"param").hexdigest(),
+            "rng_signature": {"python": "r", "torch_cpu": "c"}, "global_step": 0,
+            "numerics": {"matmul_allow_tf32": True, "cudnn_allow_tf32": True, "cudnn_benchmark": False,
+                         "cudnn_deterministic": False, "float32_matmul_precision": "medium"}}
+
+
+def _summary(r, e, steps, published):
+    keys = sorted(str(t) for t in kit.SAMPLED_STEPS if t < steps)
+    return {"rank": r, "counts": {"apply_yaw_aug": steps, "training_step": steps, "ckpt_reentrant": 0,
+                                  "ckpt_default": 0, "ckpt_unclassified": 0, "flash_calls": 9,
+                                  "ckpt_dinov3": 9, "ckpt_dit": 9, "checkpoints_published": published},
+            "offset_digest": e["digest"], "offset_histogram": e["hist"], "n_offsets": e["n"],
+            "sampled_offsets": {k: e["sampled"][k] for k in keys},
+            "sampled_losses": {k: (2.5).hex() for k in keys}, "n_steps": steps, "global_step": steps,
+            "steps_contiguous_from_0": True, "all_losses_finite": True, "pid": 1000 + r}
+
+
+@pytest.fixture(scope="module")
+def smoke_stream():
+    return kit.expected_stream(kit.ROOT, kit.SMOKE_STEPS["DDP_SMOKE"], range(2), 32, verbatim=False)
+
+
+def _full_records(tmp_path, stream, run_id="exp40_C16_a6000_2x32", smoke=None):
+    """The exact producer shapes: the check record, the DDP_SMOKE reference receipt and the
+    FULL evidence of a 2x32 A6000 run, bound by sha256."""
     sha = "b" * 40
     argv = kit.train_argv("a6000", "2x32", "FULL", run_id, "/save")
-    fit = {"kind": "fit_start", "world_size": 2, "yaw_aug": kit.YAW_BLOCK, "global_step": 0,
-           "flash_attn_func_is_none": False, "state_signature": "s", "param_signature": "p",
-           "rng_signature": {"python": "r"}, "numerics": {"x": 1}, "syncbn_modules": 4}
-    fits = {str(r): dict(fit, rank=r) for r in range(2)}
-    sums = {}
-    for r in range(2):
-        e = stream[r]
-        sums[str(r)] = {"rank": r, "counts": {"apply_yaw_aug": 40000, "training_step": 40000, "ckpt_reentrant": 0,
-                                              "ckpt_default": 0, "ckpt_unclassified": 0, "flash_calls": 9,
-                                              "ckpt_dinov3": 9, "ckpt_dit": 9,
-                                              "checkpoints_published": 16 if r == 0 else 0},
-                        "offset_digest": e["digest"], "offset_histogram": e["hist"], "n_offsets": e["n"],
-                        "sampled_offsets": e["sampled"], "n_steps": 40000, "global_step": 40000,
-                        "steps_contiguous_from_0": True, "all_losses_finite": True}
+    sargv = kit.train_argv("a6000", "2x32", "DDP_SMOKE", run_id, "/smoke", "2026-11-08_00-00-00")
+    fits = {str(r): _fit(r) for r in range(2)}
+    links = {"AcousticRooms": "/ar", kit.VAE: "/vae"}
     check = {"verdict": "PASS", "reasons": [], "sha": sha, "tree_digest": "1" * 64, "env_digest": "2" * 64,
-             "argv": argv}
-    ref = {"verdict": "PASS", "kind": "ddp_smoke", "platform": "a6000", "rung": "2x32", "sha": sha,
-           "tree_digest": "1" * 64, "env_digest": "2" * 64,
-           "recipe_projection": kit.recipe_projection(argv), "evidence": {"verdict": "PASS", "reasons": []},
-           "train_rc": 0, "watcher_rc": 0, "fit_start": fits}
+             "argv": argv, "links": links}
     rec_dir = tmp_path / "receipts"
     rec_dir.mkdir(exist_ok=True)
     kit.atomic_write_json(str(rec_dir / "check.json"), check)
+    kst = smoke if smoke is not None else {r: dict(stream[r], n=30 * 32, hist=[60] * 16,
+                                                   sampled={k: stream[r]["sampled"][k] for k in ("0", "1", "2", "3")})
+                                           for r in range(2)}
+    ref = {"verdict": "PASS", "kind": "ddp_smoke", "platform": "a6000", "rung": "2x32", "mode": "DDP_SMOKE",
+           "run_id": run_id, "stamp": "2026-11-08_00-00-00", "sha": sha, "tree_digest": "1" * 64,
+           "env_digest": "2" * 64, "recipe_projection": kit.recipe_projection(sargv), "argv": sargv,
+           "train_rc": 0, "watcher_rc": 0, "publisher_rc": 0, "reference_sha256": None,
+           "evidence": {"verdict": "PASS", "reasons": []}, "fit_start": fits,
+           "summaries": {str(r): _summary(r, kst[r], 30, 0) for r in range(2)}, "check_sha256": "3" * 64}
     kit.atomic_write_json(str(rec_dir / "ref.json"), ref)
     ev = {"verdict": "PASS", "kind": "full_evidence", "platform": "a6000", "rung": "2x32", "mode": "FULL",
-          "run_id": run_id, "stamp": "", "sha": sha, "tree_digest": "1" * 64, "env_digest": "2" * 64,
-          "recipe_projection": kit.recipe_projection(argv), "argv": argv, "train_rc": 0, "watcher_rc": 0,
-          "publisher_rc": 0, "reference_sha256": kit.sha256_file(str(rec_dir / "ref.json")),
-          "evidence": {"verdict": "PASS", "reasons": []}, "fit_start": fits, "summaries": sums,
+          "run_id": run_id, "stamp": "2026-11-08_01-00-00", "sha": sha, "tree_digest": "1" * 64,
+          "env_digest": "2" * 64, "recipe_projection": kit.recipe_projection(argv), "argv": argv,
+          "train_rc": 0, "watcher_rc": 0, "publisher_rc": 0,
+          "reference_sha256": kit.sha256_file(str(rec_dir / "ref.json")),
+          "evidence": {"verdict": "PASS", "reasons": []}, "fit_start": fits,
+          "summaries": {str(r): _summary(r, stream[r], 40000, 16 if r == 0 else 0) for r in range(2)},
           "check_sha256": kit.sha256_file(str(rec_dir / "check.json"))}
     kit.atomic_write_json(str(rec_dir / "ev.json"), ev)
     return rec_dir, ev
+
+
+def test_the_reference_receipt_validator_is_exact(tmp_path, full_stream, smoke_stream):
+    """code-r2 B3: the DDP_SMOKE / PILOT receipt -- every produced field, nested exactly."""
+    d, ev = _full_records(tmp_path, full_stream, smoke=smoke_stream)
+    ref = kit.read_json(str(d / "ref.json"))
+    args = ("ddp_smoke", "a6000", "2x32", "b" * 40, "1" * 64, "2" * 64, ev["recipe_projection"])
+    assert kit.receipt_reasons(ref, *args) == []
+    import copy
+    cases = [
+        (lambda x: x.pop("publisher_rc"), "exact schema"), (lambda x: x.update(extra=1), "exact schema"),
+        (lambda x: x.update(mode="FULL"), "mode"), (lambda x: x.update(run_id="exp40_C16_neuronic_2x32"), "run_id"),
+        (lambda x: x.update(stamp=""), "stamp"), (lambda x: x.update(publisher_rc=1), "publisher_rc"),
+        (lambda x: x.update(reference_sha256="0" * 64), "reference_sha256"),
+        (lambda x: x["argv"].__setitem__(x["argv"].index("--max-steps") + 1, "29"), "--max-steps"),
+        (lambda x: x["fit_start"]["1"].pop("gpu_uuid"), "fit_start keys"),
+        (lambda x: x["fit_start"]["1"].update(gpu_uuid=x["fit_start"]["0"]["gpu_uuid"]), "same GPU"),
+        (lambda x: x["fit_start"]["0"].update(gpu_name="NVIDIA L40"), "gpu_name"),
+        (lambda x: x["fit_start"]["0"].update(syncbn_modules=0), "syncbn_modules"),
+        (lambda x: x["fit_start"]["0"].update(batchnorm_modules=21), "syncbn_modules"),
+        (lambda x: x["fit_start"]["1"].update(local_rank=0), "local_rank"),
+        (lambda x: x["fit_start"]["0"].update(rank=True), "rank"),
+        (lambda x: x["fit_start"]["0"]["numerics"].pop("cudnn_benchmark"), "numerics"),
+        (lambda x: x["fit_start"]["0"]["yaw_aug"].update(enabled=1), "yaw_aug"),
+        (lambda x: x["summaries"]["1"].pop("pid"), "summary keys"),
+        (lambda x: x["summaries"]["1"].update(rank=0), "summary of rank"),
+        (lambda x: x["summaries"]["0"]["counts"].pop("ckpt_dit"), "counters"),
+        (lambda x: x["summaries"]["0"]["counts"].update(ckpt_dit=True), "counters"),
+        (lambda x: x["summaries"]["0"]["offset_histogram"].__setitem__(0, 0), "histogram"),
+        (lambda x: x["summaries"]["0"]["sampled_offsets"].pop("3"), "sampled offsets"),
+        (lambda x: x["summaries"]["0"]["sampled_offsets"]["0"].__setitem__(0, 33), "sampled offsets"),
+        (lambda x: x["summaries"]["0"]["sampled_losses"].update({"0": "nan"}), "sampled losses"),
+        (lambda x: x["summaries"]["0"]["sampled_losses"].update({"0": (float("inf")).hex()}), "sampled losses"),
+    ]
+    for mutate, needle in cases:
+        bad = copy.deepcopy(ref)
+        mutate(bad)
+        got = kit.receipt_reasons(bad, *args)
+        assert any(needle in x for x in got), (needle, got)
+    pilot = dict(copy.deepcopy(ref), kind="pilot", mode="PILOT", platform="neuronic", run_id="exp40_C16_neuronic_2x32")
+    for v in (None, 0, -1.0, float("nan"), True, "2.0"):
+        bad = dict(pilot, sec_per_step=v)
+        assert any("sec_per_step" in x or "rate" in x for x in
+                   kit.receipt_reasons(bad, "pilot", "neuronic", "2x32", "b" * 40, "1" * 64, "2" * 64,
+                                       ev["recipe_projection"])), v
 
 
 def test_full_evidence_validator_accepts_the_bound_record(tmp_path, full_stream, monkeypatch):
@@ -1296,27 +1424,38 @@ def test_full_evidence_validator_accepts_the_bound_record(tmp_path, full_stream,
     assert r == [] and rec == ev and sha == kit.sha256_file(str(d / "ev.json"))
 
 
-@pytest.mark.parametrize("mutate", [
-    lambda e: e.update(verdict="FAIL"), lambda e: e.update(kind="ddp_smoke"), lambda e: e.update(mode="PILOT"),
-    lambda e: e.update(platform="neuronic"), lambda e: e.update(rung="8x8"), lambda e: e.update(sha="z"),
-    lambda e: e.update(tree_digest="x"), lambda e: e.update(train_rc=1), lambda e: e.update(watcher_rc=False),
-    lambda e: e.update(publisher_rc=3), lambda e: e.update(evidence={"verdict": "PASS", "reasons": ["x"]}),
-    lambda e: e["argv"].__setitem__(e["argv"].index("--seed") + 1, "43"),
-    lambda e: e["summaries"]["0"]["counts"].update(checkpoints_published=15),
-    lambda e: e["summaries"]["1"]["counts"].update(checkpoints_published=1),
-    lambda e: e["summaries"]["1"]["counts"].update(ckpt_reentrant=1),
-    lambda e: e["summaries"]["0"]["counts"].update(flash_calls=0),
-    lambda e: e["summaries"]["0"]["counts"].update(apply_yaw_aug=39999),
-    lambda e: e["summaries"]["1"].update(all_losses_finite=None),
-    lambda e: e["summaries"]["0"].update(steps_contiguous_from_0=False),
-    lambda e: e["summaries"]["1"].update(offset_digest="0" * 64),
-    lambda e: e["summaries"].pop("1"),
-    lambda e: e["fit_start"]["0"].update(yaw_aug={"enabled": True}),
-    lambda e: e["fit_start"]["1"].update(rng_signature={"python": "other"}),
-    lambda e: e.update(reference_sha256="0" * 64), lambda e: e.update(check_sha256="0" * 64),
-    lambda e: e.update(extra=1), lambda e: e.pop("stamp"),
+@pytest.mark.parametrize("mutate,needle", [
+    (lambda e: e.update(verdict="FAIL"), "verdict"), (lambda e: e.update(kind="ddp_smoke"), "kind"),
+    (lambda e: e.update(mode="PILOT"), "mode"), (lambda e: e.update(platform="neuronic"), "platform"),
+    (lambda e: e.update(rung="8x8"), "rung"), (lambda e: e.update(sha="z"), "40-hex"),
+    (lambda e: e.update(tree_digest="x"), "tree_digest"), (lambda e: e.update(train_rc=1), "train_rc"),
+    (lambda e: e.update(watcher_rc=False), "watcher_rc"), (lambda e: e.update(publisher_rc=3), "publisher_rc"),
+    (lambda e: e.update(evidence={"verdict": "PASS", "reasons": ["x"]}), "evidence"),
+    (lambda e: e["argv"].__setitem__(e["argv"].index("--seed") + 1, "43"), "recipe projection"),
+    (lambda e: e["summaries"]["0"]["counts"].update(checkpoints_published=15), "checkpoints_published"),
+    (lambda e: e["summaries"]["1"]["counts"].update(checkpoints_published=1), "checkpoints_published"),
+    (lambda e: e["summaries"]["1"]["counts"].update(ckpt_reentrant=1), "ckpt_reentrant"),
+    (lambda e: e["summaries"]["0"]["counts"].update(flash_calls=0), "flash_calls"),
+    (lambda e: e["summaries"]["0"]["counts"].update(apply_yaw_aug=39999), "apply_yaw_aug"),
+    (lambda e: e["summaries"]["1"].update(all_losses_finite=None), "all_losses_finite"),
+    (lambda e: e["summaries"]["0"].update(steps_contiguous_from_0=False), "contiguous"),
+    (lambda e: e["summaries"]["1"].update(offset_digest="0" * 64), "recomputation"),
+    (lambda e: e["summaries"].pop("1"), "exactly ranks"),
+    (lambda e: e["fit_start"]["0"].update(yaw_aug={"enabled": True}), "yaw_aug"),
+    (lambda e: e["fit_start"]["1"].update(rng_signature={"python": "other"}), "rng_signature"),
+    (lambda e: e.update(reference_sha256="0" * 64), "reference receipt is not the one"),
+    (lambda e: e.update(check_sha256="0" * 64), "check record is not the one"),
+    (lambda e: e.update(extra=1), "exact schema"), (lambda e: e.pop("stamp"), "exact schema"),
+    (lambda e: e.update(stamp="x"), "stamp"),
+    (lambda e: e["fit_start"]["0"].pop("gpu_uuid"), "fit_start keys"),
+    (lambda e: e["fit_start"]["1"].pop("batchnorm_modules"), "fit_start keys"),
+    (lambda e: e["fit_start"]["0"].update(gpu_name="NVIDIA L40"), "gpu_name"),
+    (lambda e: e["fit_start"]["1"].update(rank=0), "fit_start rank"),
+    (lambda e: e["summaries"]["0"].pop("sampled_losses"), "summary keys"),
+    (lambda e: e["summaries"]["1"].pop("rank"), "summary keys"),
+    (lambda e: e["summaries"]["0"]["counts"].update(extra_counter=0), "counters"),
 ])
-def test_full_evidence_validator_rejects_every_critical_mutation(tmp_path, full_stream, monkeypatch, mutate):
+def test_full_evidence_validator_rejects_every_critical_mutation(tmp_path, full_stream, monkeypatch, mutate, needle):
     import copy
     monkeypatch.setattr(kit, "expected_stream", lambda *a, **k: full_stream)
     d, ev = _full_records(tmp_path, full_stream)
@@ -1325,7 +1464,7 @@ def test_full_evidence_validator_rejects_every_critical_mutation(tmp_path, full_
     kit.atomic_write_json(str(d / "ev.json"), bad)
     r, _, rec = kit.full_evidence_reasons(str(d / "ev.json"), ev["run_id"], str(d / "check.json"),
                                           str(d / "ref.json"), recompute=True)
-    assert r and rec is None
+    assert rec is None and any(needle in x for x in r), (needle, r)
 
 
 def test_full_evidence_binding_to_check_and_reference(tmp_path, full_stream):
@@ -1338,6 +1477,19 @@ def test_full_evidence_binding_to_check_and_reference(tmp_path, full_stream):
     kit.atomic_write_json(str(d / "ref.json"), {**ref, "tree_digest": "9" * 64})
     assert kit.full_evidence_reasons(str(d / "ev.json"), ev["run_id"], None, str(d / "ref.json"))[0]
     assert kit.full_evidence_reasons(str(d / "ev.json"), "exp40_C16_a6000_2x32_r1")[0]
+
+
+def _inject(tree, w):
+    """In-process stand-ins for the admission tree and its subprocess (the real ones are tested
+    separately): the tiny wrapper, interpreted from ``tree``."""
+    def builder(repo, sha, check_rec, ev, parent):
+        assert check_rec["links"] and sha == ev["sha"]
+        return str(tree)
+
+    def state(t, ckpt, dirpath, strict_load=True):
+        assert t == str(tree)
+        return kit.admission_state(ckpt, dirpath, tree=t, strict_load=strict_load)
+    return {"tree_builder": builder, "state_fn": state}
 
 
 def _tiny_full_run(tmp_path, tiny_ckpt, monkeypatch, full_stream):
@@ -1372,11 +1524,12 @@ def test_full_audit_and_derived_admission_end_to_end(tmp_path, tiny_ckpt, monkey
                   expected_dirpath="/ck", check_path=str(d / "check.json"), reference_path=str(d / "ref.json"))
     assert v["verdict"] == "PASS", v["reasons"]
     kit.atomic_write_json(str(d / "audit.json"), v)
-    rr = kit.run_result(ev["run_id"], ev["sha"], "PASS", {"check": str(d / "check.json"), "reference": str(d / "ref.json"),
+    rr = kit.run_result(ev["run_id"], ev["sha"], "TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION", {"check": str(d / "check.json"), "reference": str(d / "ref.json"),
                                                          "evidence": str(d / "ev.json"), "audit": str(d / "audit.json")},
                         "/ck", str(ckdir), str(tree), nas_root=nas_root)
     kit.atomic_write_json(str(d / "run_result.json"), rr)
-    rec = kit.admit(str(d / "run_result.json"), str(d), str(tree), note="test", nas_root=nas_root)
+    rec = kit.admit(str(d / "run_result.json"), str(d), str(_REPO), note="test", nas_root=nas_root,
+                    **_inject(tree, tiny_ckpt[2]))
     assert set(rec) == kit.ADMISSION_KEYS
     assert (rec["train_sha"], rec["runtree_digest"], rec["env_digest"]) == (ev["sha"], "1" * 64, "2" * 64)
     kit.atomic_write_json(str(tmp_path / "admission.json"), rec)
@@ -1388,11 +1541,11 @@ def test_full_audit_and_derived_admission_end_to_end(tmp_path, tiny_ckpt, monkey
         old = open(p, "rb").read()
         open(p, "wb").write(old + b"!")
         with pytest.raises(kit.Refused):
-            kit.admit(str(d / "run_result.json"), str(d), str(tree), nas_root=nas_root)
+            kit.admit(str(d / "run_result.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2]))
         open(p, "wb").write(old)
     open(os.path.join(nas, ".epoch=8-step=40000.ckpt.partial-1"), "wb").write(b"")
     with pytest.raises(kit.Refused, match="beyond"):
-        kit.admit(str(d / "run_result.json"), str(d), str(tree), nas_root=nas_root)
+        kit.admit(str(d / "run_result.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2]))
 
 
 def test_admission_refuses_unbound_or_altered_records(tmp_path, tiny_ckpt, monkeypatch, full_stream):
@@ -1403,19 +1556,21 @@ def test_admission_refuses_unbound_or_altered_records(tmp_path, tiny_ckpt, monke
     kit.atomic_write_json(str(d / "audit.json"), v)
     files = {"check": str(d / "check.json"), "reference": str(d / "ref.json"), "evidence": str(d / "ev.json"),
              "audit": str(d / "audit.json")}
-    rr = kit.run_result(ev["run_id"], ev["sha"], "PASS", files, "/ck", str(ckdir), str(tree), nas_root=nas_root)
+    rr = kit.run_result(ev["run_id"], ev["sha"], "TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION", files, "/ck",
+                        str(ckdir), str(tree), nas_root=nas_root)
     kit.atomic_write_json(str(d / "rr.json"), rr)
     kit.atomic_write_json(str(d / "audit.json"), {**v, "full_evidence_sha256": "0" * 64})
     with pytest.raises(kit.Refused, match="not the recorded bytes"):           # run result binds the audit
-        kit.admit(str(d / "rr.json"), str(d), str(tree), nas_root=nas_root)
+        kit.admit(str(d / "rr.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2]))
     kit.atomic_write_json(str(d / "rr.json"), {**rr, "verdict": "FAIL"})
     with pytest.raises(kit.Refused, match="verdict"):
-        kit.admit(str(d / "rr.json"), str(d), str(tree), nas_root=nas_root)
+        kit.admit(str(d / "rr.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2]))
     kit.atomic_write_json(str(d / "rr.json"), {**rr, "platform": "neuronic"})
     with pytest.raises(kit.Refused):
-        kit.admit(str(d / "rr.json"), str(d), str(tree), nas_root=nas_root)
+        kit.admit(str(d / "rr.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2]))
     with pytest.raises(kit.Refused, match="note"):
-        kit.admit(str(d / "rr.json"), str(d), str(tree), note={"admitted": False}, nas_root=nas_root)
+        kit.admit(str(d / "rr.json"), str(d), str(_REPO), note={"admitted": False}, nas_root=nas_root,
+                  **_inject(tree, tiny_ckpt[2]))
 
 
 def test_audit_refuses_wrong_names_markers_and_strays(tmp_path):
@@ -1430,3 +1585,83 @@ def test_audit_refuses_wrong_names_markers_and_strays(tmp_path):
     os.rename(tmp_path / kit.ckpt_name(5000), tmp_path / "epoch=0-step=5000.ckpt")   # wrong epoch
     v = kit.audit(str(tmp_path), str(_REPO), strict_load=False)
     assert any("missing" in r for r in v["reasons"])
+
+
+# --------------------------------------------------------------------------- #
+# code review 2: admission interprets the run in an immutable tree at the training commit (H2)
+# --------------------------------------------------------------------------- #
+def _head():
+    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=_REPO, capture_output=True, text=True,
+                          check=True).stdout.strip()
+
+
+def test_admission_tree_reproduces_the_training_tree_digest_or_refuses(tmp_path):
+    sha = _head()
+    links = {"AcousticRooms": "/ar/at/training/time", kit.VAE: "/vae/at/training/time"}
+    ev = {"tree_digest": kit.tree_digest(str(_REPO), sha, links), "run_id": "exp40_C16_a6000_2x32", "sha": sha}
+    tree = kit.build_admission_tree(str(_REPO), sha, {"links": links}, ev, str(tmp_path))
+    assert kit.verify_runtree(str(_REPO), sha, tree, {r: os.path.realpath(os.path.join(_REPO, r))
+                                                       for r in kit.LINKS}) == []
+    assert open(os.path.join(tree, kit.EXPREL, "exp40_kit.py"), "rb").read() == subprocess.run(
+        ["git", "show", f"{sha}:{kit.EXPREL}/exp40_kit.py"], cwd=_REPO, capture_output=True, check=True).stdout
+    with pytest.raises(kit.Refused, match="run-tree digest"):
+        kit.build_admission_tree(str(_REPO), sha, {"links": links}, dict(ev, tree_digest="0" * 64), str(tmp_path))
+    with pytest.raises(kit.Refused, match="training-time links"):
+        kit.build_admission_tree(str(_REPO), sha, {}, ev, str(tmp_path))
+
+
+def test_admission_state_runs_in_the_admission_trees_own_kit(tmp_path, tiny_ckpt):
+    sha = _head()
+    if b"admission-state" not in subprocess.run(["git", "show", f"{sha}:{kit.EXPREL}/exp40_kit.py"], cwd=_REPO,
+                                                capture_output=True, check=True).stdout:
+        pytest.skip("HEAD predates the admission-state command (run after committing)")
+    links = {r: os.path.realpath(os.path.join(_REPO, r)) for r in kit.LINKS}
+    ev = {"tree_digest": kit.tree_digest(str(_REPO), sha, links), "run_id": "exp40_C16_a6000_2x32", "sha": sha}
+    tree = kit.build_admission_tree(str(_REPO), sha, {"links": links}, ev, str(tmp_path))
+    ck, cfg, w = tiny_ckpt
+    torch.save(ck, str(tmp_path / "tiny.ckpt"))
+    st = kit.admission_state_subprocess(tree, str(tmp_path / "tiny.ckpt"), "/ck", strict_load=False)
+    assert st["tree"] == os.path.realpath(tree) and st["sha256"] == kit.sha256_file(str(tmp_path / "tiny.ckpt"))
+    assert any("model_config" in r for r in st["reasons"])     # the tiny config is not the C16 arm config
+
+
+def test_an_already_manifested_name_rehashes_the_source_too(tmp_path):
+    src, nas = tmp_path / "ckpts", tmp_path / "nas"
+    src.mkdir()
+    p = _ckpt(src, 2500)
+    kit.mark_saved(str(p))
+    kit.publish_pass(str(src), RID, dest_root=str(nas), only=[p.name])
+    p.write_bytes(b"y" * len(p.read_bytes()))                          # same-size source mutation
+    with pytest.raises(kit.Refused):
+        kit.publish_pass(str(src), RID, dest_root=str(nas), only=[p.name])
+
+
+def _pilot(tmp_path, full_stream, sec=2.0):
+    import copy
+    run_id = "exp40_C16_neuronic_2x32"
+    d, ev = _full_records(tmp_path, full_stream)
+    ref = copy.deepcopy(kit.read_json(str(d / "ref.json")))
+    argv = kit.train_argv("neuronic", "2x32", "PILOT", run_id, "/s", "2026-11-08_00-00-00")
+    for r in ("0", "1"):
+        ref["fit_start"][r]["gpu_name"] = "NVIDIA L40"
+        e = full_stream[int(r)]
+        ref["summaries"][r] = _summary(int(r), dict(e, n=300 * 32, hist=[600] * 16), 300, 0)
+    ref.update(kind="pilot", mode="PILOT", platform="neuronic", run_id=run_id, argv=argv,
+               recipe_projection=kit.recipe_projection(argv), sec_per_step=sec)
+    path = str(tmp_path / "pilot.json")
+    kit.atomic_write_json(path, ref)
+    return path, ref
+
+
+def test_neuronic_time_request_requires_the_exact_pilot_receipt_of_expect_sha(tmp_path, full_stream, capsys):
+    path, ref = _pilot(tmp_path, full_stream)
+    assert kit.main(["neuronic-time", "--mode", "FULL", "--receipt", path, "--expect-sha", "b" * 40,
+                     "--maxtime-raw", "7-00:00:00\n"]) == 0
+    assert capsys.readouterr().out.strip() == str(kit.full_time_request(2.0, 7 * 1440))
+    assert kit.main(["neuronic-time", "--mode", "FULL", "--receipt", path, "--expect-sha", "c" * 40,
+                     "--maxtime-raw", "7-00:00:00\n"]) == 2                                  # another commit
+    for bad in ({"sec_per_step": float("inf")}, {"sec_per_step": -1}, {"train_rc": 1}):
+        kit.atomic_write_json(path, {**ref, **bad})
+        assert kit.main(["neuronic-time", "--mode", "FULL", "--receipt", path, "--expect-sha", "b" * 40,
+                         "--maxtime-raw", "7-00:00:00\n"]) == 2, bad
+    assert kit.main(["neuronic-time", "--mode", "PILOT", "--maxtime-raw", "1:00:00\n"]) == 2  # 120 > 60 min

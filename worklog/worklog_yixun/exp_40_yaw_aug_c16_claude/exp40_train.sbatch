@@ -26,6 +26,7 @@ EXPREL="worklog/worklog_yixun/exp_40_yaw_aug_c16_claude"
 for v in EXP40_CONTROL EXP40_INTENT EXP40_EXECUTION_ID EXP40_RUNTREE EXP40_REPO EXP40_MODE EXP40_RUNG EXP40_RUN_ID EXP40_EXPECT_SHA EXP40_SAVE_ROOT EXP40_STAMP; do
   [ -n "${!v:-}" ] || die "$v must be exported by exp40_submit_neuronic.sh"
 done
+[ "$EXP40_CONTROL" = /n/fs/gatrdp/exp40_control ] || die "EXP40_CONTROL must be THE control dir /n/fs/gatrdp/exp40_control"
 MODE="$EXP40_MODE"; RUNG="$EXP40_RUNG"; RUN_ID="$EXP40_RUN_ID"; SHA="$EXP40_EXPECT_SHA"
 RUNTREE="$EXP40_RUNTREE"; REPO="$EXP40_REPO"; SAVE_ROOT="$EXP40_SAVE_ROOT"; TS="$EXP40_STAMP"
 case "$MODE" in PILOT|FULL) ;; *) die "EXP40_MODE must be PILOT or FULL" ;; esac

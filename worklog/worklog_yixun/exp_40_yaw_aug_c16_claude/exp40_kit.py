@@ -824,19 +824,150 @@ def receipt_name(kind, platform, rung, sha):
     return f"{kind}_{platform}_{rung}_{sha}.json"
 
 
+FIT_START_KEYS = frozenset((
+    "kind", "rank", "world_size", "local_rank", "gpu_name", "gpu_uuid", "syncbn_modules",
+    "batchnorm_modules", "yaw_aug", "flash_attn_func_is_none", "state_signature", "param_signature",
+    "rng_signature", "global_step", "numerics"))
+NUMERICS_KEYS = frozenset(("matmul_allow_tf32", "cudnn_allow_tf32", "cudnn_benchmark",
+                           "cudnn_deterministic", "float32_matmul_precision"))
+SUMMARY_KEYS = frozenset((
+    "rank", "counts", "offset_digest", "all_losses_finite", "offset_histogram", "n_offsets", "n_steps",
+    "steps_contiguous_from_0", "sampled_offsets", "sampled_losses", "global_step", "pid"))
+COUNT_KEYS = frozenset(("flash_calls", "ckpt_dinov3", "ckpt_dit", "ckpt_unclassified", "ckpt_reentrant",
+                        "ckpt_default", "apply_yaw_aug", "training_step", "checkpoints_published"))
+
+
+def _int(x):
+    return type(x) is int
+
+
+def nested_evidence_reasons(fits, sums, platform, rung, mode):
+    """code-r2 B3: the EXACT, type-strict producer schema of every rank's ``fit_start`` record
+    and summary (exp40_evidence_driver.py), for DDP_SMOKE / PILOT / FULL."""
+    world, micro = world_of(mode, rung), RUNGS[rung][1]
+    steps = ENDPOINT if mode == "FULL" else SMOKE_STEPS[mode]
+    ranks = [str(i) for i in range(world)]
+    if not isinstance(fits, dict) or sorted(fits) != ranks or not isinstance(sums, dict) or sorted(sums) != ranks:
+        return [f"fit_start / summaries are not exactly ranks {ranks}"]
+    r, uuids = [], []
+    sampled_keys = sorted(str(t) for t in SAMPLED_STEPS if t < steps)
+    for k in ranks:
+        i, f, s_ = int(k), fits[k], sums[k]
+        if not isinstance(f, dict) or set(f) != FIT_START_KEYS:
+            r.append(f"rank {k}: fit_start keys {sorted(f) if isinstance(f, dict) else f!r} != the exact schema")
+        else:
+            for key, ok in (("kind", f["kind"] == "fit_start"), ("rank", _int(f["rank"]) and f["rank"] == i),
+                            ("world_size", _int(f["world_size"]) and f["world_size"] == world),
+                            ("local_rank", _int(f["local_rank"]) and f["local_rank"] == i),
+                            ("gpu_name", f["gpu_name"] == PLATFORMS[platform]["gpu_name"]),
+                            ("gpu_uuid", isinstance(f["gpu_uuid"], str) and _UUID_RE.fullmatch(f["gpu_uuid"]) is not None),
+                            ("syncbn_modules", _int(f["syncbn_modules"]) and _int(f["batchnorm_modules"])
+                             and f["syncbn_modules"] > 0 and f["syncbn_modules"] == f["batchnorm_modules"]),
+                            ("yaw_aug", canonical(f["yaw_aug"]) == canonical(YAW_BLOCK)),
+                            ("flash_attn_func_is_none", f["flash_attn_func_is_none"] is False),
+                            ("global_step", _int(f["global_step"]) and f["global_step"] == 0),
+                            ("state_signature", _is_sha(f["state_signature"])),
+                            ("param_signature", _is_sha(f["param_signature"])),
+                            ("rng_signature", isinstance(f["rng_signature"], dict) and bool(f["rng_signature"])),
+                            ("numerics", isinstance(f["numerics"], dict) and set(f["numerics"]) == NUMERICS_KEYS
+                             and all(type(f["numerics"][x]) is bool for x in NUMERICS_KEYS - {"float32_matmul_precision"})
+                             and isinstance(f["numerics"]["float32_matmul_precision"], str))):
+                if not ok:
+                    r.append(f"rank {k}: fit_start {key} = {f[key]!r} is not the exp_40 {mode} start")
+            if isinstance(f["gpu_uuid"], str):
+                uuids.append(f["gpu_uuid"])
+        if not isinstance(s_, dict) or set(s_) != SUMMARY_KEYS:
+            r.append(f"rank {k}: summary keys {sorted(s_) if isinstance(s_, dict) else s_!r} != the exact schema")
+            continue
+        c = s_["counts"]
+        if not isinstance(c, dict) or set(c) != COUNT_KEYS or not all(_int(v) for v in c.values()):
+            r.append(f"rank {k}: counters {c!r} are not exactly {sorted(COUNT_KEYS)} as ints")
+        else:
+            for key, want in (("apply_yaw_aug", steps), ("training_step", steps), ("ckpt_reentrant", 0),
+                              ("ckpt_default", 0), ("ckpt_unclassified", 0),
+                              ("checkpoints_published", len(CKPT_STEPS) if (mode == "FULL" and i == 0) else 0)):
+                if c[key] != want:
+                    r.append(f"rank {k}: {key} = {c[key]}, need {want}")
+            for key in ("flash_calls", "ckpt_dinov3", "ckpt_dit"):
+                if c[key] <= 0:
+                    r.append(f"rank {k}: {key} = {c[key]} (need > 0)")
+        if not (_int(s_["rank"]) and s_["rank"] == i):
+            r.append(f"rank {k}: summary of rank {s_['rank']!r}")
+        if s_["all_losses_finite"] is not True:
+            r.append(f"rank {k}: all_losses_finite = {s_['all_losses_finite']!r}")
+        if not (_int(s_["global_step"]) and _int(s_["n_steps"]) and s_["global_step"] == steps
+                and s_["n_steps"] == steps and s_["steps_contiguous_from_0"] is True):
+            r.append(f"rank {k}: not {steps} contiguous steps")
+        h = s_["offset_histogram"]
+        if not (_int(s_["n_offsets"]) and s_["n_offsets"] == steps * micro and isinstance(h, list)
+                and len(h) == 16 and all(_int(x) for x in h) and sum(h) == s_["n_offsets"]):
+            r.append(f"rank {k}: offset count / 16-bin histogram inconsistent ({s_['n_offsets']!r})")
+        if not _is_sha(s_["offset_digest"]):
+            r.append(f"rank {k}: offset_digest is not a sha256")
+        so, sl = s_["sampled_offsets"], s_["sampled_losses"]
+        if not (isinstance(so, dict) and sorted(so) == sampled_keys and all(
+                isinstance(v, list) and len(v) == micro and all(_int(d) and 0 <= d < 512 and d % 32 == 0 for d in v)
+                for v in so.values())):
+            r.append(f"rank {k}: sampled offsets are not {micro} C16 offsets at steps {sampled_keys}")
+        try:
+            losses_ok = isinstance(sl, dict) and sorted(sl) == sampled_keys and all(
+                isinstance(v, str) and math.isfinite(float.fromhex(v)) for v in sl.values())
+        except (TypeError, ValueError):
+            losses_ok = False
+        if not losses_ok:
+            r.append(f"rank {k}: sampled losses are not finite float.hex strings at steps {sampled_keys}")
+        if not _int(s_["pid"]):
+            r.append(f"rank {k}: pid {s_['pid']!r}")
+    if len(set(uuids)) != len(uuids):
+        r.append(f"two ranks report the same GPU {uuids}")
+    if all(isinstance(fits[k], dict) for k in ranks):
+        for key in SIGNATURE_KEYS:
+            if len({canonical(fits[k].get(key)) for k in ranks}) != 1:
+                r.append(f"initial {key} differs across ranks")
+    return r
+
+
 def receipt_reasons(rec, kind, platform, rung, sha, tree_dig, env_dig, full_projection):
+    """code-r2 B3: the EXACT DDP_SMOKE / PILOT receipt (the evidence CLI's output) -- every
+    produced acceptance field, the nested per-rank records, and (PILOT) a finite positive
+    rate. Used by the FULL gate, the FULL-evidence validator and the neuronic time request."""
+    mode = {"ddp_smoke": "DDP_SMOKE", "pilot": "PILOT"}.get(kind)
+    if mode is None:
+        return [f"receipt kind {kind!r} is not ddp_smoke / pilot"]
+    want_keys = EVIDENCE_KEYS | ({"sec_per_step"} if kind == "pilot" else set())
+    if not isinstance(rec, dict) or set(rec) != want_keys:
+        got = sorted(rec) if isinstance(rec, dict) else type(rec).__name__
+        return [f"{kind} receipt keys {got} != the exact schema"]
     reasons = []
-    want = {"verdict": "PASS", "kind": kind, "platform": platform, "rung": rung, "sha": sha,
-            "tree_digest": tree_dig, "env_digest": env_dig, "recipe_projection": full_projection}
+    want = {"verdict": "PASS", "kind": kind, "mode": mode, "platform": platform, "rung": rung, "sha": sha,
+            "tree_digest": tree_dig, "env_digest": env_dig, "recipe_projection": full_projection,
+            "evidence": {"verdict": "PASS", "reasons": []}, "reference_sha256": None}
     for key, val in want.items():
-        if rec.get(key) != val:
-            reasons.append(f"{kind} receipt field {key} = {rec.get(key)!r}, need {val!r}")
-    ev = rec.get("evidence", {})
-    if ev.get("verdict") != "PASS":
-        reasons.append(f"{kind} receipt evidence verdict {ev.get('verdict')!r}")
-    for key in ("train_rc", "watcher_rc"):
-        if rec.get(key) != 0:
-            reasons.append(f"{kind} receipt {key} = {rec.get(key)!r}, need 0")
+        if rec[key] != val:
+            reasons.append(f"{kind} receipt field {key} = {rec[key]!r}, need {val!r}")
+    m = RUN_ID_RE.match(rec["run_id"]) if isinstance(rec["run_id"], str) else None
+    if m is None or m.group(1) != platform or m.group(2) != rung:
+        reasons.append(f"{kind} receipt run_id {rec['run_id']!r} is not a {platform} {rung} RUN_ID")
+    if not (isinstance(rec["stamp"], str) and re.fullmatch(r"\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d", rec["stamp"])):
+        reasons.append(f"{kind} receipt stamp {rec['stamp']!r}")
+    for key in ("train_rc", "watcher_rc", "publisher_rc"):
+        if not _int(rec[key]) or rec[key] != 0:
+            reasons.append(f"{kind} receipt {key} = {rec[key]!r}, need 0")
+    if not _is_sha(rec["check_sha256"]):
+        reasons.append(f"{kind} receipt check_sha256 is not a sha256")
+    argv = rec["argv"]
+    if not (isinstance(argv, list) and all(isinstance(x, str) for x in argv)) or recipe_projection(argv) != full_projection:
+        reasons.append(f"{kind} receipt argv is not the FULL recipe")
+    else:
+        i = argv.index("--max-steps") if "--max-steps" in argv else -1
+        if i < 0 or argv[i + 1] != str(SMOKE_STEPS[mode]):
+            reasons.append(f"{kind} receipt argv --max-steps is not {SMOKE_STEPS[mode]}")
+    reasons += [f"{kind} receipt: {x}" for x in nested_evidence_reasons(rec["fit_start"], rec["summaries"],
+                                                                       platform, rung, mode)]
+    if kind == "pilot":
+        v = rec["sec_per_step"]
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
+            reasons.append(f"pilot receipt sec_per_step {v!r} is not a finite positive rate")
     return reasons
 
 
@@ -868,6 +999,7 @@ def check(platform, rung, mode, run_id, sha, repo, tree, links, save_root, stamp
     if reasons:
         return reasons, info
     info["tree_digest"] = tree_digest(repo, sha, links)
+    info["links"] = dict(links)                     # admission re-derives tree_digest (code-r2 H2)
     reasons += pin_reasons(tree)
     if ar_sample_digest(tree) != AR_SAMPLE_DIGEST:
         reasons.append("the AcousticRooms sample digest differs from the pinned "
@@ -1518,6 +1650,9 @@ def publish_pass(src_dir, run_id, dest_root=NAS_ROOT, only=None, pulled_manifest
                 on_nas = os.path.join(dest, name)
                 if os.path.islink(on_nas) or not os.path.isfile(on_nas) or sha256_file(on_nas) != sha:
                     raise Refused(f"NAS {on_nas} is manifested but does not re-hash to {sha}")
+                # code-r2 H3: the SOURCE is re-hashed on this acknowledgement path too
+                if sha256_file(os.path.join(src_dir, name)) != sha:
+                    raise Refused(f"{os.path.join(src_dir, name)} no longer hashes to {sha}")
                 continue
             published[name] = publish_one(src_dir, name, dest, known_sha=sha)
             write_manifest(nas_manifest, published)
@@ -1593,7 +1728,15 @@ def nas_capability_probe(dest_root, size=4 << 20):
             "t": time.time()}
 
 
-def nas_receipt_reasons(path, dest_root=NAS_ROOT, now=None, max_age_s=48 * 3600):
+NAS_PROBE_CHECKS = ("o_excl_create", "o_excl_refuses_existing",
+                    "staged_copy_fsync_rehash_noreplace_rename_dirfsync", "noreplace_refuses_existing",
+                    "atomic_manifest_replace")
+
+
+def nas_receipt_reasons(path, dest_root=NAS_ROOT, now=None, max_age_s=48 * 3600, current_mount=None):
+    """code-r2 H3: exact schema; exactly the five named primitive checks, each True; the
+    probe dir directly under THIS destination; an exact, successful mount identity equal to
+    the destination's CURRENT mount; 0 <= age <= 48 h."""
     try:
         rec = read_json(path)
     except (OSError, ValueError) as err:
@@ -1601,11 +1744,22 @@ def nas_receipt_reasons(path, dest_root=NAS_ROOT, now=None, max_age_s=48 * 3600)
     if not isinstance(rec, dict) or set(rec) != NAS_PROBE_KEYS:
         return [f"NAS capability receipt {path} does not have the exact schema"]
     r = []
-    if rec["kind"] != "nas_capability" or rec["verdict"] != "PASS" or rec["reasons"] != [] \
-            or not all(v is True for v in rec["checks"].values()) or len(rec["checks"]) != 5:
-        r.append("the NAS capability probe did not PASS every check")
-    if rec["dest_root"] != dest_root or os.path.dirname(rec["dir"]) != dest_root:
+    if rec["kind"] != "nas_capability" or rec["verdict"] != "PASS" or rec["reasons"] != []:
+        r.append("the NAS capability probe did not PASS")
+    if not isinstance(rec["checks"], dict) or sorted(rec["checks"]) != sorted(NAS_PROBE_CHECKS) \
+            or any(rec["checks"][k] is not True for k in NAS_PROBE_CHECKS):
+        r.append(f"the NAS capability checks are not exactly {list(NAS_PROBE_CHECKS)}, each True")
+    if rec["dest_root"] != dest_root or os.path.dirname(str(rec["dir"])) != dest_root:
         r.append(f"the NAS capability probe tested {rec['dest_root']}, not {dest_root}")
+    mr = mount_reasons(rec["mount"], "the NAS capability probe")
+    r += mr
+    if not mr:
+        cur = current_mount if current_mount is not None else mount_identity(dest_root)
+        cr = mount_reasons(cur, "the NAS destination now")
+        r += cr
+        if not cr and (cur["source"], cur["fstype"]) != (rec["mount"]["source"], rec["mount"]["fstype"]):
+            r.append(f"the NAS destination is now on {cur['source']} {cur['fstype']}, the probe tested "
+                     f"{rec['mount']['source']} {rec['mount']['fstype']}")
     t = rec["t"]
     if isinstance(t, bool) or not isinstance(t, (int, float)):
         r.append("NAS capability receipt time missing")
@@ -1721,13 +1875,14 @@ def _is_sha(x, n=64):
     return isinstance(x, str) and re.fullmatch(f"[0-9a-f]{{{n}}}", x) is not None
 
 
-def full_evidence_reasons(path, run_id, check_path=None, reference_path=None, recompute=False):
+def full_evidence_reasons(path, run_id, check_path=None, reference_path=None, recompute=False, tree=None):
     """The ONE strict FULL-evidence validator (code-r1 B5), used by audit and admission:
     exact schema; identity derived from the RUN_ID; every acceptance field (exit codes,
     evidence verdict, per-rank counts, finite-loss flag, 16 save-time acknowledgements, step
     contiguity); the recipe projection; optionally the binding to the check record and the
     DDP_SMOKE / PILOT reference receipt (sha256 + identity + initial-state signatures) and a
-    re-computation of every rank's 40k-step offset stream. Returns (reasons, sha256, record)."""
+    re-computation of every rank's 40k-step offset stream IN ``tree`` (admission: the immutable
+    tree at the training commit, code-r2 H2). Returns (reasons, sha256, record)."""
     try:
         rec = read_json(path)
         file_sha = sha256_file(path)
@@ -1751,6 +1906,8 @@ def full_evidence_reasons(path, run_id, check_path=None, reference_path=None, re
             r.append(f"FULL evidence {key} = {rec[key]!r}, need 0")
     if not _is_sha(rec["sha"], 40):
         r.append("FULL evidence sha is not a 40-hex commit")
+    if not (isinstance(rec["stamp"], str) and re.fullmatch(r"\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d", rec["stamp"])):
+        r.append(f"FULL evidence stamp {rec['stamp']!r}")
     for key in ("tree_digest", "env_digest", "reference_sha256", "check_sha256"):
         if not _is_sha(rec[key]):
             r.append(f"FULL evidence {key} is not a sha256")
@@ -1764,37 +1921,13 @@ def full_evidence_reasons(path, run_id, check_path=None, reference_path=None, re
     world, micro = world_of("FULL", rung), RUNGS[rung][1]
     ranks = [str(i) for i in range(world)]
     fits, sums = rec["fit_start"], rec["summaries"]
-    if not isinstance(fits, dict) or sorted(fits) != ranks or not isinstance(sums, dict) or sorted(sums) != ranks:
-        r.append(f"FULL evidence fit_start / summaries are not exactly ranks {ranks}")
+    nested = nested_evidence_reasons(fits, sums, platform, rung, "FULL")
+    r += nested
+    if nested and (not isinstance(fits, dict) or sorted(fits) != ranks or not isinstance(sums, dict)
+                   or sorted(sums) != ranks):
         return r, file_sha, None
-    for k in ranks:
-        f, s_ = fits[k], sums[k]
-        if not isinstance(f, dict) or f.get("kind") != "fit_start" or f.get("world_size") != world \
-                or f.get("yaw_aug") != YAW_BLOCK or f.get("global_step") != 0 \
-                or f.get("flash_attn_func_is_none") is not False:
-            r.append(f"rank {k}: fit_start record is not a world-{world} C16 start at step 0 with flash")
-        if not isinstance(s_, dict):
-            r.append(f"rank {k}: summary is not an object")
-            continue
-        c = s_.get("counts") if isinstance(s_.get("counts"), dict) else {}
-        for key, want in (("apply_yaw_aug", ENDPOINT), ("training_step", ENDPOINT), ("ckpt_reentrant", 0),
-                          ("ckpt_default", 0), ("ckpt_unclassified", 0),
-                          ("checkpoints_published", len(CKPT_STEPS) if k == "0" else 0)):
-            if type(c.get(key)) is not int or c.get(key) != want:
-                r.append(f"rank {k}: {key} = {c.get(key)!r}, need {want}")
-        for key in ("flash_calls", "ckpt_dinov3", "ckpt_dit"):
-            if type(c.get(key)) is not int or c.get(key) <= 0:
-                r.append(f"rank {k}: {key} = {c.get(key)!r} (need a positive int)")
-        if s_.get("all_losses_finite") is not True:
-            r.append(f"rank {k}: all_losses_finite = {s_.get('all_losses_finite')!r}")
-        if s_.get("global_step") != ENDPOINT or s_.get("n_steps") != ENDPOINT \
-                or s_.get("steps_contiguous_from_0") is not True:
-            r.append(f"rank {k}: not {ENDPOINT} contiguous steps")
-    for key in SIGNATURE_KEYS:
-        if len({canonical(fits[k].get(key)) if isinstance(fits[k], dict) else None for k in ranks}) != 1:
-            r.append(f"initial {key} differs across ranks")
     if recompute and not r:
-        expected = expected_stream(ROOT, ENDPOINT, range(world), micro, verbatim=False)
+        expected = expected_stream(tree or ROOT, ENDPOINT, range(world), micro, verbatim=False)
         for k in ranks:
             e, s_ = expected[int(k)], sums[k]
             if s_.get("offset_digest") != e["digest"] or s_.get("offset_histogram") != e["hist"] \
@@ -1807,6 +1940,8 @@ def full_evidence_reasons(path, run_id, check_path=None, reference_path=None, re
         except (OSError, ValueError) as err:
             r.append(f"check record {check_path} unreadable ({err})")
         else:
+            if not isinstance(chk, dict):
+                chk = {}
             if chk_sha != rec["check_sha256"]:
                 r.append("the check record is not the one this evidence is bound to")
             for key in ("sha", "tree_digest", "env_digest", "argv"):
@@ -1826,10 +1961,11 @@ def full_evidence_reasons(path, run_id, check_path=None, reference_path=None, re
                 r.append("the reference receipt is not the one this evidence is bound to")
             r += receipt_reasons(ref, kind, platform, rung, rec["sha"], rec["tree_digest"],
                                  rec["env_digest"], rec["recipe_projection"])
-            ref_fits = ref.get("fit_start") if isinstance(ref.get("fit_start"), dict) else {}
+            ref_fits = ref.get("fit_start") if isinstance(ref, dict) and isinstance(ref.get("fit_start"), dict) else {}
             for k in ranks:
+                mine = fits[k] if isinstance(fits[k], dict) else {}
                 for key in SIGNATURE_KEYS:
-                    if canonical((ref_fits.get(k) or {}).get(key)) != canonical(fits[k].get(key)):
+                    if canonical((ref_fits.get(k) or {}).get(key)) != canonical(mine.get(key)):
                         r.append(f"rank {k}: initial {key} != the {kind} receipt's")
     return r, file_sha, (rec if not r else None)
 
@@ -1922,7 +2058,8 @@ def resolve_run_result(path, receipts_dir):
     if not isinstance(rr, dict) or set(rr) != RUN_RESULT_KEYS or rr["kind"] != "exp40_run_result" \
             or rr["mode"] != "FULL" or sorted(rr["files"]) != sorted(RUN_RESULT_FILES):
         raise Refused(f"{path} is not an exp_40 FULL run-result manifest")
-    want = "PASS" if rr["platform"] == "a6000" else "LOCAL_COMPLETE_PENDING_PUBLICATION"
+    want = ("TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION" if rr["platform"] == "a6000"
+            else "LOCAL_COMPLETE_PENDING_PUBLICATION")
     if rr["verdict"] != want:
         raise Refused(f"run result verdict {rr['verdict']!r}, need {want!r}")
     out = {}
@@ -1935,27 +2072,88 @@ def resolve_run_result(path, receipts_dir):
     return rr, out
 
 
+def build_admission_tree(repo, sha, check_rec, ev, dest_parent):
+    """code-r2 H2: an IMMUTABLE tree at the training commit for admission. The commit's archive
+    plus the TRAINING-time links (from the bound check record) must reproduce the evidence's
+    run-tree digest; the admission tree itself gets this box's links (only the AcousticRooms
+    and VAE paths differ), is built fresh, read-only, and verified."""
+    train_links = check_rec.get("links") if isinstance(check_rec, dict) else None
+    if not isinstance(train_links, dict) or set(train_links) != set(LINKS):
+        raise Refused("the check record carries no training-time links")
+    if tree_digest(repo, sha, train_links) != ev["tree_digest"]:
+        raise Refused(f"git archive of {sha[:12]} + the training links do not reproduce the evidence's "
+                      "run-tree digest: the evidence was not produced from this commit")
+    local = {rel: os.path.realpath(os.path.join(repo, rel)) for rel in LINKS}
+    dest = os.path.join(dest_parent, f"admission_{ev['run_id']}__{sha[:12]}__{time.strftime('%Y-%m-%d_%H-%M-%S')}")
+    build_runtree(repo, sha, dest, local)
+    reasons = verify_runtree(repo, sha, dest, local)
+    if reasons:
+        raise Refused("admission tree: " + "; ".join(reasons))
+    return dest
+
+
+def admission_state(ckpt_path, expected_dirpath, tree=None, strict_load=True):
+    """The 40k checkpoint's full state interpreted by THIS kit's tree (run inside the
+    admission tree by admission_state_subprocess)."""
+    tree = tree or ROOT
+    sha, nbytes, ck = load_checkpoint_once(ckpt_path)
+    with open(os.path.join(tree, ARM_CONFIG)) as f:
+        arm_cfg = json.load(f)
+    reasons = checkpoint_state_reasons(ck, arm_cfg, expected_dirpath,
+                                       build_wrapper_cpu(tree, arm_cfg) if strict_load else None)
+    ema_inv = digest_obj(sorted((k, list(v.shape), str(v.dtype)) for k, v in ck["state_dict"].items()
+                                if k.startswith("diffusion_ema.ema_model.")))
+    return {"sha256": sha, "bytes": nbytes, "reasons": reasons, "global_step": ck.get("global_step"),
+            "embedded_config_sha256": digest_obj(ck.get("model_config")), "ema_inventory_sha256": ema_inv,
+            "strict_load": strict_load, "tree": os.path.realpath(tree)}
+
+
+def admission_state_subprocess(tree, ckpt_path, expected_dirpath, strict_load=True, python=None):
+    """Run ``admission-state`` with the admission tree's OWN kit, cwd = that tree, no bytecode:
+    the arm config and the strict-load wrapper come from the training commit, never from the
+    live checkout (code-r2 H2)."""
+    cmd = [python or sys.executable, "-B", os.path.join(tree, EXPREL, "exp40_kit.py"), "admission-state",
+           "--ckpt", ckpt_path, "--expected-dirpath", expected_dirpath] + ([] if strict_load else ["--no-strict"])
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
+    env.pop("PYTHONPATH", None)
+    rc, out, err = run(cmd, cwd=tree, env=env)
+    if rc != 0:
+        raise Refused(f"admission-state in {tree} failed (rc {rc}): {(err or out).strip()[-600:]}")
+    st = json.loads(out.strip().splitlines()[-1])
+    if st.get("tree") != os.path.realpath(tree):
+        raise Refused(f"admission-state ran from {st.get('tree')}, not the admission tree {tree}")
+    return st
+
+
 HISTORICAL = {"exp17_acousticrooms_snapshot": "unknown", "exp17_dinov3_revision_and_bytes": "unknown",
               "exp17_vae_bytes": "unknown", "exp17_dependency_versions": "unknown",
               "exp17_wandb_behaviour": "unknown", "exp17_launch_commit": "unknown (audited base 41aa31dc)",
               "exp17_attention_backend": "flash-attn (inferred, not proven)"}
 
 
-def admit(run_result_path, receipts_dir, tree, note="", strict_load=True, nas_root=NAS_ROOT):
-    """Admission (plan §4.6; code-r1 B6): every identity field is DERIVED from validated
-    records -- the run result, the strict FULL evidence (bound to its check record and its
-    DDP_SMOKE / PILOT reference, offset stream recomputed), the audit bound to that evidence
-    -- and all 16 NAS checkpoints are re-hashed; the only caller input is a free-text note."""
+def admit(run_result_path, receipts_dir, repo, note="", strict_load=True, nas_root=NAS_ROOT,
+          tree_parent=None, tree_builder=build_admission_tree, state_fn=admission_state_subprocess):
+    """Admission (plan §4.6; code-r1 B6, code-r2 H2): every identity field is DERIVED from
+    validated records -- the run result, the strict FULL evidence (bound to its check record
+    and its DDP_SMOKE / PILOT reference), the audit bound to that evidence; all 16 NAS
+    checkpoints are re-hashed; the offset recomputation, the arm config and the strict-load
+    wrapper come from an immutable tree at the TRAINING commit whose archive reproduces the
+    evidence's run-tree digest. The only caller input is a free-text note."""
     if not isinstance(note, str):
         raise Refused("the admission note must be a string")
     rr, files = resolve_run_result(run_result_path, receipts_dir)
     run_id = rr["run_id"]
-    r, ev_sha, ev = full_evidence_reasons(files["evidence"], run_id, files["check"], files["reference"],
-                                          recompute=True)
+    r, ev_sha, ev = full_evidence_reasons(files["evidence"], run_id, files["check"], files["reference"])
     if r:
         raise Refused("FULL evidence: " + "; ".join(r))
     if ev["sha"] != rr["sha"]:
         raise Refused("the run result and the FULL evidence name different commits")
+    tree = tree_builder(repo, rr["sha"], read_json(files["check"]), ev,
+                        tree_parent or os.path.join(repo, "outputs_FLAC", "exp40_yaw_aug_c16", "runtrees"))
+    r, _, _ = full_evidence_reasons(files["evidence"], run_id, files["check"], files["reference"],
+                                    recompute=True, tree=tree)
+    if r:
+        raise Refused("FULL evidence (recomputed in the admission tree): " + "; ".join(r))
     au = read_json(files["audit"])
     if au.get("verdict") != "PASS" or au.get("reasons") != [] or au.get("full_evidence_sha256") != ev_sha \
             or au.get("strict_load") is not True or sorted(au.get("sha256") or {}) != sorted(EXPECTED_CKPTS) \
@@ -1967,33 +2165,27 @@ def admit(run_result_path, receipts_dir, tree, note="", strict_load=True, nas_ro
     if reasons:
         raise Refused("; ".join(reasons))
     final = ckpt_name(ENDPOINT)
-    sha, nbytes, ck = load_checkpoint_once(os.path.join(nas_dir, final))
-    if sha != shas[final]:
-        raise Refused(f"{final} sha256 {sha} != the audited one")
-    with open(os.path.join(tree, ARM_CONFIG)) as f:
-        arm_cfg = json.load(f)
-    reasons = checkpoint_state_reasons(ck, arm_cfg, rr["expected_dirpath"],
-                                       build_wrapper_cpu(tree, arm_cfg) if strict_load else None)
-    if reasons:
-        raise Refused("; ".join(reasons))
-    ema_inv = digest_obj(sorted((k, list(v.shape), str(v.dtype)) for k, v in ck["state_dict"].items()
-                                if k.startswith("diffusion_ema.ema_model.")))
+    st = state_fn(tree, os.path.join(nas_dir, final), rr["expected_dirpath"], strict_load=strict_load)
+    if st["sha256"] != shas[final]:
+        raise Refused(f"{final} sha256 {st['sha256']} != the audited one")
+    if st["reasons"]:
+        raise Refused("; ".join(st["reasons"]))
     man = os.path.join(tree, AR_MANIFEST)
     current = {"acousticrooms_manifest_digest": read_json(man)["digest"] if os.path.exists(man) else None,
                "dinov3_revision": DINO_REVISION, "dinov3_config_sha256": DINO_CONFIG_SHA256,
                "dinov3_weights_sha256": DINO_SHA256, "vae_sha256": PINS[VAE]}
-    rec = {"kind": "exp40_admission", "admitted": True, "arm": "C16", "run_id": run_id,
-           "platform": rr["platform"], "rung": rr["rung"], "train_sha": ev["sha"],
-           "runtree_digest": ev["tree_digest"], "env_digest": ev["env_digest"], "nas_dir": nas_dir,
-           "checkpoints": dict(shas), "manifest_sha256": sha256_file(os.path.join(nas_dir, "MANIFEST.sha256")),
-           "ckpt_path": os.path.join(nas_dir, final), "sha256": sha, "bytes": nbytes,
-           "global_step": ck["global_step"], "model_config": ARM_CONFIG,
-           "model_config_sha256": PINS[ARM_CONFIG], "embedded_config_sha256": digest_obj(ck["model_config"]),
-           "ema_inventory_sha256": ema_inv, "strict_load": strict_load, "full_evidence_sha256": ev_sha,
-           "check_sha256": ev["check_sha256"], "audit_sha256": sha256_file(files["audit"]),
-           "historical": dict(HISTORICAL), "current_assets": current,
-           "trajectory_equivalence_claim_allowed": False, "note": note, "t": time.time()}
-    return rec
+    return {"kind": "exp40_admission", "admitted": True, "arm": "C16", "run_id": run_id,
+            "platform": rr["platform"], "rung": rr["rung"], "train_sha": ev["sha"],
+            "runtree_digest": ev["tree_digest"], "env_digest": ev["env_digest"], "nas_dir": nas_dir,
+            "checkpoints": dict(shas), "manifest_sha256": sha256_file(os.path.join(nas_dir, "MANIFEST.sha256")),
+            "ckpt_path": os.path.join(nas_dir, final), "sha256": st["sha256"], "bytes": st["bytes"],
+            "global_step": st["global_step"], "model_config": ARM_CONFIG,
+            "model_config_sha256": PINS[ARM_CONFIG], "embedded_config_sha256": st["embedded_config_sha256"],
+            "ema_inventory_sha256": st["ema_inventory_sha256"], "strict_load": st["strict_load"],
+            "full_evidence_sha256": ev_sha, "check_sha256": ev["check_sha256"],
+            "audit_sha256": sha256_file(files["audit"]), "historical": dict(HISTORICAL),
+            "current_assets": current, "trajectory_equivalence_claim_allowed": False, "note": note,
+            "t": time.time()}
 
 
 def ckpt_name(step):
@@ -2150,7 +2342,10 @@ def execution_id(run_id, mode, stamp=""):
 
 def claim(claims_dir, exec_id, mode, job_id, intent):
     """The execution-side guarantee (plan §14 B1): at most one training execution per
-    execution identity. The path never contains the submission intent."""
+    execution identity, in THE control directory's claims/ (code-r2 B1). The path never
+    contains the submission intent."""
+    if claims_dir != control_paths(ALLOWED_CONTROL)["claims"]:
+        raise Refused(f"claims dir {claims_dir!r} is not {control_paths(ALLOWED_CONTROL)['claims']}")
     os.makedirs(claims_dir, exist_ok=True)
     path = os.path.join(claims_dir, f"{exec_id}__{mode}.claim")
     try:
@@ -2207,6 +2402,9 @@ def reconcile(name, runner):
 
 
 NEURONIC_CONTROL = "/n/fs/gatrdp/exp40_control"
+# code-r2 B1: the ONLY control namespace. Not configurable by environment or CLI; the tests
+# rebind this module attribute to a temporary directory.
+ALLOWED_CONTROL = NEURONIC_CONTROL
 STATE_STATUSES = ("prepared", "sbatch_attempted", "submitted", "live", "terminal")
 STATE_REQUIRED = ("run_id", "mode", "execution_id", "status", "intent", "job_ids")
 
@@ -2216,6 +2414,9 @@ def control_paths(control_dir):
     submission lock and the claim-probe receipt live here, independent of any checkout."""
     if not os.path.isabs(control_dir) or os.path.realpath(control_dir) != control_dir:
         raise Refused(f"control dir {control_dir!r} must be an absolute canonical path")
+    if control_dir != ALLOWED_CONTROL:
+        raise Refused(f"control dir {control_dir!r} is not THE exp_40 control directory "
+                      f"{ALLOWED_CONTROL}: a second namespace could admit the same execution twice")
     return {"claims": os.path.join(control_dir, "claims"), "states": os.path.join(control_dir, "states"),
             "lock": os.path.join(control_dir, ".submit.lock"),
             "probe": os.path.join(control_dir, "receipts", "claim_probe.json")}
@@ -2377,8 +2578,31 @@ def probe_verdict(d, control_dir, job_id, script, source_sha, srun_rc):
             "mounts": {str(r["rank"]): r["mount"] for r in ranks}, "t": time.time()}
 
 
-def probe_receipt_reasons(path, control_dir, script, now=None, max_age_s=PROBE_MAX_AGE_S):
-    """Strict validator of the claim-probe receipt before a FULL submission (code-r1 B3)."""
+MOUNT_KEYS = frozenset(("source", "fstype", "dev", "findmnt_rc"))
+
+
+def mount_reasons(m, what):
+    """An exact, successful mount identity (code-r2 B2/H3)."""
+    if not isinstance(m, dict) or set(m) != MOUNT_KEYS:
+        return [f"{what}: mount record {m!r} does not have the exact schema {sorted(MOUNT_KEYS)}"]
+    r = []
+    if m["findmnt_rc"] != 0 or type(m["findmnt_rc"]) is not int:
+        r.append(f"{what}: findmnt failed (rc {m['findmnt_rc']!r})")
+    if not (isinstance(m["source"], str) and m["source"] and isinstance(m["fstype"], str) and m["fstype"]
+            and "\n" not in m["source"] + m["fstype"]):
+        r.append(f"{what}: empty or malformed mount source/fstype {m['source']!r} {m['fstype']!r}")
+    if type(m["dev"]) is not int:
+        r.append(f"{what}: device id {m['dev']!r} is not an int")
+    return r
+
+
+def probe_receipt_reasons(path, control_dir, script, expect_sha, now=None, max_age_s=PROBE_MAX_AGE_S,
+                          current_mount=None):
+    """Strict validator of the claim-probe receipt before a FULL submission (code-r1 B3,
+    code-r2 B2): exact schema; PASS; two distinct hosts; 20 single-winner rounds; THE control
+    directory; the committed probe script; the SAME source commit as the submission
+    (EXPECT_SHA); both tasks' exact, successful, identical mount identity, equal to the
+    control directory's CURRENT mount; 0 <= age <= 14 d."""
     try:
         rec = read_json(path)
     except (OSError, ValueError) as err:
@@ -2391,21 +2615,35 @@ def probe_receipt_reasons(path, control_dir, script, now=None, max_age_s=PROBE_M
         r.append(f"the claim-probe receipt must be {paths['probe']}")
     if rec["kind"] != "claim_probe" or rec["verdict"] != "PASS" or rec["reasons"] != []:
         r.append("the claim probe did not PASS")
-    if not (isinstance(rec["hosts"], list) and len(rec["hosts"]) == 2 and len(set(rec["hosts"])) == 2):
+    if not (isinstance(rec["hosts"], list) and len(rec["hosts"]) == 2 and len(set(rec["hosts"])) == 2
+            and all(isinstance(h, str) and h for h in rec["hosts"])):
         r.append(f"claim probe hosts {rec['hosts']!r} are not two distinct nodes")
     if rec["rounds"] != PROBE_ROUNDS or not isinstance(rec["winners"], list) \
-            or len(rec["winners"]) != PROBE_ROUNDS or any(w not in (0, 1) for w in rec["winners"]):
+            or len(rec["winners"]) != PROBE_ROUNDS or any(w not in (0, 1) or isinstance(w, bool)
+                                                          for w in rec["winners"]):
         r.append("claim probe rounds/winners are not 20 single-winner rounds")
     if rec["control_dir"] != control_dir or os.path.dirname(rec["dir"]) != paths["claims"]:
         r.append("the claim probe tested another directory than this control dir's claims")
     ms = rec["mounts"]
-    if not isinstance(ms, dict) or sorted(ms) != ["0", "1"] or \
-            len({(m.get("source"), m.get("fstype")) for m in ms.values()}) != 1:
-        r.append("the claim probe's two tasks did not see one identical mount")
+    if not isinstance(ms, dict) or sorted(ms) != ["0", "1"]:
+        r.append("the claim probe does not hold exactly the two tasks' mount records")
+    else:
+        for k in ("0", "1"):
+            r += mount_reasons(ms[k], f"claim probe task {k}")
+        if not r and (ms["0"]["source"], ms["0"]["fstype"]) != (ms["1"]["source"], ms["1"]["fstype"]):
+            r.append("the claim probe's two tasks saw different mounts")
+        if not r:
+            cur = current_mount if current_mount is not None else mount_identity(control_dir)
+            r += mount_reasons(cur, "the control directory now")
+            if not r and (cur["source"], cur["fstype"]) != (ms["0"]["source"], ms["0"]["fstype"]):
+                r.append(f"the control directory is now on {cur['source']} {cur['fstype']}, the probe "
+                         f"tested {ms['0']['source']} {ms['0']['fstype']}")
     if not (isinstance(rec["job_id"], str) and rec["job_id"].isdigit()):
         r.append("claim probe job id missing")
-    if not (isinstance(rec["source_sha"], str) and _HEX40.fullmatch(rec["source_sha"])):
-        r.append("claim probe source sha missing")
+    if not (isinstance(expect_sha, str) and _HEX40.fullmatch(expect_sha)):
+        r.append(f"EXPECT_SHA {expect_sha!r} is not a 40-hex commit")
+    elif rec["source_sha"] != expect_sha:
+        r.append(f"the claim probe ran from source {rec['source_sha']!r}, not EXPECT_SHA {expect_sha}")
     if rec["script_sha256"] != sha256_file(script):
         r.append("the claim probe ran another probe script than the committed one")
     t = rec["t"]
@@ -2541,6 +2779,7 @@ def main(argv=None):
     e.add_argument("--reference"); e.add_argument("--publisher-rc", type=int, default=0)
     t = sub.add_parser("neuronic-time"); t.add_argument("--receipt")
     t.add_argument("--maxtime-raw", required=True); t.add_argument("--mode", required=True)
+    t.add_argument("--expect-sha")
     ps = sub.add_parser("publish-saved"); ps.add_argument("--path", required=True)
     ps.add_argument("--run-id", required=True); ps.add_argument("--dest-root", required=True)
     np_ = sub.add_parser("nas-probe"); np_.add_argument("--dest-root", default=NAS_ROOT)
@@ -2560,6 +2799,8 @@ def main(argv=None):
         rr_.add_argument(f"--{k}", required=True)
     rr_.add_argument("--expected-dirpath", required=True); rr_.add_argument("--ckpt-dir", required=True)
     rr_.add_argument("--runtree", required=True); rr_.add_argument("--out", required=True)
+    st_ = sub.add_parser("admission-state"); st_.add_argument("--ckpt", required=True)
+    st_.add_argument("--expected-dirpath", required=True); st_.add_argument("--no-strict", action="store_true")
     d = sub.add_parser("admit"); d.add_argument("--run-result", required=True)
     d.add_argument("--receipts-dir", required=True); d.add_argument("--note", default="")
     d.add_argument("--out", required=True)
@@ -2573,16 +2814,16 @@ def main(argv=None):
     cl = sub.add_parser("claim"); cl.add_argument("--claims-dir", required=True)
     cl.add_argument("--execution-id", required=True); cl.add_argument("--mode", required=True)
     cl.add_argument("--intent", required=True); cl.add_argument("--job-id", required=True)
-    n = sub.add_parser("neuronic-submit"); n.add_argument("--control-dir", default=NEURONIC_CONTROL)
+    n = sub.add_parser("neuronic-submit")
     n.add_argument("--run-id", required=True); n.add_argument("--mode", required=True)
     n.add_argument("--execution-id", required=True)
     n.add_argument("--sbatch-json", required=True); n.add_argument("--dry-run", action="store_true")
-    n.add_argument("--probe-script", required=True)
+    n.add_argument("--probe-script", required=True); n.add_argument("--expect-sha", required=True)
     n.add_argument("--maxtime-raw", required=True); n.add_argument("--time-min", type=int, required=True)
     n.add_argument("--source-checkout", required=True)
     pt = sub.add_parser("probe-task"); pt.add_argument("--dir", required=True)
     pv = sub.add_parser("probe-verdict"); pv.add_argument("--dir", required=True)
-    pv.add_argument("--control-dir", required=True); pv.add_argument("--job-id", required=True)
+    pv.add_argument("--job-id", required=True)
     pv.add_argument("--script", required=True); pv.add_argument("--source-sha", required=True)
     pv.add_argument("--srun-rc", type=int, required=True)
     hs = sub.add_parser("build-hf-sealed"); hs.add_argument("--src-hub", required=True)
@@ -2709,8 +2950,14 @@ def main(argv=None):
                 print(PILOT_TIME_MIN)
                 return 0
             rec = read_json(args.receipt)
-            if rec.get("kind") != "pilot" or rec.get("verdict") != "PASS" or "sec_per_step" not in rec:
-                raise Refused(f"{args.receipt} is not a PASS pilot receipt with a measured rate")
+            rung = rec.get("rung") if isinstance(rec, dict) else None
+            if rung not in RUNGS or not isinstance(rec.get("run_id"), str) or not RUN_ID_RE.match(rec["run_id"]):
+                raise Refused(f"{args.receipt} is not an exp_40 PILOT receipt")
+            r = receipt_reasons(rec, "pilot", "neuronic", rung, args.expect_sha, rec.get("tree_digest"),
+                                rec.get("env_digest"),
+                                recipe_projection(train_argv("neuronic", rung, "FULL", rec["run_id"], "/save-root")))
+            if r:                                    # code-r2 B3: the exact receipt before timing use
+                raise Refused(f"{args.receipt}: " + "; ".join(r))
             print(full_time_request(float(rec["sec_per_step"]), maxtime))
             return 0
         if args.cmd == "publish-saved":
@@ -2742,13 +2989,18 @@ def main(argv=None):
                 print(f"  {r}")
             return 0 if v["verdict"] == "PASS" else 1
         if args.cmd == "run-result":
-            if args.verdict not in ("PASS", "FAIL", "LOCAL_COMPLETE_PENDING_PUBLICATION"):
+            if args.verdict not in ("TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION", "FAIL",
+                                    "LOCAL_COMPLETE_PENDING_PUBLICATION"):
                 raise Refused(f"run-result verdict {args.verdict!r}")
             rec = run_result(args.run_id, args.sha, args.verdict,
                              {k: getattr(args, k) for k in RUN_RESULT_FILES}, args.expected_dirpath,
                              args.ckpt_dir, args.runtree)
             atomic_write_json(args.out, rec)
             print(f"RUN RESULT {rec['verdict']} -> {args.out}")
+            return 0
+        if args.cmd == "admission-state":
+            print(json.dumps(admission_state(args.ckpt, args.expected_dirpath, strict_load=not args.no_strict),
+                             sort_keys=True))
             return 0
         if args.cmd == "admit":
             if os.path.lexists(args.out):
@@ -2786,9 +3038,9 @@ def main(argv=None):
             print(json.dumps(rec, sort_keys=True))
             return 0 if rec["barrier_ok"] else 1
         if args.cmd == "probe-verdict":
-            rec = probe_verdict(args.dir, args.control_dir, args.job_id, args.script, args.source_sha,
+            rec = probe_verdict(args.dir, ALLOWED_CONTROL, args.job_id, args.script, args.source_sha,
                                 args.srun_rc)
-            out = control_paths(args.control_dir)["probe"]
+            out = control_paths(ALLOWED_CONTROL)["probe"]
             os.makedirs(os.path.dirname(out), exist_ok=True)
             atomic_write_json(out, rec)
             print(f"CLAIM PROBE {rec['verdict']} -> {out}")
@@ -2831,12 +3083,12 @@ def main(argv=None):
                 opts = [o + f",EXP40_INTENT={intent}" if o.startswith("--export=") else o
                         for o in spec["options"]]
                 return ["sbatch", "--parsable", "--job-name", name, "--comment", intent] + opts + [spec["script"]]
-            probe_reasons = probe_receipt_reasons(control_paths(args.control_dir)["probe"],
-                                                  args.control_dir, args.probe_script)
+            probe_reasons = probe_receipt_reasons(control_paths(ALLOWED_CONTROL)["probe"],
+                                                  ALLOWED_CONTROL, args.probe_script, args.expect_sha)
             for r in probe_reasons if args.mode == "FULL" else []:
                 print(f"  claim probe: {r}")
             probe_ok = not probe_reasons
-            action, state = neuronic_submit(args.control_dir, args.run_id, args.mode, args.execution_id,
+            action, state = neuronic_submit(ALLOWED_CONTROL, args.run_id, args.mode, args.execution_id,
                                             sbatch_argv, run, dry_run=args.dry_run,
                                             relaxation=os.environ.get("EXP40_NAS_RELAXATION"),
                                             probe_ok=probe_ok,

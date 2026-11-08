@@ -12,9 +12,10 @@
 # closure; a fresh (0..48 h) PASS full re-hash receipt of this cluster's dataset (the same
 # validator as the in-job FULL gate); FULL: a PASS PILOT receipt at the same SHA/rung, --time
 # from its measured rate, refused above the most conservative partition MaxTime line, and a
-# strictly validated <= 14-day-old claim-probe receipt from the SAME control directory.
-# Claims, submission states and the submission flock live in ONE control directory
-# (EXP40_CONTROL, default /n/fs/gatrdp/exp40_control), never in a checkout (code-r1 B2).
+# strictly validated <= 14-day-old claim-probe receipt of THIS EXPECT_SHA from the control
+# directory, whose mount must still be the probed one. Claims, submission states and the
+# submission flock live in THE control directory /n/fs/gatrdp/exp40_control (fixed; never in a
+# checkout; code-r1 B2, code-r2 B1).
 # The run tree is built here (a queued job is immune to later checkout changes); the
 # submission is one locked transaction through exp40_kit.py neuronic-submit.
 # Written by the exp_40 Coder seat (Claude Opus 5.5) per plan §4.4 / §14 and code review 1.
@@ -41,11 +42,12 @@ DIRTY="$(git status --porcelain --untracked-files=all -- train.py defaults.ini s
 [ -z "$DIRTY" ] || die "the closure is not clean: $DIRTY"
 
 SAVE_ROOT="$REPO/outputs_FLAC/exp40_yaw_aug_c16"; RECEIPTS="$REPO/$EXPREL/receipts"
-# ONE control directory for every checkout (code-r1 B2): claims, submission states, the
-# submission flock (held by the kit across the whole transaction) and the claim-probe receipt.
-CONTROL="${EXP40_CONTROL:-/n/fs/gatrdp/exp40_control}"
-[ "$(readlink -m "$CONTROL")" = "$CONTROL" ] || die "EXP40_CONTROL must be an absolute canonical path"
-case "$CONTROL" in "$REPO"/*) die "the control dir must not live inside a checkout" ;; esac
+# THE control directory, fixed for every checkout and operator (code-r1 B2, code-r2 B1): claims,
+# submission states, the submission flock (held by the kit across the whole transaction) and
+# the claim-probe receipt. Not configurable: a second namespace could admit an execution twice.
+CONTROL="/n/fs/gatrdp/exp40_control"
+[ -z "${EXP40_CONTROL:-}" ] || [ "$EXP40_CONTROL" = "$CONTROL" ] || die "EXP40_CONTROL is not configurable (must be unset or $CONTROL)"
+[ "$(readlink -m "$CONTROL")" = "$CONTROL" ] || die "$CONTROL must be a canonical path (no symlink)"
 mkdir -p "$SAVE_ROOT/runtrees" "$RECEIPTS" "$CONTROL" || die "dirs"
 exec 9>"$SAVE_ROOT/.build.lock" || die "lock"; flock -n 9 || die "another submission from this checkout holds $SAVE_ROOT/.build.lock"
 
@@ -70,7 +72,7 @@ MAXTIME_RAW="$(sinfo -h -p "$PARTITION" -o %l)" || die "sinfo failed"      # eve
 if [ "$MODE" = FULL ]; then
   PILOT_RCPT="$RECEIPTS/pilot_neuronic_${RUNG}_${EXPECT_SHA}.json"
   [ -f "$PILOT_RCPT" ] || die "no PASS PILOT receipt $PILOT_RCPT (run MODE=PILOT first)"
-  TMIN="$("$PY" "$EXPREL/exp40_kit.py" neuronic-time --mode FULL --receipt "$PILOT_RCPT" --maxtime-raw "$MAXTIME_RAW")" || die "time request refused"
+  TMIN="$("$PY" "$EXPREL/exp40_kit.py" neuronic-time --mode FULL --receipt "$PILOT_RCPT" --expect-sha "$EXPECT_SHA" --maxtime-raw "$MAXTIME_RAW")" || die "time request refused"
 else
   TMIN="$("$PY" "$EXPREL/exp40_kit.py" neuronic-time --mode PILOT --maxtime-raw "$MAXTIME_RAW")" || die "time request refused"
 fi
@@ -95,8 +97,9 @@ print(json.dumps({"script": f"{tree}/{exprel}/exp40_train.sbatch",
 PYEOF
 )" || die "sbatch spec"
 EXTRA=(); [ "$DRY_RUN" = 1 ] && EXTRA+=(--dry-run)
-"$PY" "$EXPREL/exp40_kit.py" neuronic-submit --control-dir "$CONTROL" --run-id "$RUN_ID" \
+"$PY" "$EXPREL/exp40_kit.py" neuronic-submit --run-id "$RUN_ID" \
   --mode "$MODE" --execution-id "$EXEC_ID" --probe-script "$REPO/$EXPREL/exp40_claim_probe.sbatch" \
+  --expect-sha "$EXPECT_SHA" \
   --maxtime-raw "$MAXTIME_RAW" --time-min "$TMIN" --source-checkout "$REPO" \
   --sbatch-json "$SPEC" "${EXTRA[@]}" | tee -a "$REPO/$EXPREL/yaw_aug_c16_neuronic_submissions.log"
 exit "${PIPESTATUS[0]}"

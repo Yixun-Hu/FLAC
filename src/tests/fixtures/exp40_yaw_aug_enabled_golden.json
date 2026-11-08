@@ -1,7 +1,7 @@
 {
  "_meta": {
   "capture_tool": "src/tests/exp40_yaw_aug_golden_capture.py",
-  "capture_tool_sha256": "d95224bb63caf41a707326a81927ec09dc6538d4c66e2d729901ed8510da4a74",
+  "capture_tool_sha256": "61544f39119cd7f4610313388948155054cac23ad1f1527114d966926b339a05",
   "experiment": "exp_40",
   "master_seed": 20261107,
   "pins": {

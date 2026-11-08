@@ -52,7 +52,8 @@ def _load_capture():
 
 
 cap = _load_capture()
-E1_DIR = _HERE.parents[1] / "worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/e1_captures"
+REPO = _HERE.parents[1]
+E1_DIR = REPO / "worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/e1_captures"
 
 
 @pytest.fixture(autouse=True)
@@ -82,6 +83,7 @@ def _snap(values, s):
 def test_fixture_binds_the_four_reference_pins(fixture):
     meta = fixture["_meta"]
     assert set(meta["pins"]) == REFERENCE_PINS == set(cap.REFERENCE_PINS)
+    assert meta["capture_tool_sha256"] == cap.tool_sha256(), "the fixture was assembled by another tool"
     assert {v["record_sha256"] for v in meta["pins"].values()} == {GOLDEN_RECORD_SHA256}
     assert meta["record_sha256"] == GOLDEN_RECORD_SHA256
     assert cap.canonical_sha256(fixture["record"]) == GOLDEN_RECORD_SHA256
@@ -99,21 +101,40 @@ def test_per_pin_capture_evidence_is_committed_and_consistent(fixture):
         assert c["record_sha256"] == GOLDEN_RECORD_SHA256 == cap.canonical_sha256(c["record"])
         assert c["source_tree_digest"] == meta["pins"][c["sha"]]["source_tree_digest"]
         assert (c["python"], c["torch"]) == (meta["python"], meta["torch"])
-    assert cap.assemble_reasons(caps, meta["capture_tool_sha256"]) == []
+    assert cap.assemble_reasons(caps, meta["capture_tool_sha256"], str(REPO)) == []
+    for c in caps:                                   # code-r2 H1: digests are git's, recomputed
+        assert c["source_tree_digest"] == cap.source_tree_digest(str(REPO), c["sha"])
 
 
-def test_assembly_refuses_wrong_pin_sets_tools_and_records(fixture):
+def test_assembly_refuses_wrong_pin_sets_tools_records_and_tree_digests(fixture):
     caps = [json.loads(f.read_text()) for f in sorted(E1_DIR.glob("capture_*.json"))]
     tool = fixture["_meta"]["capture_tool_sha256"]
-    assert cap.assemble_reasons(caps[:3] + [caps[0]], tool)                    # duplicate / missing pin
+    repo = str(REPO)
+
+    def refused(cs, needle, t=tool):
+        got = cap.assemble_reasons(cs, t, repo)
+        assert any(needle in r for r in got), (needle, got)
+    refused(caps[:3] + [caps[0]], "exactly once")                              # duplicate / missing pin
     bad = copy.deepcopy(caps)
     bad[1]["sha"] = "0" * 40
-    assert cap.assemble_reasons(bad, tool)                                       # unknown pin
-    assert cap.assemble_reasons(caps, "f" * 64)                                  # another tool
+    refused(bad, "exactly once")                                               # unknown pin
+    refused(caps, "captured by tool", "f" * 64)                                # another tool
     bad = copy.deepcopy(caps)
     bad[2]["record"]["real"]["global_rng_untouched"] = False
     bad[2]["record_sha256"] = cap.canonical_sha256(bad[2]["record"])
-    assert any("record_sha256" in r for r in cap.assemble_reasons(bad, tool))   # records differ
+    refused(bad, "record_sha256")                                              # records differ
+    bad = copy.deepcopy(caps)
+    bad[0]["source_tree_digest"] = "0" * 64
+    refused(bad, "source_tree_digest")                                         # altered digest
+    bad = copy.deepcopy(caps)
+    bad[0]["source_tree_digest"], bad[1]["source_tree_digest"] = caps[1]["source_tree_digest"], caps[0]["source_tree_digest"]
+    refused(bad, "source_tree_digest")                                         # swapped digests
+    bad = copy.deepcopy(caps)
+    bad[3]["extra"] = 1
+    refused(bad, "exact capture schema")
+    bad = copy.deepcopy(caps)
+    del bad[3]["python"]
+    refused(bad, "exact capture schema")
 
 
 def test_absent_offset_step_reproduces_the_reference_record_exactly(golden):
@@ -419,12 +440,29 @@ def test_validation_step_never_augments_with_offset_step():
                        [cap.make_md(m, i, cap.TINY_IMG_W) for i in range(2)]), 0)
 
 
-def test_test_step_never_augments_with_offset_step():
+def test_test_step_never_augments_with_offset_step(monkeypatch):
+    """code-r2 M4: test_step is EXECUTED (tiny wrapper, 1 sampling step, a recording metric
+    callback) with both the augmentation entry point and the rotation itself replaced by
+    raising stubs; it must reach the metric update without touching either."""
     m = cap._mods()
     w = cap.build_wrapper(m, cap.tiny_config(cap.TINY_IMG_W, {"offset_step": 4}))
-    assert "_apply_yaw_aug" not in (tdiff.DiffusionCondTrainingWrapper.test_step.__code__.co_names
-                                    + tdiff.DiffusionCondTrainingWrapper.validation_step.__code__.co_names)
+    cap.attach_stub_trainer(w, 5, 0)
     assert w.yaw_aug_offset_step == 4
+    w._apply_yaw_aug = lambda md: (_ for _ in ()).throw(AssertionError("test_step augmented"))
+    monkeypatch.setattr(tdiff, "rotate_scene_metadata",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("test_step rotated")))
+    monkeypatch.setattr(tdiff, "draw_yaw_offsets",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("test_step drew offsets")))
+    seen = []
+    w.metric_callback = types.SimpleNamespace(update_metrics=lambda split, fakes, reals, scenes, **k:
+                                              seen.append((split, tuple(fakes.shape), list(scenes))))
+    # the eval-time test config (set_test_config without its real metric stack)
+    w.samples, w.cfg_scale, w.steps, w.store_predictions, w.preds = 64, 1.0, 1, False, []
+    g = torch.Generator().manual_seed(1)
+    with torch.no_grad():
+        w.test_step((torch.randn(2, 1, w.samples, generator=g),
+                     [cap.make_md(m, i, cap.TINY_IMG_W) for i in range(2)]), 0)
+    assert seen and seen[0][0] == "test" and seen[0][2] == ["scene_0", "scene_1"]
 
 
 def test_canonicalize_still_refuses_a_c16_arm():

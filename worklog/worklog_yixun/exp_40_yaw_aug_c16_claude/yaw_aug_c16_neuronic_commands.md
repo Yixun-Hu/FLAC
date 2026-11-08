@@ -20,8 +20,10 @@ first (REQUEST → PAUSED from the other sessions), then set `GPU_RESERVATION_OK
 cd ~/codespace/exp-40-yaw-aug-c16
 export EXPECT_SHA=<40-hex launch commit>
 K=worklog/worklog_yixun/exp_40_yaw_aug_c16_claude
-# 0. every gate, nothing spawned
-MODE=FULL PLATFORM=a6000 RUNG=2x32 RUN_ID=exp40_C16_a6000_2x32 DRY_RUN=1 bash $K/exp40_train_local.sh
+mkdir -p $K/receipts                       # untracked; every receipt below lands here
+# 0. the receipt-free gates, nothing spawned (a FULL dry run here is EXPECTED to refuse on the
+#    three receipts steps 1-2 create; the all-gates FULL dry run is step 2b)
+MODE=SMOKE PLATFORM=a6000 RUNG=2x32 RUN_ID=exp40_C16_a6000_2x32 DRY_RUN=1 bash $K/exp40_train_local.sh
 # 1. <= 48 h before FULL (CPU/NAS only): the full AcousticRooms content re-hash (~40 min) and
 #    the real-NAS primitive probe (O_EXCL, NOREPLACE rename, dir fsync, manifest; seconds)
 /home/yixunhu/miniconda3/envs/flac/bin/python $K/exp40_kit.py ar-verify \
@@ -30,12 +32,16 @@ MODE=FULL PLATFORM=a6000 RUNG=2x32 RUN_ID=exp40_C16_a6000_2x32 DRY_RUN=1 bash $K
 /home/yixunhu/miniconda3/envs/flac/bin/python $K/exp40_kit.py nas-probe --out $K/receipts/nas_capability_a6000.json
 # 2. the production-rung smoke on BOTH cards (30 steps, no checkpoint; writes the receipt FULL needs)
 GPU_RESERVATION_OK=1 MODE=DDP_SMOKE PLATFORM=a6000 RUNG=2x32 RUN_ID=exp40_C16_a6000_2x32 bash $K/exp40_train_local.sh
+# 2b. EVERY FULL gate (AR + NAS + DDP_SMOKE receipts now exist), nothing spawned -- must print
+#     "DRY_RUN: every gate passed"
+MODE=FULL PLATFORM=a6000 RUNG=2x32 RUN_ID=exp40_C16_a6000_2x32 DRY_RUN=1 bash $K/exp40_train_local.sh
 # 3. the 40k run (≈ 22 h exclusive); every 2,500-step checkpoint is NAS-acknowledged right after its
 #    save (a bounded, killable copy); Ctrl-C / SIGTERM to the launcher terminates only its own
 #    training group and releases its locks (exit 130)
 GPU_RESERVATION_OK=1 MODE=FULL PLATFORM=a6000 RUNG=2x32 RUN_ID=exp40_C16_a6000_2x32 \
   nohup bash $K/exp40_train_local.sh > /dev/null 2>&1 &
-# 4. after the launcher's PASS it has written the stable run-result manifest
+# 4. the launcher ends TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION (the experiment-level PASS is
+#    the admission) and has written the stable run-result manifest
 #    $K/receipts/run_result_exp40_C16_a6000_2x32.json (names + sha256 of the check record, the
 #    DDP_SMOKE reference, the FULL evidence, the audit; the training-time checkpoint dirpath).
 #    Admission (CPU, ~2 min) derives every identity field from those validated records,
@@ -64,18 +70,22 @@ cd /n/fs/gatrdp/codespace/exp-40-yaw-aug-c16
 ln -s "$(readlink -f /n/fs/gatrdp/codespace/FLAC/AcousticRooms)" AcousticRooms
 ln -s "$(readlink -f /n/fs/gatrdp/codespace/FLAC/weights/FLAC/VAE.safetensors)" weights/FLAC/VAE.safetensors
 K=worklog/worklog_yixun/exp_40_yaw_aug_c16_claude; PY=/n/fs/gatrdp/envs/flac/bin/python
+mkdir -p $K/receipts                       # untracked; the receipts below land here
 ```
 
-One-time prerequisites. Claims, submission states, the submission flock and the claim-probe receipt
-live in ONE control directory shared by every checkout, `EXP40_CONTROL` (default
-`/n/fs/gatrdp/exp40_control`; it must be on the same shared filesystem the jobs see):
+Prerequisites. Claims, submission states, the submission flock and the claim-probe receipt live in
+THE control directory `/n/fs/gatrdp/exp40_control` — fixed for every checkout and operator (not
+configurable; `EXP40_CONTROL` must be unset or equal to it), on the shared filesystem the jobs see:
 
 ```bash
 # the dataset must reproduce the committed manifest (CPU node; ~1 h); <= 48 h before each submission
 $PY $K/exp40_kit.py ar-verify --ar-root "$(readlink -f AcousticRooms)" --manifest $K/exp40_ar_manifest.json \
   --out $K/receipts/ar_verify_neuronic.json
-# FULL only (valid 14 days): two tasks on two nodes, 20 barrier-fenced rounds racing O_EXCL inside
-# $EXP40_CONTROL/claims; the verdict is written atomically to $EXP40_CONTROL/receipts/claim_probe.json
+# FULL only (valid 14 days, bound to THIS EXPECT_SHA -- submit it from this checkout at EXPECT_SHA):
+# two tasks on two nodes, 20 barrier-fenced rounds racing O_EXCL inside
+# /n/fs/gatrdp/exp40_control/claims; the verdict is written atomically to
+# /n/fs/gatrdp/exp40_control/receipts/claim_probe.json; the submitter also requires the control
+# directory's current mount to be the probed one
 sbatch --output=$PWD/$K/slurm_claim_probe_%j.out $K/exp40_claim_probe.sbatch
 ```
 

@@ -319,20 +319,32 @@ def _capture_cmd(args):
     return 0
 
 
-def assemble_reasons(captures, own_tool_sha):
-    """Why a set of per-pin captures cannot become the fixture (empty list = assemble)."""
+CAPTURE_KEYS = frozenset(("sha", "source_tree_digest", "python", "torch", "tool_sha256", "record",
+                          "record_sha256"))
+
+
+def assemble_reasons(captures, own_tool_sha, repo):
+    """Why a set of per-pin captures cannot become the fixture (empty list = assemble).
+    code-r2 H1: exact capture schema, and every capture's source-tree digest is RECOMPUTED
+    from ``git ls-tree -r <sha> -- src`` in ``repo`` (an altered or swapped digest refuses)."""
     reasons = []
-    shas = [c.get("sha") for c in captures]
+    bad = [c.get("sha") if isinstance(c, dict) else c for c in captures
+           if not isinstance(c, dict) or set(c) != CAPTURE_KEYS]
+    if bad:
+        return [f"captures {bad} do not have the exact capture schema {sorted(CAPTURE_KEYS)}"]
+    shas = [c["sha"] for c in captures]
     if sorted(shas) != sorted(REFERENCE_PINS) or len(set(shas)) != len(shas):
         reasons.append(f"captures name pins {shas}, need each of {list(REFERENCE_PINS)} exactly once")
     for c in captures:
-        if canonical_sha256(c["record"]) != c.get("record_sha256"):
-            reasons.append(f"{c.get('sha')}: record_sha256 does not match its record")
-        if c.get("tool_sha256") != own_tool_sha:
-            reasons.append(f"{c.get('sha')}: captured by tool {c.get('tool_sha256')}, assembler is {own_tool_sha}")
+        if canonical_sha256(c["record"]) != c["record_sha256"]:
+            reasons.append(f"{c['sha']}: record_sha256 does not match its record")
+        if c["tool_sha256"] != own_tool_sha:
+            reasons.append(f"{c['sha']}: captured by tool {c['tool_sha256']}, assembler is {own_tool_sha}")
+        if c["sha"] in REFERENCE_PINS and c["source_tree_digest"] != source_tree_digest(repo, c["sha"]):
+            reasons.append(f"{c['sha']}: source_tree_digest is not git ls-tree -r {c['sha'][:12]} -- src")
     for key in ("python", "torch", "record_sha256"):
-        if len({c.get(key) for c in captures}) != 1:
-            reasons.append(f"captures differ in {key}: {sorted({str(c.get(key)) for c in captures})}")
+        if len({c[key] for c in captures}) != 1:
+            reasons.append(f"captures differ in {key}: {sorted({str(c[key]) for c in captures})}")
     return reasons
 
 
@@ -341,7 +353,7 @@ def _assemble_cmd(args):
     for path in args.capture:
         with open(path) as f:
             captures.append(json.load(f))
-    reasons = assemble_reasons(captures, tool_sha256())
+    reasons = assemble_reasons(captures, tool_sha256(), args.repo)
     if reasons:
         raise SystemExit("REFUSED: " + "; ".join(reasons))
     record = captures[0]["record"]
@@ -377,6 +389,7 @@ def main(argv=None):
     c.add_argument("--sha", required=True)
     c.add_argument("--out", required=True)
     a = sub.add_parser("assemble", help="combine the four per-pin captures into the fixture")
+    a.add_argument("--repo", required=True)
     a.add_argument("--capture", action="append", required=True)
     a.add_argument("--out", required=True)
     args = ap.parse_args(argv)

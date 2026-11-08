@@ -17,8 +17,9 @@
 # its save, inside the training) -> start watcher -> wait -> evidence (+ FULL audit).
 # Never signals a process it did not start; the watcher and the EXIT/INT/TERM cleanup trap
 # terminate only the training's own session (SIGTERM, bounded wait, SIGKILL of that group).
-# FULL ends with a stable run-result manifest (receipts/run_result_<RUN_ID>.json) from which
-# `exp40_kit.py admit` derives the admission. Exit: 0 PASS | 1 a verdict FAILED | 2 a gate
+# FULL ends TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION with a stable run-result manifest
+# (receipts/run_result_<RUN_ID>.json) from which `exp40_kit.py admit` derives the admission
+# (the experiment-level PASS). Exit: 0 PASS / FULL pending admission | 1 a verdict FAILED | 2 a gate
 # refused | 8/9/10/11 watcher | 12 cleanup failed | 130 interrupted.
 # Written by the exp_40 Coder seat (Claude Opus 5.5) per plan_yaw_aug_c16.md §4 / §14.
 # ============================================================================
@@ -209,7 +210,9 @@ if [ "$MODE" = FULL ]; then
     --check "$CHECK_JSON" --reference "$REF" --out "$AUDIT" || FINAL=1
   # the stable run-result manifest (code-r1 M6): admission resolves every record from it
   cp "$CHECK_JSON" "$RECEIPTS/check_${RUN_ID}.json" || FINAL=1
-  VERDICT=PASS; [ "$FINAL" = 0 ] && [ "$TRAIN_RC" = 0 ] && [ "$WATCH_RC" = 0 ] || VERDICT=FAIL
+  # code-r2 NIT: experiment-level PASS is the admission; the launcher's FULL state is this
+  VERDICT=TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION
+  [ "$FINAL" = 0 ] && [ "$TRAIN_RC" = 0 ] && [ "$WATCH_RC" = 0 ] || VERDICT=FAIL
   "$PY" "$KIT" run-result --run-id "$RUN_ID" --sha "$EXPECT_SHA" --verdict "$VERDICT" \
     --check "$RECEIPTS/check_${RUN_ID}.json" --reference "$REF" --evidence "$EVOUT" --audit "$AUDIT" \
     --expected-dirpath "$CKPT_DIR" --ckpt-dir "$CKPT_DIR" --runtree "$RUNTREE" \
@@ -224,6 +227,10 @@ else
   [ "$n_ckpt" = 0 ] || { echo "a smoke wrote ${n_ckpt} checkpoint(s)"; FINAL=1; }
 fi
 [ "$TRAIN_RC" = 0 ] && [ "$WATCH_RC" = 0 ] || FINAL=1
-echo "=== exp_40 C16 ${MODE} training finished $(date '+%Y-%m-%d %H:%M:%S'): $([ $FINAL = 0 ] && echo PASS || echo FAIL) (locks released at exit) ==="
+if [ "$MODE" = FULL ]; then
+  echo "=== exp_40 C16 FULL training finished $(date '+%Y-%m-%d %H:%M:%S'): $([ $FINAL = 0 ] && echo TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION || echo FAIL) (locks released at exit) ==="
+else
+  echo "=== exp_40 C16 ${MODE} finished $(date '+%Y-%m-%d %H:%M:%S'): $([ $FINAL = 0 ] && echo PASS || echo FAIL) (locks released at exit) ==="
+fi
 [ "$WATCH_RC" -ge 8 ] && exit "$WATCH_RC"
 exit "$FINAL"
