@@ -41,3 +41,13 @@ All from `~/codespace/exp-40-yaw-aug-c16` (branch `exp-40-yaw-aug-c16`). The lau
 
 ## 2026-11-08 00:34:29 — Codex code review 2 of 3
 `codex exec -s read-only -m gpt-5.6-sol -c model_reasoning_effort=xhigh -C ~/codespace/exp-40-yaw-aug-c16 -o <scratch>/exp40/codex/code_r2_review.md "<prompt>" < /dev/null` (HEAD e5954933).
+
+## 2026-11-08 00:58 — E1 recapture with the round-3 capture tool (CPU; code-r2 H1)
+`python -I src/tests/exp40_yaw_aug_golden_capture.py capture --repo . --sha <pin> --out e1_captures/capture_<sha12>.json` ×4, then `… assemble --repo . --capture … --out src/tests/fixtures/exp40_yaw_aug_enabled_golden.json` (log `yaw_aug_c16_*_E1_recapture_r3_tool.log`).
+
+## 2026-11-08 00:34:43 — full CPU suite at e5954933
+`CUDA_VISIBLE_DEVICES="" PYTHONDONTWRITEBYTECODE=1 nice -n 15 python -m pytest -q -p no:cacheprovider -p no:warnings src/tests -rf` → 7 failed (pre-existing CPU-environment), 6883 passed (`yaw_aug_c16_2026-11-08_00-34-43_full_suite_e5954933_tail.log`).
+
+## 2026-11-08 01:11:53 — round-3 tests (CPU) → 735 passed (`yaw_aug_c16_2026-11-08_01-11-53_code_r3_tests.log`)
+
+## 2026-11-08 01:11:59 / 01:12:20 / 01:13:26 — DRY_RUN SMOKE (GPU gate refused: a transient foreign process on GPU 0), DRY_RUN FULL (REFUSED on the two missing receipts), DRY_RUN SMOKE (PASS) at 2bc6e3cf

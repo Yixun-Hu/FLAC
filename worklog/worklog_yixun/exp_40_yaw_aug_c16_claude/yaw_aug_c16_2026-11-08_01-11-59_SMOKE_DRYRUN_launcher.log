@@ -1,0 +1,6 @@
+=== exp_40 C16 SMOKE (dry_run=1) -- 2026-11-08_01-11-59 -- host mae-cab-lab-server -- source HEAD 2bc6e3cf6e0de972a2a7677f11e92eb69582c596 ===
+/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_smoke_2026-11-08_01-11-59__2bc6e3cf6e0d__dryrun_2026-11-08_01-11-59
+run tree: /home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_smoke_2026-11-08_01-11-59__2bc6e3cf6e0d__dryrun_2026-11-08_01-11-59
+CHECK PASS -> /home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/yaw_aug_c16_2026-11-08_01-11-59_SMOKE_DRYRUN_check.json
+REFUSED: GPU 0 holds compute process(es) [64154] (GPU_POLICY=idle)
+REFUSED: GPU gate refused (see /home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/yaw_aug_c16_2026-11-08_01-11-59_SMOKE_DRYRUN_gpus.json)
