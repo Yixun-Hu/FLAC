@@ -1,0 +1,14 @@
+Running json scandir...
+Found 73473 files in 243 subfolders
+Running json scandir...
+Found 145665 files in 243 subfolders
+Running json scandir...
+Found 218463 files in 243 subfolders
+Running json scandir...
+Found 291210 files in 243 subfolders
+SUBSET AUDIT PASS: worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_subset_audit.json
+
+real	1m0.201s
+user	0m22.811s
+sys	0m6.056s
+rc=0
