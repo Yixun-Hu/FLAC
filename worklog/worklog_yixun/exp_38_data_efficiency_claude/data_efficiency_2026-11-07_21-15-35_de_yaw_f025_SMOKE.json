@@ -1,0 +1,1 @@
+{"run": "de_yaw_f025", "ts": "2026-11-07_21-15-35", "gpu": 0, "steps": 20, "rc": 0, "checkpoints_written": 0, "log_gate": "LOG GATE PASS", "peak_vram_mib_card": "5493", "last_rate": "0.18it/s", "backend": "flash", "head": "edc0809c5177cf56d81efdb05af082466e00f684", "verdict": "PASS"}
