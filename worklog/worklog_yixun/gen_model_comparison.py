@@ -514,13 +514,35 @@ EXP25_DIR = ("worklog", "worklog_yixun", "exp_25_depth_canon_claude")
 EXP40_DIR = ("worklog", "worklog_yixun", "exp_40_yaw_aug_c16_claude")
 
 
-def validate_exp40_cell(files, repo_root=None):
-    """``(ok, problems)`` for one exp_40 row: every file a registered C16 theta=0 cell whose
-    committed exp_40 receipt binds its exact bytes (exp40_eval.validate_row, offline)."""
+EXP40_FARM_C16 = ("outputs_FLAC", "exp40_yaw_aug_c16", "farm", "C16")
+EXP40_SEEDS = (42, 43, 44, 45, 46)
+
+
+def exp40_canonical_files(root, k):
+    """The EXACT five metrics files of the exp_40 C16 theta=0 row at K (seeds 42-46)."""
+    return [os.path.join(root, *EXP40_FARM_C16,
+                         f"epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K{k}_s{s}.json")
+            for s in EXP40_SEEDS]
+
+
+def validate_exp40_cell(files, repo_root=None, expected_k=None):
+    """``(ok, problems)`` for one exp_40 row (code-r1 M7): the files must be EXACTLY the five
+    canonical C16 theta=0 metrics files of the row's K (no duplicate, no copy elsewhere, the
+    complete seed set 42-46) BEFORE any aggregation, and then pass the committed exp_40 table
+    evidence through exp40_eval.validate_row (offline: metrics + stream + receipt + admission +
+    E0 receipt bytes; no checkpoint access)."""
     if not files:
         return True, []
     import importlib.util
     root = repo_paths(repo_root)["root"]
+    if expected_k not in (1, 8):
+        return False, [f"the exp_40 row needs its K (1 or 8), got {expected_k!r}"]
+    got = [os.path.realpath(f) for f in files]
+    want = [os.path.realpath(f) for f in exp40_canonical_files(root, expected_k)]
+    if len(got) != len(set(got)) or sorted(got) != sorted(want):
+        return False, [f"the exp_40 K={expected_k} row needs exactly the five canonical files "
+                       f"(seeds {EXP40_SEEDS}) under {os.path.join(*EXP40_FARM_C16)}; got "
+                       f"{sorted(os.path.relpath(g, root) for g in got)}"]
     try:
         spec = importlib.util.spec_from_file_location(
             "exp40_eval_gen", os.path.join(root, *EXP40_DIR, "exp40_eval.py"))
@@ -529,6 +551,8 @@ def validate_exp40_cell(files, repo_root=None):
         return mod.validate_row(sorted(files), root, root)
     except Exception as exc:                       # the gate must not fail open
         return False, [f"cannot run the exp_40 validator ({exc})"]
+
+
 EXP25_FARM = "outputs_FLAC/exp25_depth_canon"
 
 
@@ -893,7 +917,7 @@ def render_row(label, proto, K, files, repo_root=None, validator_path=None, cont
             return (f"| {label} | {proto} | {K} | {len(files)} | "
                     f"**BLOCKED — row validation failed:** {detail} | | | | | |"), True
     if contract == "exp40":
-        ok, problems = validate_exp40_cell(files, repo_root=repo_root)
+        ok, problems = validate_exp40_cell(files, repo_root=repo_root, expected_k=K)
         if not ok:
             detail = problems[0] if problems else "unspecified"
             return (f"| {label} | {proto} | {K} | {len(files)} | "
