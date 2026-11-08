@@ -20,7 +20,12 @@ rc=1
 ## shard 2: files
 src/tests/test_are_launch_schedule.py src/tests/test_depth_canon_collect.py src/tests/test_eval_localization.py src/tests/test_exp11_validate_rows.py src/tests/test_exp35_phase_ii_dry_parse.py src/tests/test_exp35_phase_ii_schema.py src/tests/test_loc_agree_embed.py src/tests/test_loc_meshgrid_geometry.py src/tests/test_loc_rir_metrics.py src/tests/test_raf_publish.py src/tests/test_vit_gradient_checkpointing.py 
 ## shard 2: result
-(still running when this summary was written)
+FAILED src/tests/test_depth_canon_collect.py::test_the_overlap_derived_from_the_real_validated_audit
+FAILED src/tests/test_eval_localization.py::test_run_query_matches_a_candidate_major_replay_with_full_conditioning[64]
+FAILED src/tests/test_eval_localization.py::test_run_query_matches_a_candidate_major_replay_with_full_conditioning[4]
+FAILED src/tests/test_eval_localization.py::test_run_query_mk_replay_is_stable_across_the_batch_split
+4 failed, 1254 passed, 10 skipped, 30 warnings in 3047.01s (0:50:47)
+rc=1
 
 ## shard 3: files
 src/tests/test_assert_arm_configs_vit_pin.py src/tests/test_depth_canon_cond_probe.py src/tests/test_eval_paths.py src/tests/test_exp11_wandb_readback.py src/tests/test_exp35_phase_ii_dry_run.py src/tests/test_exp35_phase_ii_world.py src/tests/test_loc_candidates.py src/tests/test_loc_meshgrid_launch_record.py src/tests/test_loc_scoring.py src/tests/test_raf_readback.py src/tests/test_yaw_aug_arm_config.py 
@@ -66,3 +71,8 @@ rc=0
   poll timing); the whole file passes alone on this branch (52 passed).
 - shard 5, test_loc_meshgrid_queries.py ×4: the pre-existing GPU-only real-stack tests CLAUDE.md documents (AGREE
   torch.load without map_location on a CPU-only run in a checkout holding the real data).
+- shard 2 (finished 23:44): test_depth_canon_collect.py::test_the_overlap_derived_from_the_real_validated_audit = the
+  same exp_25 tie-audit byte binding of dataset.py / AR_md.py (CAUSED BY THE PORT, as shard 0); test_eval_localization.py
+  ×3 = the pre-existing GPU-only real-stack tests CLAUDE.md documents (flash_attn has no CPU kernel).
+- TOTAL: 6,567 passed; 11 failed = 3 caused by the planned exp_14 port (exp_25's tie-audit gate binds those bytes;
+  they pass at the base 2b42468c), 1 flaky under parallel load (passes alone), 7 pre-existing GPU-only tests.

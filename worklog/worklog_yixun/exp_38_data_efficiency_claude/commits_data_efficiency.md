@@ -21,6 +21,12 @@ Branch `exp-38-data-efficiency`, cut from `localization-exp` `2b42468c8f429b1d93
 | 15 | 939f1933 | exp_38 code r1: registry with exact schemas and sealed receipts (B1 B2 B4 H1 H2 H3 H5 H9 N1 N2) |
 | 16 | a2d4d39f | exp_38 code r1: the training supervisor owns every launch; neuronic owner records (H4 H5 H6 H7) |
 | 17 | d181a22c | exp_38 code r1: evaluation bound to E0, the training receipt and this box (B3 B5 B6 B7 H10) + table rows (B10) |
-| 18 | (this) | exp_38 records: Codex code review r1 + fix-round worklog, plan §15 amendments, command sheets, .gitattributes |
+| 18 | c8c22818 | exp_38 records: Codex code review r1 + fix-round worklog, plan §15 amendments, command sheets, .gitattributes |
+| 19 | b444ceac | exp_38 code r1 follow-ups found by the new tests: receipt bindings computed where the files live |
+| 20 | e053c4c6 | exp_38 records: clean-HEAD evidence for code review r2 (exp38 suite 511 passed; all-paths dry run; sharded regression) |
+| 21 | 5b26bfd5 | exp_38 code r2 BLOCKING 3: bind the BYTES of every AR file the runs read (content manifest, 445,414 files) |
+| 22 | 449f73f1 | exp_38 code r2: full terminal-receipt consumer, retained receipts, launcher variables, lock holder, exact checkpoint state |
+| 23 | 8771f486 | exp_38 code r2: evaluation from a sealed snapshot, E0 re-admission, live pins, cell claims, complete manifest |
+| 24 | (this) | exp_38 records: Codex code review r2 + fix-round worklog, plan §15 r2 amendments, command sheets, AR content verify PASS |
 
 Note: commit 4's message says '21 green'; after the git-dependent base-commit test moved into the audit tool (Codex plan r1 NIT 6) the file has 20 tests (all green).

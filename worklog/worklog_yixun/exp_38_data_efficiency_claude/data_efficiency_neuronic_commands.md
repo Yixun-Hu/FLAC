@@ -8,7 +8,10 @@ Every job runs `exp38_train.sbatch` → `exec exp38_supervise.py --platform neur
 allocation and the job with its owner intent, launches `python -m torch.distributed.run` FROM a closure snapshot
 inside the run dir (`<run dir>/.exp38_tools/`), owns its process group and seals the receipts. **One owner record
 per (run, mode)** under `<save root>/.exp38_owners/<run>__<MODE>/`: a second SMOKE or FULL of the same run is
-refused until the first is abandoned; every job writes exactly one `attempt_<jobid>.json` there (`--no-requeue`).
+refused until the first is abandoned; every job claims the owner's single `attempt.claim` (atomic `mkdir`) and
+writes `attempt_<jobid>.json` there (`--no-requeue`). A job that refuses AFTER claiming still consumes the
+attempt (fail-closed): abandon, then submit again. The FULL job re-opens the copied E0 receipt only (its eight
+cells exist on the A6000 box, where every later consumer re-admits them).
 
 ```bash
 # 0. a campaign worktree at the pushed pin (once; never commit in it while jobs are queued or running)
@@ -25,7 +28,9 @@ export PYTHONNOUSERSITE=1 HF_HOME=/n/fs/gatrdp/hf_cache HF_HUB_OFFLINE=1; unset 
 scp <a6000>:~/codespace/exp-38-campaign/$E/data_efficiency_e0_receipt.json{,.sha256} $E/
 $PY $E/exp38_registry.py untracked --platform neuronic
 $PY $E/exp38_registry.py dry-run --platform neuronic --include-optional     # argv + subset checks, no GPU
-$PY $E/exp38_subset_audit.py --verify $E/data_efficiency_subset_audit.json  # this platform's AR tree
+$PY $E/exp38_subset_audit.py --verify $E/data_efficiency_subset_audit.json  # this platform's AR listings
+$PY $E/exp38_content_manifest.py --verify $E/data_efficiency_ar_content_manifest.txt.gz   # its BYTES (~15 min;
+#    every FULL repeats it: the 445,414 files must hash exactly as on the A6000 box, else the job refuses)
 
 # 1. per run: the production-topology SMOKE first (30 steps, no checkpoint; the first one writes the sealed
 #    neuronic env receipt; its log gives the real 2×L40 rate -> choose --time for FULL)

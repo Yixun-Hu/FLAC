@@ -1,3 +1,5 @@
 # raw run / test logs are verbatim terminal captures: exempt from git's whitespace checks (Codex code r1 NIT 4)
 *.log -whitespace
 *.out -whitespace
+# verbatim Codex reviews: markdown hard line breaks (two trailing spaces) are part of the artifact
+data_efficiency_codex_*_review.md -whitespace
