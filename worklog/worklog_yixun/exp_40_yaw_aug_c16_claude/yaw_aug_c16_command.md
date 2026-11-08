@@ -51,3 +51,7 @@ All from `~/codespace/exp-40-yaw-aug-c16` (branch `exp-40-yaw-aug-c16`). The lau
 ## 2026-11-08 01:11:53 — round-3 tests (CPU) → 735 passed (`yaw_aug_c16_2026-11-08_01-11-53_code_r3_tests.log`)
 
 ## 2026-11-08 01:11:59 / 01:12:20 / 01:13:26 — DRY_RUN SMOKE (GPU gate refused: a transient foreign process on GPU 0), DRY_RUN FULL (REFUSED on the two missing receipts), DRY_RUN SMOKE (PASS) at 2bc6e3cf
+
+## 2026-11-08 01:17:57 — Codex code review 3 of 3 (HEAD 09150566); fixes c7436932
+## 2026-11-08 01:43:47 / 01:44:14 — DRY_RUN SMOKE (PASS) / DRY_RUN FULL (REFUSED: the two missing receipts) at c7436932
+## 2026-11-08 2026-11-08_01-43-39 — final tests → 753 passed (`yaw_aug_c16_2026-11-08_01-43-39_code_final_tests.log`)

@@ -25,3 +25,7 @@
 | `78c64d29` | exp_40: Codex code review 2 of 3 (REQUEST-CHANGES, verbatim + transcript) + notebook + command record |
 | `c39dc561` | exp_40 eval code-r2 B4/M2/M3: one runtime-identity validator (exact {path, sha256} entries, canonical digest recomputed, every recorded input re-hashed, C16 admission = the validated one and predating the cell, AR re-hash receipt 0..48 h old at THE CELL'S S... |
 | `2bc6e3cf` | exp_40 code-r2 kit side: B1 one fixed, non-overridable neuronic control directory (kit constant; submitter/sbatch/probe refuse any other; CLI has no override); B2 claim-probe receipt bound to EXPECT_SHA, exact successful mount records, and the control dir's... |
+| `09150566` | exp_40 round 3 records: notebook (every code-review-2 finding mapped to its fix; full CPU suite at e5954933 = only the 7 pre-existing CPU-environment failures), ledger, command record, round-3 test log (735 passed), DRY_RUN records |
+| `c73ba758` | exp_40: Codex code review 3 of 3, the last (REQUEST-CHANGES, verbatim + transcript) + notebook |
+| `c7436932` | exp_40 code-r3 fixes (the last review; fixed without re-review per the cap): B1 admission resolves DINOv3 ONLY from a mandatory, verified sealed hub (competing HF variables stripped in the admission-tree subprocess, resolution checked there, hub + resolved ... |
+| (this commit) | hand-off records: notebook, ledger, launch-sheet EXPECT_SHA rule, final test log |

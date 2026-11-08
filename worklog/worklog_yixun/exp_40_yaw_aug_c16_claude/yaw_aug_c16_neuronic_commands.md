@@ -4,8 +4,11 @@ Plan: `plan_yaw_aug_c16.md` (r3 FINAL; §0 decisions D1–D6, §14 the binding f
 **your decision (D1)**: (a) 2×A6000 here — RECOMMENDED, the figure's YAW arm (`ac1f2603…`, exp_17) was
 trained exactly this way; (b) neuronic 2×L40 × 32 — same rung and draw keys, different GPU; (c) neuronic
 8×L40 × 8 — exp_15's recipe, not comparable with the figure arm. Every command below needs the pushed
-launch commit `EXPECT_SHA` (the final reviewed commit of branch `exp-40-yaw-aug-c16`; this sheet is
-updated with it at hand-off).
+launch commit `EXPECT_SHA` = the tip of branch `exp-40-yaw-aug-c16` you launch from (`git pull`, then
+`export EXPECT_SHA=$(git rev-parse HEAD)`; the launchers refuse unless HEAD equals it and the training
+closure is clean). At hand-off (2026-11-08) the reviewed tip is named in the notebook's last entry;
+any later commit simply becomes the new EXPECT_SHA, and every receipt bound to a commit (DDP_SMOKE /
+PILOT, claim probe) is then re-made at it.
 
 ---
 
@@ -18,7 +21,7 @@ first (REQUEST → PAUSED from the other sessions), then set `GPU_RESERVATION_OK
 
 ```bash
 cd ~/codespace/exp-40-yaw-aug-c16
-export EXPECT_SHA=<40-hex launch commit>
+git pull --ff-only && export EXPECT_SHA=$(git rev-parse HEAD)     # the launch commit
 K=worklog/worklog_yixun/exp_40_yaw_aug_c16_claude
 mkdir -p $K/receipts                       # untracked; every receipt below lands here
 # 0. the receipt-free gates, nothing spawned (a FULL dry run here is EXPECTED to refuse on the

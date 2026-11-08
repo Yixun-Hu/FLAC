@@ -1,0 +1,7 @@
+=== exp_40 C16 FULL (dry_run=1) -- 2026-11-08_01-44-14 -- host mae-cab-lab-server -- source HEAD c7436932e2f582f0d0b27474d9d963e120f4f629 ===
+/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32__c7436932e2f5__dryrun_2026-11-08_01-44-14
+run tree: /home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32__c7436932e2f5__dryrun_2026-11-08_01-44-14
+REFUSED: no readable full AcousticRooms re-hash receipt /home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/receipts/ar_verify_a6000.json ([Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/receipts/ar_verify_a6000.json'); run exp40_kit.py ar-verify first
+REFUSED: no readable ddp_smoke receipt /home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/receipts/ddp_smoke_a6000_2x32_c7436932e2f582f0d0b27474d9d963e120f4f629.json ([Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/receipts/ddp_smoke_a6000_2x32_c7436932e2f582f0d0b27474d9d963e120f4f629.json')
+CHECK REFUSED -> /home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/yaw_aug_c16_2026-11-08_01-44-14_FULL_DRYRUN_check.json
+REFUSED: gates refused (see /home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/yaw_aug_c16_2026-11-08_01-44-14_FULL_DRYRUN_check.json)
