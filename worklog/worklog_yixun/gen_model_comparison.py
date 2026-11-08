@@ -16,6 +16,8 @@ KEYS = [("T60", "T60"), ("C50", "C50"), ("EDT", "EDT"),
         ("R@1", "RIR_to_GT_RIR_R@1"), ("R@5", "RIR_to_GT_RIR_R@5"), ("R@10", "RIR_to_GT_RIR_R@10")]
 MIN_SEEDS = 5
 # exp_25 depth_canon row labels (plan v9 §5): the comparators are RE-MEASURED at the exp_25 pin
+EXP38_LABELS = {(arm, tag): f"data-eff {name} f={int(tag)}% @40k (exp_38)"
+                for arm, name in (("yaw", "Yaw-Aug FLAC"), ("bf", "OrbitRIR B-F")) for tag in ("025", "050", "075")}
 EXP25_LABELS = {"CANON": "depth-canon CANON @40k (exp_25)",
                 "P1": "P1 vanilla @40k — re-measured at the exp_25 pin (P1-pin)",
                 "YAW": "yaw-aug A6000 YAW @40k (exp_17 ckpt) — re-measured at the exp_25 pin (YAW-pin)"}
@@ -179,6 +181,14 @@ ROWS = [
  ("data-curve van f=50% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 8, ["outputs_FLAC/data_curve_import/dc_van_f050/*_K8_s4[2-6]*.json"]),
  ("data-curve van f=75% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 1, ["outputs_FLAC/data_curve_import/dc_van_f075/*_K1_s4[2-6]*.json"]),
  ("data-curve van f=75% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 8, ["outputs_FLAC/data_curve_import/dc_van_f075/*_K8_s4[2-6]*.json"]),
+] + [
+ # --- exp_38 data_efficiency (plan r2 §9.4, announcement 04) — ADDITIVE, its own contract ---
+ # YAW / OrbitRIR at exp_14's 25 / 50 / 75 % subsets; every file goes through exp38_eval's
+ # offline cell admission; a run publishes only as a complete K=1 + K=8 five-seed pair, one pin.
+ (EXP38_LABELS[(arm, tag)], "vanilla eval" if arm == "yaw" else "fa eval", k,
+  [f"outputs_FLAC/exp38_data_efficiency/eval/de_{arm}_f{tag}/*_metrics_1_1.0_de_{arm}_f{tag}_K{k}_s4[2-6]"
+   + ("_fa_invariant_a4" if arm == "bf" else "") + ".json"], "exp38")
+ for arm in ("yaw", "bf") for tag in ("025", "050", "075") for k in (1, 8)
 ]
 
 EXP11_VALIDATOR = os.path.join(REPO, "worklog", "worklog_yixun", "exp_11_fa_orbit_claude",
@@ -838,6 +848,90 @@ def build_header(evidence_ready):
     return head
 
 
+EXP38_DIR = ("worklog", "worklog_yixun", "exp_38_data_efficiency_claude")
+
+
+def exp38_run_of(label):
+    hit = [k for k, v in EXP38_LABELS.items() if v == label]
+    return f"de_{hit[0][0]}_f{hit[0][1]}" if hit else None
+
+
+def _load_exp38_eval(repo_root=None):
+    import importlib.util
+    d = os.path.join(repo_paths(repo_root)["root"], *EXP38_DIR)
+    if d not in sys.path:
+        sys.path.insert(0, d)
+    spec = importlib.util.spec_from_file_location("exp38_eval_gen", os.path.join(d, "exp38_eval.py"))
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load the exp_38 evaluator driver from {d}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def validate_exp38_cell(files, repo_root=None, expected_run=None, expected_k=None):
+    """``(ok, problems)`` for one exp_38 row: every file is a registered result cell of the declared
+    run and K at its farm path, admitted OFFLINE by exp38_eval.validate_cell (metrics + stream +
+    receipt + dump-manifest copy + checkpoint-manifest copy), all at ONE evaluator pin."""
+    if not files:
+        return True, []
+    root = repo_paths(repo_root)["root"]
+    try:
+        EV = _load_exp38_eval(root)
+        cells = {c["metrics"]: c for c in EV.run_cells(expected_run)}
+    except Exception as exc:                       # the gate must not fail open
+        return False, [f"cannot load the exp_38 validator ({exc})"]
+    problems, pins, seeds = [], set(), []
+    for path in sorted(files):
+        rel = os.path.relpath(os.path.realpath(path), os.path.realpath(root))
+        cell = cells.get(rel)
+        if cell is None or cell["K"] != int(expected_k):
+            problems.append(f"{os.path.basename(path)}: not a registered {expected_run} K={expected_k} cell")
+            continue
+        try:
+            with open(path) as fh:
+                pins.add(str(json.load(fh).get("source_sha")))
+        except (ValueError, OSError) as exc:
+            problems.append(f"{os.path.basename(path)}: unreadable ({exc})")
+            continue
+        cwd = os.getcwd()
+        try:
+            os.chdir(root)
+            problems += EV.validate_cell(cell, offline=True)
+        finally:
+            os.chdir(cwd)
+        seeds.append(cell["seed"])
+    if len(pins) > 1:
+        problems.append(f"the cell spans {len(pins)} evaluator pins")
+    if len(seeds) != len(set(seeds)) or len(seeds) > MIN_SEEDS:
+        problems.append(f"seeds {sorted(seeds)}: one record per seed, at most {MIN_SEEDS}")
+    return (not problems), problems
+
+
+def check_exp38_round(rendered, exp38_cells):
+    """``(withheld_labels, problems)``: an exp_38 run publishes only as a complete, valid K=1 + K=8
+    pair, and every published exp_38 row shares ONE evaluator pin."""
+    rows = [r for r in rendered if r.get("contract") == "exp38"]
+    started = {label for (label, _k), files in exp38_cells.items() if files}
+    problems, ready = [], set()
+    for label in sorted(started):
+        mine = {r["K"]: r["line"] for r in rows if r["label"] == label}
+        bad = [k for k in (1, 8) if k not in mine or "BLOCKED" in mine[k] or "*pending" in mine[k]]
+        if bad:
+            problems.append(f"{label}: publishes only as a complete, valid K=1 + K=8 pair (K={bad} not ready)")
+        else:
+            ready.add(label)
+    pins = set()
+    for (label, _k), files in exp38_cells.items():
+        for path in files if label in ready else ():
+            with open(path) as fh:
+                pins.add(str(json.load(fh).get("source_sha")))
+    if len(pins) > 1:
+        problems.append(f"the exp_38 rows span {len(pins)} evaluator pins: nothing publishes across pins")
+        ready = set()
+    return started - ready, problems
+
+
 def render_row(label, proto, K, files, repo_root=None, validator_path=None, contract="table"):
     """``(markdown_line, blocked)`` for one row, gating exp_11 and exp_14 evidence."""
     # exp_14 FIRST and exclusively: its cells sit inside outputs_FLAC/exp11_<ARM>/,
@@ -861,6 +955,13 @@ def render_row(label, proto, K, files, repo_root=None, validator_path=None, cont
     if contract == "exp25":
         ok, problems = validate_exp25_cell(files, repo_root=repo_root,
                                            expected_arm=exp25_arm_of(label), expected_k=K)
+        if not ok:
+            detail = problems[0] if problems else "unspecified"
+            return (f"| {label} | {proto} | {K} | {len(files)} | "
+                    f"**BLOCKED — row validation failed:** {detail} | | | | | |"), True
+    if contract == "exp38":
+        ok, problems = validate_exp38_cell(files, repo_root=repo_root,
+                                           expected_run=exp38_run_of(label), expected_k=K)
         if not ok:
             detail = problems[0] if problems else "unspecified"
             return (f"| {label} | {proto} | {K} | {len(files)} | "
@@ -1088,7 +1189,7 @@ def main(argv=None):
 
     rendered, blocked_rows, exp11_status, q9_cells = [], [], {}, {}
     exp14_cells, exp14_status = {}, {}
-    exp25_cells = {}
+    exp25_cells, exp38_cells = {}, {}
     for spec in ROWS:
         label, proto, K, pats = spec[:4]
         contract = spec[4] if len(spec) > 4 else "table"
@@ -1109,6 +1210,8 @@ def main(argv=None):
             exp14_status[(label, K)] = bool(files) and not blocked
         if contract == "exp25":
             exp25_cells[(label, K)] = files
+        if contract == "exp38":
+            exp38_cells[(label, K)] = files
         if blocked:
             blocked_rows.append(f"{label} (K={K})")
         if is_exp11_row(pats) and files:
@@ -1173,6 +1276,17 @@ def main(argv=None):
                                          "an exp_25 arm publishes only as a complete two-K pair "
                                          "at the one campaign pin")
         lines_tail += ["", "**exp_25 rows WITHHELD:** " + "; ".join(exp25_problems)]
+    exp38_withheld, exp38_problems = check_exp38_round(rendered, exp38_cells)
+    if exp38_problems:
+        print("exp_38 rows not publishable:", file=sys.stderr)
+        for problem in exp38_problems:
+            print("  -", problem, file=sys.stderr)
+        for r in rendered:
+            if r.get("contract") == "exp38" and r["label"] in exp38_withheld:
+                r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
+                                         "an exp_38 run publishes only as a complete two-K pair "
+                                         "at the one evaluator pin")
+        lines_tail += ["", "**exp_38 rows WITHHELD:** " + "; ".join(exp38_problems)]
     two_k = check_two_k_coverage(exp11_status)
     if two_k:
         bad_labels = {p.split(":")[0] for p in two_k}

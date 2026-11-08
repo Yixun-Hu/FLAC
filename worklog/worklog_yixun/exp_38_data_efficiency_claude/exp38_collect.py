@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """exp_38 collector: admitted cells -> data_efficiency_results.{json,md} (plan r2 §9.4, §10 B9).
 
-A cell is used only if ``exp38_eval.validate_cell`` admits it (one transaction: metrics schema +
-protocol + checkpoint + stream + receipt + dump cross-links); a run's block is published only when
-all 10 cells (K 8 and 1, seeds 42-46) are admitted, else it renders PENDING. Reference rows (dc_van,
-P1 / YAW / B-F at 100 %) come from ``ref_cells/`` after its sha manifest is checked. The JSON and the
-Markdown are written as one pair (temp files -> fsync -> rename, the Markdown carries the JSON's
-sha256) under the exp_38 collector lock.
+Everything is bound to the sealed E0 receipt (``exp38_eval.validate_e0_receipt``: a PASS at THIS
+closure). A cell is used only if ``exp38_eval.validate_cell`` admits it under that campaign (exact
+metrics / by-scene / receipt schemas, protocol, the run's TRAINING_COMPLETE checkpoint sha + bytes,
+stream pins, weight pins, the complete waveform dump); a run's block is published only when all 10
+cells (K 8 and 1, seeds 42-46) are admitted, else it renders PENDING. Reference rows (dc_van, P1 /
+YAW / B-F at 100 %) come from exactly the 68 registered ``ref_cells/`` files, each read once and
+compared with the E0 receipt's sha. Publication (Codex code r1 HIGH 10): Markdown first, the JSON
+LAST (the commit point; the Markdown carries the JSON's sha256), each temp -> fsync -> rename, then
+a directory fsync, under the collector lock; the JSON carries the manifest of every admitted
+artifact. Pending cells exit 1 unless ``--partial``.
 
     python exp38_collect.py [--bridge] [--partial]
 
@@ -14,7 +18,6 @@ Written by the exp_38 Coder (Claude Opus 5.5).
 """
 import argparse
 import fcntl
-import glob
 import hashlib
 import json
 import os
@@ -46,40 +49,46 @@ def aggregate(records):
     return {k: (*mean_sd([records[s][k] for s in ev.SEEDS]), len(records)) for k in ev.METRIC_KEYS}
 
 
-def reference_rows():
-    ev.check_refs()
-    base = os.path.join(reg.REPO, reg.EXP_DIR, "ref_cells", "anchors")
-    rows = {}
-    for (model, frac, pattern) in [("p1", t, f"dc_van/dc_van_f{t}_K{{K}}_s{{s}}.json") for t in ("025", "050", "075")] + \
-            [("p1", "100", "P1/P1_K{K}_s{s}.json"), ("yaw", "100", "YAW/YAW_K{K}_s{s}.json"),
-             ("bf", "100", "BF/BF_K{K}_s{s}.json")]:
+def reference_rows(campaign):
+    """Rows of the 68 registered reference cells; every file must be the one the E0 receipt bound."""
+    refs = ev.check_refs()
+    rec = json.load(open(campaign["e0_receipt"]))
+    if rec["references"] != refs:
+        raise ev.EvalError("reference cells differ from the E0 receipt's")
+    rows, used = {}, {}
+    for (model, frac, pattern) in [("p1", t, f"anchors/dc_van/dc_van_f{t}_K{{K}}_s{{s}}.json") for t in ("025", "050", "075")] + \
+            [("p1", "100", "anchors/P1/P1_K{K}_s{s}.json"), ("yaw", "100", "anchors/YAW/YAW_K{K}_s{s}.json"),
+             ("bf", "100", "anchors/BF/BF_K{K}_s{s}.json")]:
         for K in (8, 1):
-            recs = {s: json.load(open(os.path.join(base, pattern.format(K=K, s=s))))["metrics"] for s in ev.SEEDS}
+            recs = {}
+            for s_ in ev.SEEDS:
+                rel = pattern.format(K=K, s=s_)
+                recs[s_] = ev.load_ref(rel, refs)["metrics"]
+                used[rel] = refs[rel]
             rows[(model, frac, K)] = {"stats": aggregate(recs), "source": "reference (ref_cells/anchors)"}
-    return rows
+    return rows, used
 
 
-def run_block(run, validate=None):
-    """(rows for the run's two K, problems). validate(cell) -> problems (default ev.validate_cell)."""
-    validate = validate or ev.validate_cell
+def run_block(run, campaign, validate=None):
+    """(rows for the run's two K, problems, admitted-artifact manifest)."""
+    validate = validate or (lambda c: ev.validate_cell(c, campaign))
     arm, tag, _ = reg.parse_run_id(run)
     cells = ev.run_cells(run)
     problems = [x for c in cells for x in validate(c)]
-    rd = os.path.join(reg.PLATFORMS["a6000"]["save_root"], run)
-    if glob.glob(os.path.join(rd, "RESUMED_AT_*")) or os.path.isdir(os.path.join(rd, ".exp38_lock")):
-        problems.append(f"{run}: run dir carries a resume / live-lock marker (never primary)")
     if problems:
-        return {}, problems
-    shas = {json.load(open(ev._abs(c["metrics"])))["source_sha"] for c in cells}
-    if len(shas) != 1:
-        return {}, [f"{run}: cells evaluated at {len(shas)} different pins"]
-    pin = next(iter(shas))
+        return {}, problems, {}
     model = "p1_bridge" if arm == "p1" else arm
-    rows = {}
+    farm = os.path.dirname(ev._abs(cells[0]["ckpt_link"]))
+    platform = json.load(open(os.path.join(farm, reg.TRAINING_RECEIPT)))["platform"]
+    rows, manifest = {}, {}
+    for c in cells:
+        manifest[c["name"]] = {k: reg.sha256_file(ev._abs(c[k])) for k in ("metrics", "stream", "receipt")}
+        manifest[c["name"]]["dump_manifest"] = reg.sha256_file(ev.dump_manifest_copy(c))
     for K in (8, 1):
         recs = {c["seed"]: json.load(open(ev._abs(c["metrics"])))["metrics"] for c in cells if c["K"] == K}
-        rows[(model, tag, K)] = {"stats": aggregate(recs), "source": f"exp_38 {run} (eval pin {pin[:12]})"}
-    return rows, []
+        rows[(model, tag, K)] = {"stats": aggregate(recs), "source": f"exp_38 {run}, trained on {platform} "
+                                                                 f"(eval pin {campaign['head'][:12]})"}
+    return rows, [], manifest
 
 
 def render(rows, pending):
@@ -104,44 +113,56 @@ def render(rows, pending):
     return "\n".join(out) + "\n"
 
 
-def publish(rows, pending, repo=None):
+def publish(rows, pending, manifest, repo=None):
     repo = repo or reg.REPO
     payload = {"rows": [{"model": k[0], "fraction": k[1], "K": k[2], "source": v["source"],
                          "stats": {m: {"mean": s[0], "sd": s[1], "n": s[2]} for m, s in v["stats"].items()}}
-                        for k, v in sorted(rows.items())], "pending": pending}
-    jtext = json.dumps(payload, indent=1, sort_keys=True).encode()
+                        for k, v in sorted(rows.items())], "pending": pending, "manifest": manifest}
+    jtext = (json.dumps(payload, indent=1, sort_keys=True) + "\n").encode()
     mtext = (render(rows, pending) + f"\nresults JSON sha256: `{hashlib.sha256(jtext).hexdigest()}`\n").encode()
     lock = open(os.path.join(repo, LOCK), "a")
     fcntl.flock(lock, fcntl.LOCK_EX)
     try:
-        for rel, text in ((OUT_JSON, jtext), (OUT_MD, mtext)):
-            tmp = os.path.join(repo, rel + ".tmp")
-            with open(tmp, "wb") as fh:
-                fh.write(text)
-                fh.flush()
-                os.fsync(fh.fileno())
-        for rel in (OUT_JSON, OUT_MD):
-            os.replace(os.path.join(repo, rel + ".tmp"), os.path.join(repo, rel))
+        reg.atomic_write_bytes(os.path.join(repo, OUT_MD), mtext)      # first
+        reg.atomic_write_bytes(os.path.join(repo, OUT_JSON), jtext)    # last: the commit point
     finally:
         fcntl.flock(lock, fcntl.LOCK_UN)
         lock.close()
     return hashlib.sha256(jtext).hexdigest()
 
 
+def collect(bridge=False):
+    campaign = ev.validate_e0_receipt()
+    rows, used = reference_rows(campaign)
+    manifest = {"e0_receipt": {"path": os.path.relpath(campaign["e0_receipt"], reg.REPO), "sha256": campaign["sha256"]},
+                "campaign": {k: campaign[k] for k in ("head", "closure_sha256", "env_receipt_sha256")},
+                "references": used, "cells": {}, "training_receipts": {}}
+    pending = []
+    for run in reg.required_runs() + (["de_p1_f025"] if bridge else []):
+        r, probs, cells = run_block(run, campaign)
+        rows.update(r)
+        pending += probs
+        manifest["cells"].update(cells)
+        if cells:
+            farm = os.path.dirname(ev._abs(ev.run_cells(run)[0]["ckpt_link"]))
+            manifest["training_receipts"][run] = reg.sha256_file(os.path.join(farm, reg.TRAINING_RECEIPT))
+    return rows, pending, manifest
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--bridge", action="store_true")
+    p.add_argument("--partial", action="store_true", help="publish although cells are pending (exit 0)")
     a = p.parse_args(argv)
     os.chdir(reg.REPO)
-    rows = reference_rows()
-    pending = []
-    for run in reg.required_runs() + (["de_p1_f025"] if a.bridge else []):
-        r, probs = run_block(run)
-        rows.update(r)
-        pending += probs
-    sha = publish(rows, pending)
+    try:
+        rows, pending, manifest = collect(a.bridge)
+    except (ev.EvalError, reg.GateError, OSError, ValueError, KeyError) as err:
+        print(f"EXP38 COLLECT REFUSED: {err}", file=sys.stderr)
+        return 2
+    sha = publish(rows, pending, manifest)
     print(f"published {OUT_MD} / {OUT_JSON} (json sha256 {sha[:12]}), {len(pending)} pending item(s)")
-    return 0
+    return 0 if (not pending or a.partial) else 1
 
 
 if __name__ == "__main__":

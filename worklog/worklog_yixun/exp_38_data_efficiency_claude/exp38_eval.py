@@ -6,11 +6,16 @@
     exp38_eval.py prepare <run>                   admit a run's final checkpoint + create its farm link
     exp38_eval.py prepare-e0                      verify + link the four E0 reference checkpoints
     exp38_eval.py run --gpu G --cells <name>...   run cells sequentially (card lock; idle card unless --shared)
-    exp38_eval.py e0                              E0 verdict -> data_efficiency_e0_receipt.json (+ .sha256)
-    exp38_eval.py validate <name>...              admission check of finished cells
+    exp38_eval.py e0                              E0 verdict -> the sealed data_efficiency_e0_receipt.json
+    exp38_eval.py e0-check                        validate the sealed E0 receipt against this tree
+    exp38_eval.py validate [--offline] <name>...  admission check of finished cells
 
 Every cell runs ``eval_FLAC.py`` through the reviewed exp_35 no-flash launcher (SDPA, the backend of
 every reference cell) with the reference cells' exact argv shape (incl. ``--num-workers 4``).
+Result cells are bound to the sealed E0 receipt (HEAD, closure, environment, evaluator files,
+references), to the run's sealed TRAINING_COMPLETE receipt (checkpoint sha256 + bytes) and to this
+box's registered A6000s; AGREE / VAE.ckpt / DINOv3 are pinned before and after every cell
+(Codex code r1 BLOCKING 3-7).
 
 Written by the exp_38 Coder (Claude Opus 5.5).
 """
@@ -20,6 +25,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import time
@@ -141,13 +147,37 @@ def eval_argv(cell):
     return argv
 
 
-# ---------------------------------------------------------------- validation
-def _finite_tree(x):
-    if isinstance(x, dict):
-        return all(_finite_tree(v) for v in x.values())
-    if isinstance(x, (int, float)) and not isinstance(x, bool):
-        return math.isfinite(x)
-    return True
+# ---------------------------------------------------------------- exact schemas (Codex code r1 BLOCKING 3, 5)
+GPU_NAME = "NVIDIA RTX A6000"
+E0_BYTES = {"E0a": 723923435, "E0b": 723922667, "E0c": 723922667, "E0d": 723927531}
+DUMP_SHAPE = [6337, 10240]
+DUMP_SCHEMA_VERSION = 1           # eval_FLAC.SCORED_DUMP_SCHEMA_VERSION (equivalence test-covered)
+METRICS_TOP_KEYS = frozenset({
+    "batch_size", "by_scene", "cfg_scale", "ckpt_bytes_loaded", "ckpt_path", "ckpt_sha256_loaded", "cond_autocast",
+    "cond_method", "dataset_config", "device", "eval_name", "frame_avg_angles", "frame_avg_fwd_cap", "metrics",
+    "n_samples", "orbit_execution", "per_scene_schema", "rotate_deg", "scene_count", "seed", "source_sha", "steps",
+    "weights_source"})
+RECEIPT_KEYS = frozenset({
+    "schema", "cell", "argv", "rc", "sentinel", "log", "log_sha256", "gpu", "gpu_uuid", "gpu_name", "head",
+    "closure_sha256", "e0_receipt_sha256", "env_receipt_sha256", "model_config_sha256", "dataset_config_sha256",
+    "unseen_split_sha256", "agree_sha256", "vae_ckpt_sha256", "vit_rev", "metrics_sha256", "stream_sha256",
+    "dump_manifest_sha256", "ckpt_sha256", "ckpt_bytes", "training_receipt_sha256", "started_at", "finished_at"})
+E0_KEYS = frozenset({"schema", "verdict", "failed", "cells", "head", "closure_sha256", "evaluator_files",
+                     "env_receipt_sha256", "checkpoints", "reference_manifest_sha256", "references", "input_hash",
+                     "eval_pins", "written_at"})
+E0_CELL_KEYS = frozenset({"reference", "equal", "difference", "problems", "metrics_sha256", "receipt_sha256"})
+E0_RECEIPT = reg.E0_RECEIPT
+
+
+def _num(x):
+    return type(x) in (int, float) and math.isfinite(x)
+
+
+def metric_block_problems(block, where):
+    if not isinstance(block, dict) or set(block) != set(METRIC_KEYS):
+        return [f"{where}: metric keys {sorted(block) if isinstance(block, dict) else block!r}"]
+    bad = sorted(k for k, v in block.items() if not _num(v))
+    return [f"{where}: non-numeric / non-finite {bad}"] if bad else []
 
 
 def strict_equal(a, b, path="$"):
@@ -173,74 +203,239 @@ def strict_equal(a, b, path="$"):
     return None if a == b else f"{path}: {a!r} != {b!r}"
 
 
-def expected_ckpt_sha(cell):
+# ---------------------------------------------------------------- references (Codex code r1 BLOCKING 7)
+def ref_set():
+    """The exact 68 reference cells: 8 E0 replays + the dc_van 25/50/75 % and P1 / YAW / B-F 100 % anchors."""
+    out = [f"E0/{g}_K{k}_s42.json" for g in E0 for k in (8, 1)]
+    out += [f"anchors/{m}/{m}_K{k}_s{s}.json" for m in ("P1", "YAW", "BF") for k in (8, 1) for s in SEEDS]
+    out += [f"anchors/dc_van/dc_van_f{t}_K{k}_s{s}.json" for t in ("025", "050", "075") for k in (8, 1) for s in SEEDS]
+    return sorted(out)
+
+
+def check_refs():
+    """{rel: sha256} of the reference set, exactly the registered 68 files, each matching the manifest."""
+    lines = open(_abs(REF_MANIFEST)).read().strip().split("\n")
+    pairs = [ln.split("  ", 1) for ln in lines]
+    rels = [r for _, r in pairs]
+    if len(rels) != len(set(rels)) or sorted(rels) != ref_set():
+        raise EvalError(f"reference manifest set != the registered {len(ref_set())} cells "
+                        f"(extra {sorted(set(rels) - set(ref_set()))[:3]}, missing {sorted(set(ref_set()) - set(rels))[:3]})")
+    refs = {}
+    for digest, rel in pairs:
+        if reg.sha256_file(_abs(os.path.join(EXP, "ref_cells", rel))) != digest:
+            raise EvalError(f"reference {rel} != its manifest sha")
+        refs[rel] = digest
+    on_disk = sorted(os.path.relpath(os.path.join(d, f), _abs(os.path.join(EXP, "ref_cells")))
+                     for d, _, fs in os.walk(_abs(os.path.join(EXP, "ref_cells"))) for f in fs if f.endswith(".json"))
+    if on_disk != ref_set():
+        raise EvalError("ref_cells/ holds JSON files outside the registered set")
+    return refs
+
+
+def load_ref(rel, refs):
+    """One reference cell, read once and checked against ``refs`` (no check / read gap)."""
+    data = open(_abs(os.path.join(EXP, "ref_cells", rel)), "rb").read()
+    if hashlib.sha256(data).hexdigest() != refs.get(rel):
+        raise EvalError(f"reference {rel} changed since its check")
+    return json.loads(data)
+
+
+def e0_reference(cell, refs=None):
+    rel = f"E0/{cell['e0']}_K{cell['K']}_s42.json"
+    return load_ref(rel, refs or check_refs()), rel
+
+
+# ---------------------------------------------------------------- campaign identity
+def git_head(repo=None):
+    return subprocess.run(["git", "-C", repo or reg.REPO, "rev-parse", "HEAD"], capture_output=True, text=True,
+                          check=True).stdout.strip()
+
+
+def current_campaign():
+    """The identity the E0 cells are produced and judged under (before an E0 receipt exists)."""
+    return {"head": git_head(), "closure_sha256": reg.closure_digest()["closure_sha256"], "sha256": None,
+            "env_receipt_sha256": reg.env_receipt_sha("a6000")}
+
+
+def validate_e0_receipt(repo=None, offline=False, platform="a6000"):
+    """The sealed E0 receipt: exact schema, a complete PASS of the eight registered replays with the
+    pinned checkpoints / inputs / weights / references, and -- online -- bound to THIS tree's closure,
+    evaluator files and (on this box) environment receipt. ``offline`` (the table generator, any
+    host): the receipt's own bindings only. Returns the campaign identity."""
+    path = _abs(E0_RECEIPT) if repo is None else os.path.join(repo, E0_RECEIPT)
+    rec, digest = reg.read_sealed(path, E0_KEYS)
+    p = []
+    if rec["schema"] != 1 or rec["verdict"] != "PASS" or rec["failed"] != []:
+        p.append(f"verdict {rec['verdict']} failed {rec['failed']}")
+    cells = rec["cells"] if isinstance(rec["cells"], dict) else {}
+    if sorted(cells) != sorted(c["name"] for c in e0_cells()):
+        p.append(f"E0 cells {sorted(cells)} != the eight registered replays")
+    for c in e0_cells():
+        v = cells.get(c["name"])
+        want_ref = f"E0/{c['e0']}_K{c['K']}_s42.json"
+        if not (isinstance(v, dict) and set(v) == E0_CELL_KEYS and v["reference"] == want_ref and v["equal"] is True
+                and v["difference"] is None and v["problems"] == [] and reg._is_sha(v["metrics_sha256"])
+                and reg._is_sha(v["receipt_sha256"])):
+            p.append(f"{c['name']}: not an exact, admitted replay of {want_ref}")
+    want_ck = {g: {"sha256": E0[g]["sha"], "bytes": E0_BYTES[g]} for g in E0}
+    if rec["checkpoints"] != want_ck:
+        p.append("E0 checkpoint pins differ")
+    if rec["input_hash"] != {f"K{k}_s{s}": v for (k, s), v in INPUT_HASH.items()}:
+        p.append("input-hash pins differ")
+    if rec["eval_pins"] != {"agree_sha256": reg.AGREE_SHA256, "vae_ckpt_sha256": reg.VAE_CKPT_SHA256, "vit_rev": reg.VIT_REV}:
+        p.append("evaluator weight pins differ")
+    if not (isinstance(rec["head"], str) and re.fullmatch(r"[0-9a-f]{40}", rec["head"]) and reg._is_sha(rec["closure_sha256"])
+            and reg._is_sha(rec["env_receipt_sha256"]) and isinstance(rec["written_at"], str)):
+        p.append("head / closure / environment fields malformed")
+    if not isinstance(rec["evaluator_files"], dict) or sorted(rec["evaluator_files"]) != sorted(EVALUATOR_FILES):
+        p.append("evaluator file set differs")
+    try:
+        refs = check_refs()
+        if rec["references"] != refs or rec["reference_manifest_sha256"] != reg.sha256_file(_abs(REF_MANIFEST)):
+            p.append("reference cells / manifest differ from the E0 receipt's")
+    except (EvalError, OSError) as err:
+        p.append(str(err))
+    if not offline:
+        if reg.closure_digest(repo)["closure_sha256"] != rec["closure_sha256"]:
+            p.append("E0 receipt was produced at a different campaign closure")
+        for rel, d in (rec["evaluator_files"] or {}).items():
+            if reg.sha256_file(_abs(rel) if repo is None else os.path.join(repo, rel)) != d:
+                p.append(f"{rel} changed since E0")
+        if platform == "a6000" and reg.env_receipt_sha("a6000", repo) != rec["env_receipt_sha256"]:
+            p.append("environment receipt changed since E0")
+    if p:
+        raise reg.GateError(f"{path}: " + "; ".join(p))
+    return {"e0_receipt": path, "sha256": digest, "head": rec["head"], "closure_sha256": rec["closure_sha256"],
+            "env_receipt_sha256": rec["env_receipt_sha256"]}
+
+
+# ---------------------------------------------------------------- admission
+def expected_ckpt(cell, campaign, offline=False):
+    """(sha256, bytes, training-receipt sha256 or None) the cell must have evaluated."""
     if cell["e0"]:
-        return E0[cell["e0"]]["sha"]
+        return E0[cell["e0"]]["sha"], E0_BYTES[cell["e0"]], None
     rd = os.path.join(reg.PLATFORMS["a6000"]["save_root"], cell["run"])
-    name = os.path.basename(cell["ckpt_link"])
-    for line in open(os.path.join(rd, "CHECKPOINTS.sha256")).read().strip().split("\n"):
-        digest, n = line.split("  ", 1)
-        if n == name:
-            return digest
-    raise EvalError(f"{name} not in {rd}/CHECKPOINTS.sha256")
+    farm = os.path.dirname(_abs(cell["ckpt_link"]))
+    rec, digest = reg.check_training_receipt(cell["run"], rd, closure=campaign["closure_sha256"],
+                                             receipt_dir=farm if offline else None, verify_bytes=False)
+    return rec["final_ckpt_sha256"], rec["final_ckpt_bytes"], digest
 
 
-def validate_cell(cell, source_sha=None):
-    """Problems (empty = admitted) of one finished cell (plan r2 §9.4)."""
+def dump_manifest_copy(cell):
+    return _abs(cell["metrics"])[:-len(".json")] + ".dump_manifest.json"
+
+
+def dump_problems(cell, man, stream, links):
+    """The evaluator's ScoredWaveformDump.is_complete(dump_dir, expected_n=6337) predicate, inlined
+    (equivalence is test-covered against eval_FLAC), plus the registered shape and every cross-link."""
+    import numpy as np
+    d = cell["dump_dir"]
     p = []
     try:
+        marker = open(os.path.join(d, "COMPLETE")).read()
+        sidecar = open(os.path.join(d, "waveforms.sha256")).read()
+        sha = man.get("sha256")
+        shape = man.get("shape")
+        if not (type(man.get("schema_version")) is int and man["schema_version"] == DUMP_SCHEMA_VERSION
+                and type(man.get("n")) is int and man["n"] == 6337 and man.get("dtype") == "float32"
+                and isinstance(shape, list) and shape == DUMP_SHAPE and all(type(x) is int for x in shape)
+                and reg._is_sha(sha) and reg._is_sha(man.get("input_hash")) and man.get("metrics_stem") == cell["stem"]):
+            p.append("dump manifest schema / n / dtype / shape / stem")
+        else:
+            npy = os.path.join(d, "waveforms.npy")
+            arr = np.load(npy, mmap_mode="r", allow_pickle=False)
+            if arr.dtype != np.float32 or list(arr.shape) != DUMP_SHAPE or reg.sha256_file(npy) != sha:
+                p.append("waveforms.npy dtype / shape / sha256")
+            if sidecar != f"{sha}  waveforms.npy\n" or marker != sha + "\n":
+                p.append("waveforms.sha256 / COMPLETE contents")
+    except (OSError, ValueError, TypeError) as err:
+        p.append(f"dump unreadable: {err}")
+    return p
+
+
+def validate_cell(cell, campaign=None, offline=False):
+    """Problems (empty = admitted) of one finished cell (plan r2 §9.4): exact metrics / by-scene /
+    receipt schemas, protocol, campaign binding (E0 receipt -> head / closure / environment), the
+    checkpoint the training receipt admitted (sha + bytes), stream pins, evaluator weight pins and
+    the complete scored-waveform dump. ``offline``: no NAS read -- the training receipt, checkpoint
+    manifest and dump manifest come from the copies kept beside the cell (dump content unchecked)."""
+    p = []
+    try:
+        if campaign is None:
+            campaign = current_campaign() if cell["e0"] else validate_e0_receipt(offline=offline)
         rec = json.load(open(_abs(cell["metrics"])))
         stream = json.load(open(_abs(cell["stream"])))
         receipt = json.load(open(_abs(cell["receipt"])))
-    except (OSError, ValueError) as err:
-        return [f"{cell['name']}: artifact missing / unreadable: {err}"]
-    m = rec.get("metrics", {})
-    if tuple(sorted(m)) != tuple(sorted(METRIC_KEYS)) or not _finite_tree(m):
-        p.append("metrics key set / finiteness")
+    except (OSError, ValueError, reg.GateError) as err:
+        return [f"{cell['name']}: artifact / campaign missing or unreadable: {err}"]
+    if not isinstance(rec, dict) or set(rec) != METRICS_TOP_KEYS:
+        return [f"{cell['name']}: metrics schema {sorted(set(rec) ^ METRICS_TOP_KEYS) if isinstance(rec, dict) else rec!r}"]
+    p += metric_block_problems(rec["metrics"], "metrics")
+    bs = rec["by_scene"]
+    if not isinstance(bs, dict) or tuple(sorted(bs)) != tuple(sorted(SCENES)):
+        p.append(f"by_scene scenes {sorted(bs) if isinstance(bs, dict) else bs!r}")
+    else:
+        for sc in SCENES:
+            p += metric_block_problems(bs[sc], f"by_scene.{sc}")
+    fa = cell["cond"] == "fa_invariant"
     want = {"cond_method": cell["cond"], "cond_autocast": "bf16", "rotate_deg": 0.0, "seed": cell["seed"],
             "steps": 1, "cfg_scale": 1.0, "batch_size": 64, "n_samples": 6337, "device": "cuda",
             "dataset_config": EVAL_CONFIGS[cell["K"]], "eval_name": cell["name"], "weights_source": "ema",
-            "per_scene_schema": 1, "scene_count": 10,
-            "frame_avg_angles": [0.0, 90.0, 180.0, 270.0] if cell["cond"] == "fa_invariant" else None,
-            "frame_avg_fwd_cap": 64 if cell["cond"] == "fa_invariant" else None,
-            "orbit_execution": "batched" if cell["cond"] == "fa_invariant" else "n/a"}
+            "per_scene_schema": 1, "scene_count": 10, "ckpt_path": cell["ckpt_link"],
+            "frame_avg_angles": [0.0, 90.0, 180.0, 270.0] if fa else None, "frame_avg_fwd_cap": 64 if fa else None,
+            "orbit_execution": "batched" if fa else "n/a", "source_sha": campaign["head"]}
     for k, v in want.items():
-        if rec.get(k) != v:
+        if strict_equal(rec.get(k), v):
             p.append(f"{k} {rec.get(k)!r} != {v!r}")
-    if source_sha and rec.get("source_sha") != source_sha:
-        p.append(f"source_sha {rec.get('source_sha')} != {source_sha}")
-    if tuple(sorted(rec.get("by_scene", {}))) != SCENES or not _finite_tree(rec.get("by_scene", {})):
-        p.append("by_scene scene set / finiteness")
     try:
-        if rec.get("ckpt_sha256_loaded") != expected_ckpt_sha(cell):
-            p.append("ckpt_sha256_loaded != the admitted checkpoint")
-    except (OSError, EvalError) as err:
+        ck_sha, ck_bytes, tr_sha = expected_ckpt(cell, campaign, offline)
+        if rec["ckpt_sha256_loaded"] != ck_sha or rec["ckpt_bytes_loaded"] != ck_bytes or type(rec["ckpt_bytes_loaded"]) is not int:
+            p.append("ckpt sha / bytes loaded != the admitted checkpoint")
+    except (OSError, EvalError, reg.GateError) as err:
         p.append(str(err))
-    if stream.get("stream_count") != 6337 or stream.get("input_hash") != INPUT_HASH[(cell["K"], cell["seed"])]:
-        p.append(f"stream count / input_hash {stream.get('input_hash')} != pinned")
+        ck_sha = ck_bytes = tr_sha = "unavailable"
+    if not isinstance(stream, dict) or stream.get("stream_count") != 6337 \
+            or stream.get("input_hash") != INPUT_HASH[(cell["K"], cell["seed"])]:
+        p.append(f"stream count / input_hash {stream.get('input_hash') if isinstance(stream, dict) else stream!r} != pinned")
     links = {"metrics_sha256": reg.sha256_file(_abs(cell["metrics"])), "stream_sha256": reg.sha256_file(_abs(cell["stream"]))}
-    for k, v in links.items():
-        if receipt.get(k) != v:
-            p.append(f"receipt {k} != the file")
-    if receipt.get("rc") != 0 or receipt.get("sentinel") != SENTINEL or receipt.get("argv") != eval_argv(cell):
-        p.append("receipt rc / sentinel / argv")
-    for k, v in (("model_config_sha256", reg.sha256_file(_abs(cell["config"]))),
-                 ("dataset_config_sha256", EVAL_CONFIG_SHA256[cell["K"]]), ("unseen_split_sha256", UNSEEN_SPLIT[1])):
-        if receipt.get(k) != v:
-            p.append(f"receipt {k} != pinned")
+    if not isinstance(receipt, dict) or set(receipt) != RECEIPT_KEYS:
+        got = set(receipt) if isinstance(receipt, dict) else set()
+        p.append(f"receipt schema (missing {sorted(RECEIPT_KEYS - got)}, extra {sorted(got - RECEIPT_KEYS)})")
+        return [f"{cell['name']}: {x}" for x in p]
+    gpu = receipt["gpu"]
+    want_r = {"schema": 1, "cell": cell["name"], "argv": eval_argv(cell), "rc": 0, "sentinel": SENTINEL,
+              "gpu_name": GPU_NAME, "head": campaign["head"], "closure_sha256": campaign["closure_sha256"],
+              "e0_receipt_sha256": campaign["sha256"], "env_receipt_sha256": campaign["env_receipt_sha256"],
+              "model_config_sha256": reg.sha256_file(_abs(cell["config"])),
+              "dataset_config_sha256": EVAL_CONFIG_SHA256[cell["K"]], "unseen_split_sha256": UNSEEN_SPLIT[1],
+              "agree_sha256": reg.AGREE_SHA256, "vae_ckpt_sha256": reg.VAE_CKPT_SHA256, "vit_rev": reg.VIT_REV,
+              "ckpt_sha256": ck_sha, "ckpt_bytes": ck_bytes, "training_receipt_sha256": tr_sha, **links}
+    for k, v in want_r.items():
+        if strict_equal(receipt[k], v):
+            p.append(f"receipt {k} {str(receipt[k])[:80]!r} != {str(v)[:80]!r}")
+    if gpu not in (0, 1) or type(gpu) is not int or receipt["gpu_uuid"] != reg.A6000_UUIDS[gpu if gpu in (0, 1) else 0]:
+        p.append(f"receipt GPU {gpu} / {receipt['gpu_uuid']} is not this box's registered card")
+    if not (reg._is_sha(receipt["log_sha256"]) and isinstance(receipt["log"], str)
+            and isinstance(receipt["started_at"], str) and isinstance(receipt["finished_at"], str)):
+        p.append("receipt log / time fields malformed")
+    elif not offline and (not os.path.exists(_abs(receipt["log"])) or reg.sha256_file(_abs(receipt["log"])) != receipt["log_sha256"]):
+        p.append("receipt log missing / changed")
     if cell["dump"]:
-        d = cell["dump_dir"]
         try:
-            man = json.load(open(os.path.join(d, "manifest.json")))
-            ok = (os.path.exists(os.path.join(d, "COMPLETE")) and man.get("n") == 6337 and man.get("dtype") == "float32"
-                  and man.get("metrics_sha256") == links["metrics_sha256"]
-                  and man.get("stream_sidecar_sha256") == links["stream_sha256"]
-                  and man.get("input_hash") == stream.get("input_hash")
-                  and receipt.get("dump_manifest_sha256") == reg.sha256_file(os.path.join(d, "manifest.json")))
-            if not ok:
+            copy = dump_manifest_copy(cell)
+            man_path = copy if offline else os.path.join(cell["dump_dir"], "manifest.json")
+            man = json.load(open(man_path))
+            if not (reg.sha256_file(man_path) == receipt["dump_manifest_sha256"] == reg.sha256_file(copy)
+                    and man.get("metrics_sha256") == links["metrics_sha256"]
+                    and man.get("stream_sidecar_sha256") == links["stream_sha256"]
+                    and man.get("input_hash") == stream.get("input_hash") and man.get("source_sha") == campaign["head"]):
                 p.append("dump manifest cross-links")
+            if not offline:
+                p += dump_problems(cell, man, stream, links)
         except (OSError, ValueError) as err:
-            p.append(f"dump unreadable: {err}")
+            p.append(f"dump manifest unreadable: {err}")
+    elif receipt["dump_manifest_sha256"] is not None:
+        p.append("a no-dump cell records a dump manifest")
     return [f"{cell['name']}: {x}" for x in p]
 
 
@@ -256,118 +451,155 @@ def _link(path, target):
     os.symlink(target, _abs(path))
 
 
+def _copy_once(src, dest):
+    data = open(src, "rb").read()
+    if os.path.exists(dest):
+        if open(dest, "rb").read() != data:
+            raise EvalError(f"{dest} differs from {src}")
+        return
+    reg.atomic_write_bytes(dest, data)
+
+
 def prepare(run):
+    """Admit a run for evaluation: its sealed TRAINING_COMPLETE receipt at the E0 campaign closure,
+    the final checkpoint's current sha256 AND byte count == the receipt's, a full-state audit; then
+    the farm link + offline copies of the receipt and the checkpoint manifest (Codex code r1 BLOCKING 4)."""
     arm, tag, rung = reg.parse_run_id(run)
+    campaign = validate_e0_receipt()
     rd = os.path.join(reg.PLATFORMS["a6000"]["save_root"], run)
+    rec, digest = reg.check_training_receipt(run, rd, closure=campaign["closure_sha256"], verify_bytes=True)
     name = reg.ckpt_name(reg.MAX_STEPS, tag)
-    want = expected_ckpt_sha(run_cells(run)[0])
-    audit = reg.audit_ckpt(os.path.join(rd, name), run, reg.MAX_STEPS, run_dir=rd)
-    if audit["sha256"] != want:
-        raise EvalError(f"{name} sha {audit['sha256']} != CHECKPOINTS.sha256 {want}")
+    # the checkpoint's ModelCheckpoint dirpath is the dir it was TRAINED in (neuronic runs are published
+    # to the NAS afterwards): the receipt's own argv names it
+    trained_in = rec["argv"][rec["argv"].index("--save-dir") + 1]
+    if trained_in != reg.save_dir(rec["platform"], run):
+        raise EvalError(f"{run} was trained in {trained_in}, not its registered {rec['platform']} run dir")
+    audit = reg.audit_ckpt(os.path.join(rd, name), run, reg.MAX_STEPS, run_dir=trained_in)
+    if (audit["sha256"], audit["bytes"]) != (rec["final_ckpt_sha256"], rec["final_ckpt_bytes"]):
+        raise EvalError(f"{name}: audit {audit['sha256'][:12]} / {audit['bytes']} != the training receipt")
     _link(f"{FARM}/{run}/{name}", os.path.join(rd, name))
-    return {"run": run, "admitted": audit}
+    for f in ("CHECKPOINTS.sha256", reg.TRAINING_RECEIPT, reg.TRAINING_RECEIPT + ".sha256"):
+        _copy_once(os.path.join(rd, f), _abs(f"{FARM}/{run}/{f}"))
+    return {"run": run, "admitted": audit, "training_receipt_sha256": digest}
 
 
 def prepare_e0():
     out = {}
     for gate, g in E0.items():
         got = reg.sha256_file(g["ckpt"])
-        if got != g["sha"]:
-            raise EvalError(f"{gate}: {g['ckpt']} sha {got} != {g['sha']}")
+        if got != g["sha"] or os.path.getsize(g["ckpt"]) != E0_BYTES[gate]:
+            raise EvalError(f"{gate}: {g['ckpt']} sha / bytes != {g['sha']} / {E0_BYTES[gate]}")
         _link(f"{FARM}/{gate}/{os.path.basename(g['ckpt'])}", g["ckpt"])
         out[gate] = got
     return out
 
 
-def check_refs():
-    lines = open(_abs(REF_MANIFEST)).read().strip().split("\n")
-    refs = {}
-    for line in lines:
-        digest, rel = line.split("  ", 1)
-        if reg.sha256_file(_abs(os.path.join(EXP, "ref_cells", rel))) != digest:
-            raise EvalError(f"reference {rel} != its manifest sha")
-        refs[rel] = digest
-    return refs
-
-
-def e0_reference(cell):
-    rel = f"E0/{cell['e0']}_K{cell['K']}_s42.json"
-    return json.load(open(_abs(os.path.join(EXP, "ref_cells", rel)))), rel
-
-
 # ---------------------------------------------------------------- running
-def gpu_foreign(gpu):
+def gpu_row(gpu):
     rows = subprocess.run(["nvidia-smi", "--query-gpu=index,uuid,name", "--format=csv,noheader,nounits"],
                           capture_output=True, text=True, check=True).stdout.strip().split("\n")
-    uuid = {r.split(", ")[0]: r.split(", ")[1] for r in rows}[str(gpu)]
+    row = [[x.strip() for x in r.split(",")] for r in rows if r.split(",")[0].strip() == str(gpu)]
+    if len(row) != 1 or row[0][2] != GPU_NAME or row[0][1] != reg.A6000_UUIDS[gpu]:
+        raise EvalError(f"GPU {gpu} is {row}, not this box's registered A6000 {reg.A6000_UUIDS[gpu]}")
+    return row[0][1], row[0][2]
+
+
+def gpu_foreign(gpu):
+    uuid = reg.A6000_UUIDS[gpu]
     apps = subprocess.run(["nvidia-smi", "--query-compute-apps=gpu_uuid,pid", "--format=csv,noheader,nounits"],
                           capture_output=True, text=True, check=True).stdout.strip().split("\n")
     return [a.split(", ")[1] for a in apps if a and a.split(", ")[0] == uuid]
 
 
-def run_one(cell, gpu, closure, head):
-    if not validate_cell(cell, head):
+def eval_env(gpu):
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH",) + reg.FORBIDDEN_ENV}
+    env.update({"PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1", "HF_HUB_OFFLINE": "1",
+                "CUDA_VISIBLE_DEVICES": str(gpu)})
+    return env
+
+
+def run_one(cell, gpu, campaign):
+    if not validate_cell(cell, campaign):
         return "skipped (valid)"
     for k in ("metrics", "stream", "receipt"):
         if os.path.exists(_abs(cell[k])):
             raise EvalError(f"{cell['name']}: a partial {k} exists ({cell[k]}); archive it first")
-    if cell["dump"] and os.path.exists(cell["dump_dir"]):
+    if cell["dump"] and os.path.lexists(cell["dump_dir"]):
         raise EvalError(f"{cell['name']}: dump dir {cell['dump_dir']} exists; archive it first")
+    ck_sha, ck_bytes, tr_sha = expected_ckpt(cell, campaign)
+    pins = reg.eval_pins()
+    uuid, name = gpu_row(gpu)
     ts = time.strftime("%Y-%m-%d_%H-%M-%S")
+    started = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     log = _abs(f"{EXP}/eval_logs/data_efficiency_{ts}_{cell['name']}.log")
     os.makedirs(os.path.dirname(log), exist_ok=True)
-    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "ENABLE_TORCH_COMPILE", "PYTHONSTARTUP")}
-    env.update({"PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1", "HF_HUB_OFFLINE": "1",
-                "CUDA_VISIBLE_DEVICES": str(gpu)})
     argv = eval_argv(cell)
     with open(log, "w") as fh:
         fh.write("argv: " + " ".join(["python", NO_FLASH, "eval_FLAC.py"] + argv) + "\n")
         fh.flush()
-        rc = subprocess.run([sys.executable, NO_FLASH, "eval_FLAC.py"] + argv, cwd=reg.REPO, env=env,
-                            stdout=fh, stderr=subprocess.STDOUT).returncode
+        rc = subprocess.run([sys.executable, NO_FLASH, "eval_FLAC.py"] + argv, cwd=reg.REPO, env=eval_env(gpu),
+                            stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL).returncode
+    if reg.eval_pins() != pins:
+        raise EvalError(f"{cell['name']}: evaluator weights changed during the cell")
     text = open(log, errors="replace").read()
     sentinels = [line for line in text.split("\n") if line.startswith("EXP35_NO_FLASH_LAUNCHER")]
-    receipt = {"cell": cell["name"], "argv": argv, "rc": rc, "sentinel": sentinels[0] if len(sentinels) == 1 else None,
+    exists = os.path.exists
+    receipt = {"schema": 1, "cell": cell["name"], "argv": argv, "rc": rc,
+               "sentinel": sentinels[0] if len(sentinels) == 1 else None,
                "log": os.path.relpath(log, reg.REPO), "log_sha256": reg.sha256_file(log), "gpu": gpu,
-               "head": head, "closure_sha256": closure,
+               "gpu_uuid": uuid, "gpu_name": name, "head": campaign["head"], "closure_sha256": campaign["closure_sha256"],
+               "e0_receipt_sha256": campaign["sha256"], "env_receipt_sha256": campaign["env_receipt_sha256"],
                "model_config_sha256": reg.sha256_file(_abs(cell["config"])),
                "dataset_config_sha256": reg.sha256_file(_abs(EVAL_CONFIGS[cell["K"]])),
                "unseen_split_sha256": reg.sha256_file(_abs(UNSEEN_SPLIT[0])),
-               "agree_sha256": reg.sha256_file(_abs(AGREE))}
-    if os.path.exists(_abs(cell["metrics"])):
-        receipt["metrics_sha256"] = reg.sha256_file(_abs(cell["metrics"]))
-    if os.path.exists(_abs(cell["stream"])):
-        receipt["stream_sha256"] = reg.sha256_file(_abs(cell["stream"]))
-    if cell["dump"] and os.path.exists(os.path.join(cell["dump_dir"], "manifest.json")):
-        receipt["dump_manifest_sha256"] = reg.sha256_file(os.path.join(cell["dump_dir"], "manifest.json"))
-    with open(_abs(cell["receipt"]) + ".tmp", "w") as fh:
-        json.dump(receipt, fh, indent=1, sort_keys=True)
-    os.replace(_abs(cell["receipt"]) + ".tmp", _abs(cell["receipt"]))
-    probs = validate_cell(cell, head)
+               "agree_sha256": pins["agree_sha256"], "vae_ckpt_sha256": pins["vae_ckpt_sha256"], "vit_rev": pins["vit_rev"],
+               "metrics_sha256": reg.sha256_file(_abs(cell["metrics"])) if exists(_abs(cell["metrics"])) else None,
+               "stream_sha256": reg.sha256_file(_abs(cell["stream"])) if exists(_abs(cell["stream"])) else None,
+               "dump_manifest_sha256": None, "ckpt_sha256": ck_sha, "ckpt_bytes": ck_bytes,
+               "training_receipt_sha256": tr_sha, "started_at": started,
+               "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+    if cell["dump"] and exists(os.path.join(cell["dump_dir"], "manifest.json")):
+        _copy_once(os.path.join(cell["dump_dir"], "manifest.json"), dump_manifest_copy(cell))
+        receipt["dump_manifest_sha256"] = reg.sha256_file(dump_manifest_copy(cell))
+    reg.atomic_write_bytes(_abs(cell["receipt"]), (json.dumps(receipt, indent=1, sort_keys=True) + "\n").encode())
+    probs = validate_cell(cell, campaign)
     if rc != 0 or probs:
         raise EvalError(f"{cell['name']}: rc {rc}; " + "; ".join(probs))
     return "done"
 
 
-def cmd_run(gpu, names, shared=False):
+def campaign_gates():
+    """The campaign tree at a clean HEAD, no shadows / unexpected entries, the environment receipt."""
+    if os.path.realpath(reg.REPO) != reg.CAMPAIGN_ROOT["a6000"]:
+        raise EvalError(f"evaluation runs only from the campaign tree {reg.CAMPAIGN_ROOT['a6000']}")
+    if subprocess.run(["git", "-C", reg.REPO, "status", "--porcelain", "--untracked-files=no"],
+                      capture_output=True, text=True, check=True).stdout.strip():
+        raise EvalError("tracked tree is not clean")
+    probs = reg.check_untracked("a6000")
+    if probs:
+        raise EvalError("campaign tree: " + "; ".join(probs))
+    reg.env_receipt("a6000")
+
+
+def cmd_run(gpu, names, shared=False, lockdir=LOCKDIR):
     cells = {c["name"]: c for c in all_cells(bridge=True)}
     unknown = [n for n in names if n not in cells]
     if unknown:
         raise EvalError(f"unknown cells {unknown}")
-    if os.path.realpath(reg.REPO) != reg.CAMPAIGN_ROOT["a6000"]:
-        raise EvalError(f"evaluation runs only from the campaign tree {reg.CAMPAIGN_ROOT['a6000']}")
-    head = subprocess.run(["git", "-C", reg.REPO, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
-    if subprocess.run(["git", "-C", reg.REPO, "status", "--porcelain", "--untracked-files=no"],
-                      capture_output=True, text=True, check=True).stdout.strip():
-        raise EvalError("tracked tree is not clean")
-    os.environ["PYTHONNOUSERSITE"] = "1"
-    os.environ.pop("ENABLE_TORCH_COMPILE", None)
-    shadows = reg.check_untracked("a6000")
-    if shadows:
-        raise EvalError("campaign tree: " + "; ".join(shadows))
-    reg.env_receipt("a6000")
-    closure = reg.closure_digest()["closure_sha256"]
-    lockfile = os.path.join(LOCKDIR, f".exp38_card{gpu}.lock")
+    kinds = {bool(cells[n]["e0"]) for n in names}
+    if len(kinds) != 1:
+        raise EvalError("run E0 replays and result cells in separate calls (results need the E0 receipt)")
+    campaign_gates()
+    if kinds == {True}:
+        campaign = current_campaign()
+    else:
+        campaign = validate_e0_receipt()
+        if campaign["head"] != git_head():
+            raise EvalError(f"HEAD {git_head()} != the E0 campaign's {campaign['head']}")
+    n_dump = sum(1 for n in names if cells[n]["dump"])
+    if n_dump:
+        reg.storage_gate("a6000", DUMP_ROOT, int(n_dump * reg.DUMP_CELL_BYTES * 1.25), tag="exp38_dump")
+    lockfile = os.path.join(lockdir, f".exp38_card{gpu}.lock")
     lock = open(lockfile, "a")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -379,47 +611,42 @@ def cmd_run(gpu, names, shared=False):
             foreign = gpu_foreign(gpu)
             if foreign and not shared:
                 raise EvalError(f"GPU {gpu} is not idle (pids {foreign})")
-            if cells[n]["dump"]:
-                st = os.statvfs(DUMP_ROOT)
-                if st.f_bavail * st.f_frsize < 260e6 * 1.5:
-                    raise EvalError("dump root has < 390 MB free")
-            print(f"{n}: {run_one(cells[n], gpu, closure, head)}", flush=True)
+            print(f"{n}: {run_one(cells[n], gpu, campaign)}", flush=True)
     finally:
         fcntl.flock(lock, fcntl.LOCK_UN)
         lock.close()
 
 
 def cmd_e0():
-    head = subprocess.run(["git", "-C", reg.REPO, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    """Judge the eight replays (exact equality with the references) and seal the E0 receipt."""
+    campaign_gates()
+    campaign = current_campaign()
     refs = check_refs()
-    verdicts, problems = {}, []
+    verdicts, failed = {}, []
     for cell in e0_cells():
-        probs = validate_cell(cell, head)
-        ref, rel = e0_reference(cell)
+        probs = validate_cell(cell, campaign)
+        ref, rel = e0_reference(cell, refs)
         rec = json.load(open(_abs(cell["metrics"]))) if not probs else {}
         diff = strict_equal(rec.get("metrics"), ref.get("metrics")) if not probs else "cell not admitted"
         if not diff and E0[cell["e0"]]["by_scene"]:
             diff = strict_equal(rec.get("by_scene"), ref.get("by_scene"))
-        verdicts[cell["name"]] = {"reference": rel, "equal": diff is None, "difference": diff, "problems": probs}
+        verdicts[cell["name"]] = {
+            "reference": rel, "equal": diff is None, "difference": diff, "problems": probs,
+            "metrics_sha256": reg.sha256_file(_abs(cell["metrics"])) if os.path.exists(_abs(cell["metrics"])) else None,
+            "receipt_sha256": reg.sha256_file(_abs(cell["receipt"])) if os.path.exists(_abs(cell["receipt"])) else None}
         if probs or diff:
-            problems.append(cell["name"])
-    rec = {"verdict": "PASS" if not problems else "FAIL", "failed": problems, "cells": verdicts, "head": head,
-           "closure_sha256": reg.closure_digest()["closure_sha256"],
+            failed.append(cell["name"])
+    pins = reg.eval_pins()
+    rec = {"schema": 1, "verdict": "PASS" if not failed else "FAIL", "failed": failed, "cells": verdicts,
+           "head": campaign["head"], "closure_sha256": campaign["closure_sha256"],
            "evaluator_files": {f: reg.sha256_file(_abs(f)) for f in EVALUATOR_FILES},
-           "env_receipt": reg.env_receipt("a6000"), "checkpoints": {g: E0[g]["sha"] for g in E0},
+           "env_receipt_sha256": campaign["env_receipt_sha256"],
+           "checkpoints": {g: {"sha256": E0[g]["sha"], "bytes": E0_BYTES[g]} for g in E0},
            "reference_manifest_sha256": reg.sha256_file(_abs(REF_MANIFEST)), "references": refs,
-           "input_hash": {f"K{k}_s{s}": v for (k, s), v in INPUT_HASH.items()}}
-    out = _abs(f"{EXP}/data_efficiency_e0_receipt.json")
-    if os.path.exists(out):
-        raise EvalError(f"{out} exists (archive it to re-run E0)")
-    text = json.dumps(rec, indent=1, sort_keys=True).encode()
-    with open(out + ".tmp", "wb") as fh:
-        fh.write(text)
-        fh.flush()
-        os.fsync(fh.fileno())
-    with open(out + ".sha256", "w") as fh:
-        fh.write(f"{hashlib.sha256(text).hexdigest()}  {os.path.basename(out)}\n")
-    os.replace(out + ".tmp", out)
+           "input_hash": {f"K{k}_s{s}": v for (k, s), v in INPUT_HASH.items()},
+           "eval_pins": {k: pins[k] for k in ("agree_sha256", "vae_ckpt_sha256", "vit_rev")},
+           "written_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+    reg.write_sealed(_abs(E0_RECEIPT), rec)
     return rec
 
 
@@ -434,7 +661,8 @@ def main(argv=None):
     s = sub.add_parser("run"); s.add_argument("--gpu", type=int, required=True, choices=(0, 1))
     s.add_argument("--cells", nargs="+", required=True); s.add_argument("--shared", action="store_true")
     sub.add_parser("e0")
-    s = sub.add_parser("validate"); s.add_argument("names", nargs="+")
+    sub.add_parser("e0-check")
+    s = sub.add_parser("validate"); s.add_argument("names", nargs="+"); s.add_argument("--offline", action="store_true")
     a = p.parse_args(argv)
     os.chdir(reg.REPO)
     try:
@@ -454,12 +682,14 @@ def main(argv=None):
             rec = cmd_e0()
             print(f"E0 {rec['verdict']}" + (f": {rec['failed']}" if rec["failed"] else ""))
             return 0 if rec["verdict"] == "PASS" else 1
+        elif a.cmd == "e0-check":
+            print(json.dumps(validate_e0_receipt()))
         elif a.cmd == "validate":
             cells = {c["name"]: c for c in all_cells(bridge=True)}
-            probs = [x for n in a.names for x in validate_cell(cells[n])]
+            probs = [x for n in a.names for x in validate_cell(cells[n], offline=a.offline)]
             print("\n".join(probs) or "VALID")
             return 0 if not probs else 1
-    except (EvalError, reg.GateError, OSError, KeyError, ValueError) as err:
+    except (EvalError, reg.GateError, OSError, KeyError, ValueError, subprocess.CalledProcessError) as err:
         print(f"EXP38 EVAL REFUSED: {err}", file=sys.stderr)
         return 2
     return 0
