@@ -1,0 +1,6 @@
+# 2026-11-07 23:55:47 HEAD e1d3f70c4ad7c433ef710ebde0ded75cecc12781 + uncommitted eval-side r2 changes; CPU only
+# cmd: python -m pytest -q -p no:cacheprovider -p no:warnings src/tests/test_exp40_eval.py src/tests/test_gen_model_comparison_depth_canon.py src/tests/test_gen_model_comparison_gate.py src/tests/test_gen_model_comparison_data_curve.py
+........................................................................ [ 35%]
+........................................................................ [ 71%]
+..........................................................               [100%]
+202 passed in 58.97s

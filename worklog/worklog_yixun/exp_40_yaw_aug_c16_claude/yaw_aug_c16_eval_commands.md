@@ -1,9 +1,10 @@
 # exp_40 yaw_aug_c16 — evaluation plan and ready-to-run commands (this box)
 
-Plan §5 + §14 H7/H8. Protocol = the exp_25 YAW-pin cells' argv (copied from the committed
-`exp_25…/depth_canon_cells.json` rows; only `--model-config`, `--seed`, `--rotate-*`, `--eval-name`
-change), EMA, full unseen split (6,337 items / 17 rooms), vanilla conditioning, bf16 conditioner autocast,
-cfg 1.0, 1 step, batch 64, stream + per-scene records, scored-waveform dumps to
+Plan §5 under the binding §14 (H7/H8), as fixed for Codex code review 1 (B7–B10, H4, H7–H12, M5).
+Protocol = the exp_25 YAW-pin cells' argv (copied from the committed
+`exp_25…/depth_canon_cells.json` rows, file sha `1073ef64…` pinned; only `--model-config`, `--seed`,
+`--rotate-*`, `--eval-name` change), EMA, full unseen split (6,337 items / 17 rooms), vanilla conditioning,
+bf16 conditioner autocast, cfg 1.0, 1 step, batch 64, stream + per-scene records, scored-waveform dumps to
 `/media/diskstation/yixunhu/FLAC/exp40_pred_waveforms/` (announcement 08), **SDPA** through the committed
 no-flash launcher `overlays/no_flash/exp35_no_flash_launch.py` (the exp_25 YAW cells' backend).
 
@@ -19,52 +20,96 @@ no-flash launcher `overlays/no_flash/exp35_no_flash_launch.py` (the exp_25 YAW c
 | random yaw (512 columns, rotate seed = eval seed) | C16 | random | 1, 8 | 42–46 | 10 |
 | FILL (comparators missing at the off-grid angles) | YAW, P1 | 11.25, 101.25, 191.25, 281.25 | 1, 8 | 42 | 16 |
 
-Reused (never re-run), pinned in `exp40_comparators.json`: exp_25 YAW / P1 T (s42–46), R (s42–46), C4 + 45
-(s42); exp_36 YAW / P1 135 / 225 / 315 (s42) and YAW C4 s43–46 (all with dumps). The random-yaw R cells for
-YAW and P1 already exist (exp_25), so none are added. Off-grid set: plan D5 (the brief's
-{11.25, 33.75, 56.25, 101.25} would add 24 cells ≈ 4.9 GPU-h).
+Reused (never re-run), pinned in `exp40_comparators.json` (92 cells, each validated by its source
+experiment's own `depth_canon_collect.verify_cell` at its pin, `d6ca307a` / `6be49f46`, with a full dump
+re-hash, then by exp_40's strict checks; exp_36 cells also bind the replay verdict that admitted their
+pin): exp_25 YAW / P1 T (s42–46), R (s42–46), C4 + 45 (s42); exp_36 YAW / P1 135 / 225 / 315 (s42) and
+YAW C4 s43–46. Off-grid set: plan D5 (the brief's {11.25, 33.75, 56.25, 101.25} would add 24 cells
+≈ 4.9 GPU-h).
 
 **GPU time:** 42 × 11.9 + 43 × 12.6 min ≈ **17.4 GPU-h ≈ 8.7 h on two exclusive A6000s** (≈ 17.4 h on
 one; 1.6–5× longer next to a 100 %-utilisation co-tenant). E0 alone ≈ 37 min. NAS dumps ≈ 22 GB.
+
+## What every `run` checks (and refuses on, exit 2)
+
+The eval worktree (HEAD = EVAL_SHA, detached, clean, only the three allowlisted untracked links, pinned
+assets / configs, sealed HF hub, IR counts of the 17 unseen rooms) — before EVERY spawn; the runtime-input
+manifest (exact names `ar_verify` [+ `admission` for C16], absolute paths OUTSIDE the eval worktree, every
+file hashing to its pin); a 0–48 h full AcousticRooms re-hash receipt of the committed manifest over this
+root + the 16-item eval-split content sample (`AR_EVAL_SAMPLE_DIGEST ce890a70…`) — before every cell batch;
+the environment probe (pinned interpreter and versions, module origins inside the env, the eval tree's
+`src.models.transformer`, the no-flash `--preflight` sentinel, offline HF resolution inside the sealed hub,
+NVIDIA driver `590.48.01`) whose digest is bound into the E0 receipt and every cell receipt; the C16
+admission through `exp40_kit.admission_reasons` (40k checkpoint re-hashed); the exp_40 card lock
+`~/.exp40_cards.lock` for the whole run; per cell the cooperative `claude_gpu_yield/GPU_LOCK_<uuid>` of the
+lane's card, re-checked (A6000, no compute process, ≥ 10 GiB free) under the lock immediately before the
+spawn and held for the evaluator's lifetime. A signal terminates only the driver's own evaluator process
+groups (TERM, 60 s, KILL) and releases its locks. Success = every selected cell ends with exactly one
+receipt that re-verifies now.
 
 ## Order (plan §14 H8) and commands
 
 ```bash
 cd ~/codespace/exp-40-yaw-aug-c16; K=worklog/worklog_yixun/exp_40_yaw_aug_c16_claude
-PY=/home/yixunhu/miniconda3/envs/flac/bin/python
-# 1. after exp_36 has published: pin the reused cells, commit (with the figure contract), push
-$PY $K/exp40_eval.py register-comparators \
-  --exp25-farm ~/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon \
-  --exp36-farm ~/codespace/exp-36-run/outputs_FLAC/exp25_depth_canon
+PY=/home/yixunhu/miniconda3/envs/flac/bin/python; R=$PWD/$K/receipts; mkdir -p "$R"
+SEALED=$PWD/outputs_FLAC/exp40_yaw_aug_c16/hf_sealed
+# 0. one-time pins. The E0 reference is COMMITTED (exp40_e0_reference.json, sha 180a4534…, pinned in
+#    exp40_eval.py); it was built with (refuses if the file exists):
+#      $PY $K/exp40_eval.py build-e0-reference --out $K/exp40_e0_reference.json
+# 1. the comparator registry (exp_36 has published: 30 YAW + 6 P1 cells at 6be49f46). ~19 GB NAS read
+#    (the source validators re-hash every dump); then commit it with the figure contract and push
+nice -n 15 ionice -c3 $PY $K/exp40_eval.py register-comparators --out $K/exp40_comparators.json \
+  2>&1 | tee $K/yaw_aug_c16_$(date +%F_%H-%M-%S)_register_comparators.log
 git add $K/exp40_comparators.json && git commit -m "exp_40: comparator registry" && git push
 EVAL_SHA=$(git rev-parse HEAD)
-# 2. the detached eval worktree at EVAL_SHA (the lab's run-worktree pattern) + its allowlisted assets
-git worktree add --detach ~/codespace/exp-40-eval-${EVAL_SHA:0:12} $EVAL_SHA
+# 2. the detached eval worktree at EVAL_SHA (the lab's run-worktree pattern) + its three allowlisted assets
 W=~/codespace/exp-40-eval-${EVAL_SHA:0:12}
-ln -s /media/diskstation/yixunhu/FLAC/AcousticRooms $W/AcousticRooms
-ln -s ~/codespace/FLAC/weights/AGREE $W/weights/AGREE
-ln -s ~/codespace/FLAC/weights/FLAC/VAE.ckpt $W/weights/FLAC/VAE.ckpt
-mkdir -p /media/diskstation/yixunhu/FLAC/exp40_pred_waveforms
-# 3. full AcousticRooms re-hash before freezing the suite (<= 48 h), then the E0 hard stop (one free card)
+git worktree add --detach "$W" "$EVAL_SHA"
+ln -s /media/diskstation/yixunhu/FLAC/AcousticRooms "$W/AcousticRooms"
+ln -s ~/codespace/FLAC/weights/AGREE "$W/weights/AGREE"
+ln -s ~/codespace/FLAC/weights/FLAC/VAE.ckpt "$W/weights/FLAC/VAE.ckpt"
+mkdir -p /media/diskstation/yixunhu/FLAC/exp40_pred_waveforms          # the dump root is never auto-created
+# 3. the sealed HF hub (built once from the local cache; `run --dry-run` below verifies it + resolution)
+[ -d "$SEALED" ] || $PY $K/exp40_kit.py build-hf-sealed --src-hub ~/.cache/huggingface/hub --dest "$SEALED"
+# 4. the full AcousticRooms re-hash (CPU, ~1 h, NAS), outside the eval worktree; re-run whenever older
+#    than 48 h before a batch, and write a fresh runtime-input manifest with it
 $PY $K/exp40_kit.py ar-verify --ar-root /media/diskstation/yixunhu/FLAC/AcousticRooms \
-  --manifest $K/exp40_ar_manifest.json --out $K/receipts/ar_verify_eval.json
-SEALED=$PWD/outputs_FLAC/exp40_yaw_aug_c16/hf_sealed
-$PY $K/exp40_eval.py run --repo $PWD --eval-worktree $W --eval-sha $EVAL_SHA --hf-sealed $SEALED \
-  --blocks E0 --lanes 0 --dry-run            # prints the 3 argv, nothing runs
-$PY $K/exp40_eval.py run --repo $PWD --eval-worktree $W --eval-sha $EVAL_SHA --hf-sealed $SEALED \
-  --blocks E0 --lanes 0                      # exit 0 + receipts/e0_<EVAL_SHA>_<closure>.json EQUAL, else STOP
-# 4. after the C16 admission (exp40_kit.py admit): the hash-pinned runtime-input manifest
-$PY -c "import hashlib,json,sys; p=sys.argv[1]; json.dump({'admission': {'path': p, 'sha256': hashlib.sha256(open(p,'rb').read()).hexdigest()}}, open(sys.argv[2],'w'))" \
-  $PWD/$K/exp40_C16_admission.json $K/receipts/runtime_inputs_C16.json
-# 5. every remaining cell (both cards when free; the driver waits for an idle card, never signals anything)
-$PY $K/exp40_eval.py run --repo $PWD --eval-worktree $W --eval-sha $EVAL_SHA --hf-sealed $SEALED \
-  --runtime-inputs $K/receipts/runtime_inputs_C16.json --blocks T,C4,G45,OFF,R,FILL --lanes 0,1
-# 6. tables + off-grid readout, then the exp_40 figure (validated against exp40_figure_contract.json)
-$PY $K/exp40_eval.py collect --repo $PWD --tree $W
-$PY $K/exp40_eval.py figure --repo $PWD --tree $W
+  --manifest $K/exp40_ar_manifest.json --out "$R/ar_verify_eval.json"
+pin() { $PY -c "import hashlib,json,sys; print(json.dumps({'path': sys.argv[1], 'sha256': hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest()}))" "$1"; }
+echo "{\"ar_verify\": $(pin "$R/ar_verify_eval.json")}" > "$R/runtime_inputs_E0.json"
+# 5. the E0 hard stop (one free card): dry run (every gate + the 3 argv, nothing spawned / locked), then run
+$PY $K/exp40_eval.py run --repo $PWD --eval-worktree "$W" --eval-sha $EVAL_SHA --hf-sealed "$SEALED" \
+  --runtime-inputs "$R/runtime_inputs_E0.json" --blocks E0 --lanes 0 --dry-run
+$PY $K/exp40_eval.py run --repo $PWD --eval-worktree "$W" --eval-sha $EVAL_SHA --hf-sealed "$SEALED" \
+  --runtime-inputs "$R/runtime_inputs_E0.json" --blocks E0 --lanes 0 \
+  2>&1 | tee $K/yaw_aug_c16_$(date +%F_%H-%M-%S)_eval_E0.log
+#    exit 0 + receipts/e0_<EVAL_SHA>_<closure>.json with "verdict": "EQUAL" -- anything else: STOP, report
+# 6. after the C16 admission (yaw_aug_c16_neuronic_commands.md / the launch sheet: exp40_kit.py admit
+#    -> $K/exp40_C16_admission.json): the runtime-input manifest with BOTH inputs (AR receipt <= 48 h)
+echo "{\"ar_verify\": $(pin "$R/ar_verify_eval.json"), \"admission\": $(pin "$PWD/$K/exp40_C16_admission.json")}" \
+  > "$R/runtime_inputs_C16.json"
+# 7. every remaining cell (both cards when free; waits for an idle card, never signals anything not its own)
+$PY $K/exp40_eval.py run --repo $PWD --eval-worktree "$W" --eval-sha $EVAL_SHA --hf-sealed "$SEALED" \
+  --runtime-inputs "$R/runtime_inputs_C16.json" --blocks T,C4,G45,OFF,R,FILL --lanes 0,1 \
+  2>&1 | tee $K/yaw_aug_c16_$(date +%F_%H-%M-%S)_eval_cells.log
+# 8. re-verify every receipt with the same validators (non-zero on anything missing / invalid)
+$PY $K/exp40_eval.py verify --repo $PWD --eval-worktree "$W" --eval-sha $EVAL_SHA \
+  --runtime-inputs "$R/runtime_inputs_C16.json"
+# 9. collect (CSV + every table + off-grid readout incl. P1's d + paper-import CSV + collect manifest),
+#    then the figure from the frozen, re-validated CSV
+$PY $K/exp40_eval.py collect --repo $PWD --tree "$W" --eval-sha $EVAL_SHA --admission $PWD/$K/exp40_C16_admission.json
+$PY $K/exp40_eval.py figure  --repo $PWD --tree "$W" --eval-sha $EVAL_SHA --admission $PWD/$K/exp40_C16_admission.json
+# 10. results time: the table evidence the offline row validator checks; force-add + commit it with the
+#     ten T metrics / stream / receipt files, the admission and the E0 receipt (plan §5.4)
+$PY $K/exp40_eval.py freeze-table-evidence --repo $PWD --tree "$W" --eval-sha $EVAL_SHA \
+  --admission $PWD/$K/exp40_C16_admission.json --out $K/exp40_table_evidence.json
 ```
 
-Outputs: `yaw_aug_c16_cells_raw.csv`, `yaw_aug_c16_results_tables.md`, `yaw_aug_c16_figure.{png,pdf}` +
-`yaw_aug_c16_figure_manifest.json` in this folder. The paper repo's three-model script is not edited here
-(plan D6); `yaw_aug_c16_cells_raw.csv` is its import file. `model_comparison.md`: the C16 T rows publish
-with the next neuronic regeneration in one results update (plan §5.4).
+Outputs (this folder): `yaw_aug_c16_cells_raw.csv`, `yaw_aug_c16_results_tables.md` (θ = 0, C4, 45°-grid,
+off-grid and random-yaw per-angle tables + the off-grid readout), `yaw_aug_c16_paper_import.csv` (the
+column schema of the paper repo's `fig_inputs/appendix/*_raw.csv` archive inputs; fractional angles kept as
+`11.25`, which that script's `int(angle_deg)` does not parse yet — the change is Yixun's, plan D6),
+`yaw_aug_c16_collect_manifest.json`, `yaw_aug_c16_figure.{png,pdf}` + `yaw_aug_c16_figure_manifest.json`
+(CSV sha, collect-manifest sha, contract sha, only the contract-selected cells). `model_comparison.md`:
+the C16 T rows publish with the next neuronic regeneration in one results update (plan §5.4); the generator
+requires exactly the five canonical files per K and the committed table evidence.

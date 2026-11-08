@@ -1,0 +1,50 @@
+# 2026-11-07 23:51:52 cwd=/home/yixunhu/codespace/exp-25-depth-canon (read-only; relative dump-manifest paths resolve here)
+# script (scratch, verbatim):
+#   """exp_40 eval r2: apply the NEW strict per-cell validators to the REAL archived exp_25 E0 reference
+#   cells (metrics / stream / dump with a full npy re-hash) and the no-flash sentinel format to a real
+#   exp_36 cell log. Read-only. A refusal here would mean a false E0 refusal later."""
+#   import importlib.util, json, os, sys
+#   sys.dont_write_bytecode = True
+#   EXP = "/home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude"
+#   spec = importlib.util.spec_from_file_location("e", os.path.join(EXP, "exp40_eval.py"))
+#   ev = importlib.util.module_from_spec(spec); spec.loader.exec_module(ev)
+#   TREE = "/home/yixunhu/codespace/exp-40-yaw-aug-c16"
+#   evm, _ = ev.evaluator(TREE)
+#   ref, ref_sha = ev.e0_reference(TREE)
+#   hashes = ev.expected_hashes(ref)
+#   cells = {c["cell"]: c for c in ev.load_cells(TREE)}
+#   link = "outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000.ckpt"
+#   bad = 0
+#   for name, e in sorted(ref["e0"].items()):
+#       cell = {**cells[name], "cell": e["reference"]}            # the archived cell's own name
+#       _, msha, rec = ev._read(e["metrics"]["path"])
+#       _, ssha, st = ev._read(e["stream"]["path"])
+#       assert msha == e["metrics"]["sha256"] and ssha == e["stream"]["sha256"]
+#       mr = ev.metrics_reasons(rec, cell, ev.SOURCES["exp25"]["pin"], ev.ARMS["YAW"]["ckpt_sha256"],
+#                               ev.ARMS["YAW"]["ckpt_bytes"], link, st)
+#       sr = ev.stream_reasons(st, cell, ev.expected_offsets(cell, TREE), hashes, evm)
+#       farm = os.path.dirname(e["metrics"]["path"])
+#       dr, wsha, man_sha = ev.dump_reasons(e["dump"]["dir"], e["stem"], ev.SOURCES["exp25"]["pin"], link,
+#                                           os.path.join("outputs_FLAC/exp25_depth_canon/YAW", e["stem"] + ".json"),
+#                                           os.path.join("outputs_FLAC/exp25_depth_canon/YAW", e["stem"] + ".stream.json"),
+#                                           msha, ssha, st["input_hash"])
+#       # the archived manifest stores RELATIVE paths (exp_25 ran with a relative --ckpt-path); realpath of a
+#       # relative path is cwd-relative, so evaluate from the exp_25 worktree root
+#       print(name, "metrics", mr or "OK", "| stream", sr or "OK", "| dump", dr or "OK",
+#             "| waveforms", wsha == e["dump"]["waveforms_sha256"], "| manifest", man_sha == e["dump"]["manifest_sha256"])
+#       bad += bool(mr or sr or dr)
+#   # the sentinel line format of the real launcher (an exp_36 cell, run through it)
+#   r = json.load(open("/home/yixunhu/codespace/exp-36-run/outputs_FLAC/exp25_depth_canon/YAW/"
+#                      "epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K1_s43_th90_rot90.cell.json"))
+#   log = r["log"] if os.path.isabs(r["log"]) else os.path.join("/home/yixunhu/codespace/exp-36-run", r["log"])
+#   lines = [ln.rstrip("\n") for ln in open(log, errors="replace") if ln.startswith(ev.SENTINEL)]
+#   target = lines[0].split(" target=")[1] if lines else None
+#   print("exp_36 sentinel", lines, "matches", lines == [ev.sentinel_line(target)])
+#   bad += lines != [ev.sentinel_line(target)]
+#   print("REAL SCHEMA CHECK", "PASS" if not bad else "FAIL")
+#   sys.exit(1 if bad else 0)
+exp40_E0_YAW_C4_S40000_K8_s42_th90 metrics OK | stream OK | dump OK | waveforms True | manifest True
+exp40_E0_YAW_R_S40000_K8_s42 metrics OK | stream OK | dump OK | waveforms True | manifest True
+exp40_E0_YAW_T_S40000_K1_s42 metrics OK | stream OK | dump OK | waveforms True | manifest True
+exp_36 sentinel ['EXP35_NO_FLASH_LAUNCHER attention_backend=sdpa overlay_sha256=0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023 launcher_sha256=bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de target=eval_FLAC.py'] matches True
+REAL SCHEMA CHECK PASS

@@ -1,0 +1,9 @@
+# exp_40 eval r2 registration SMOKE (not the freeze-time registry; that is rebuilt at plan §14 H8 step 1)
+# started 2026-11-07 23:37:52 (nice 15, ionice idle): exp40_eval.py register-comparators --out <scratch>/exp40_comparators_smoke.json
+# authoritative validators: exp_25 depth_canon_collect.verify_cell @ d6ca307a (56 cells) and @ 6be49f46 (36 cells), dump_check=full
+# --- driver output ---
+registered 92 comparator cells -> /tmp/claude-1007/-home-yixunhu-codespace/fc686843-cc22-4d3b-b0a4-8fb93c7f072c/scratchpad/exp40/evalfork/exp40_comparators_smoke.json
+# --- registry_reasons of the produced registry under the current code (rehash_npy=False; the source validators re-hashed every npy) ---
+count 92 sha256 7dec3d76009543b1d47f1a955135d9986c7a68344bfc5f9396bb62f58fc8f1e3 pins d6ca307a85b9 6be49f46ec31
+by source/arm/block [(('exp25', 'P1', 'C4'), 6), (('exp25', 'P1', 'G45'), 2), (('exp25', 'P1', 'R'), 10), (('exp25', 'P1', 'T'), 10), (('exp25', 'YAW', 'C4'), 6), (('exp25', 'YAW', 'G45'), 2), (('exp25', 'YAW', 'R'), 10), (('exp25', 'YAW', 'T'), 10), (('exp36', 'P1', 'G45'), 6), (('exp36', 'YAW', 'C4'), 24), (('exp36', 'YAW', 'G45'), 6)]
+registry_reasons NONE
