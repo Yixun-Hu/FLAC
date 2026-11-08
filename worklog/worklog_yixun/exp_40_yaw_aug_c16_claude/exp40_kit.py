@@ -1596,7 +1596,10 @@ def _release_one(path, token):
         raise Refused(f"cannot read lock {path} ({err})") from None
     if rec.get("owner_token") != token:
         raise Refused(f"{path} is owned by another token; not releasing")
-    rename_noreplace(path, f"{path}.released-{time.strftime('%Y-%m-%d_%H-%M-%S')}-{token[:8]}")
+    released = os.path.join(os.path.dirname(path), "released")
+    os.makedirs(released, exist_ok=True)
+    rename_noreplace(path, os.path.join(released, f"{os.path.basename(path)}.released-"
+                                                  f"{time.strftime('%Y-%m-%d_%H-%M-%S')}-{token[:8]}"))
 
 
 def release_gpu_locks(paths, token):

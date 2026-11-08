@@ -1,0 +1,302 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Seed set to 42
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+wandb: WARNING Path /home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_smoke_2026-11-07_22-22-00__3bfae6ed1eb3/wandb/ wasn't writable, using system temp directory.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/apis/public.py:3080: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import parse_version
+wandb: WARNING Path ./wandb/ wasn't writable, using system temp directory.
+wandb: WARNING Path ./wandb/ wasn't writable, using system temp directory
+wandb: WARNING `resume` will be ignored since W&B syncing is set to `offline`. Starting a new run with run id b1sldly1.
+wandb: Tracking run with wandb version 0.15.4
+wandb: W&B syncing is set to `offline` in this directory.  
+wandb: Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+wandb: logging graph, to disable use `wandb.watch(log_graph=False)`
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.5 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.3 M    Trainable params
+30.9 M    Non-trainable params
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+yaw_aug ENABLED img_w=512 seed=42 offset_step=32
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/9100 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/9100 [00:00<?, ?it/s] Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 607, in reduce_storage
+    metadata = storage._share_filename_cpu_()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 447, in wrapper
+    return fn(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 526, in _share_filename_cpu_
+    return super()._share_filename_cpu_(*args, **kwargs)
+RuntimeError: torch_shm_manager at "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/bin/torch_shm_manager": Invalid argument
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 607, in reduce_storage
+    metadata = storage._share_filename_cpu_()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 447, in wrapper
+    return fn(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 526, in _share_filename_cpu_
+    return super()._share_filename_cpu_(*args, **kwargs)
+RuntimeError: torch_shm_manager at "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/bin/torch_shm_manager": Invalid argument
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 607, in reduce_storage
+    metadata = storage._share_filename_cpu_()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 447, in wrapper
+    return fn(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 526, in _share_filename_cpu_
+    return super()._share_filename_cpu_(*args, **kwargs)
+RuntimeError: torch_shm_manager at "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/bin/torch_shm_manager": Invalid argument
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 607, in reduce_storage
+    metadata = storage._share_filename_cpu_()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 447, in wrapper
+    return fn(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 526, in _share_filename_cpu_
+    return super()._share_filename_cpu_(*args, **kwargs)
+RuntimeError: torch_shm_manager at "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/bin/torch_shm_manager": Invalid argument
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 607, in reduce_storage
+    metadata = storage._share_filename_cpu_()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 447, in wrapper
+    return fn(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 526, in _share_filename_cpu_
+    return super()._share_filename_cpu_(*args, **kwargs)
+RuntimeError: torch_shm_manager at "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/bin/torch_shm_manager": Invalid argument
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 607, in reduce_storage
+    metadata = storage._share_filename_cpu_()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 447, in wrapper
+    return fn(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 526, in _share_filename_cpu_
+    return super()._share_filename_cpu_(*args, **kwargs)
+RuntimeError: torch_shm_manager at "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/bin/torch_shm_manager": Invalid argument
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 607, in reduce_storage
+    metadata = storage._share_filename_cpu_()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 447, in wrapper
+    return fn(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 526, in _share_filename_cpu_
+    return super()._share_filename_cpu_(*args, **kwargs)
+RuntimeError: torch_shm_manager at "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/bin/torch_shm_manager": Invalid argument
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 607, in reduce_storage
+    metadata = storage._share_filename_cpu_()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 447, in wrapper
+    return fn(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 526, in _share_filename_cpu_
+    return super()._share_filename_cpu_(*args, **kwargs)
+RuntimeError: torch_shm_manager at "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/bin/torch_shm_manager": Invalid argument
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 607, in reduce_storage
+    metadata = storage._share_filename_cpu_()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 447, in wrapper
+    return fn(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 526, in _share_filename_cpu_
+    return super()._share_filename_cpu_(*args, **kwargs)
+RuntimeError: torch_shm_manager at "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/bin/torch_shm_manager": Invalid argument
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 607, in reduce_storage
+    metadata = storage._share_filename_cpu_()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 447, in wrapper
+    return fn(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 526, in _share_filename_cpu_
+    return super()._share_filename_cpu_(*args, **kwargs)
+RuntimeError: torch_shm_manager at "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/bin/torch_shm_manager": Invalid argument
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 607, in reduce_storage
+    metadata = storage._share_filename_cpu_()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 447, in wrapper
+    return fn(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 526, in _share_filename_cpu_
+    return super()._share_filename_cpu_(*args, **kwargs)
+RuntimeError: torch_shm_manager at "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/bin/torch_shm_manager": Invalid argument
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 607, in reduce_storage
+    metadata = storage._share_filename_cpu_()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 447, in wrapper
+    return fn(self, *args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/storage.py", line 526, in _share_filename_cpu_
+    return super()._share_filename_cpu_(*args, **kwargs)
+RuntimeError: torch_shm_manager at "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/bin/torch_shm_manager": Invalid argument
+[rank: 0] Received SIGTERM: 15
+RuntimeError: DataLoader worker (pid(s) 3838237, 3838239, 3838240, 3838241) exited unexpectedly
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1284, in _try_get_data
+    data = self._data_queue.get(timeout=timeout)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/queue.py", line 180, in get
+    self.not_empty.wait(remaining)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/threading.py", line 324, in wait
+    gotit = waiter.acquire(True, timeout)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/signal_handling.py", line 73, in handler
+    _error_if_any_worker_fails()
+RuntimeError: DataLoader worker (pid 3838240) is killed by signal: Terminated. 
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_smoke_2026-11-07_22-22-00__3bfae6ed1eb3/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/exp40_evidence_driver.py", line 355, in <module>
+    main()
+  File "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_smoke_2026-11-07_22-22-00__3bfae6ed1eb3/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/exp40_evidence_driver.py", line 351, in main
+    train.main()
+  File "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_smoke_2026-11-07_22-22-00__3bfae6ed1eb3/train.py", line 230, in main
+    trainer.fit(training_wrapper, train_dl, val_dl, ckpt_path=args.ckpt_path if args.ckpt_path else None)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+    call._call_and_handle_interrupt(
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 44, in _call_and_handle_interrupt
+    return trainer_fn(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 581, in _fit_impl
+    self._run(model, ckpt_path=ckpt_path)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 990, in _run
+    results = self._run_stage()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 1036, in _run_stage
+    self.fit_loop.run()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 202, in run
+    self.advance()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 359, in advance
+    self.epoch_loop.run(self._data_fetcher)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 136, in run
+    self.advance(data_fetcher)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 202, in advance
+    batch, _, __ = next(data_fetcher)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fetchers.py", line 127, in __next__
+    batch = super().__next__()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fetchers.py", line 56, in __next__
+    batch = next(self.iterator)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/utilities/combined_loader.py", line 326, in __next__
+    out = next(self._iterator)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/utilities/combined_loader.py", line 74, in __next__
+    out[i] = next(self.iterators[i])
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 733, in __next__
+    data = self._next_data()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1491, in _next_data
+    idx, data = self._get_data()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1443, in _get_data
+    success, data = self._try_get_data()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1297, in _try_get_data
+    raise RuntimeError(
+RuntimeError: DataLoader worker (pid(s) 3838237, 3838239, 3838240, 3838241) exited unexpectedly
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1284, in _try_get_data
+    data = self._data_queue.get(timeout=timeout)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/queue.py", line 180, in get
+    self.not_empty.wait(remaining)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/threading.py", line 324, in wait
+    gotit = waiter.acquire(True, timeout)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/signal_handling.py", line 73, in handler
+    _error_if_any_worker_fails()
+RuntimeError: DataLoader worker (pid 3838240) is killed by signal: Terminated. 
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_smoke_2026-11-07_22-22-00__3bfae6ed1eb3/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/exp40_evidence_driver.py", line 355, in <module>
+    main()
+  File "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_smoke_2026-11-07_22-22-00__3bfae6ed1eb3/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/exp40_evidence_driver.py", line 351, in main
+    train.main()
+  File "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_smoke_2026-11-07_22-22-00__3bfae6ed1eb3/train.py", line 230, in main
+    trainer.fit(training_wrapper, train_dl, val_dl, ckpt_path=args.ckpt_path if args.ckpt_path else None)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+    call._call_and_handle_interrupt(
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 44, in _call_and_handle_interrupt
+    return trainer_fn(*args, **kwargs)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 581, in _fit_impl
+    self._run(model, ckpt_path=ckpt_path)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 990, in _run
+    results = self._run_stage()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 1036, in _run_stage
+    self.fit_loop.run()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 202, in run
+    self.advance()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 359, in advance
+    self.epoch_loop.run(self._data_fetcher)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 136, in run
+    self.advance(data_fetcher)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 202, in advance
+    batch, _, __ = next(data_fetcher)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fetchers.py", line 127, in __next__
+    batch = super().__next__()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fetchers.py", line 56, in __next__
+    batch = next(self.iterator)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/utilities/combined_loader.py", line 326, in __next__
+    out = next(self._iterator)
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/utilities/combined_loader.py", line 74, in __next__
+    out[i] = next(self.iterators[i])
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 733, in __next__
+    data = self._next_data()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1491, in _next_data
+    idx, data = self._get_data()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1443, in _get_data
+    success, data = self._try_get_data()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1297, in _try_get_data
+    raise RuntimeError(
+RuntimeError: DataLoader worker (pid(s) 3838237, 3838239, 3838240, 3838241) exited unexpectedly
+wandb: Waiting for W&B process to finish... (failed 1).
+wandb: You can sync this run to the cloud by running:
+wandb: wandb sync /home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_smoke/runtime/exp40_C16_a6000_2x32_smoke_2026-11-07_22-22-00/tmp/wandb/offline-run-20261107_222229-b1sldly1
+wandb: Find logs at: /home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_smoke/runtime/exp40_C16_a6000_2x32_smoke_2026-11-07_22-22-00/tmp/wandb/offline-run-20261107_222229-b1sldly1/logs

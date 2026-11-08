@@ -45,7 +45,8 @@ export PATH="/n/fs/gatrdp/envs/flac/bin:$PATH" PYTHONNOUSERSITE=1 PYTHONDONTWRIT
 export HF_HOME=/n/fs/gatrdp/hf_cache HF_HUB_OFFLINE=1
 NS="$RUN_ID"; [ "$MODE" = PILOT ] && NS="${RUN_ID}_pilot_${TS}"
 RT="$SAVE_ROOT/runtime/$NS"
-export WANDB_MODE=offline WANDB_DIR="$RT/wandb" TMPDIR="$RT/tmp" XDG_CACHE_HOME="$RT/xdg" \
+TMPDIR="$(mktemp -d /tmp/exp40.XXXXXX)" || die "mktemp failed"     # short: torch_shm_manager socket path
+export WANDB_MODE=offline WANDB_DIR="$RT/wandb" TMPDIR XDG_CACHE_HOME="$RT/xdg" \
   TORCH_HOME="$RT/torch" TRITON_CACHE_DIR="$RT/triton" MPLCONFIGDIR="$RT/mpl"
 mkdir -p "$WANDB_DIR" "$TMPDIR" "$XDG_CACHE_HOME" "$TORCH_HOME" "$TRITON_CACHE_DIR" "$MPLCONFIGDIR" || die "runtime dirs"
 EXP40_DRIVER_VERSION="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1)"; export EXP40_DRIVER_VERSION

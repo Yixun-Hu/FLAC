@@ -61,7 +61,10 @@ unset PYTHONPATH PYTHONSTARTUP PYTHONHOME PYTHONUSERBASE TRANSFORMERS_CACHE HUGG
 export PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 export HF_HOME="$HF_SEALED" HF_HUB_CACHE="$HF_SEALED/hub" HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 RT="$SAVE_ROOT/runtime/$NS"
-export WANDB_MODE=offline WANDB_DIR="$RT/wandb" TMPDIR="$RT/tmp" XDG_CACHE_HOME="$RT/xdg" \
+# TMPDIR stays SHORT: torch_shm_manager (file_system sharing, train.py) binds a UNIX socket
+# under it, and a socket path over 108 bytes fails with EINVAL (smoke 2026-11-07 22:22).
+TMPDIR="$(mktemp -d /tmp/exp40.XXXXXX)" || die "mktemp failed"
+export WANDB_MODE=offline WANDB_DIR="$RT/wandb" TMPDIR XDG_CACHE_HOME="$RT/xdg" \
   TORCH_HOME="$RT/torch" TRITON_CACHE_DIR="$RT/triton" MPLCONFIGDIR="$RT/mpl"
 EXP40_DRIVER_VERSION="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)"
 export EXP40_DRIVER_VERSION
