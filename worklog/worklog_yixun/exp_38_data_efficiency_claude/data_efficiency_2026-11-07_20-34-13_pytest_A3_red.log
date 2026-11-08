@@ -1,0 +1,303 @@
+FFFFFFFF...F.FFFFFFF.                                                    [100%]
+=================================== FAILURES ===================================
+_ test_ported_file_is_the_exp14_launch_blob[data/AR/train_frac025_s2026.json] __
+
+rel = 'data/AR/train_frac025_s2026.json'
+
+    @pytest.mark.parametrize("rel", sorted(EXP14_BLOBS))
+    def test_ported_file_is_the_exp14_launch_blob(rel):
+>       assert _sha256(rel) == EXP14_BLOBS[rel], f"{rel} is not exp_14's launch blob"
+
+src/tests/test_exp38_subset_port.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'data/AR/train_frac025_s2026.json'
+
+    def _sha256(rel):
+>       with open(os.path.join(REPO, rel), "rb") as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/data/AR/train_frac025_s2026.json'
+
+src/tests/test_exp38_subset_port.py:50: FileNotFoundError
+_ test_ported_file_is_the_exp14_launch_blob[data/AR/train_frac050_s2026.json] __
+
+rel = 'data/AR/train_frac050_s2026.json'
+
+    @pytest.mark.parametrize("rel", sorted(EXP14_BLOBS))
+    def test_ported_file_is_the_exp14_launch_blob(rel):
+>       assert _sha256(rel) == EXP14_BLOBS[rel], f"{rel} is not exp_14's launch blob"
+
+src/tests/test_exp38_subset_port.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'data/AR/train_frac050_s2026.json'
+
+    def _sha256(rel):
+>       with open(os.path.join(REPO, rel), "rb") as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/data/AR/train_frac050_s2026.json'
+
+src/tests/test_exp38_subset_port.py:50: FileNotFoundError
+_ test_ported_file_is_the_exp14_launch_blob[data/AR/train_frac075_s2026.json] __
+
+rel = 'data/AR/train_frac075_s2026.json'
+
+    @pytest.mark.parametrize("rel", sorted(EXP14_BLOBS))
+    def test_ported_file_is_the_exp14_launch_blob(rel):
+>       assert _sha256(rel) == EXP14_BLOBS[rel], f"{rel} is not exp_14's launch blob"
+
+src/tests/test_exp38_subset_port.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'data/AR/train_frac075_s2026.json'
+
+    def _sha256(rel):
+>       with open(os.path.join(REPO, rel), "rb") as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/data/AR/train_frac075_s2026.json'
+
+src/tests/test_exp38_subset_port.py:50: FileNotFoundError
+_ test_ported_file_is_the_exp14_launch_blob[data/AR/train_frac_manifest_s2026.json] _
+
+rel = 'data/AR/train_frac_manifest_s2026.json'
+
+    @pytest.mark.parametrize("rel", sorted(EXP14_BLOBS))
+    def test_ported_file_is_the_exp14_launch_blob(rel):
+>       assert _sha256(rel) == EXP14_BLOBS[rel], f"{rel} is not exp_14's launch blob"
+
+src/tests/test_exp38_subset_port.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'data/AR/train_frac_manifest_s2026.json'
+
+    def _sha256(rel):
+>       with open(os.path.join(REPO, rel), "rb") as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/data/AR/train_frac_manifest_s2026.json'
+
+src/tests/test_exp38_subset_port.py:50: FileNotFoundError
+_ test_ported_file_is_the_exp14_launch_blob[data/AR/train_frac_manifest_s2026.sha256] _
+
+rel = 'data/AR/train_frac_manifest_s2026.sha256'
+
+    @pytest.mark.parametrize("rel", sorted(EXP14_BLOBS))
+    def test_ported_file_is_the_exp14_launch_blob(rel):
+>       assert _sha256(rel) == EXP14_BLOBS[rel], f"{rel} is not exp_14's launch blob"
+
+src/tests/test_exp38_subset_port.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'data/AR/train_frac_manifest_s2026.sha256'
+
+    def _sha256(rel):
+>       with open(os.path.join(REPO, rel), "rb") as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/data/AR/train_frac_manifest_s2026.sha256'
+
+src/tests/test_exp38_subset_port.py:50: FileNotFoundError
+_ test_ported_file_is_the_exp14_launch_blob[src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json] _
+
+rel = 'src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json'
+
+    @pytest.mark.parametrize("rel", sorted(EXP14_BLOBS))
+    def test_ported_file_is_the_exp14_launch_blob(rel):
+>       assert _sha256(rel) == EXP14_BLOBS[rel], f"{rel} is not exp_14's launch blob"
+
+src/tests/test_exp38_subset_port.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json'
+
+    def _sha256(rel):
+>       with open(os.path.join(REPO, rel), "rb") as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json'
+
+src/tests/test_exp38_subset_port.py:50: FileNotFoundError
+_ test_ported_file_is_the_exp14_launch_blob[src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json] _
+
+rel = 'src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json'
+
+    @pytest.mark.parametrize("rel", sorted(EXP14_BLOBS))
+    def test_ported_file_is_the_exp14_launch_blob(rel):
+>       assert _sha256(rel) == EXP14_BLOBS[rel], f"{rel} is not exp_14's launch blob"
+
+src/tests/test_exp38_subset_port.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json'
+
+    def _sha256(rel):
+>       with open(os.path.join(REPO, rel), "rb") as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json'
+
+src/tests/test_exp38_subset_port.py:50: FileNotFoundError
+_ test_ported_file_is_the_exp14_launch_blob[src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json] _
+
+rel = 'src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json'
+
+    @pytest.mark.parametrize("rel", sorted(EXP14_BLOBS))
+    def test_ported_file_is_the_exp14_launch_blob(rel):
+>       assert _sha256(rel) == EXP14_BLOBS[rel], f"{rel} is not exp_14's launch blob"
+
+src/tests/test_exp38_subset_port.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json'
+
+    def _sha256(rel):
+>       with open(os.path.join(REPO, rel), "rb") as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json'
+
+src/tests/test_exp38_subset_port.py:50: FileNotFoundError
+______ test_manifest_sha256_file_lists_the_three_splits_and_the_manifest _______
+
+    def test_manifest_sha256_file_lists_the_three_splits_and_the_manifest():
+>       lines = open(os.path.join(REPO, "data/AR/train_frac_manifest_s2026.sha256")).read().split("\n")
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/data/AR/train_frac_manifest_s2026.sha256'
+
+src/tests/test_exp38_subset_port.py:75: FileNotFoundError
+___________________ test_split_counts_rooms_and_nesting[025] ___________________
+
+tag = '025'
+
+    @pytest.mark.parametrize("tag", sorted(FRACTIONS))
+    def test_split_counts_rooms_and_nesting(tag):
+        n_items, n_rooms = FRACTIONS[tag]
+>       split = _rooms(_load(f"data/AR/train_frac{tag}_s2026.json"))
+
+src/tests/test_exp38_subset_port.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'data/AR/train_frac025_s2026.json'
+
+    def _load(rel):
+>       with open(os.path.join(REPO, rel)) as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/data/AR/train_frac025_s2026.json'
+
+src/tests/test_exp38_subset_port.py:55: FileNotFoundError
+___________________ test_split_counts_rooms_and_nesting[050] ___________________
+
+tag = '050'
+
+    @pytest.mark.parametrize("tag", sorted(FRACTIONS))
+    def test_split_counts_rooms_and_nesting(tag):
+        n_items, n_rooms = FRACTIONS[tag]
+>       split = _rooms(_load(f"data/AR/train_frac{tag}_s2026.json"))
+
+src/tests/test_exp38_subset_port.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'data/AR/train_frac050_s2026.json'
+
+    def _load(rel):
+>       with open(os.path.join(REPO, rel)) as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/data/AR/train_frac050_s2026.json'
+
+src/tests/test_exp38_subset_port.py:55: FileNotFoundError
+___________________ test_split_counts_rooms_and_nesting[075] ___________________
+
+tag = '075'
+
+    @pytest.mark.parametrize("tag", sorted(FRACTIONS))
+    def test_split_counts_rooms_and_nesting(tag):
+        n_items, n_rooms = FRACTIONS[tag]
+>       split = _rooms(_load(f"data/AR/train_frac{tag}_s2026.json"))
+
+src/tests/test_exp38_subset_port.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'data/AR/train_frac075_s2026.json'
+
+    def _load(rel):
+>       with open(os.path.join(REPO, rel)) as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/data/AR/train_frac075_s2026.json'
+
+src/tests/test_exp38_subset_port.py:55: FileNotFoundError
+__________________________ test_fractions_are_nested ___________________________
+
+    def test_fractions_are_nested():
+>       f25, f50, f75 = (_rooms(_load(f"data/AR/train_frac{t}_s2026.json")) for t in ("025", "050", "075"))
+
+src/tests/test_exp38_subset_port.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp38_subset_port.py:105: in <genexpr>
+    f25, f50, f75 = (_rooms(_load(f"data/AR/train_frac{t}_s2026.json")) for t in ("025", "050", "075"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'data/AR/train_frac025_s2026.json'
+
+    def _load(rel):
+>       with open(os.path.join(REPO, rel)) as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/data/AR/train_frac025_s2026.json'
+
+src/tests/test_exp38_subset_port.py:55: FileNotFoundError
+_ test_frac_dataset_config_differs_from_full_only_by_split_and_restriction[025] _
+
+tag = '025'
+
+    @pytest.mark.parametrize("tag", sorted(FRACTIONS))
+    def test_frac_dataset_config_differs_from_full_only_by_split_and_restriction(tag):
+        full = _load("src/configs/dataset_configs/AR/train/acousticroom_train.json")
+>       frac = _load(f"src/configs/dataset_configs/AR/train/acousticroom_train_frac{tag}.json")
+
+src/tests/test_exp38_subset_port.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json'
+
+    def _load(rel):
+>       with open(os.path.join(REPO, rel)) as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json'
+
+src/tests/test_exp38_subset_port.py:55: FileNotFoundError
+_ test_frac_dataset_config_differs_from_full_only_by_split_and_restriction[050] _
+
+tag = '050'
+
+    @pytest.mark.parametrize("tag", sorted(FRACTIONS))
+    def test_frac_dataset_config_differs_from_full_only_by_split_and_restriction(tag):
+        full = _load("src/configs/dataset_configs/AR/train/acousticroom_train.json")
+>       frac = _load(f"src/configs/dataset_configs/AR/train/acousticroom_train_frac{tag}.json")
+
+src/tests/test_exp38_subset_port.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json'
+
+    def _load(rel):
+>       with open(os.path.join(REPO, rel)) as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json'
+
+src/tests/test_exp38_subset_port.py:55: FileNotFoundError
+_ test_frac_dataset_config_differs_from_full_only_by_split_and_restriction[075] _
+
+tag = '075'
+
+    @pytest.mark.parametrize("tag", sorted(FRACTIONS))
+    def test_frac_dataset_config_differs_from_full_only_by_split_and_restriction(tag):
+        full = _load("src/configs/dataset_configs/AR/train/acousticroom_train.json")
+>       frac = _load(f"src/configs/dataset_configs/AR/train/acousticroom_train_frac{tag}.json")
+
+src/tests/test_exp38_subset_port.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rel = 'src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json'
+
+    def _load(rel):
+>       with open(os.path.join(REPO, rel)) as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json'
+
+src/tests/test_exp38_subset_port.py:55: FileNotFoundError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp38_subset_port.py::test_ported_file_is_the_exp14_launch_blob[data/AR/train_frac025_s2026.json]
+FAILED src/tests/test_exp38_subset_port.py::test_ported_file_is_the_exp14_launch_blob[data/AR/train_frac050_s2026.json]
+FAILED src/tests/test_exp38_subset_port.py::test_ported_file_is_the_exp14_launch_blob[data/AR/train_frac075_s2026.json]
+FAILED src/tests/test_exp38_subset_port.py::test_ported_file_is_the_exp14_launch_blob[data/AR/train_frac_manifest_s2026.json]
+FAILED src/tests/test_exp38_subset_port.py::test_ported_file_is_the_exp14_launch_blob[data/AR/train_frac_manifest_s2026.sha256]
+FAILED src/tests/test_exp38_subset_port.py::test_ported_file_is_the_exp14_launch_blob[src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json]
+FAILED src/tests/test_exp38_subset_port.py::test_ported_file_is_the_exp14_launch_blob[src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json]
+FAILED src/tests/test_exp38_subset_port.py::test_ported_file_is_the_exp14_launch_blob[src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json]
+FAILED src/tests/test_exp38_subset_port.py::test_manifest_sha256_file_lists_the_three_splits_and_the_manifest
+FAILED src/tests/test_exp38_subset_port.py::test_split_counts_rooms_and_nesting[025]
+FAILED src/tests/test_exp38_subset_port.py::test_split_counts_rooms_and_nesting[050]
+FAILED src/tests/test_exp38_subset_port.py::test_split_counts_rooms_and_nesting[075]
+FAILED src/tests/test_exp38_subset_port.py::test_fractions_are_nested - FileN...
+FAILED src/tests/test_exp38_subset_port.py::test_frac_dataset_config_differs_from_full_only_by_split_and_restriction[025]
+FAILED src/tests/test_exp38_subset_port.py::test_frac_dataset_config_differs_from_full_only_by_split_and_restriction[050]
+FAILED src/tests/test_exp38_subset_port.py::test_frac_dataset_config_differs_from_full_only_by_split_and_restriction[075]
+16 failed, 5 passed in 2.71s
