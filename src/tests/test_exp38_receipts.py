@@ -169,7 +169,7 @@ def test_sealed_records(tmp_path):
 
 
 # ------------------------------------------------------------------ SMOKE_DDP receipts
-CLOSURE, ENV_SHA, AUDIT_SHA, HEAD = "c" * 64, "d" * 64, "a" * 64, "f" * 40
+CLOSURE, ENV_SHA, AUDIT_SHA, HEAD = fx.FIX_CLOSURE, "d" * 64, "a" * 64, "f" * 40
 A6000_GPUS = sorted([u, "NVIDIA RTX A6000"] for u in reg.A6000_UUIDS)
 
 
@@ -333,20 +333,26 @@ def _admitted(tree, monkeypatch, run="de_yaw_f050"):
     """The sealed E0 / environment / SMOKE_DDP receipts a FULL launch validated, in the campaign tree,
     mutually consistent; returns (paths, digests)."""
     exp = tree / reg.EXP_DIR
-    _, e0d = fx.sealed(reg, str(exp / "data_efficiency_e0_receipt.json"), exp38_eval.E0_KEYS, verdict="PASS",
-                       closure_sha256=CLOSURE)
-    _, envd = fx.sealed(reg, str(exp / "data_efficiency_env_receipt_a6000.json"), reg.ENV_RECEIPT_KEYS, platform="a6000")
+    e0d = reg.write_sealed(str(exp / "data_efficiency_e0_receipt.json"), fx.synthetic_e0(exp38_eval, CLOSURE))
+    pk = {"flash-attn": reg.FLASH_VERSION}
+    _, envd = fx.sealed(reg, str(exp / "data_efficiency_env_receipt_a6000.json"), reg.ENV_RECEIPT_KEYS, platform="a6000",
+                        packages=pk, packages_sha256=reg.hashlib.sha256(reg.canonical(pk).encode()).hexdigest(),
+                        flags={"optimize": 0, "no_user_site": 1})
     monkeypatch.setattr(reg, "env_receipt_sha", lambda platform, repo=None: envd)
     argv = reg.build_train_argv(run, "a6000")
     smk_path = str(exp / f"data_efficiency_smoke_{run}_a6000_2026-11-08_04-00-00.json")
+    slog = exp / f"data_efficiency_2026-11-08_03-00-00_{run}_a6000_SMOKE_DDP_train.log"
+    slog.write_text(smoke_log(run))
     _, smkd = fx.sealed(reg, smk_path, reg.SMOKE_KEYS, schema=1, mode="SMOKE_DDP", run=run, platform="a6000",
                         backend="flash", head=HEAD, closure_sha256=CLOSURE, env_receipt_sha256=envd, rc=0,
                         checkpoints_written=0, log_gate="PASS", evidence_gate="PASS", verdict="PASS",
-                        argv_projection=reg.argv_projection(argv),
+                        argv_projection=reg.argv_projection(argv), gpus=A6000_GPUS, snapshot_sha256="7" * 64,
+                        log=str(slog), log_sha256=reg.sha256_file(str(slog)),
+                        launched_at="2026-11-06T03:00:00-0500", finished_at="2026-11-06T03:30:00-0500",
                         evidence={str(r): e for r, e in records(run).items()})
     paths = {"e0": str(exp / "data_efficiency_e0_receipt.json"), "smoke": smk_path,
              "env": str(exp / "data_efficiency_env_receipt_a6000.json")}
-    return paths, {"e0": e0d, "env": envd, "smoke": smkd}
+    return paths, {"e0": e0d, "env": envd, "smoke": smkd, "smoke_log": str(slog)}
 
 
 def _full_run(tree, monkeypatch, run="de_yaw_f050", losses=60, rc=0, drop=None):
@@ -363,16 +369,20 @@ def _full_run(tree, monkeypatch, run="de_yaw_f050", losses=60, rc=0, drop=None):
     monkeypatch.setattr(reg, "audit_ckpt", lambda path, run, step, repo=None, run_dir=None: {
         "sha256": reg.sha256_file(path), "bytes": os.path.getsize(path), "global_step": step})
     paths, digests = _admitted(tree, monkeypatch, run)
-    retained = reg.retain_receipts(str(rd), paths)
+    retained = reg.retain_receipts(str(rd), paths, plain={"smoke_log": digests["smoke_log"]})
+    digests["snapshot"] = fx.write_snapshot_manifests(reg, str(tree))     # the launched snapshot's manifests
     return rd, log, retained, paths, digests
 
 
-def _write_tr(tree, rd, log, retained, paths, digests, run="de_yaw_f050", rc=0, content=None):
-    return reg.write_training_receipt(run, "a6000", "flash", HEAD, str(rd), str(log), rc, "5" * 64, digests["e0"],
-                                      {"smoke_receipt": paths["smoke"], "sha256": digests["smoke"]}, A6000_GPUS,
-                                      "2026-11-08T04:00:00-0500", digests["env"], retained,
-                                      reg.AR_CONTENT_SHA256 if content is None else content,
-                                      repo=str(tree), tree=str(tree))
+def _write_tr(tree, rd, log, retained, paths, digests, run="de_yaw_f050", rc=0, content=None, commit=True):
+    rec = reg.write_training_receipt(run, "a6000", "flash", HEAD, str(rd), str(log), rc, digests["snapshot"],
+                                     digests["e0"], {"smoke_receipt": paths["smoke"], "sha256": digests["smoke"]},
+                                     A6000_GPUS, "2026-11-07T04:00:00-0500", digests["env"], retained,
+                                     reg.AR_CONTENT_SHA256 if content is None else content,
+                                     repo=str(tree), tree=str(tree))
+    if commit:
+        fx.commit(reg, str(rd), run, reg.sha256_file(str(rd / reg.TRAINING_RECEIPT)))
+    return rec
 
 
 def test_the_training_receipt_is_published_only_after_every_end_audit(tree, monkeypatch):
@@ -381,7 +391,7 @@ def test_the_training_receipt_is_published_only_after_every_end_audit(tree, monk
     assert rec["final_ckpt_bytes"] == len(b"ckpt 40000") and rec["rc"] == 0
     assert sorted(os.listdir(rd / reg.RECEIPTS_DIR)) == sorted(
         [os.path.basename(p) for p in paths.values()] + [os.path.basename(p) + ".sha256" for p in paths.values()]
-        + ["train.log"])
+        + ["train.log", "smoke_log.log", "SNAPSHOT.sha256", "SNAPSHOT.links"])
     got, digest = reg.check_training_receipt("de_yaw_f050", str(rd), closure=CLOSURE, e0_sha=digests["e0"],
                                              platform="a6000")
     assert got == rec and len(digest) == 64
@@ -433,6 +443,10 @@ TR_MUTATIONS = {
     "final name": lambda r: r.update(final_ckpt="epoch=0-step=40000.ckpt"),
     "gpus": lambda r: r.update(gpus=[["GPU-x", "NVIDIA RTX A6000"]] * 2), "gpus l40": lambda r: r.update(gpus=[["GPU-0", "NVIDIA L40"]] * 2),
     "receipts map": lambda r: r["receipts"].pop("smoke"), "receipts name": lambda r: r["receipts"].update(env="other.json"),
+    "snapshot sha (valid-looking)": lambda r: r.update(snapshot_sha256="9" * 64),
+    "closure (valid-looking)": lambda r: r.update(closure_sha256="9" * 64),
+    "time order": lambda r: r.update(launched_at="2099-11-10T04:00:00-0500"),
+    "content checks": lambda r: r.update(data_content_checks=["pre-launch"]),
     "time": lambda r: r.update(finished_at=None), "schema": lambda r: r.update(schema=2), "run": lambda r: r.update(run="de_yaw_f025"),
 }
 
@@ -448,7 +462,8 @@ def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeyp
 
 
 @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
-                                  "smoke copy evidence"])
+                                  "smoke copy evidence", "smoke log", "snapshot manifest", "e0 copy resealed",
+                                  "env copy resealed", "no commit", "commit record status"])
 def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
     rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
     _write_tr(tree, rd, log, retained, paths, digests)
@@ -471,6 +486,27 @@ def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, w
         reg.write_sealed(p, rec)
     elif what == "log copy":
         (rdir / "train.log").write_text("Seed set to 42\n")
+    elif what == "smoke log":
+        (rdir / "smoke_log.log").write_text("Seed set to 42\n")
+    elif what == "snapshot manifest":
+        (rdir / "SNAPSHOT.sha256").write_text(fx.SNAP_TEXT + "0" * 64 + "  src/extra.py\n")
+    elif what in ("e0 copy resealed", "env copy resealed"):       # internally inconsistent, freshly sealed
+        p = str(rdir / retained["e0" if what.startswith("e0") else "env"])
+        rec = json.load(open(p))
+        if what.startswith("e0"):
+            rec["checkpoints"]["E0b"]["bytes"] = 1
+        else:
+            rec["packages"]["torch"] = "9.9"
+        os.remove(p)
+        os.remove(p + ".sha256")
+        reg.write_sealed(p, rec)
+    elif what == "no commit":
+        os.remove(rd / reg.COMMIT_MARKER)
+    elif what == "commit record status":
+        lr = rd / json.load(open(rd / reg.COMMIT_MARKER))["launch_record"]
+        rec = json.load(open(lr))
+        rec["status"] = "running"
+        json.dump(rec, open(lr, "w"))
     else:
         f = rd / "evidence" / "run_evidence.json.rank1.json"
         e = json.load(open(f))
@@ -619,3 +655,70 @@ def test_logger_metadata_without_the_flag_is_the_pre_flag_dict():
     assert d == {"seed": 42} and not hasattr(a, "evidence_json") and train.extra_callbacks(a) == []
     b = argparse.Namespace(seed=42, evidence_json="/x/run_evidence.json")
     assert train.logger_args_dict(b) == {"seed": 42, "evidence_json": "/x/run_evidence.json"}
+
+
+def test_the_commit_marker_needs_the_terminal_record(tree, monkeypatch):
+    rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+    _write_tr(tree, rd, log, retained, paths, digests, commit=False)
+    with pytest.raises(reg.GateError, match="committed"):
+        reg.check_training_receipt("de_yaw_f050", str(rd), closure=CLOSURE, e0_sha=digests["e0"])
+    digest = reg.sha256_file(str(rd / reg.TRAINING_RECEIPT))
+    lr = rd / "at_launch_x.json"
+    json.dump({"run": "de_yaw_f050", "status": "end audit failed", "training_receipt_sha256": digest}, open(lr, "w"))
+    with pytest.raises(reg.GateError):
+        reg.write_commit_marker(str(rd), "de_yaw_f050", digest, str(lr))   # never for a non-COMPLETE record
+    fx.commit(reg, str(rd), "de_yaw_f050", digest)
+    reg.check_training_receipt("de_yaw_f050", str(rd), closure=CLOSURE, e0_sha=digests["e0"])
+
+
+def test_the_publication_cli_needs_its_campaign_context(tree, monkeypatch, capsys):
+    rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+    _write_tr(tree, rd, log, retained, paths, digests)
+    with pytest.raises(SystemExit):
+        reg._cli(["training-check", "de_yaw_f050", "--run-dir", str(rd)])
+    base = ["training-check", "de_yaw_f050", "--run-dir", str(rd), "--platform", "a6000"]
+    assert reg._cli(base + ["--closure", CLOSURE, "--e0-sha", digests["e0"]]) == 0
+    assert reg._cli(base + ["--closure", "0" * 64, "--e0-sha", digests["e0"]]) == 2
+    assert reg._cli(["training-check", "de_yaw_f050", "--run-dir", str(rd), "--platform", "neuronic",
+                     "--closure", CLOSURE, "--e0-sha", digests["e0"]]) == 2
+
+
+def test_duplicate_l40_uuids_are_not_a_topology():
+    assert reg._gpus_ok("neuronic", 2, [["GPU-a", "NVIDIA L40"], ["GPU-b", "NVIDIA L40"]])
+    assert not reg._gpus_ok("neuronic", 2, [["GPU-a", "NVIDIA L40"], ["GPU-a", "NVIDIA L40"]])
+    assert not reg._gpus_ok("neuronic", 2, [["x", "NVIDIA L40"], ["y", "NVIDIA L40"]])
+
+
+def test_record_identity_hashes_the_current_installed_bytes(tmp_path):
+    """Codex code r3 HIGH 4: a file edited while its RECORD stays the same refuses; an unhashed
+    entry still enters the identity through its current bytes."""
+    import base64
+    site = tmp_path / "site"
+    (site / "pkg").mkdir(parents=True)
+    (site / "pkg" / "__init__.py").write_text("x = 1\n")
+    (site / "pkg" / "data.bin").write_bytes(b"abc")
+    b64 = lambda data: base64.urlsafe_b64encode(reg.hashlib.sha256(data).digest()).decode().rstrip("=")
+    record = (f"pkg/__init__.py,sha256={b64(b'x = 1' + bytes([10]))},6\n"
+              f"pkg/data.bin,,3\npkg/__pycache__/x.cpython-310.pyc,,\npkg-1.0.dist-info/RECORD,,\n")
+    (site / "pkg-1.0.dist-info").mkdir()
+    (site / "pkg-1.0.dist-info" / "RECORD").write_text(record)
+    a = reg.record_identity(str(site), record)
+    (site / "pkg" / "data.bin").write_bytes(b"abd")                      # an UNHASHED entry changes
+    assert reg.record_identity(str(site), record) != a
+    (site / "pkg" / "__init__.py").write_text("x = 2\n")               # a HASHED entry changes
+    with pytest.raises(reg.GateError, match="RECORD hash"):
+        reg.record_identity(str(site), record)
+    os.remove(site / "pkg" / "__init__.py")
+    with pytest.raises(reg.GateError, match="missing"):
+        reg.record_identity(str(site), record)
+
+
+def test_an_sdpa_only_environment_records_flash_attn_as_absent(monkeypatch):
+    import importlib.util
+    real = importlib.util.find_spec
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name, *a: None if name == "flash_attn" else real(name, *a))
+    origins, records_ = reg.module_identity()
+    assert origins["flash_attn"] == records_["flash_attn"] == "absent" and records_["torch"].startswith("record:")
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name, *a: None if name == "einops" else real(name, *a))
+    with pytest.raises(reg.GateError):
+        reg.module_identity()                                             # a required module may not be absent

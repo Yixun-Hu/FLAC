@@ -363,7 +363,7 @@ FAKE_TRAIN = textwrap.dedent("""
 """)
 
 
-def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_head="f" * 40):
+def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_head="f" * 40, content_after_ok=True):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import test_exp38_receipts as tr
     reg = sv.reg
@@ -380,16 +380,22 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
     monkeypatch.setattr(sv, "a6000_gpu_gate", lambda *x: gpus)
     monkeypatch.setattr(sv, "backend_gate", lambda *x: {})
     monkeypatch.setattr(reg, "check_e0_receipt", lambda p: {"sha256": "e" * 64, "head": e0_head})
-    monkeypatch.setattr(reg, "check_smoke_receipt", lambda *x, **k: {"smoke_receipt": "s.json", "sha256": "6" * 64})
+    smoke_rec = tmp_path / "smoke_receipt.json"
+    smoke_rec.write_text(json.dumps({"log": str(tmp_path / "smoke.log")}))
+    monkeypatch.setattr(reg, "check_smoke_receipt", lambda *x, **k: {"smoke_receipt": str(smoke_rec), "sha256": "6" * 64})
     monkeypatch.setattr(reg, "storage_gate", lambda *x, **k: {"fstype": "cifs"})
     monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": "c" * 64})
     monkeypatch.setattr(reg, "_gpu_rows", lambda: [["0", reg.A6000_UUIDS[0], "NVIDIA RTX A6000", "570.86"]])
     import exp38_content_manifest as cm
     content_calls = []
-    monkeypatch.setattr(cm, "verify", lambda *x, **k: content_calls.append(k.get("want_sha")) or [])
+    monkeypatch.setattr(cm, "verify", lambda *x, **k: content_calls.append(k.get("want_sha")) or
+                        ([] if (len(content_calls) == 1 or content_after_ok) else ["1 group(s) differ"]))
     retained_calls = []
-    monkeypatch.setattr(reg, "retain_receipts", lambda rd_, paths: retained_calls.append(sorted(paths)) or
+    monkeypatch.setattr(reg, "retain_receipts", lambda rd_, paths, plain=None: retained_calls.append(sorted(paths)) or
                         {k: os.path.basename(v) for k, v in paths.items()})
+    commits = []
+    monkeypatch.setattr(reg, "write_commit_marker", lambda rd_, run_, sha_, path_: commits.append(
+        (json.load(open(path_))["status"], json.load(open(path_))["training_receipt_sha256"] == sha_)))
     rd = tmp_path / "nas" / run
     ev = {f"run_evidence.json.rank{r}.json": e for r, e in tr.records(run, max_steps=40000).items()}
     log = tr.smoke_log(run, steps=40000, losses=2, end=False)
@@ -414,7 +420,8 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
         real_sig.bind(*args, **kw)                               # the supervisor calls the real signature
         assert args[12] == "d" * 64 and kw == {"repo": kw["repo"], "tree": str(tmp_path)}
         assert sorted(args[13]) == ["e0", "env", "smoke"] and args[14] == reg.AR_CONTENT_SHA256
-        assert content_calls == [reg.AR_CONTENT_SHA256] and retained_calls == [["e0", "env", "smoke"]]
+        assert content_calls == [reg.AR_CONTENT_SHA256] * 2 and retained_calls == [["e0", "env", "smoke"]]
+        open(os.path.join(args[4], reg.TRAINING_RECEIPT), "w").write("{}")
         calls.append(args)
         if not audit_ok:
             raise reg.GateError("end gates: synthetic failure")
@@ -435,6 +442,7 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
     rec = json.load(open(tmp_path / reg.EXP_DIR / copies[0]))
     rd = __import__("pathlib").Path(rec["run_dir"])
     assert json.load(open(rd / copies[0])) == rec               # the run-dir copy is identical
+    calls.append(("commits", commits))
     return code, rec, rd, calls
 
 
@@ -442,7 +450,7 @@ def test_a_full_run_launches_from_the_snapshot_gates_and_publishes(tmp_path, mon
     code, rec, rd, calls = _campaign(tmp_path, monkeypatch)
     assert code == 0 and rec["status"] == "COMPLETE" and rec["start_gate"] == "PASS" and rec["evidence_gate"] == "PASS"
     assert rec["cwd"].startswith(str(tmp_path / "snaps")) and rec["child_rc"] == 0 and rec["supervisor_pid"] == os.getpid()
-    assert len(calls) == 1 and not (rd / ".exp38_lock").exists()
+    assert len(calls) == 2 and calls[-1] == ("commits", [("COMPLETE", True)]) and not (rd / ".exp38_lock").exists()
     assert [n for n in os.listdir(rd) if n.startswith(".exp38_lock.released_")]
 
 
@@ -451,7 +459,7 @@ def test_a_full_run_launches_from_the_snapshot_gates_and_publishes(tmp_path, mon
 def test_a_failed_full_run_keeps_its_crash_marker(tmp_path, monkeypatch, mode, audit_ok, want):
     code, rec, rd, calls = _campaign(tmp_path, monkeypatch, mode, audit_ok)
     assert code == want and (rd / ".exp38_lock").is_dir() and "finished_at" in rec
-    assert rec["status"] != "COMPLETE" and len(calls) == (1 if mode == "ok" else 0)
+    assert rec["status"] != "COMPLETE" and len(calls) == (2 if mode == "ok" else 1) and calls[-1] == ("commits", [])
     with pytest.raises(sv.reg.GateError):
         sv.reg.check_run_dir(str(rd), "de_bf_f025", 0)          # never relaunched into: archive first
 
@@ -459,7 +467,7 @@ def test_a_failed_full_run_keeps_its_crash_marker(tmp_path, monkeypatch, mode, a
 @pytest.mark.parametrize("audit_ok,want", [(True, 0), (False, sv.EXIT_END)])
 def test_a_smoke_ddp_seals_its_receipt_from_the_snapshot(tmp_path, monkeypatch, audit_ok, want):
     code, rec, rd, calls = _campaign(tmp_path, monkeypatch, audit_ok=audit_ok, smode="SMOKE_DDP")
-    assert code == want and len(calls) == 1 and str(rd).startswith(str(tmp_path / "outputs_FLAC" / "exp38_smoke"))
+    assert code == want and len(calls) == 2 and str(rd).startswith(str(tmp_path / "outputs_FLAC" / "exp38_smoke"))
     assert "start_gate" not in rec and rec["mode"] == "SMOKE_DDP"
 
 
@@ -494,3 +502,37 @@ def _campaign_no_content_patch(tmp_path, monkeypatch):
         return _campaign(tmp_path, monkeypatch)
     finally:
         monkeypatch.setattr = real_setattr
+
+
+def test_ar_content_changed_during_the_run_publishes_nothing(tmp_path, monkeypatch):
+    """Codex code r3 BLOCKING 1 (defense in depth): the post-run re-hash refuses the terminal receipt."""
+    code, rec, rd, calls = _campaign(tmp_path, monkeypatch, content_after_ok=False)
+    assert code == sv.EXIT_END and "AR content changed during the run" in rec["status"]
+    assert calls == [("commits", [])] and (rd / ".exp38_lock").is_dir()
+
+
+@pytest.mark.parametrize("where", ["holder", "record"])
+def test_an_exception_after_spawn_stops_our_group(tmp_path, monkeypatch, where):
+    """Codex code r3 HIGH 2: a failure after the child exists (lock-holder start, a record write inside
+    a gate) terminates and reaps the owned group before the exception propagates."""
+    spawned = []
+    real_child = sv.OwnedChild
+
+    class Tracked(real_child):
+        def __init__(self, *a, **k):
+            super().__init__(*a, **k)
+            spawned.append(self)
+    monkeypatch.setattr(sv, "OwnedChild", Tracked)
+    if where == "holder":
+        monkeypatch.setattr(sv, "start_lock_holder", lambda pgid, fds: (_ for _ in ()).throw(OSError("no holder")))
+    else:
+        real_update = sv.Record.update
+
+        def flaky(self, strict=False, **fields):
+            if "start_gate" in fields:
+                raise RuntimeError("record write failed inside the start gate")
+            return real_update(self, strict=strict, **fields)
+        monkeypatch.setattr(sv.Record, "update", flaky)
+    with pytest.raises((OSError, RuntimeError)):
+        _campaign(tmp_path, monkeypatch)
+    assert spawned and all(c.rc is not None for c in spawned) and all(_gone(c.pid) for c in spawned)

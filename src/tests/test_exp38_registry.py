@@ -713,6 +713,25 @@ def test_snapshot_is_complete_immutable_and_usable(tmp_path):
     link.unlink()
     link.symlink_to(os.path.realpath(os.path.join(REPO, "AcousticRooms")))
     reg.verify_snapshot(str(dest))
+    assert reg.closure_of_manifest((dest / "SNAPSHOT.sha256").read_text()) == reg.closure_digest()["closure_sha256"]
+    # the tree is CLOSED (Codex code r3 HIGH 1): bytecode of a listed module is the only unlisted entry allowed
+    pyc = dest / "src" / "models" / "__pycache__" / "transformer.cpython-310.pyc"
+    pyc.parent.mkdir(exist_ok=True)
+    pyc.write_bytes(b"pyc")
+    reg.verify_snapshot(str(dest))
+    for make in (lambda: (dest / "src" / "models" / "evil.py").write_text("x = 1\n"),
+                 lambda: (dest / "src" / "flash_attn.cpython-310-x86_64-linux-gnu.so").write_bytes(b"so"),
+                 lambda: (dest / "extra_link").symlink_to(tmp_path),
+                 lambda: (dest / "newpkg").mkdir(),
+                 lambda: (dest / "src" / "models" / "__pycache__" / "evil.cpython-310.pyc").write_bytes(b"x")):
+        make()
+        with pytest.raises(reg.GateError, match="unmanifested"):
+            reg.verify_snapshot(str(dest))
+        for extra in reg.snapshot_extras(str(dest), {l.split("  ", 1)[1] for l in (dest / "SNAPSHOT.sha256").read_text().split("\n") if l},
+                                         {l.split("  ", 1)[1] for l in (dest / "SNAPSHOT.links").read_text().split("\n") if l}):
+            q = dest / extra.rstrip("/")
+            q.unlink() if (q.is_symlink() or q.is_file()) else q.rmdir()
+        reg.verify_snapshot(str(dest))
     cfg = dest / reg.bf_config_rel(32)
     cfg.write_text(cfg.read_text() + " ")
     with pytest.raises(reg.GateError):

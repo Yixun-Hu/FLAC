@@ -12,6 +12,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import sys
 
 import pytest
 
@@ -196,10 +197,20 @@ def test_e0_cells_are_re_admitted_and_re_compared(e0):
     rec = json.load(open(ev._abs(c["metrics"])))
     rec["metrics"]["T60"] += 1e-9
     json.dump(rec, open(ev._abs(c["metrics"]), "w"))
-    for offline in (False, True):
+    for kw in ({"offline": False}, {"offline": True}, {"platform": "neuronic"}):
         with pytest.raises(ev.reg.GateError):
-            ev.validate_e0_receipt(offline=offline)
-    ev.validate_e0_receipt(readmit=False)                  # the neuronic launch gate (cells absent there)
+            ev.validate_e0_receipt(**kw)                   # neuronic re-admits the copied cells too (r3 HIGH 5)
+    with pytest.raises(ev.reg.GateError):
+        ev.reg.check_e0_receipt("neuronic")
+
+
+def test_the_neuronic_gate_re_admits_the_copied_e0_cells(e0):
+    campaign, rec = e0
+    assert ev.reg.check_e0_receipt("neuronic")["sha256"] == campaign["sha256"]
+    c = ev.e0_cells()[3]
+    os.remove(ev._abs(c["receipt"]))                       # a cell not copied to neuronic
+    with pytest.raises(ev.reg.GateError):
+        ev.reg.check_e0_receipt("neuronic")
 
 
 def test_e0_receipt_sidecar_is_binding(e0):
@@ -229,6 +240,8 @@ def _cell(world, run="de_bf_f025", K=8, seed=43, dump=True):
         fx.make_training_receipt(ev, run, str(rd), world["campaign"]["closure_sha256"],
                                  e0_sha=world["campaign"]["sha256"], e0_path=world["campaign"]["e0_receipt"])
         fx.copy_to_farm(ev, str(rd), farm)
+        final = ev.reg.ckpt_name(ev.reg.MAX_STEPS, ev.reg.parse_run_id(run)[1])
+        os.symlink(str(rd / final), os.path.join(farm, final))          # what `prepare` links
     tr, digest = ev.reg.read_sealed(str(rd / ev.reg.TRAINING_RECEIPT), ev.reg.TRAINING_KEYS)
     return fx.make_cell(ev, cell, world["campaign"], (tr["final_ckpt_sha256"], tr["final_ckpt_bytes"], digest),
                         str(tmp / "logs"), dump=dump)
@@ -363,16 +376,15 @@ def test_run_one_executes_from_the_snapshot_while_the_tree_changes(world, monkey
     monkeypatch.setattr(ev, "eval_env", lambda gpu: {"GIT_DIR": "/x"})
     tr, digest = ev.reg.read_sealed(str(world["tmp"] / "nas" / run / ev.reg.TRAINING_RECEIPT), ev.reg.TRAINING_KEYS)
 
-    def fake_run(cmd, cwd=None, env=None, stdout=None, **kw):
+    def fake_run(cmd, cwd, env, log, lock_fds=(), grace=60):
         calls["cwd"], calls["ran"] = cwd, open(os.path.join(cwd, "eval_FLAC.py")).read()
         tree_file.write_text("MUTATED\n")                         # the checkout changes mid-cell
-        stdout.write(ev.SENTINEL + "\n")
-        stdout.flush()
+        open(log, "a").write(ev.SENTINEL + "\n")
         fx.make_cell(ev, cell, world["campaign"], (tr["final_ckpt_sha256"], tr["final_ckpt_bytes"], digest),
                      str(world["tmp"] / "logs2"))
         os.remove(cell["receipt"])                                 # the driver writes the receipt
-        return type("R", (), {"returncode": 0})()
-    monkeypatch.setattr(ev.subprocess, "run", fake_run)
+        return 0
+    monkeypatch.setattr(ev, "run_owned", fake_run)
     monkeypatch.setattr(ev, "validate_cell", lambda c, camp=None, offline=False: [] if os.path.exists(c["receipt"]) else ["absent"])
     assert ev.run_one(cell, 1, world["campaign"]) == "done"
     assert calls["cwd"] == str(snap) and calls["ran"] == "ORIGINAL\n" and tree_file.read_text() == "MUTATED\n"
@@ -562,10 +574,127 @@ def test_the_result_manifest_lists_every_admitted_artifact(world, monkeypatch):
               "evidence/run_evidence.json.rank1.json"):
         assert os.path.join(farm, f) in arts, f
     assert all(len(v) == 64 for v in arts.values())
+    assert os.path.realpath(cells[0]["ckpt_link"]) in arts and os.path.join(farm, ev.reg.COMMIT_MARKER) in arts
     monkeypatch.setattr(col.reg, "required_runs", lambda rung="2x32": ["de_bf_f025"])
+    snapdir = world["tmp"] / "evalsnap_manifests"
+    fx.write_snapshot_manifests(ev.reg, str(snapdir))
+    monkeypatch.setattr(ev, "eval_snapshot_dir", lambda closure: str(snapdir))
+    real_digest = ev.reg.snapshot_digest
+    monkeypatch.setattr(ev.reg, "snapshot_digest", lambda d: campaign["eval_snapshot_sha256"] if d == str(snapdir)
+                        else real_digest(d))
+    env_rel = str(world["tmp"] / "env_receipt.json")
+    fx.sealed(ev.reg, env_rel, ev.reg.ENV_RECEIPT_KEYS, platform="a6000")
+    monkeypatch.setattr(ev.reg, "env_receipt_rel", lambda platform: env_rel)
     rows, pending, manifest = col.collect()
     assert pending == [] and manifest["runs"]["de_bf_f025"] == arts
     art = manifest["artifacts"]
     assert campaign["e0_receipt"] in art and campaign["e0_receipt"] + ".sha256" in art
     assert all(ev._abs(c["metrics"]) in art for c in ev.e0_cells())
     assert len([k for k in art if "/ref_cells/" in k]) == 69                 # 68 cells + the manifest
+    for c in ev.e0_cells():                                                   # E0 logs, weights, snapshot manifests
+        assert json.load(open(c["receipt"]))["log"] in art
+    assert os.path.realpath(ev._abs(ev.reg.AGREE_REL)) in art and os.path.realpath(ev._abs(ev.reg.VAE_CKPT_REL)) in art
+    assert str(snapdir / "SNAPSHOT.sha256") in art and str(snapdir / "SNAPSHOT.links") in art
+
+
+@pytest.mark.parametrize("what", ["waveforms", "checkpoint", "e0 log", "cell log"])
+def test_the_manifest_refuses_an_artifact_changed_after_admission(world, monkeypatch, what):
+    """Codex code r3 HIGH 6: manifest hashes are CURRENT bytes, compared with what admission accepted."""
+    cell = _cell(world, seed=42)
+    if what == "waveforms":
+        import numpy as np
+        np.save(os.path.join(cell["dump_dir"], "waveforms.npy"), np.zeros(ev.DUMP_SHAPE, dtype=np.float32))
+        fn = lambda: ev.cell_artifacts(cell)
+    elif what == "checkpoint":
+        open(os.path.realpath(cell["ckpt_link"]), "ab").write(b"x")
+        fn = lambda: ev.run_artifacts("de_bf_f025")
+    elif what == "cell log":
+        open(json.load(open(cell["receipt"]))["log"], "a").write("x\n")
+        fn = lambda: ev.cell_artifacts(cell)
+    else:
+        c = ev.e0_cells()[0]
+        open(json.load(open(c["receipt"]))["log"], "a").write("x\n")
+        env_rel = str(world["tmp"] / "env_receipt.json")
+        fx.sealed(ev.reg, env_rel, ev.reg.ENV_RECEIPT_KEYS, platform="a6000")
+        monkeypatch.setattr(ev.reg, "env_receipt_rel", lambda platform: env_rel)
+        fn = lambda: ev.campaign_artifacts(world["campaign"])
+    with pytest.raises(ev.EvalError, match="changed since its admission"):
+        fn()
+
+
+def test_the_evaluator_env_keeps_one_git_dir(monkeypatch):
+    for k, v in {"GIT_WORK_TREE": "/x", "GIT_OBJECT_DIRECTORY": "/y", "GIT_COMMON_DIR": "/z", "GIT_DIR": "/w",
+                 "RANK": "1", "PL_GLOBAL_SEED": "1", "SLURM_PROCID": "0"}.items():
+        monkeypatch.setenv(k, v)
+    e = ev.eval_env(1)
+    assert [k for k in e if k.startswith("GIT_")] == ["GIT_DIR"] and e["GIT_DIR"].endswith("/worktrees/exp-38-data-efficiency") \
+        or e["GIT_DIR"].endswith("/.git")
+    assert not {"RANK", "PL_GLOBAL_SEED", "SLURM_PROCID"} & set(e) and e["CUDA_VISIBLE_DEVICES"] == "1"
+
+
+def _owned_harness(tmp_path, cmd):
+    import subprocess
+    import textwrap
+    code = textwrap.dedent(f"""
+        import fcntl, os, sys
+        sys.path.insert(0, {EXP!r})
+        import exp38_eval as ev
+        fd = os.open({str(tmp_path / 'card.lock')!r}, os.O_WRONLY | os.O_CREAT)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        print("LOCKED", flush=True)
+        sys.exit(ev.run_owned({cmd!r}, {str(tmp_path)!r}, dict(os.environ), {str(tmp_path / 'e.log')!r}, (fd,)))
+    """)
+    p = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
+    assert p.stdout.readline().strip() == "LOCKED"
+    return p
+
+
+def test_a_killed_driver_cannot_release_the_card_under_its_evaluator(tmp_path):
+    """Codex code r3 HIGH 2: the evaluator is an owned child; its group keeps the card lock."""
+    import fcntl
+    import signal
+    import time
+    gc = tmp_path / "gc.pid"
+    p = _owned_harness(tmp_path, [sys.executable, "-c",
+                                  "import subprocess, sys, time; q = subprocess.Popen([sys.executable, '-c', "
+                                  "'import time; time.sleep(5)']); "
+                                  f"open({str(gc)!r}, 'w').write(str(q.pid)); time.sleep(5)"])
+    end = time.time() + 20
+    while not (gc.exists() and gc.read_text()):
+        assert time.time() < end
+        time.sleep(0.1)
+    p.send_signal(signal.SIGKILL)
+    p.wait(timeout=30)
+    fd = os.open(tmp_path / "card.lock", os.O_WRONLY)
+    try:
+        with pytest.raises(OSError):
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        end = time.time() + 30
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                assert time.time() < end, "the evaluator's lock was never released"
+                time.sleep(0.5)
+    finally:
+        os.close(fd)
+
+
+def test_run_owned_passes_the_status_and_stops_the_group_on_an_exception(tmp_path, monkeypatch):
+    import exp38_supervise as sv
+    assert ev.run_owned([sys.executable, "-c", "import sys; sys.exit(7)"], str(tmp_path), dict(os.environ),
+                        str(tmp_path / "a.log")) == 7
+    made = []
+    real = sv.OwnedChild
+
+    class T(real):
+        def __init__(self, *a, **k):
+            super().__init__(*a, **k)
+            made.append(self)
+    monkeypatch.setattr(sv, "OwnedChild", T)
+    monkeypatch.setattr(sv, "start_lock_holder", lambda pgid, fds: (_ for _ in ()).throw(OSError("no holder")))
+    with pytest.raises(OSError):
+        ev.run_owned([sys.executable, "-c", "import time; time.sleep(60)"], str(tmp_path), dict(os.environ),
+                     str(tmp_path / "b.log"), grace=2)
+    assert made and made[0].rc is not None

@@ -9,17 +9,21 @@ import hashlib
 import json
 import os
 
-CAMPAIGN = {"head": "f" * 40, "closure_sha256": "c" * 64, "env_receipt_sha256": "d" * 64,
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+# the fixtures' snapshot manifest and ITS closure (exp38_registry.closure_of_manifest of it): a consistent
+# campaign binds this closure, since the training receipt's closure is re-derived from the retained manifest
+SNAP_TEXT = "".join(f"{sha(str(i).encode())}  src/f{i}.py\n" for i in range(3))
+FIX_CLOSURE = sha("".join(f"src/f{i}.py\0{sha(str(i).encode())}\n" for i in range(3)).encode())
+CAMPAIGN = {"head": "f" * 40, "closure_sha256": FIX_CLOSURE, "env_receipt_sha256": "d" * 64,
             "eval_snapshot_sha256": "5" * 64}
 PINNED_SINGLE = {
     "accumulate_grad_batches": 1, "batchnorm_nonsync_modules": 20, "flash_attn_func_set": True, "flash_calls": 48,
     "global_step_at_fit_start": 0, "global_step_recorded": 1, "gradient_clip_val": 0.0, "local_rank": 0,
     "micro_batch": 32, "n_state_tensors": 1279, "num_nodes": 1, "precision": "bf16-mixed", "rank": 0, "sdpa_calls": 0,
     "strategy": "SingleDeviceStrategy", "syncbn_modules": 0, "vit_ckpt_wrapped_layers": 12, "world_size": 1}
-
-
-def sha(data):
-    return hashlib.sha256(data).hexdigest()
 
 
 def records(reg, run, ngpu=2, backend="flash", max_steps=30):
@@ -81,6 +85,15 @@ def sealed(reg, path, keys, **values):
     return rec, reg.write_sealed(path, rec)
 
 
+def write_snapshot_manifests(reg, d):
+    """SNAPSHOT.sha256 (= SNAP_TEXT) + an empty SNAPSHOT.links in ``d``; returns their digest."""
+    os.makedirs(d, exist_ok=True)
+    open(os.path.join(d, "SNAPSHOT.sha256"), "w").write(SNAP_TEXT)
+    open(os.path.join(d, "SNAPSHOT.links"), "w").write("")
+    assert reg.closure_of_manifest(SNAP_TEXT) == FIX_CLOSURE
+    return reg.snapshot_digest(d)
+
+
 def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint bytes", e0_sha=None, e0_path=None,
                           platform="a6000", backend="flash", head=None, content_sha=None):
     """(record, sha256) of a complete sealed TRAINING_COMPLETE in ``rd`` with everything the consumer
@@ -109,31 +122,46 @@ def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint b
         e0_digest = reg.read_sealed(os.path.join(rdir, e0_name), ev.E0_KEYS)[1]
     else:
         e0_name = "data_efficiency_e0_receipt.json"
-        _, e0_digest = sealed(reg, os.path.join(rdir, e0_name), ev.E0_KEYS, verdict="PASS", closure_sha256=closure)
+        e0rec = synthetic_e0(ev, closure)
+        for p_ in (os.path.join(rdir, e0_name), os.path.join(rdir, e0_name) + ".sha256"):
+            if os.path.exists(p_):
+                os.remove(p_)
+        e0_digest = reg.write_sealed(os.path.join(rdir, e0_name), e0rec)
     if e0_sha is not None and e0_sha != e0_digest:
         raise AssertionError("fixture: the retained E0 copy must be the campaign's E0 receipt (pass e0_path)")
     env_name = f"data_efficiency_env_receipt_{platform}.json"
-    _, env_digest = sealed(reg, os.path.join(rdir, env_name), reg.ENV_RECEIPT_KEYS, platform=platform)
+    pk = {"flash-attn": reg.FLASH_VERSION, "torch": "2.7.0"}
+    _, env_digest = sealed(reg, os.path.join(rdir, env_name), reg.ENV_RECEIPT_KEYS, platform=platform, packages=pk,
+                           packages_sha256=hashlib.sha256(reg.canonical(dict(sorted(pk.items()))).encode()).hexdigest(),
+                           flags={"optimize": 0, "no_user_site": 1, "ignore_environment": 0, "isolated": 0})
     argv = reg.build_train_argv(run, platform, allow_nonmatched=rung != "2x32")
     smoke_name = f"data_efficiency_smoke_{run}_{platform}_2026-11-08_04-00-00.json"
+    gpus = (sorted([u, "NVIDIA RTX A6000"] for u in reg.A6000_UUIDS) if platform == "a6000"
+            else [[f"GPU-{i}", "NVIDIA L40"] for i in range(ngpu)])
+    smoke_log = os.path.join(rdir, "smoke_log.log")
+    open(smoke_log, "w").write(train_log(reg, run, ngpu, steps=reg.SMOKE_STEPS_DDP, backend=backend))
     _, smoke_digest = sealed(
         reg, os.path.join(rdir, smoke_name), reg.SMOKE_KEYS, schema=1, mode="SMOKE_DDP", run=run, platform=platform,
         backend=backend, head=head, closure_sha256=closure, env_receipt_sha256=env_digest, rc=0, checkpoints_written=0,
         log_gate="PASS", evidence_gate="PASS", verdict="PASS", argv_projection=reg.argv_projection(argv),
+        gpus=gpus, snapshot_sha256="7" * 64, log_sha256=reg.sha256_file(smoke_log),
+        launched_at="2026-11-08T03:00:00-0500", finished_at="2026-11-08T03:30:00-0500",
         evidence={str(r): e for r, e in records(reg, run, ngpu, backend, reg.SMOKE_STEPS_DDP).items()})
     log = os.path.join(rdir, "train.log")
     open(log, "w").write(train_log(reg, run, ngpu, steps=reg.MAX_STEPS, losses=60, backend=backend))
+    snap_sha = write_snapshot_manifests(reg, rdir)
     write_evidence(os.path.join(rd, "evidence"), records(reg, run, ngpu, backend, reg.MAX_STEPS))
-    gpus = (sorted([u, "NVIDIA RTX A6000"] for u in reg.A6000_UUIDS) if platform == "a6000"
-            else [[f"GPU-{i}", "NVIDIA L40"] for i in range(ngpu)])
     rec = {"schema": 1, "run": run, "platform": platform, "backend": backend, "head": head,
-           "closure_sha256": closure, "snapshot_sha256": "5" * 64, "env_receipt_sha256": env_digest,
+           "closure_sha256": closure, "snapshot_sha256": snap_sha, "env_receipt_sha256": env_digest,
            "e0_receipt_sha256": e0_digest, "smoke_receipt": "/campaign/" + smoke_name,
            "smoke_receipt_sha256": smoke_digest,
            "model_config_sha256": reg.sha256_file(reg._abs(reg.model_config_rel(arm, rung))),
            "dataset_config_sha256": reg.FRACS[tag]["dataset_config_sha256"], "split_sha256": reg.FRACS[tag]["split_sha256"],
            "data_content_sha256": content_sha if content_sha is not None else reg.AR_CONTENT_SHA256,
-           "receipts": {"e0": e0_name, "env": env_name, "smoke": smoke_name, "log": "train.log"},
+           "receipts": {"e0": e0_name, "env": env_name, "smoke": smoke_name, "log": "train.log",
+                        "smoke_log": "smoke_log.log", "snapshot_manifest": "SNAPSHOT.sha256",
+                        "snapshot_links": "SNAPSHOT.links"},
+           "data_content_checks": ["pre-launch", "post-run"],
            "argv": argv, "rc": 0, "log": "/campaign/train.log", "log_sha256": reg.sha256_file(log),
            "log_gate": "PASS", "evidence_sha256": reg.evidence_digest(os.path.join(rd, "evidence")),
            "evidence_gate": "PASS", "checkpoints_sha256": reg.sha256_file(manifest), "final_ckpt": final,
@@ -143,14 +171,42 @@ def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint b
         if os.path.exists(p):
             os.remove(p)
     digest = reg.write_sealed(os.path.join(rd, reg.TRAINING_RECEIPT), rec)
+    commit(reg, rd, run, digest)
     return rec, digest
+
+
+def commit(reg, rd, run, digest, status="COMPLETE"):
+    """What the supervisor does last: the terminal launch record (run-dir copy) + the commit marker."""
+    lr = os.path.join(rd, f"at_launch_{run}_a6000_FULL_2026-11-08_04-00-00.json")
+    json.dump({"run": run, "status": status, "training_receipt_sha256": digest}, open(lr, "w"))
+    for p in (os.path.join(rd, reg.COMMIT_MARKER), os.path.join(rd, reg.COMMIT_MARKER) + ".sha256"):
+        if os.path.exists(p):
+            os.remove(p)
+    return reg.write_commit_marker(rd, run, digest, lr)
+
+
+def synthetic_e0(ev, closure):
+    """An E0 receipt that passes e0_static_problems (for retained copies of a synthetic campaign)."""
+    reg = ev.reg
+    cells = {c["name"]: {"reference": f"E0/{c['e0']}_K{c['K']}_s42.json", "equal": True, "difference": None,
+                         "problems": [], "metrics_sha256": "a" * 64, "receipt_sha256": "b" * 64} for c in ev.e0_cells()}
+    return {"schema": 1, "verdict": "PASS", "failed": [], "cells": cells, "head": CAMPAIGN["head"],
+            "closure_sha256": closure, "evaluator_files": {f: "0" * 64 for f in ev.EVALUATOR_FILES},
+            "env_receipt_sha256": CAMPAIGN["env_receipt_sha256"], "eval_snapshot_sha256": CAMPAIGN["eval_snapshot_sha256"],
+            "checkpoints": {g: {"sha256": ev.E0[g]["sha"], "bytes": ev.E0_BYTES[g]} for g in ev.E0},
+            "reference_manifest_sha256": "1" * 64, "references": {r: "2" * 64 for r in ev.ref_set()},
+            "input_hash": {f"K{k}_s{s}": v for (k, s), v in ev.INPUT_HASH.items()},
+            "eval_pins": {"agree_sha256": reg.AGREE_SHA256, "vae_ckpt_sha256": reg.VAE_CKPT_SHA256, "vit_rev": reg.VIT_REV},
+            "written_at": "2026-11-08T05:00:00-0500"}
 
 
 def copy_to_farm(ev, rd, farm):
     """What ``prepare`` copies beside the farm link (the offline consumer reads these)."""
     reg = ev.reg
     os.makedirs(farm, exist_ok=True)
-    for f in ("CHECKPOINTS.sha256", reg.TRAINING_RECEIPT, reg.TRAINING_RECEIPT + ".sha256"):
+    cm = json.load(open(os.path.join(rd, reg.COMMIT_MARKER)))
+    for f in ("CHECKPOINTS.sha256", reg.TRAINING_RECEIPT, reg.TRAINING_RECEIPT + ".sha256", reg.COMMIT_MARKER,
+              reg.COMMIT_MARKER + ".sha256", cm["launch_record"]):
         open(os.path.join(farm, f), "wb").write(open(os.path.join(rd, f), "rb").read())
     for sub in (reg.RECEIPTS_DIR, "evidence"):
         os.makedirs(os.path.join(farm, sub), exist_ok=True)

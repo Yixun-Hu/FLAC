@@ -26,6 +26,10 @@ export PYTHONNOUSERSITE=1 HF_HOME=/n/fs/gatrdp/hf_cache HF_HUB_OFFLINE=1; unset 
 # the sealed E0 receipt from the A6000 box, copied UNTRACKED into $E (FULL refuses without it; it must be a PASS
 # at this tree's closure -- `python $E/exp38_registry.py closure` must print the A6000 campaign's digest):
 scp <a6000>:~/codespace/exp-38-campaign/$E/data_efficiency_e0_receipt.json{,.sha256} $E/
+# ... and its eight E0 cells (metrics / stream / receipt JSONs), which every neuronic FULL re-admits OFFLINE:
+mkdir -p outputs_FLAC/exp38_data_efficiency/eval
+rsync -a --include='*/' --include='*.json' --exclude='*' \
+  <a6000>:~/codespace/exp-38-campaign/outputs_FLAC/exp38_data_efficiency/eval/E0{a,b,c,d} outputs_FLAC/exp38_data_efficiency/eval/
 $PY $E/exp38_registry.py untracked --platform neuronic
 $PY $E/exp38_registry.py dry-run --platform neuronic --include-optional     # argv + subset checks, no GPU
 $PY $E/exp38_subset_audit.py --verify $E/data_efficiency_subset_audit.json  # this platform's AR listings
@@ -55,7 +59,9 @@ SRC=/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/$RUN
 DST=/media/diskstation/yixunhu/FLAC/checkpoints/exp38_data_efficiency
 test ! -e $DST/$RUN && rsync -a --partial --exclude .exp38_tools neuronic:$SRC/ $DST/$RUN.incoming/ \
   && (cd $DST/$RUN.incoming && sha256sum -c CHECKPOINTS.sha256) \
-  && python $E/exp38_registry.py training-check $RUN --run-dir $DST/$RUN.incoming \
+  && python $E/exp38_registry.py training-check $RUN --run-dir $DST/$RUN.incoming --platform neuronic \
+       --closure "$(python $E/exp38_registry.py closure | python -c 'import json,sys; print(json.load(sys.stdin)["closure_sha256"])')" \
+       --e0-sha "$(cut -d' ' -f1 $E/data_efficiency_e0_receipt.json.sha256)" \
   && mv -n $DST/$RUN.incoming $DST/$RUN
 #    then on the A6000 box: python $E/exp38_eval.py prepare $RUN, the 10 eval cells, exp38_collect.py
 #    (prepare audits the checkpoint against the dir it was TRAINED in, from the receipt's argv)

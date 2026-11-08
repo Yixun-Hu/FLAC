@@ -326,7 +326,7 @@ def cadence_steps(upto=MAX_STEPS):
 
 
 RUN_DIR_OWN = (".exp38_lock", ".exp38_tools", "CHECKPOINTS.sha256", "evidence", "receipts", "TRAINING_COMPLETE.json",
-               "TRAINING_COMPLETE.json.sha256")
+               "TRAINING_COMPLETE.json.sha256", "TRAINING_COMMITTED.json", "TRAINING_COMMITTED.json.sha256")
 
 
 def _own_entry(name):
@@ -351,7 +351,7 @@ def check_run_dir(path, run, upto, allow_lock=False):
             raise GateError(f"{path}: foreign entries {stray}")
         if ".exp38_lock" in names and not allow_lock:
             raise GateError(f"{path}: run lock .exp38_lock present (a run is live or crashed; archive first)")
-        if upto == 0 and any(n in names for n in ("TRAINING_COMPLETE.json", "CHECKPOINTS.sha256")):
+        if upto == 0 and any(n in names for n in ("TRAINING_COMPLETE.json", "CHECKPOINTS.sha256", "TRAINING_COMMITTED.json")):
             raise GateError(f"{path}: a completed run's records are present")
     return {"run_dir": path, "state": "fresh" if not upto else "complete", "checkpoints": present}
 
@@ -1005,8 +1005,53 @@ def snapshot_digest(dest):
                           + open(os.path.join(dest, "SNAPSHOT.links"), "rb").read()).hexdigest()
 
 
+def snapshot_extras(dest, files, links):
+    """Entries of the snapshot tree (walked lexically, links not followed) that are neither a listed
+    file, a listed link, a parent directory of one, the two manifests, nor the bytecode Python itself
+    writes for a listed module (``<dir>/__pycache__/<stem>.cpython-*.pyc``)."""
+    allowed_dirs = {""}
+    for rel in list(files) + list(links):
+        d = os.path.dirname(rel)
+        while d:
+            allowed_dirs.add(d)
+            d = os.path.dirname(d)
+    stems = {(os.path.dirname(r), os.path.basename(r)[:-3]) for r in files if r.endswith(".py")}
+    extras = []
+    for root, dirs, fnames in os.walk(dest, followlinks=False):
+        rel_root = os.path.relpath(root, dest)
+        rel_root = "" if rel_root == "." else rel_root
+        for d in list(dirs):
+            rel = os.path.join(rel_root, d)
+            if os.path.islink(os.path.join(root, d)):
+                if rel not in links:
+                    extras.append(rel)
+                dirs.remove(d)
+            elif rel not in allowed_dirs and not (d == "__pycache__" and rel_root in allowed_dirs):
+                extras.append(rel + "/")
+                dirs.remove(d)
+        for f in fnames:
+            rel = os.path.join(rel_root, f)
+            if rel in files or rel in links or rel in ("SNAPSHOT.sha256", "SNAPSHOT.links"):
+                continue
+            if os.path.basename(rel_root) == "__pycache__" and not os.path.islink(os.path.join(root, f)):
+                parent = os.path.dirname(rel_root)
+                m = re.fullmatch(r"(.+)\.cpython-\d+(?:\.opt-\d)?\.pyc", f)
+                if m and (parent, m.group(1)) in stems:
+                    continue
+            extras.append(rel)
+    return sorted(extras)
+
+
 def verify_snapshot(dest, want_digest=None):
     p = []
+    files, links = [], []
+    for line in filter(None, open(os.path.join(dest, "SNAPSHOT.sha256")).read().split("\n")):
+        files.append(line.split("  ", 1)[1])
+    for line in filter(None, open(os.path.join(dest, "SNAPSHOT.links")).read().split("\n")):
+        links.append(line.split("  ", 1)[1])
+    extras = snapshot_extras(dest, set(files), set(links))
+    if extras:
+        p.append(f"unmanifested snapshot entries {extras[:5]}")
     for line in filter(None, open(os.path.join(dest, "SNAPSHOT.sha256")).read().split("\n")):
         digest, rel = line.split("  ", 1)
         path = os.path.join(dest, rel)
@@ -1246,10 +1291,38 @@ def _tree_digest(d):
     return h.hexdigest()
 
 
+OPTIONAL_MODULES = ("flash_attn",)    # absent in an SDPA-only environment (recorded as "absent")
+
+
+def record_identity(base, record_text):
+    """sha256 over (path, CURRENT sha256) of every file a distribution RECORD lists (bytecode
+    excluded: Python may regenerate it); a listed hash that no longer matches the file refuses
+    (an installed file edited without its RECORD)."""
+    import base64
+    import csv
+    h = hashlib.sha256()
+    rows = sorted(r for r in csv.reader(record_text.splitlines()) if r)
+    for row in rows:
+        rel, digest = row[0], row[1] if len(row) > 1 else ""
+        if "__pycache__" in rel.split("/") or rel.endswith(".pyc"):
+            continue
+        path = os.path.normpath(os.path.join(base, rel))
+        if not os.path.isfile(path):
+            raise GateError(f"installed file {rel} listed in RECORD is missing")
+        cur = sha256_file(path)
+        if digest.startswith("sha256="):
+            want = base64.urlsafe_b64decode(digest[7:] + "=" * (-len(digest[7:]) % 4)).hex()
+            if want != cur:
+                raise GateError(f"installed file {rel} differs from its RECORD hash")
+        h.update(f"{rel}\0{cur}\n".encode())
+    return h.hexdigest()
+
+
 def module_identity():
-    """({module: resolved origin}, {module: identity of its installed bytes}) -- fail-closed. The
-    identity is the sha256 of its distribution's RECORD (per-file hashes) or, for a package installed
-    without one, of every file of the package directory."""
+    """({module: resolved origin}, {module: identity of its CURRENT installed bytes}) -- fail-closed
+    (Codex code r3 HIGH 4). With a RECORD: every listed file re-hashed (and checked against the
+    recorded hash); without one: every file of the package directory. An optional backend module that
+    is not installed is recorded as "absent" (Codex code r3 HIGH 8)."""
     import importlib.metadata as md
     import importlib.util
     prefix = os.path.realpath(sys.prefix)
@@ -1258,19 +1331,25 @@ def module_identity():
     for mod in CRITICAL_MODULES:
         spec = importlib.util.find_spec(mod)
         origin = os.path.realpath(spec.origin) if spec is not None and spec.origin else None
+        if origin is None and mod in OPTIONAL_MODULES:
+            origins[mod] = records[mod] = "absent"
+            continue
         if origin is None or not origin.startswith(prefix + os.sep):
             raise GateError(f"module {mod} resolves to {origin}, not inside {prefix}")
         origins[mod] = origin
-        texts = []
+        parts = []
         for name in sorted(dists.get(mod) or []):
             try:
-                texts.append(md.distribution(name).read_text("RECORD") or "")
+                dist = md.distribution(name)
+                text = dist.read_text("RECORD")
             except md.PackageNotFoundError:
-                texts.append("")
-        if texts and all(texts):
-            records[mod] = "record:" + hashlib.sha256("\0".join(texts).encode()).hexdigest()
-        else:
-            records[mod] = "tree:" + _tree_digest(os.path.dirname(origin))
+                text = None
+            if not text:
+                parts = None
+                break
+            parts.append(record_identity(str(dist.locate_file("")), text))
+        records[mod] = ("record:" + hashlib.sha256("\0".join(parts).encode()).hexdigest() if parts
+                        else "tree:" + _tree_digest(os.path.dirname(origin)))
     return origins, records
 
 
@@ -1360,8 +1439,8 @@ def check_e0_receipt(platform, repo=None):
     if HERE not in sys.path:
         sys.path.insert(0, HERE)
     import exp38_eval
-    # on neuronic only the sealed receipt is present (E0 ran on this box): no cell re-admission there
-    return exp38_eval.validate_e0_receipt(repo=repo, platform=platform, readmit=platform == "a6000")
+    # on neuronic the eight E0 cells are copied beside the receipt and re-admitted OFFLINE (Codex code r3 HIGH 5)
+    return exp38_eval.validate_e0_receipt(repo=repo, platform=platform, readmit=True)
 
 
 # ---------------------------------------------------------------- SMOKE_DDP receipt (Codex code r1 BLOCKING 1)
@@ -1505,6 +1584,7 @@ def check_smoke_receipt(run, platform, backend, head, gpus=None, repo=None):
 TRAINING_RECEIPT = "TRAINING_COMPLETE.json"
 FULL_MIN_LOSSES = 50          # the end gate of a 40k run: at least 50 finite progress-bar losses
 TRAINING_KEYS = frozenset({"schema", "run", "platform", "backend", "head", "closure_sha256", "snapshot_sha256",
+                           "data_content_checks",
                            "env_receipt_sha256", "e0_receipt_sha256", "smoke_receipt", "smoke_receipt_sha256",
                            "model_config_sha256", "dataset_config_sha256", "split_sha256", "data_content_sha256",
                            "receipts", "argv", "rc", "log",
@@ -1523,9 +1603,10 @@ def evidence_digest(evidence_dir):
 RECEIPTS_DIR = "receipts"          # in the run dir: byte copies of the receipts the run was admitted under
 
 
-def retain_receipts(rd, paths):
+def retain_receipts(rd, paths, plain=None):
     """Copy each sealed receipt (+ sidecar) the launch validated into <run dir>/receipts/ under its own
-    basename (the sidecar names it); returns {role: basename}. Called before the child starts."""
+    basename (the sidecar names it), and each ``plain`` backing file (the SMOKE log) under
+    ``<role>.<ext>``; returns {role: basename}. Called before the child starts."""
     import shutil
     d = os.path.join(rd, RECEIPTS_DIR)
     try:
@@ -1537,7 +1618,40 @@ def retain_receipts(rd, paths):
         for src in (path, path + ".sha256"):
             shutil.copyfile(src, os.path.join(d, os.path.basename(src)))
         out[role] = os.path.basename(path)
+    for role, path in (plain or {}).items():
+        name = f"{role}{os.path.splitext(path)[1]}"
+        shutil.copyfile(path, os.path.join(d, name))
+        out[role] = name
     return out
+
+
+COMMIT_MARKER = "TRAINING_COMMITTED.json"
+COMMIT_KEYS = frozenset({"schema", "run", "training_receipt_sha256", "launch_record", "launch_record_sha256"})
+
+
+def write_commit_marker(rd, run, training_sha, record_path):
+    """The run's single final commit (Codex code r3 HIGH 7): written only after the sealed training
+    receipt AND the terminal launch record (its run-dir copy) exist; binds both by sha."""
+    rec = json.load(open(record_path))
+    if rec.get("status") != "COMPLETE" or rec.get("run") != run or rec.get("training_receipt_sha256") != training_sha:
+        raise GateError("the terminal launch record does not name this completed training receipt")
+    return write_sealed(os.path.join(rd, COMMIT_MARKER), {
+        "schema": 1, "run": run, "training_receipt_sha256": training_sha,
+        "launch_record": os.path.basename(record_path), "launch_record_sha256": sha256_file(record_path)})
+
+
+def closure_of_manifest(text):
+    """closure_digest of a snapshot from its SNAPSHOT.sha256 text alone (reproducible offline)."""
+    h = hashlib.sha256()
+    rows = sorted((rel, d) for d, rel in (ln.split("  ", 1) for ln in text.split("\n") if ln) if _in_closure(rel))
+    for rel, d in rows:
+        h.update(f"{rel}\0{d}\n".encode())
+    return h.hexdigest()
+
+
+def _iso(t):
+    import datetime
+    return datetime.datetime.strptime(t, "%Y-%m-%dT%H:%M:%S%z")
 
 
 def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snapshot_sha, e0_sha, smoke, gpus,
@@ -1568,6 +1682,10 @@ def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snaps
     shutil.copyfile(log_path, log_copy)
     if sha256_file(log_copy) != sha256_file(log_path):
         raise GateError("the retained train log differs from the log")
+    for f in ("SNAPSHOT.sha256", "SNAPSHOT.links"):             # the snapshot is reproducible from the bundle
+        shutil.copyfile(os.path.join(repo, f), os.path.join(rd, RECEIPTS_DIR, f))
+    if snapshot_digest(os.path.join(rd, RECEIPTS_DIR)) != snapshot_sha:
+        raise GateError("the retained snapshot manifests are not the launched snapshot's")
     rec = {"schema": 1, "run": run, "platform": platform, "backend": backend, "head": head,
            "closure_sha256": closure_digest(repo)["closure_sha256"], "snapshot_sha256": snapshot_sha,
            "env_receipt_sha256": _same_env(platform, env_sha, tree), "e0_receipt_sha256": e0_sha,
@@ -1579,7 +1697,9 @@ def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snaps
            "log_sha256": sha256_file(log_copy), "log_gate": "PASS",
            "evidence_sha256": evidence_digest(os.path.join(rd, "evidence")), "evidence_gate": "PASS",
            "checkpoints_sha256": sha256_file(manifest), "final_ckpt": final, "final_ckpt_sha256": audit["sha256"],
-           "final_ckpt_bytes": audit["bytes"], "gpus": gpus, "receipts": dict(retained, log="train.log"),
+           "final_ckpt_bytes": audit["bytes"], "gpus": gpus,
+           "receipts": dict(retained, log="train.log", snapshot_manifest="SNAPSHOT.sha256", snapshot_links="SNAPSHOT.links"),
+           "data_content_checks": ["pre-launch", "post-run"],
            "launched_at": launched_at, "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     write_sealed(os.path.join(rd, TRAINING_RECEIPT), rec)
     return rec
@@ -1588,8 +1708,9 @@ def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snaps
 def _gpus_ok(platform, ngpu, g):
     if platform == "a6000":
         return canonical(g) == canonical(sorted([u, "NVIDIA RTX A6000"] for u in A6000_UUIDS))
-    return isinstance(g, list) and len(g) == ngpu and all(isinstance(x, list) and len(x) == 2 and "L40" in str(x[1])
-                                                         for x in g)
+    return (isinstance(g, list) and len(g) == ngpu and len({str(x[0]) for x in g if isinstance(x, list)}) == ngpu
+            and all(isinstance(x, list) and len(x) == 2 and str(x[0]).startswith("GPU-") and "L40" in str(x[1])
+                    for x in g))
 
 
 def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes=True, e0_sha=None, platform=None):
@@ -1636,7 +1757,7 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
     rdir = os.path.join(src, RECEIPTS_DIR)
     names = rec["receipts"] if isinstance(rec["receipts"], dict) else {}
     try:
-        if sorted(names) != ["e0", "env", "log", "smoke"]:
+        if sorted(names) != ["e0", "env", "log", "smoke", "smoke_log", "snapshot_links", "snapshot_manifest"]:
             raise GateError(f"retained receipts {sorted(names)}")
         e0c, d_e0 = read_sealed(os.path.join(rdir, names["e0"]), exp38_eval.E0_KEYS)
         envc, d_env = read_sealed(os.path.join(rdir, names["env"]), ENV_RECEIPT_KEYS)
@@ -1645,8 +1766,21 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
             p.append("a retained receipt copy != the sha the training receipt bound")
         if e0c["verdict"] != "PASS" or e0c["closure_sha256"] != rec["closure_sha256"]:
             p.append("the retained E0 receipt is not a PASS at the run's closure")
+        p += [f"retained E0: {x}" for x in exp38_eval.e0_static_problems(e0c)]
         if envc["platform"] != plat:
             p.append("the retained environment receipt is another platform's")
+        if not (isinstance(envc["packages"], dict) and envc["packages_sha256"] ==
+                hashlib.sha256(canonical(dict(sorted(envc["packages"].items()))).encode()).hexdigest()
+                and isinstance(envc["flags"], dict) and envc["flags"].get("optimize") == 0
+                and envc["flags"].get("no_user_site") == 1
+                and (plat != "a6000" or envc["packages"].get("flash-attn") == FLASH_VERSION)):
+            p.append("the retained environment receipt is internally inconsistent / off the registered flags")
+        snap_dir = rdir
+        if snapshot_digest(snap_dir) != rec["snapshot_sha256"] or \
+                closure_of_manifest(open(os.path.join(snap_dir, names["snapshot_manifest"])).read()) != rec["closure_sha256"]:
+            p.append("the retained snapshot manifests are not the run's snapshot / closure")
+        if not (_iso(rec["launched_at"]) <= _iso(rec["finished_at"])):
+            p.append("finished before it launched")
         want_s = {"mode": "SMOKE_DDP", "run": run, "platform": plat, "backend": backend, "head": rec["head"],
                   "closure_sha256": rec["closure_sha256"], "env_receipt_sha256": rec["env_receipt_sha256"],
                   "rc": 0, "checkpoints_written": 0, "log_gate": "PASS", "evidence_gate": "PASS", "verdict": "PASS",
@@ -1656,6 +1790,16 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
         ev = smk.get("evidence") or {}
         p += evidence_problems({int(r): v for r, v in ev.items()} if sorted(ev) == [str(r) for r in range(ngpu)] else {},
                                run, ngpu, backend, SMOKE_STEPS_DDP)
+        if smk.get("schema") != 1 or not _gpus_ok(plat, ngpu, smk.get("gpus")) or not _is_sha(smk.get("snapshot_sha256")):
+            p.append("retained SMOKE schema / GPUs / snapshot")
+        slog = os.path.join(rdir, names["smoke_log"])
+        if sha256_file(slog) != smk.get("log_sha256"):
+            p.append("the retained SMOKE log != the SMOKE receipt's sha")
+        else:
+            p += [f"retained SMOKE log: {x}" for x in log_gate(open(slog, errors="replace").read(), run, "end", backend,
+                                                               ngpu, max_steps=SMOKE_STEPS_DDP, min_losses=1)]
+        if not (_iso(smk["finished_at"]) <= _iso(rec["launched_at"])):
+            p.append("the SMOKE finished after this run launched")
         logc = os.path.join(rdir, names["log"])
         if sha256_file(logc) != rec["log_sha256"]:
             p.append("the retained train log != the receipt's sha")
@@ -1681,6 +1825,19 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
                 p.append(f"{path} sha / bytes != the training receipt")
     except (OSError, ValueError) as err:
         p.append(f"checkpoint manifest: {err}")
+    # the single final commit (Codex code r3 HIGH 7)
+    try:
+        cm, _ = read_sealed(os.path.join(src, COMMIT_MARKER), COMMIT_KEYS)
+        lr = os.path.join(src, str(cm["launch_record"]))
+        lrec = json.load(open(lr))
+        if (cm["schema"], cm["run"], cm["training_receipt_sha256"]) != (1, run, digest) \
+                or sha256_file(lr) != cm["launch_record_sha256"] or lrec.get("status") != "COMPLETE" \
+                or lrec.get("training_receipt_sha256") != digest:
+            p.append("the commit marker / terminal launch record do not bind this receipt")
+    except (GateError, OSError, ValueError, KeyError) as err:
+        p.append(f"no committed completion: {err}")
+    if rec["data_content_checks"] != ["pre-launch", "post-run"]:
+        p.append("the AR content was not verified before and after the run")
     if p:
         raise GateError(f"{run} training receipt: " + "; ".join(p))
     return rec, digest
@@ -1740,6 +1897,8 @@ def _cli(argv=None):
     s = sub.add_parser("smoke-check"); s.add_argument("run"); s.add_argument("--platform", required=True, choices=sorted(PLATFORMS))
     s.add_argument("--backend", required=True, choices=("flash", "sdpa")); s.add_argument("--head", required=True)
     s = sub.add_parser("training-check"); s.add_argument("run"); s.add_argument("--run-dir", required=True)
+    s.add_argument("--platform", required=True, choices=sorted(PLATFORMS)); s.add_argument("--closure", required=True)
+    s.add_argument("--e0-sha", required=True)
     s = sub.add_parser("dry-run"); s.add_argument("--platform", required=True, choices=sorted(PLATFORMS))
     s.add_argument("--rung", default="2x32", choices=sorted(RUNGS)); s.add_argument("--save-root")
     s.add_argument("--allow-nonmatched-rung", action="store_true"); s.add_argument("--include-optional", action="store_true")
@@ -1794,7 +1953,8 @@ def _cli(argv=None):
         elif a.cmd == "smoke-check":
             print(json.dumps(check_smoke_receipt(a.run, a.platform, a.backend, a.head)))
         elif a.cmd == "training-check":
-            print(json.dumps(check_training_receipt(a.run, a.run_dir)[0], indent=1))
+            print(json.dumps(check_training_receipt(a.run, a.run_dir, closure=a.closure, e0_sha=a.e0_sha,
+                                                    platform=a.platform)[0], indent=1))
         elif a.cmd == "dry-run":
             runs = all_runs(a.rung) if a.include_optional else required_runs(a.rung)
             for run in runs:

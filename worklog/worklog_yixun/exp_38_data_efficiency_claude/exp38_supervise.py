@@ -191,6 +191,10 @@ def supervise(child, record, start_check=None, start_timeout=START_TIMEOUT_S, ev
         record.update(strict=True, status=f"terminated by signal {st.signum}; our process group stopped", child_rc=rc,
                       finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
         return 128 + st.signum
+    except BaseException:                        # a gate callback / record write raised: never leave the group
+        if child.rc is None:
+            child.terminate(grace)
+        raise
 
 
 class Record:
@@ -562,7 +566,8 @@ def mode_campaign(a, platform):
     retained = None
     if full:                         # the exact receipt bytes this run is admitted under (Codex code r2 HIGH 6)
         retained = reg.retain_receipts(rd, {"e0": reg._abs(reg.E0_RECEIPT), "smoke": smoke["smoke_receipt"],
-                                            "env": reg._abs(reg.env_receipt_rel(platform))})
+                                            "env": reg._abs(reg.env_receipt_rel(platform))},
+                                       plain={"smoke_log": json.load(open(smoke["smoke_receipt"]))["log"]})
     # ---- snapshot (launch root)
     snap = (os.path.join(SNAPSHOT_ROOT["a6000"], f"{a.run}_{a.mode}_{ts}") if platform == "a6000"
             else os.path.join(rd, ".exp38_tools"))
@@ -590,8 +595,10 @@ def mode_campaign(a, platform):
                  supervisor_sha256=reg.sha256_file(os.path.realpath(__file__)), supervisor_pid=os.getpid(),
                  log=log, status="launching")
     print(json.dumps(rec.data, indent=1, default=str), flush=True)
+    owned = {}
+
     def launch_and_audit():
-        child = OwnedChild(cmd, snap, env, log, pass_fds=fds)
+        child = owned["child"] = OwnedChild(cmd, snap, env, log, pass_fds=fds)
         holder = start_lock_holder(child.pgid, fds)
         rec.update(pid=child.pid, pgid=child.pgid, start_time=child.start, status="running",
                    lock_holder_pid=holder.pid if holder else None)
@@ -621,6 +628,13 @@ def mode_campaign(a, platform):
         try:
             reg.verify_snapshot(snap, snapshot["snapshot_sha256"])
             if full:
+                # the AR bytes again AFTER the run (Codex code r3 BLOCKING 1, defense in depth): a file changed
+                # during training refuses the receipt (a change-and-restore inside the run is not detectable
+                # without an immutable copy -- decision D9)
+                cprobs = cm.verify(reg._abs(reg.AR_CONTENT_MANIFEST), "AcousticRooms", reg.REPO,
+                                   want_sha=reg.AR_CONTENT_SHA256)
+                if cprobs:
+                    raise reg.GateError("AR content changed during the run: " + "; ".join(cprobs))
                 out = reg.write_training_receipt(a.run, platform, a.backend, head, rd, log, rc, snapshot["snapshot_sha256"],
                                                  e0["sha256"], smoke, gpus, rec.data["launched_at"], env_sha,
                                                  retained, reg.AR_CONTENT_SHA256, repo=snap, tree=reg.REPO)
@@ -637,7 +651,15 @@ def mode_campaign(a, platform):
             print(f"EXP38 {a.run} {a.mode} END AUDIT FAILED: {err}", flush=True)
             return EXIT_END
         os.rename(os.path.join(rd, ".exp38_lock"), os.path.join(rd, f".exp38_lock.released_{ts}"))
-        rec.update(strict=True, status=verdict, finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
+        if full:
+            tr_sha = reg.sha256_file(os.path.join(rd, reg.TRAINING_RECEIPT))
+            rec.update(strict=True, status=verdict, training_receipt_sha256=tr_sha,
+                       finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
+            if open(rec.paths[1], "rb").read() != open(rec.paths[0], "rb").read():
+                raise OSError("the run-dir launch record copy was not written")
+            reg.write_commit_marker(rd, a.run, tr_sha, rec.paths[1])     # the single final commit
+        else:
+            rec.update(strict=True, status=verdict, finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
         print(f"EXP38 {a.run} {a.mode} {verdict}", flush=True)
         return 0 if verdict in ("COMPLETE", "PASS") else EXIT_END
 
@@ -646,8 +668,11 @@ def mode_campaign(a, platform):
     try:
         code = launch_and_audit()
         return code
-    except BaseException as err:                 # record every exit path, then let main() map it
-        rec.update(status=f"supervisor error: {err!r}", finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
+    except BaseException as err:                 # stop OUR group first, record (strict), then let main() map it
+        child = owned.get("child")
+        if child is not None and child.rc is None:
+            child.terminate(a.grace)
+        rec.update(strict=True, status=f"supervisor error: {err!r}", finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
         raise
     finally:
         if owner is not None:
