@@ -488,6 +488,17 @@ def test_replay_reasons_semantics_and_reference_byte_check(tmp_path, manifest):
     assert any("changed since they were pinned" in r for r in ev.replay_reasons(cell, d, ref))
 
 
+def _ar_receipt(path, t=None):
+    """A PASS full-re-hash receipt of the committed AR manifest (kit schema), at ``path``."""
+    man = json.loads((_REPO / kit.AR_MANIFEST).read_text())
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    kit.atomic_write_json(str(path), {"verdict": "PASS", "manifest_digest": man["digest"], "got_digest": man["digest"],
+                                      "ar_root": os.path.realpath(man["ar_root"]),
+                                      "t": time.time() - 3600 if t is None else t, "seconds": 1.0,
+                                      "differing_rooms": []})
+    return str(path)
+
+
 def _ident(tmp_path, hashes, admission=None, **over):
     i = ev.identity(HEAD, "c" * 64, ev.E0_REFERENCE_SHA256, hashes, str(tmp_path / "repo" / ev.FARM), TREE,
                     dump_root=str(tmp_path / "dumps"), env_digest="d" * 64, e0_sha=None, admission=admission)
@@ -495,46 +506,83 @@ def _ident(tmp_path, hashes, admission=None, **over):
     return i
 
 
-def _write_e0(tmp_path, ident, manifest, **over):
-    shas = {}
-    for c in [c for c in manifest["cells"] if c["block"] == "E0"]:
-        rp = Path(ev.cell_paths(c, ident["farm"], TREE, ident["dump_root"])["receipt"])
-        rp.parent.mkdir(parents=True, exist_ok=True)
-        rp.write_text(json.dumps({"stand-in": c["cell"]}))
-        shas[c["cell"]] = kit.sha256_file(str(rp))
-    doc = ev.e0_receipt_doc("EQUAL", ident, None, "a" * 64, "b" * 64, shas, [])
+def _e0_cells(manifest):
+    return [copy.deepcopy(c) for c in manifest["cells"] if c["block"] == "E0"]
+
+
+def _write_e0(ctx, manifest, **over):
+    """Run the three E0 cells through run_cells (fake evaluator) and write their E0 receipt
+    from the real cell receipts (the run's own derivation)."""
+    ident = ctx["ident"]
+    e0c = _e0_cells(manifest)
+    if not all(Path(ev.cell_paths(c, ident["farm"], TREE, ctx["dump_root"])["receipt"]).exists() for c in e0c):
+        assert ev.run_cells(e0c, ctx) == []
+    shas, recs = {}, {}
+    for c in e0c:
+        _, shas[c["cell"]], recs[c["cell"]] = ev._read(ev.cell_paths(c, ident["farm"], TREE, ctx["dump_root"])["receipt"])
+    r0 = next(iter(recs.values()))
+    doc = ev.e0_receipt_doc("EQUAL", ident, None, r0["runtime_inputs_sha256"], r0["ar_receipt_sha256"], shas, [])
     doc.update(over)
-    path = ev.e0_receipt_path(str(tmp_path / "repo" / ev.EXPREL / "receipts"), ident["eval_sha"], ident["closure"])
+    path = ev.e0_receipt_path(str(Path(ident["farm"]).parents[2] / ev.EXPREL / "receipts"), ident["eval_sha"],
+                              ident["closure"])
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     kit.atomic_write_json(path, doc)
     return path, doc
 
 
-def test_e0_gate_is_strict(tmp_path, manifest, hashes):
-    ident = _ident(tmp_path, hashes)
-    path, doc = _write_e0(tmp_path, ident, manifest)
+def _gate_ident(ctx):
+    return {**ctx["ident"], "e0_sha": None, "inputs_sha": None, "run_t0": None}
+
+
+def test_e0_gate_is_strict(run_env, manifest):
+    ctx, _ = run_env
+    path, doc = _write_e0(ctx, manifest)
+    ident = _gate_ident(ctx)
     r, sha, got = ev.e0_gate_reasons(path, ident)
     assert r == [] and sha == kit.sha256_file(path) and got["env_digest"] == "d" * 64
     assert ev.e0_gate_reasons(path, {**ident, "eval_sha": "b" * 40})[0]
     assert ev.e0_gate_reasons(path, {**ident, "closure": "d" * 64})[0]
-    assert ev.e0_gate_reasons(path, {**ident, "env_digest": "9" * 64})[0]           # environment changed
+    assert any("environment changed" in x for x in ev.e0_gate_reasons(path, {**ident, "env_digest": "9" * 64})[0])
     assert ev.e0_gate_reasons(path, {**ident, "env_digest": None})[0] == []        # verify / collect take E0's
     assert ev.e0_gate_reasons(path, {**ident, "e0_reference_sha": "0" * 64})[0]
     for over in ({"verdict": "PARTIAL"}, {"verdict": "NOT_EQUAL"}, {"cells": sorted(ev.E0)[:2]},
                  {"failures": [["x", ["y"]]]}, {"ckpt_bytes": 1}, {"eval_pins": {}},
                  {"cell_receipts": {k: "0" * 64 for k in ev.E0}}, {"input_hash_map": {}}):
-        p2, _ = _write_e0(tmp_path, ident, manifest, **over)
+        p2, _ = _write_e0(ctx, manifest, **over)
         assert ev.e0_gate_reasons(p2, ident)[0], over
-    p3, _ = _write_e0(tmp_path, ident, manifest)
+    # code-r2 B4: every runtime / AR / config / time field is derived from and checked against
+    # the three bound cell receipts -- named refusals
+    named = [({"runtime_inputs_sha256": "5" * 64}, "runtime_inputs_sha256 != its cell receipt's"),
+             ({"ar_receipt_sha256": "6" * 64}, "ar_receipt_sha256 != its cell receipt's"),
+             ({"runtime_inputs_sha256": "x"}, "are not sha256s"),
+             ({"dataset_config_sha256": {"1": "0" * 64, "8": doc["dataset_config_sha256"]["8"]}}, "dataset configs"),
+             ({"dataset_config_sha256": {"1": doc["dataset_config_sha256"]["1"]}}, "dataset configs"),
+             ({"t": 1.0}, "predates its cell receipt"), ({"t": time.time() + 86400}, "in the future"),
+             ({"t": True}, "time malformed")]
+    for over, needle in named:
+        p2, _ = _write_e0(ctx, manifest, **over)
+        assert any(needle in x for x in ev.e0_gate_reasons(p2, ident)[0]), (over, ev.e0_gate_reasons(p2, ident)[0])
+    p3, _ = _write_e0(ctx, manifest)
     d = json.loads(Path(p3).read_text())
     d["extra"] = 1
     Path(p3).write_text(json.dumps(d))
-    assert ev.e0_gate_reasons(p3, ident)[0]
-    p4, _ = _write_e0(tmp_path, ident, manifest)
-    c = [c for c in manifest["cells"] if c["block"] == "E0"][0]
-    Path(ev.cell_paths(c, ident["farm"], TREE, ident["dump_root"])["receipt"]).write_text("{}")   # receipt moved
-    assert any("changed" in x for x in ev.e0_gate_reasons(p4, ident)[0])
-    assert ev.e0_gate_reasons(str(tmp_path / "missing.json"), ident)[0]
+    assert any("exact E0 receipt schema" in x for x in ev.e0_gate_reasons(p3, ident)[0])
+    # a cell receipt rewritten (and re-bound) with a forged runtime identity is refused by the
+    # ONE receipt validator inside the gate
+    c = _e0_cells(manifest)[0]
+    rp = Path(ev.cell_paths(c, ctx["farm"], TREE, ctx["dump_root"])["receipt"])
+    good = rp.read_bytes()
+    rec = json.loads(good)
+    rp.write_text(json.dumps({**rec, "runtime_inputs_sha256": "7" * 64}))
+    p4, _ = _write_e0(ctx, manifest, cell_receipts={**doc["cell_receipts"], c["cell"]: kit.sha256_file(str(rp))},
+                      runtime_inputs_sha256="7" * 64)
+    assert any("is invalid" in x and "canonical digest" in x for x in ev.e0_gate_reasons(p4, ident)[0])
+    rp.write_bytes(good)
+    p5, _ = _write_e0(ctx, manifest)
+    rp.write_text("{}")                                                          # receipt moved
+    assert any("changed since the E0 receipt" in x for x in ev.e0_gate_reasons(p5, ident)[0])
+    rp.write_bytes(good)
+    assert ev.e0_gate_reasons(str(Path(path).parent / "missing.json"), ident)[0]
 
 
 # --------------------------------------------------------------------------- #
@@ -556,7 +604,7 @@ def test_runtime_inputs_are_exact_and_hash_pinned(tmp_path):
     adm = tmp_path / "adm.json"
     adm.write_text('{"admitted": true}')
     inputs, sha = ev.runtime_inputs(_inputs_file(tmp_path, {"ar_verify": _pin(ar), "admission": _pin(adm)}), tree=TREE)
-    assert inputs["admission"]["path"] == str(adm) and len(sha) == 64
+    assert inputs["admission"]["path"] == str(adm) and sha == ev.inputs_digest(inputs) == kit.digest_obj(inputs)
     for bad in ({"admission": _pin(adm)}, {"ar_verify": _pin(ar), "extra": _pin(adm)},
                 {"ar_verify": {"path": "ar.json", "sha256": _pin(ar)["sha256"]}},
                 {"ar_verify": {**_pin(ar), "note": 1}}, {"ar_verify": {"path": str(ar), "sha256": "x"}}):
@@ -579,7 +627,7 @@ def _ckpt(tmp_path, arm="C16"):
     return str(p), kit.sha256_file(str(p)), os.path.getsize(p)
 
 
-def _admission_file(tmp_path, ckpt_sha, nbytes, nas_root=None, **over):
+def _admission_file(tmp_path, ckpt_sha, nbytes, nas_root=None, where=None, **over):
     run_id = "exp40_C16_a6000_2x32"
     nas = os.path.join(nas_root or kit.NAS_ROOT, run_id)
     ck = {n: hashlib.sha256(n.encode()).hexdigest() for n in kit.EXPECTED_CKPTS}
@@ -593,7 +641,8 @@ def _admission_file(tmp_path, ckpt_sha, nbytes, nas_root=None, **over):
            "full_evidence_sha256": "6" * 64, "check_sha256": "7" * 64, "audit_sha256": "8" * 64,
            "historical": {}, "current_assets": {}, "trajectory_equivalence_claim_allowed": False, "note": "", "t": 1.0}
     rec.update(over)
-    path = tmp_path / "admission.json"
+    path = Path(where or tmp_path) / "admission.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
     kit.atomic_write_json(str(path), rec)
     return str(path), rec
 
@@ -792,23 +841,30 @@ def test_hold_cards_lock_is_exclusive(tmp_path):
 @pytest.fixture
 def run_env(tmp_path, hashes, monkeypatch):
     monkeypatch.setattr(ev, "eval_worktree_reasons", lambda *a, **k: [])
+    monkeypatch.setattr(ev, "replay_reasons", lambda cell, d, ref: [])
+    ysrc, ysha, ybytes = _ckpt(tmp_path, arm="YAW")
+    monkeypatch.setitem(ev.ARMS, "YAW", {**ev.ARMS["YAW"], "ckpt": ysrc, "ckpt_sha256": ysha, "ckpt_bytes": ybytes})
     src, sha, nbytes = _ckpt(tmp_path)
-    adm_path, adm = _admission_file(tmp_path, sha, nbytes)
+    receipts = tmp_path / "repo" / ev.EXPREL / "receipts"
+    adm_path, adm = _admission_file(tmp_path, sha, nbytes, where=receipts)
     adm = {**adm, "ckpt_path": src}                            # the synthetic NAS copy is the local file
     adm_sha = kit.sha256_file(adm_path)
     ident = _ident(tmp_path, hashes, admission=(adm, adm_sha), e0_sha="f" * 64)
-    inputs = {"ar_verify": {"path": "/r/ar.json", "sha256": "b" * 64}, "admission": {"path": adm_path, "sha256": adm_sha}}
+    ar = _ar_receipt(receipts / "ar_verify_eval_1.json")
+    inputs = {"ar_verify": _pin(ar), "admission": {"path": adm_path, "sha256": adm_sha}}
     calls = []
 
     def spawn(ctx, cell, link, lane, log_path):
         calls.append((cell["cell"], lane))
         hs = Path(ctx["handshake_dir"])
         assert (hs / f"GPU_LOCK_{UUIDS[lane]}").exists()              # held for the evaluator's lifetime
-        make_artifacts(cell, ident["farm"], ident["dump_root"], log_path, HEAD, link, sha, nbytes)
+        ck = (sha, nbytes) if cell["arm"] == "C16" else (ev.ARMS[cell["arm"]]["ckpt_sha256"], ev.ARMS[cell["arm"]]["ckpt_bytes"])
+        make_artifacts(cell, ident["farm"], ident["dump_root"], log_path, HEAD, link, *ck)
         return 0
     (tmp_path / "hs").mkdir()
     ctx = {"tree": TREE, "farm": ident["farm"], "py": sys.executable, "hf_sealed": str(tmp_path / "hf"),
-           "inputs": inputs, "inputs_sha": "a" * 64, "ident": ident, "ref": None, "logdir": str(tmp_path / "logs"),
+           "inputs": inputs, "inputs_sha": ev.inputs_digest(inputs), "ident": ident, "ref": None,
+           "logdir": str(tmp_path / "logs"),
            "lockrec_dir": str(tmp_path / "lockrec"), "lanes": [0, 1], "dump_root": ident["dump_root"],
            "query": _query(), "sleep": lambda s: None, "poll_s": 1.0, "max_wait_s": 0.0,
            "handshake_dir": str(tmp_path / "hs"), "children": ev.Children(), "spawn": spawn}
@@ -848,7 +904,7 @@ def test_receipt_validator_rejects_every_identity_mutation(run_env, manifest):
     muts = [("eval_sha", "b" * 40), ("closure", "0" * 64), ("env_digest", "0" * 64), ("e0_reference_sha256", "0" * 64),
             ("e0_receipt_sha256", None), ("admission_sha256", "0" * 64), ("ckpt_sha256", "0" * 64),
             ("ckpt_bytes", rec["ckpt_bytes"] + 1), ("ckpt_link", "/x.ckpt"), ("target", "/x/eval_FLAC.py"),
-            ("lane", True), ("kind", "receipt"), ("schema_version", 1), ("stem", "x"), ("input_hash", "z"),
+            ("lane", True), ("kind", "receipt"), ("schema_version", 2), ("stem", "x"), ("input_hash", "z"),
             ("runtime_inputs", {"admission": rec["runtime_inputs"]["admission"]}),
             ("ar_receipt_sha256", "0" * 64), ("cell", {**cell, "seed": 43})]
     for key, val in muts:
@@ -857,6 +913,72 @@ def test_receipt_validator_rejects_every_identity_mutation(run_env, manifest):
     assert ev.receipt_reasons({k: v for k, v in rec.items() if k != "log"}, cell, ident)
     assert ev.receipt_reasons(rec, cell, {**ident, "e0_sha": "9" * 64})
     assert ev.receipt_reasons(rec, cell, {**ident, "admission": None})
+
+
+def _named(rec, cell, ident, needle, **kw):
+    got = ev.receipt_reasons(rec, cell, ident, **kw)
+    assert any(needle in x for x in got), (needle, got)
+
+
+def test_receipt_runtime_identity_is_proven_not_just_well_formed(run_env, manifest, tmp_path):
+    """code-r2 B4 / M3: the runtime-input digest is recomputed, the nested entries are exact and
+    still hold their bytes, the admission is the validated one and predates the cell, the AR
+    receipt was 0..48 h old at the CELL'S start -- each a named refusal."""
+    ctx, _ = run_env
+    cell = _c16(manifest, "exp40_C16_T_S40000_K8_s42")[0]
+    assert ev.run_cells([cell], ctx) == []
+    rp = ev.cell_paths(cell, ctx["farm"], TREE, ctx["dump_root"])["receipt"]
+    rec = json.loads(Path(rp).read_text())
+    ident = ctx["ident"]
+    ri = rec["runtime_inputs"]
+    assert rec["runtime_inputs_sha256"] == ev.inputs_digest(ri) and rec["t_start"] <= rec["t"]
+    _named({**rec, "runtime_inputs_sha256": "4" * 64}, cell, ident, "canonical digest")
+    other = tmp_path / "other_ar.json"
+    other.write_text(Path(ri["ar_verify"]["path"]).read_text() + " ")
+    swapped = {**ri, "ar_verify": {"path": str(other), "sha256": ri["ar_verify"]["sha256"]}}
+    _named({**rec, "runtime_inputs": swapped, "runtime_inputs_sha256": ev.inputs_digest(swapped)}, cell, ident,
+           "no longer holds its recorded bytes")
+    for bad in ({**ri, "ar_verify": {**ri["ar_verify"], "note": 1}},
+                {**ri, "ar_verify": {"path": "receipts/ar.json", "sha256": ri["ar_verify"]["sha256"]}},
+                {**ri, "ar_verify": {"path": ri["ar_verify"]["path"], "sha256": "x"}}):
+        _named({**rec, "runtime_inputs": bad, "runtime_inputs_sha256": ev.inputs_digest(bad)}, cell, ident,
+               "need exactly an absolute path and a sha256")
+    extra = {**ri, "dataset": ri["ar_verify"]}
+    _named({**rec, "runtime_inputs": extra, "runtime_inputs_sha256": ev.inputs_digest(extra)}, cell, ident,
+           "need exactly ar_verify")
+    inside = {**ri, "ar_verify": {"path": os.path.join(TREE, ev.CELLS_FILE), "sha256": ri["ar_verify"]["sha256"]}}
+    _named({**rec, "runtime_inputs": inside, "runtime_inputs_sha256": ev.inputs_digest(inside)}, cell, ident,
+           "inside the eval worktree")
+    no_adm = {"ar_verify": ri["ar_verify"]}
+    _named({**rec, "runtime_inputs": no_adm, "runtime_inputs_sha256": ev.inputs_digest(no_adm)}, cell, ident,
+           "name no admission")
+    t_ar = json.loads(Path(ri["ar_verify"]["path"]).read_text())["t"]
+    late = t_ar + 49 * 3600                                                    # the receipt went stale before the cell
+    _named({**rec, "t_start": late, "t": late + rec["seconds"]}, cell, ident, "AR receipt at the cell's start")
+    early = t_ar - 600                                                         # the cell ran BEFORE the AR re-hash
+    _named({**rec, "t_start": early, "t": early + rec["seconds"]}, cell, ident, "AR receipt at the cell's start")
+    _named({**rec, "t_start": rec["t"] + 10}, cell, ident, "start / end / duration")
+    adm, adm_sha = ident["admission"]
+    _named(rec, cell, {**ident, "admission": ({**adm, "t": rec["t_start"] + 1}, adm_sha)}, "postdates the cell's start")
+    _named(rec, cell, {**ident, "inputs_sha": "3" * 64, "run_t0": rec["t_start"] - 1}, "this run's runtime-input manifest")
+    assert ev.receipt_reasons(rec, cell, {**ident, "inputs_sha": "3" * 64, "run_t0": rec["t_start"] + 1}) == []
+    # the stored AR receipt itself changed after the cell ran
+    good = Path(ri["ar_verify"]["path"]).read_bytes()
+    _ar_receipt(ri["ar_verify"]["path"], t=t_ar - 1)
+    _named(rec, cell, ident, "no longer holds its recorded bytes")
+    Path(ri["ar_verify"]["path"]).write_bytes(good)
+    assert ev.receipt_reasons(rec, cell, ident) == []
+
+
+def test_a_stale_ar_receipt_refuses_the_spawn(run_env, manifest):
+    ctx, calls = run_env
+    _ar_receipt(ctx["inputs"]["ar_verify"]["path"], t=time.time() - 49 * 3600)
+    ctx["inputs"]["ar_verify"] = _pin(ctx["inputs"]["ar_verify"]["path"])
+    ctx["inputs_sha"] = ev.inputs_digest(ctx["inputs"])
+    f = ev.run_cells(_c16(manifest, "exp40_C16_T_S40000_K1_s43"), ctx)
+    assert f and f[0][1][0] == "runtime inputs refused at the cell's start" and calls == []
+    assert any("AR receipt at the cell's start" in x for x in f[0][1])
+    assert not list(Path(ctx["handshake_dir"]).glob("GPU_LOCK_*"))
 
 
 def test_full_cell_reasons_catch_artifact_drift_after_the_receipt(run_env, manifest):
@@ -1100,7 +1222,7 @@ def test_collect_freeze_and_validate_row_end_to_end(tmp_path, monkeypatch, manif
     monkeypatch.setattr(ev, "DUMP_ROOT", ctx["dump_root"])
     ident = ctx["ident"]
     repo = Path(ident["farm"]).parents[2]
-    e0_path, _ = _write_e0(repo.parent, {**ident, "env_digest": "d" * 64}, manifest)
+    e0_path, _ = _write_e0(ctx, manifest)
     ident["e0_sha"] = kit.sha256_file(e0_path)
     t_cells = [c for c in manifest["cells"] if c["block"] == "T"]
     assert ev.run_cells(t_cells + _c16(manifest, "exp40_C16_R_S40000_K1_s42"), ctx) == []
@@ -1123,14 +1245,34 @@ def test_collect_freeze_and_validate_row_end_to_end(tmp_path, monkeypatch, manif
     copy_ = tmp_path / os.path.basename(files[0])
     copy_.write_bytes(Path(files[0]).read_bytes())
     assert not ev.validate_row([str(copy_)] + files[1:], str(repo), TREE, evidence_path=str(evp))[0]
+    e0_cell = ev.cell_paths(_e0_cells(manifest)[1], ident["farm"], TREE, ctx["dump_root"])["receipt"]
+    assert sorted(ev_doc["e0_cells"]) == sorted(ev.E0) and list(ev_doc["ar_receipts"].values()) == [
+        os.path.relpath(ctx["inputs"]["ar_verify"]["path"], repo)]
     for path in (files[2], files[2][:-len(".json")] + ".exp40_receipt.json", files[2][:-len(".json")] + ".stream.json",
-                 adm_path, e0_path):
+                 adm_path, e0_path, e0_cell, ctx["inputs"]["ar_verify"]["path"]):
         old = Path(path).read_bytes()
         Path(path).write_bytes(old + b" ")
         assert not ev.validate_row(files, str(repo), TREE, evidence_path=str(evp))[0], path
         Path(path).write_bytes(old)
     assert ev.validate_row(files, str(repo), TREE, evidence_path=str(evp)) == (True, [])
     assert not ev.validate_row(files, str(repo), TREE, evidence_path=str(tmp_path / "none.json"))[0]
+    # the offline path runs the SAME receipt validator: a receipt whose runtime digest is forged
+    # (and re-bound in a forged evidence copy) is refused by name
+    rp3 = files[3][:-len(".json")] + ".exp40_receipt.json"
+    good3 = Path(rp3).read_bytes()
+    r3 = json.loads(good3)
+    Path(rp3).write_text(json.dumps({**r3, "runtime_inputs_sha256": "1" * 64}))
+    forged = copy.deepcopy(ev_doc)
+    name3 = [c["cell"] for c in t_cells if c["K"] == 1][3]
+    forged["cells"][name3]["receipt"]["sha256"] = kit.sha256_file(rp3)
+    kit.atomic_write_json(str(tmp_path / "forged.json"), forged)
+    ok, problems = ev.validate_row(files, str(repo), TREE, evidence_path=str(tmp_path / "forged.json"))
+    assert not ok and any("canonical digest" in x for x in problems), problems
+    Path(rp3).write_bytes(good3)
+    stale = copy.deepcopy(ev_doc)
+    stale["ar_receipts"] = {}
+    kit.atomic_write_json(str(tmp_path / "stale.json"), stale)
+    assert not ev.validate_row(files, str(repo), TREE, evidence_path=str(tmp_path / "stale.json"))[0]
     # collect refuses a cell whose receipt no longer re-verifies
     Path(files[1][:-len(".json")] + ".stream.json").write_text("{}")
     with pytest.raises(ev.Refused, match="does not re-verify"):
@@ -1178,8 +1320,7 @@ def test_run_cli_e0_then_rest_then_verify(tmp_path, monkeypatch, manifest, hashe
     csrc, csha, cbytes = _ckpt(tmp_path, arm="C16")
     adm_path, adm = _admission_file(tmp_path, csha, cbytes)
     adm = {**adm, "ckpt_path": csrc}
-    ar = tmp_path / "ar_verify.json"
-    ar.write_text("{}")
+    ar = _ar_receipt(tmp_path / "ar_verify.json")
     inputs = _inputs_file(tmp_path, {"ar_verify": _pin(ar), "admission": _pin(adm_path)})
     monkeypatch.setattr(ev, "eval_worktree_reasons", lambda *a, **k: [])
     monkeypatch.setattr(ev, "tree_identity_reasons", lambda *a, **k: [])
@@ -1207,6 +1348,7 @@ def test_run_cli_e0_then_rest_then_verify(tmp_path, monkeypatch, manifest, hashe
     run = base + ["--hf-sealed", str(tmp_path / "hf"), "--lanes", "0,1"]
     c16 = "exp40_C16_T_S40000_K1_s42,exp40_C16_R_S40000_K8_s43"
     assert ev.main(["run"] + run + ["--only", c16]) == 2                         # no E0 receipt yet: refused
+    assert ev.main(["run"] + run + ["--dry-run", "--only", c16]) == 2            # code-r2 M2: the dry run too
     assert spawned == []
     assert ev.main(["run"] + run + ["--blocks", "E0"]) == 0
     e0p = ev.e0_receipt_path(str(repo / ev.EXPREL / "receipts"), HEAD, "c" * 64)
@@ -1231,3 +1373,9 @@ def test_run_cli_e0_then_rest_then_verify(tmp_path, monkeypatch, manifest, hashe
     os.close(fd)
     assert ev.main(["run"] + run + ["--dry-run", "--only", "exp40_C16_T_S40000_K8_s42"]) == 0
     assert len(spawned) == 5
+    monkeypatch.setattr(ev, "ar_gate_reasons", lambda *a, **k: ["the AR re-hash receipt is stale"])
+    capsys_out = []
+    monkeypatch.setattr("builtins.print", lambda *a, **k: capsys_out.append(" ".join(map(str, a))))
+    assert ev.main(["run"] + run + ["--dry-run", "--only", "exp40_C16_T_S40000_K8_s42"]) == 2
+    assert any(x.startswith("REFUSED:") and "stale" in x for x in capsys_out)
+    monkeypatch.undo()

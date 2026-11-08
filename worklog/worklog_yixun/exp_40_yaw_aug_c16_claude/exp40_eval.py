@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """exp_40 yaw_aug_c16 -- the evaluation driver (plan_yaw_aug_c16.md §5 as amended by the BINDING
-§14; Codex code review 1 B7-B10, H4 (eval half), H7-H12, M2, M5, M7 fixed here).
+§14; Codex code review 1 B7-B10, H4 (eval half), H7-H12, M2, M5, M7 and code review 2 B4, M2,
+M3 (eval half) fixed here).
 
 Thin by design: it reuses the exp_25 YAW-pin protocol (each argv derived from the committed
 exp_25 manifest row of the same kind), ``eval_FLAC.py``, the committed no-flash launcher,
@@ -19,10 +20,12 @@ exp_25/35/36 file. Subcommands:
                                sample), the environment probe (interpreter, versions, module
                                origins, no-flash preflight, sealed-HF resolution, driver pin),
                                the exp_40 card lock, per-card GPU_LOCK_<uuid> + occupancy re-check
-                               right before each spawn. E0 first (writes the E0 receipt); any
-                               other cell needs an EQUAL E0 receipt for EVAL_SHA + closure +
-                               environment digest
-  run --dry-run                print the argv and the gate state; nothing is spawned or locked
+                               right before each spawn, the runtime identity (AR receipt 0..48 h
+                               old at THAT cell's start) right before each spawn. E0 first (writes
+                               the E0 receipt, derived from its three cell receipts); any other
+                               cell needs an EQUAL E0 receipt for EVAL_SHA + closure + environment
+  run --dry-run                every gate of run (exit 2 on any refusal), then the argv; only the
+                               locks and the spawns are skipped
   verify                       re-verify every selected cell's receipt and artifacts with the
                                SAME strict validators as run / collect (non-zero if any is
                                missing or invalid)
@@ -512,26 +515,95 @@ def eval_environment(tree, py, hf_sealed, runner=None, measure=None, driver=None
     return reasons, {"measured": measured, "driver": drv, "env_digest": kit.environment_digest(measured, drv)}
 
 
+def runtime_entries_reasons(ri, tree=None):
+    """The exact runtime-input entry schema (plan §14 H7; code-r2 B4): ``ar_verify`` required,
+    ``admission`` optional, each exactly ``{path, sha256}`` with an absolute path outside the
+    eval worktree. Shared by the manifest loader and every receipt validator."""
+    if not isinstance(ri, dict) or "ar_verify" not in ri or set(ri) - set(RUNTIME_INPUT_NAMES):
+        got = sorted(ri) if isinstance(ri, dict) else type(ri).__name__
+        return [f"runtime inputs name {got}; need exactly ar_verify (+ admission for C16)"]
+    r = []
+    for name in sorted(ri):
+        ent = ri[name]
+        if not isinstance(ent, dict) or set(ent) != {"path", "sha256"} or not isinstance(ent["path"], str) \
+                or not os.path.isabs(ent["path"]) or not _hex64(ent["sha256"]):
+            r.append(f"runtime input {name}: need exactly an absolute path and a sha256")
+        elif tree is not None and os.path.realpath(ent["path"]).startswith(os.path.realpath(tree) + os.sep):
+            r.append(f"runtime input {name} lives inside the eval worktree (§14 H7: never)")
+    return r
+
+
+def inputs_digest(ri):
+    """The canonical identity of one runtime-input set (code-r2 B4): what every receipt's
+    ``runtime_inputs_sha256`` must equal, recomputable from the receipt's own entries."""
+    return kit.digest_obj(ri)
+
+
 def runtime_inputs(path, tree=None):
     """The hash-pinned post-freeze inputs (plan §14 H7): exactly ``{name: {path, sha256}}`` with
     ``ar_verify`` required and ``admission`` optional, absolute paths outside the eval worktree,
-    every file hashing to its pin. Returns (inputs, sha256 of the manifest file)."""
+    every file hashing to its pin. Returns (inputs, their canonical digest)."""
     try:
-        _, sha, spec = _read(path)
+        _, _, spec = _read(path)
     except (OSError, ValueError) as err:
         raise Refused(f"runtime-input manifest {path} unreadable ({err})") from None
-    if not isinstance(spec, dict) or "ar_verify" not in spec or set(spec) - set(RUNTIME_INPUT_NAMES):
-        raise Refused(f"runtime-input manifest names {sorted(spec) if isinstance(spec, dict) else spec!r}; "
-                      f"need ar_verify (+ admission for C16) only")
+    r = runtime_entries_reasons(spec, tree)
+    if r:
+        raise Refused("; ".join(r))
     for name, ent in spec.items():
-        if not isinstance(ent, dict) or set(ent) != {"path", "sha256"} or not isinstance(ent["path"], str) \
-                or not os.path.isabs(ent["path"]) or not _hex64(ent["sha256"]):
-            raise Refused(f"runtime input {name}: need exactly an absolute path and a sha256")
-        if tree is not None and os.path.realpath(ent["path"]).startswith(os.path.realpath(tree) + os.sep):
-            raise Refused(f"runtime input {name} lives inside the eval worktree (§14 H7: never)")
         if not os.path.isfile(ent["path"]) or kit.sha256_file(ent["path"]) != ent["sha256"]:
             raise Refused(f"runtime input {name} ({ent['path']}) does not hash to {ent['sha256']}")
-    return spec, sha
+    return spec, inputs_digest(spec)
+
+
+_AR_MANIFESTS = {}
+
+
+def ar_manifest_of(tree):
+    path = os.path.join(tree, kit.AR_MANIFEST)
+    if path not in _AR_MANIFESTS:
+        _AR_MANIFESTS[path] = kit.read_json(path)
+    return _AR_MANIFESTS[path]
+
+
+def runtime_identity_reasons(ri, ri_sha, cell, tree, t_start, admission=None, resolve=None):
+    """The ONE runtime-identity validator (code-r2 B4), used at spawn time and by every receipt
+    check (run, verify, collect, figure, table): the exact entry schema; ``ri_sha`` equal to the
+    canonical digest of the entries; every entry's bytes still present (``resolve`` maps an entry
+    to a local copy, e.g. the committed table evidence); for C16 the admission entry equal to the
+    validated admission, which must predate the cell; the AR re-hash receipt a PASS of the
+    committed manifest that was 0..48 h old AT THE CELL'S START (``t_start``)."""
+    r = runtime_entries_reasons(ri, tree)
+    if r:
+        return r
+    if ri_sha != inputs_digest(ri):
+        r.append("runtime_inputs_sha256 != the canonical digest of the recorded runtime inputs")
+    if not _num(t_start):
+        return r + ["the cell start time is malformed"]
+    local = {}
+    for name in sorted(ri):
+        ent = ri[name]
+        p = resolve(name, ent) if resolve is not None else ent["path"]
+        if not p or not os.path.isfile(p) or kit.sha256_file(p) != ent["sha256"]:
+            r.append(f"runtime input {name} ({ent['path']}) no longer holds its recorded bytes")
+        else:
+            local[name] = p
+    if cell["arm"] == "C16":
+        if "admission" not in ri:
+            r.append("a C16 cell's runtime inputs name no admission")
+        elif admission is None or ri["admission"]["sha256"] != admission[1]:
+            r.append("the recorded admission input != the validated C16 admission")
+        elif not _num(admission[0].get("t")) or admission[0]["t"] > t_start:
+            r.append("the C16 admission postdates the cell's start")
+    if "ar_verify" in local:
+        try:
+            man = ar_manifest_of(tree)
+        except (OSError, ValueError) as err:
+            r.append(f"{kit.AR_MANIFEST} unreadable ({err})")
+        else:
+            r += [f"AR receipt at the cell's start: {x}" for x in
+                  kit.ar_verify_reasons(local["ar_verify"], man, man["ar_root"], now=t_start)]
+    return r
 
 
 # --------------------------------------------------------------------------- #
@@ -905,7 +977,8 @@ RECEIPT_KEYS = frozenset((
     "runtime_inputs_sha256", "ar_receipt_sha256", "admission_sha256", "e0_receipt_sha256",
     "e0_reference_sha256", "ckpt_link", "ckpt_sha256", "ckpt_bytes", "target", "lane", "gpu_uuid", "log",
     "log_sha256", "seconds", "metrics_sha256", "stream_sha256", "input_hash", "assignment_hash",
-    "waveforms_sha256", "dump_manifest_sha256", "metrics", "t"))
+    "waveforms_sha256", "dump_manifest_sha256", "metrics", "t_start", "t"))
+RECEIPT_SCHEMA = 3
 E0_KEYS = frozenset((
     "schema_version", "kind", "verdict", "eval_sha", "closure", "env_digest", "eval_pins",
     "e0_reference_sha256", "runtime_inputs_sha256", "ar_receipt_sha256", "ckpt_sha256", "ckpt_bytes",
@@ -914,11 +987,13 @@ E0_KEYS = frozenset((
 
 
 def identity(eval_sha, closure, ref_sha, hashes, farm, tree, dump_root=None, env_digest=None,
-             e0_sha=None, admission=None):
-    """The identities every receipt must carry (admission = (record, sha) or None)."""
+             e0_sha=None, admission=None, inputs_sha=None, run_t0=None):
+    """The identities every receipt must carry (admission = (record, sha) or None). In a run,
+    ``inputs_sha`` / ``run_t0``: every receipt started by THIS run must carry this run's
+    runtime-input identity."""
     return {"eval_sha": eval_sha, "closure": closure, "e0_reference_sha": ref_sha, "hashes": hashes,
             "farm": farm, "tree": tree, "dump_root": dump_root or DUMP_ROOT, "env_digest": env_digest,
-            "e0_sha": e0_sha, "admission": admission}
+            "e0_sha": e0_sha, "admission": admission, "inputs_sha": inputs_sha, "run_t0": run_t0}
 
 
 def expected_ckpt(cell, ident):
@@ -930,7 +1005,10 @@ def expected_ckpt(cell, ident):
     return ARMS[cell["arm"]]["ckpt_sha256"], ARMS[cell["arm"]]["ckpt_bytes"]
 
 
-def receipt_reasons(rec, cell, ident):
+def receipt_reasons(rec, cell, ident, offline=False, resolve=None):
+    """The ONE cell-receipt validator (code-r1 B10, code-r2 B4) for run, verify, collect, figure
+    and the offline table validator (``offline``: no eval-tree / farm path checks, runtime
+    inputs resolved through ``resolve``)."""
     if not isinstance(rec, dict) or set(rec) != RECEIPT_KEYS:
         got = sorted(rec) if isinstance(rec, dict) else type(rec).__name__
         return [f"receipt keys {got} != the exact receipt schema"]
@@ -939,25 +1017,27 @@ def receipt_reasons(rec, cell, ident):
     def need(ok, msg):
         if not ok:
             r.append(msg)
-    need(rec["schema_version"] == 2 and _int(rec["schema_version"]) and rec["kind"] == "exp40_cell_receipt",
-         "not an exp_40 cell receipt")
+    need(rec["schema_version"] == RECEIPT_SCHEMA and _int(rec["schema_version"])
+         and rec["kind"] == "exp40_cell_receipt", "not an exp_40 cell receipt")
     need(_strict_equal(rec["cell"], cell), "the receipt's cell row != the committed manifest's")
-    need(rec["stem"] == stem_of(cell, ident["tree"]), "receipt stem != the cell's")
     need(rec["eval_sha"] == ident["eval_sha"], f"receipt eval_sha {rec['eval_sha']} != EVAL_SHA {ident['eval_sha']}")
     need(rec["closure"] == ident["closure"], "receipt closure != the EVAL_SHA closure")
     need(rec["e0_reference_sha256"] == ident["e0_reference_sha"], "receipt E0 reference != the committed one")
     need(ident["env_digest"] is not None and rec["env_digest"] == ident["env_digest"],
          "receipt environment digest != the E0 / current one")
     ri = rec["runtime_inputs"]
-    need(isinstance(ri, dict) and "ar_verify" in ri and not set(ri) - set(RUNTIME_INPUT_NAMES)
-         and _hex64(rec["runtime_inputs_sha256"]), "receipt runtime inputs malformed")
     need(isinstance(ri, dict) and isinstance(ri.get("ar_verify"), dict)
          and rec["ar_receipt_sha256"] == ri["ar_verify"].get("sha256"), "receipt AR receipt sha != its runtime input")
+    need(_num(rec["t_start"]) and _num(rec["t"]) and _num(rec["seconds"]) and rec["t_start"] <= rec["t"]
+         and abs(rec["t"] - rec["t_start"] - rec["seconds"]) <= 5.0, "receipt start / end / duration inconsistent")
+    adm = ident["admission"] if cell["arm"] == "C16" else None
+    r += runtime_identity_reasons(ri, rec["runtime_inputs_sha256"], cell, ident["tree"], rec["t_start"],
+                                  admission=adm, resolve=resolve)
+    if ident.get("inputs_sha") is not None and _num(rec["t_start"]) and rec["t_start"] >= ident["run_t0"]:
+        need(rec["runtime_inputs_sha256"] == ident["inputs_sha"],
+             "receipt runtime inputs != this run's runtime-input manifest")
     if cell["arm"] == "C16":
-        adm = ident["admission"]
-        need(adm is not None and rec["admission_sha256"] == adm[1] and isinstance(ri, dict)
-             and isinstance(ri.get("admission"), dict) and ri["admission"].get("sha256") == adm[1],
-             "receipt admission != the validated C16 admission")
+        need(adm is not None and rec["admission_sha256"] == adm[1], "receipt admission != the validated C16 admission")
     else:
         need(rec["admission_sha256"] is None, "a non-C16 receipt names an admission")
     if cell["block"] == "E0":
@@ -968,14 +1048,16 @@ def receipt_reasons(rec, cell, ident):
     ck = expected_ckpt(cell, ident)
     need(ck is not None and rec["ckpt_sha256"] == ck[0] and rec["ckpt_bytes"] == ck[1] and _int(rec["ckpt_bytes"]),
          "receipt checkpoint != the arm's pinned / admitted checkpoint")
-    need(rec["ckpt_link"] == farm_link(ident["farm"], cell["arm"]), "receipt checkpoint link != the farm entry")
-    need(isinstance(rec["target"], str) and os.path.realpath(rec["target"]) ==
-         os.path.realpath(os.path.join(ident["tree"], "eval_FLAC.py")), "receipt target != the eval tree's eval_FLAC.py")
+    if not offline:
+        need(rec["stem"] == stem_of(cell, ident["tree"]), "receipt stem != the cell's")
+        need(rec["ckpt_link"] == farm_link(ident["farm"], cell["arm"]), "receipt checkpoint link != the farm entry")
+        need(isinstance(rec["target"], str) and os.path.realpath(rec["target"]) ==
+             os.path.realpath(os.path.join(ident["tree"], "eval_FLAC.py")), "receipt target != the eval tree's eval_FLAC.py")
     for k in ("metrics_sha256", "stream_sha256", "waveforms_sha256", "dump_manifest_sha256", "log_sha256",
               "input_hash", "assignment_hash"):
         need(_hex64(rec[k]), f"receipt {k} is not a sha256")
-    need(_int(rec["lane"]) and isinstance(rec["gpu_uuid"], str) and isinstance(rec["log"], str)
-         and _num(rec["seconds"]) and _num(rec["t"]), "receipt lane / gpu / log / time malformed")
+    need(_int(rec["lane"]) and isinstance(rec["gpu_uuid"], str) and isinstance(rec["log"], str),
+         "receipt lane / gpu / log malformed")
     return r
 
 
@@ -1010,23 +1092,31 @@ def e0_receipt_path(receipts, eval_sha, closure):
     return os.path.join(receipts, f"e0_{eval_sha}_{closure}.json")
 
 
+def e0_dataset_configs(tree):
+    """The E0 cells' dataset-config pins, derived from the committed cell rows."""
+    return {str(c["K"]): c["dataset_config_sha256"] for c in load_cells(tree) if c["block"] == "E0"}
+
+
 def e0_receipt_doc(verdict, ident, ref, inputs_sha, ar_sha, cell_receipts, failures):
-    return {"schema_version": 2, "kind": "exp40_e0_receipt", "verdict": verdict,
+    return {"schema_version": 3, "kind": "exp40_e0_receipt", "verdict": verdict,
             "eval_sha": ident["eval_sha"], "closure": ident["closure"], "env_digest": ident["env_digest"],
             "eval_pins": dict(EVAL_PINS), "e0_reference_sha256": ident["e0_reference_sha"],
             "runtime_inputs_sha256": inputs_sha, "ar_receipt_sha256": ar_sha,
             "ckpt_sha256": ARMS["YAW"]["ckpt_sha256"], "ckpt_bytes": ARMS["YAW"]["ckpt_bytes"],
             "model_config_sha256": ARMS["YAW"]["config_sha256"],
-            "dataset_config_sha256": {str(k): EVAL_PINS[DATASET_OF_K[k]] for k in KS},
+            "dataset_config_sha256": e0_dataset_configs(ident["tree"]),
             "input_hash_map": {f"K{k}_s{s}": list(v) for (k, s), v in sorted(ident["hashes"].items())},
             "cells": sorted(E0), "cell_receipts": dict(sorted(cell_receipts.items())),
             "failures": [[n, list(rs)] for n, rs in failures], "t": time.time()}
 
 
-def e0_gate_reasons(e0_path, ident, check_cells=True):
+def e0_gate_reasons(e0_path, ident, check_cells=True, cell_recs=None, resolve=None):
     """``(reasons, sha256, doc)``: an EQUAL E0 receipt for EVAL_SHA + closure (+ the current
-    environment digest when the identity carries one), bound to the committed reference and the
-    three cell receipts, which must still hash to what it recorded."""
+    environment digest when the identity carries one), bound to the committed reference and to
+    the three cell receipts, which must still hash to what it recorded, pass the ONE receipt
+    validator (runtime inputs + AR freshness at their own start) and agree with it on the
+    runtime-input identity, the AR receipt, the environment, the dataset configs and time
+    (code-r2 B4). ``cell_recs`` ({cell: (record, sha256)}) + ``resolve``: the offline table path."""
     try:
         _, sha, e0 = _read(e0_path)
     except (OSError, ValueError):
@@ -1038,7 +1128,7 @@ def e0_gate_reasons(e0_path, ident, check_cells=True):
     def need(ok, msg):
         if not ok:
             r.append(msg)
-    need(e0["kind"] == "exp40_e0_receipt" and e0["schema_version"] == 2, "not an exp_40 E0 receipt")
+    need(e0["kind"] == "exp40_e0_receipt" and e0["schema_version"] == 3, "not an exp_40 E0 receipt")
     need(e0["verdict"] == "EQUAL" and e0["failures"] == [], f"E0 verdict {e0['verdict']!r} is not EQUAL")
     need(e0["eval_sha"] == ident["eval_sha"] and e0["closure"] == ident["closure"],
          f"E0 receipt is not for EVAL_SHA {ident['eval_sha'][:12]} / closure {ident['closure'][:12]}")
@@ -1051,14 +1141,40 @@ def e0_gate_reasons(e0_path, ident, check_cells=True):
          and e0["model_config_sha256"] == ARMS["YAW"]["config_sha256"], "E0 receipt checkpoint / config differ")
     need(e0["input_hash_map"] == {f"K{k}_s{s}": list(v) for (k, s), v in sorted(ident["hashes"].items())},
          "E0 receipt input-hash map != the committed reference")
+    want_ds = e0_dataset_configs(ident["tree"])
+    need(e0["dataset_config_sha256"] == want_ds
+         and all(v == EVAL_PINS[DATASET_OF_K[int(k)]] for k, v in want_ds.items()),
+         "E0 receipt dataset configs != its cells' pinned dataset configs")
+    need(_hex64(e0["runtime_inputs_sha256"]) and _hex64(e0["ar_receipt_sha256"]),
+         "E0 receipt runtime-input / AR receipt identities are not sha256s")
+    need(_num(e0["t"]) and e0["t"] <= time.time() + 60.0, "E0 receipt time malformed or in the future")
     cr = e0["cell_receipts"]
     need(isinstance(cr, dict) and sorted(cr) == sorted(E0) and all(_hex64(v) for v in cr.values()),
          "E0 receipt does not bind the three cell receipts")
     if not r and check_cells:
+        cell_ident = {**ident, "env_digest": e0["env_digest"], "e0_sha": None, "admission": None,
+                      "inputs_sha": None, "run_t0": None}
         for c in [c for c in load_cells(ident["tree"]) if c["block"] == "E0"]:
-            rp = cell_paths(c, ident["farm"], ident["tree"], ident["dump_root"])["receipt"]
-            if not os.path.isfile(rp) or kit.sha256_file(rp) != cr[c["cell"]]:
-                r.append(f"E0 cell receipt {rp} changed since the E0 receipt")
+            if cell_recs is not None:
+                rec, rsha = cell_recs.get(c["cell"], (None, None))
+            else:
+                rp = cell_paths(c, ident["farm"], ident["tree"], ident["dump_root"])["receipt"]
+                try:
+                    _, rsha, rec = _read(rp)
+                except (OSError, ValueError):
+                    rec, rsha = None, None
+            if rec is None or rsha != cr[c["cell"]]:
+                r.append(f"E0 cell receipt of {c['cell']} changed since the E0 receipt (or is missing)")
+                continue
+            cr_r = receipt_reasons(rec, c, cell_ident, offline=cell_recs is not None, resolve=resolve)
+            if cr_r:
+                r.append(f"E0 cell receipt of {c['cell']} is invalid: {cr_r[:3]}")
+                continue
+            need(rec["runtime_inputs_sha256"] == e0["runtime_inputs_sha256"],
+                 f"E0 receipt runtime_inputs_sha256 != its cell receipt's ({c['cell']})")
+            need(rec["ar_receipt_sha256"] == e0["ar_receipt_sha256"],
+                 f"E0 receipt ar_receipt_sha256 != its cell receipt's ({c['cell']})")
+            need(rec["t"] <= e0["t"], f"E0 receipt predates its cell receipt ({c['cell']})")
     return r, sha, e0
 
 
@@ -1219,6 +1335,12 @@ def _process_cell(cell, lane, ctx, fail):
         if r or uid_now != uid:
             fail(cell, ["the lane changed under the lock"] + r)
             return
+        t0 = time.time()                                    # the cell's start (code-r2 B4)
+        r = runtime_identity_reasons(ctx["inputs"], ctx["inputs_sha"], cell, tree, t0,
+                                     admission=ident["admission"] if cell["arm"] == "C16" else None)
+        if r:
+            fail(cell, ["runtime inputs refused at the cell's start"] + r)
+            return
         log_path = os.path.join(ctx["logdir"], f"yaw_aug_c16_{time.strftime('%Y-%m-%d_%H-%M-%S')}_{cell['cell']}_eval.log")
         rc = ctx["spawn"](ctx, cell, link, lane, log_path)
     finally:
@@ -1237,8 +1359,9 @@ def _process_cell(cell, lane, ctx, fail):
         fail(cell, vr)
         return
     inputs = ctx["inputs"]
+    t_end = time.time()
     kit.atomic_write_json(p["receipt"], {
-        "schema_version": 2, "kind": "exp40_cell_receipt", "cell": cell, "stem": p["stem"],
+        "schema_version": RECEIPT_SCHEMA, "kind": "exp40_cell_receipt", "cell": cell, "stem": p["stem"],
         "eval_sha": ident["eval_sha"], "closure": ident["closure"], "env_digest": ident["env_digest"],
         "runtime_inputs": inputs, "runtime_inputs_sha256": ctx["inputs_sha"],
         "ar_receipt_sha256": inputs["ar_verify"]["sha256"],
@@ -1246,10 +1369,10 @@ def _process_cell(cell, lane, ctx, fail):
         "e0_receipt_sha256": None if cell["block"] == "E0" else ident["e0_sha"],
         "e0_reference_sha256": ident["e0_reference_sha"], "ckpt_link": link, "ckpt_sha256": sha,
         "ckpt_bytes": nbytes, "target": target, "lane": lane, "gpu_uuid": uid, "log": log_path,
-        "log_sha256": d["log_sha256"], "seconds": time.time() - t0, "metrics_sha256": d["metrics_sha256"],
+        "log_sha256": d["log_sha256"], "seconds": t_end - t0, "metrics_sha256": d["metrics_sha256"],
         "stream_sha256": d["stream_sha256"], "input_hash": d["input_hash"],
         "assignment_hash": d["assignment_hash"], "waveforms_sha256": d["waveforms_sha256"],
-        "dump_manifest_sha256": d["dump_manifest_sha256"], "metrics": d["metrics"], "t": time.time()})
+        "dump_manifest_sha256": d["dump_manifest_sha256"], "metrics": d["metrics"], "t_start": t0, "t": t_end})
     print(f"DONE {cell['cell']} ({time.time() - t0:.0f} s)", flush=True)
 
 
@@ -1803,44 +1926,69 @@ def make_figure(rows, contract, outdir):
 # --------------------------------------------------------------------------- #
 # the offline table validator (plan §5.4; code-r1 B10, M7)
 # --------------------------------------------------------------------------- #
-EVIDENCE_KEYS = frozenset(("schema_version", "kind", "eval_sha", "closure", "admission", "e0_receipt", "cells"))
+EVIDENCE_KEYS = frozenset(("schema_version", "kind", "eval_sha", "closure", "admission", "e0_receipt",
+                           "e0_cells", "ar_receipts", "cells"))
 
 
 def freeze_table_evidence(repo, tree, eval_sha, admission_path, nas_root=None, rehash_npy=True, **kw):
     """After a full collect: the committed manifest binding the ten C16 theta = 0 cells'
-    metrics / stream / receipt bytes, the admission and the E0 receipt (repo-relative paths)."""
+    metrics / stream / receipt bytes, the admission, the E0 receipt, its three cell receipts and
+    every AR re-hash receipt those receipts were run under (repo-relative paths; all must be
+    committed with it) -- so the offline validator re-runs the SAME receipt / E0 / runtime-input
+    validators (code-r2 B4)."""
     rows, pending, prov = collect_rows(repo, tree, eval_sha, admission_path, nas_root=nas_root,
                                        rehash_npy=rehash_npy, **kw)
-    t_cells = [c for c in load_cells(tree) if c["block"] == "T"]
+    cells_all = load_cells(tree)
+    t_cells = [c for c in cells_all if c["block"] == "T"]
     if any(c["cell"] in pending for c in t_cells):
         raise Refused("the C16 theta = 0 block is not complete")
-    rel = lambda p: os.path.relpath(os.path.realpath(p), os.path.realpath(repo))  # noqa: E731
+    root = os.path.realpath(repo)
+
+    def rel(p_):
+        rp = os.path.relpath(os.path.realpath(p_), root)
+        if rp.startswith(".."):
+            raise Refused(f"{p_} lives outside the repo; the table evidence must be committable")
+        return rp
     farm = os.path.join(repo, FARM)
-    cells = {}
-    for c in t_cells:
+    cells, e0_cells, ar = {}, {}, {}
+    for c in cells_all:
+        if c["block"] not in ("T", "E0"):
+            continue
         p = cell_paths(c, farm, tree, DUMP_ROOT)
-        cells[c["cell"]] = {k: {"path": rel(p[k]), "sha256": kit.sha256_file(p[k])} for k in ("metrics", "stream", "receipt")}
+        rec = kit.read_json(p["receipt"])
+        ent = rec["runtime_inputs"]["ar_verify"]
+        ar[ent["sha256"]] = rel(ent["path"])
+        if c["block"] == "T":
+            cells[c["cell"]] = {k: {"path": rel(p[k]), "sha256": kit.sha256_file(p[k])}
+                                for k in ("metrics", "stream", "receipt")}
+        else:
+            e0_cells[c["cell"]] = {"path": rel(p["receipt"]), "sha256": kit.sha256_file(p["receipt"])}
     e0p = e0_receipt_path(os.path.join(repo, EXPREL, "receipts"), eval_sha, prov["closure"])
-    return {"schema_version": 1, "kind": "exp40_table_evidence", "eval_sha": eval_sha, "closure": prov["closure"],
+    return {"schema_version": 2, "kind": "exp40_table_evidence", "eval_sha": eval_sha, "closure": prov["closure"],
             "admission": {"path": rel(admission_path), "sha256": prov["admission_sha256"]},
-            "e0_receipt": {"path": rel(e0p), "sha256": prov["e0_receipt_sha256"]}, "cells": cells}
+            "e0_receipt": {"path": rel(e0p), "sha256": prov["e0_receipt_sha256"]},
+            "e0_cells": e0_cells, "ar_receipts": dict(sorted(ar.items())), "cells": cells}
 
 
 def validate_row(files, repo, tree, evidence_path=None):
     """Offline validator for gen_model_comparison's contract ``exp40`` (plan §5.4): the files
-    must be EXACTLY the five canonical C16 theta = 0 metrics files of one K (seeds 42-46), and
-    every byte they and their stream / receipt / admission / E0 receipt carry must equal the
-    committed table-evidence manifest; each receipt is strictly validated against it. No
-    checkpoint, NAS or log access."""
+    must be EXACTLY the five canonical C16 theta = 0 metrics files of one K (seeds 42-46); every
+    byte they and their stream / receipt / admission / E0 receipt / E0 cell receipts / AR
+    receipts carry must equal the committed table-evidence manifest; then the SAME validators as
+    run / verify / collect: ``e0_gate_reasons`` (offline, from the evidence copies),
+    ``receipt_reasons(offline=True)`` with the runtime inputs resolved through the evidence, and
+    the metrics / stream contract. No checkpoint, NAS, farm-path or log access."""
     problems = []
     try:
         _, _, ev = _read(evidence_path or os.path.join(tree, TABLE_EVIDENCE))
     except (OSError, ValueError) as err:
         return False, [f"no committed table evidence {TABLE_EVIDENCE} ({type(err).__name__})"]
-    if not isinstance(ev, dict) or set(ev) != EVIDENCE_KEYS or ev["kind"] != "exp40_table_evidence":
+    if not isinstance(ev, dict) or set(ev) != EVIDENCE_KEYS or ev["kind"] != "exp40_table_evidence" \
+            or ev["schema_version"] != 2:
         return False, [f"{TABLE_EVIDENCE} does not have the exact schema"]
     farm = os.path.join(repo, FARM)
-    t_cells = [c for c in load_cells(tree) if c["block"] == "T"]
+    cells_all = load_cells(tree)
+    t_cells = [c for c in cells_all if c["block"] == "T"]
     by_path = {os.path.realpath(cell_paths(c, farm, tree, DUMP_ROOT)["metrics"]): c for c in t_cells}
     got = [os.path.realpath(f) for f in files]
     cells = [by_path.get(g) for g in got]
@@ -1849,24 +1997,39 @@ def validate_row(files, repo, tree, evidence_path=None):
     ks = {c["K"] for c in cells}
     if len(set(got)) != len(got) or len(ks) != 1 or sorted(c["seed"] for c in cells) != list(SEEDS):
         return False, [f"need exactly the five seeds {SEEDS} of one K, got {sorted((c['K'], c['seed']) for c in cells)}"]
-    if sorted(ev["cells"]) != sorted(c["cell"] for c in t_cells):
-        problems.append("the table evidence does not name exactly the ten C16 theta = 0 cells")
-        return False, problems
+    if sorted(ev["cells"]) != sorted(c["cell"] for c in t_cells) or sorted(ev["e0_cells"]) != sorted(E0) \
+            or not isinstance(ev["ar_receipts"], dict) or not ev["ar_receipts"]:
+        return False, ["the table evidence does not name exactly the ten C16 theta = 0 cells, the three "
+                       "E0 cells and their AR receipts"]
     at = lambda rel: os.path.join(repo, rel)  # noqa: E731
-    for label in ("admission", "e0_receipt"):
-        e = ev[label]
-        if not os.path.isfile(at(e["path"])) or kit.sha256_file(at(e["path"])) != e["sha256"]:
-            problems.append(f"{label} {e['path']} does not hash to the table evidence")
+    pinned = [(label, ev[label]["path"], ev[label]["sha256"]) for label in ("admission", "e0_receipt")]
+    pinned += [(f"E0 cell receipt {n}", e["path"], e["sha256"]) for n, e in sorted(ev["e0_cells"].items())]
+    pinned += [("AR receipt", rel, sha) for sha, rel in sorted(ev["ar_receipts"].items())]
+    for label, rel, sha in pinned:
+        if not os.path.isfile(at(rel)) or kit.sha256_file(at(rel)) != sha:
+            problems.append(f"{label} {rel} does not hash to the table evidence")
+    if problems:
+        return False, problems
     ar, adm, adm_sha = kit.admission_reasons(at(ev["admission"]["path"]), rehash=None)
     if ar or adm_sha != ev["admission"]["sha256"]:
-        problems.append(f"admission invalid: {ar[:2]}")
+        return False, [f"admission invalid: {ar[:2]}"]
+
+    def resolve(name, ent):
+        if name == "admission":
+            return at(ev["admission"]["path"]) if ent["sha256"] == ev["admission"]["sha256"] else None
+        rel = ev["ar_receipts"].get(ent["sha256"])
+        return at(rel) if rel else None
     try:
-        e0 = kit.read_json(at(ev["e0_receipt"]["path"]))
-    except (OSError, ValueError):
-        e0 = {}
-    if not isinstance(e0, dict) or e0.get("verdict") != "EQUAL" or e0.get("eval_sha") != ev["eval_sha"] \
-            or e0.get("closure") != ev["closure"] or set(e0) != E0_KEYS:
-        problems.append("the E0 receipt is not an EQUAL receipt of the evidence's EVAL_SHA + closure")
+        ref, ref_sha = e0_reference(tree)
+    except Refused as err:
+        return False, [str(err)]
+    ident = identity(ev["eval_sha"], ev["closure"], ref_sha, expected_hashes(ref), farm, tree,
+                     admission=(adm, adm_sha))
+    e0_recs = {n: (kit.read_json(at(e["path"])), e["sha256"]) for n, e in ev["e0_cells"].items()}
+    gate, e0_sha, e0 = e0_gate_reasons(at(ev["e0_receipt"]["path"]), ident, cell_recs=e0_recs, resolve=resolve)
+    if gate:
+        return False, [f"E0 receipt invalid: {g}" for g in gate[:4]]
+    ident.update(env_digest=e0["env_digest"], e0_sha=e0_sha)
     for c in cells:
         p = cell_paths(c, farm, tree, DUMP_ROOT)
         e = ev["cells"][c["cell"]]
@@ -1877,13 +2040,11 @@ def validate_row(files, repo, tree, evidence_path=None):
         if problems:
             continue
         rec, m, st = kit.read_json(p["receipt"]), kit.read_json(p["metrics"]), kit.read_json(p["stream"])
-        if not isinstance(rec, dict) or set(rec) != RECEIPT_KEYS or rec.get("kind") != "exp40_cell_receipt" \
-                or not _strict_equal(rec.get("cell"), c) or rec.get("eval_sha") != ev["eval_sha"] \
-                or rec.get("closure") != ev["closure"] or rec.get("admission_sha256") != ev["admission"]["sha256"] \
-                or rec.get("e0_receipt_sha256") != ev["e0_receipt"]["sha256"] \
-                or rec.get("env_digest") != e0.get("env_digest") \
-                or rec.get("metrics_sha256") != e["metrics"]["sha256"] or rec.get("stream_sha256") != e["stream"]["sha256"] \
-                or adm is None or rec.get("ckpt_sha256") != adm["sha256"] or rec.get("ckpt_bytes") != adm["bytes"]:
+        rr = receipt_reasons(rec, c, ident, offline=True, resolve=resolve)
+        if rr:
+            problems.append(f"{c['cell']}: receipt invalid: {rr[:3]}")
+            continue
+        if rec["metrics_sha256"] != e["metrics"]["sha256"] or rec["stream_sha256"] != e["stream"]["sha256"]:
             problems.append(f"{c['cell']}: the receipt is not bound to the table evidence")
             continue
         mr = metrics_reasons(m, c, ev["eval_sha"], rec["ckpt_sha256"], rec["ckpt_bytes"], rec["ckpt_link"], st)
@@ -1911,13 +2072,16 @@ def _select(cells, blocks, only):
 
 
 def _run(args):
+    """Every gate, then (unless --dry-run) the cells. --dry-run skips ONLY the locks and the
+    evaluator spawns: any failing gate is the same named refusal, exit 2 (code-r2 M2)."""
     wt, eval_sha = args.eval_worktree, args.eval_sha
+    run_t0 = time.time()
     inputs, inputs_sha = runtime_inputs(args.runtime_inputs, tree=wt)
     reasons = eval_worktree_reasons(wt, eval_sha, args.hf_sealed) + ar_gate_reasons(wt, inputs)
     py = kit.PLATFORMS["a6000"]["python"]
     env_r, env = eval_environment(wt, py, args.hf_sealed)
     reasons += env_r
-    if reasons and not args.dry_run:
+    if reasons:
         raise Refused("; ".join(reasons[:8]))
     closure = closure_digest(wt, eval_sha)
     ref, ref_sha = e0_reference(wt)
@@ -1925,23 +2089,22 @@ def _run(args):
     farm = os.path.join(args.repo, FARM)
     receipts = os.path.join(args.repo, EXPREL, "receipts")
     ident = identity(eval_sha, closure, ref_sha, expected_hashes(ref), farm, wt,
-                     env_digest=env["env_digest"] if env else None)
+                     env_digest=env["env_digest"], inputs_sha=inputs_sha, run_t0=run_t0)
     if any(c["arm"] == "C16" for c in cells):
         ident["admission"] = admission_of(inputs, rehash="final")
     e0_path = e0_receipt_path(receipts, eval_sha, closure)
     e0_cells = [c for c in cells if c["block"] == "E0"]
     rest = [c for c in cells if c["block"] != "E0"]
-    if args.dry_run:
-        for c in cells:
-            print(c["cell"], " ".join(eval_argv(c, wt, farm_link(farm, c["arm"]), py, DUMP_ROOT)))
-        gate = e0_gate_reasons(e0_path, ident)[0] if rest else []
-        print(f"EVAL_SHA {eval_sha} closure {closure} gates: {'OK' if not reasons else reasons}; "
-              f"E0 gate: {'OK' if not gate else 'NOT YET (' + gate[0] + ')'}")
-        return 0
     if rest and not (sorted(c["cell"] for c in e0_cells) == sorted(E0)):
         gate, e0_sha, _ = e0_gate_reasons(e0_path, ident)
         if gate:
             raise Refused("; ".join(gate))
+    if args.dry_run:
+        for c in cells:
+            print(c["cell"], " ".join(eval_argv(c, wt, farm_link(farm, c["arm"]), py, DUMP_ROOT)))
+        print(f"DRY_RUN: EVAL_SHA {eval_sha} closure {closure} runtime inputs {inputs_sha[:12]}: every gate "
+              f"passed for {len(cells)} cell(s); nothing locked, nothing spawned")
+        return 0
     os.makedirs(receipts, exist_ok=True)
     children = Children()
     ctx = {"tree": wt, "farm": farm, "py": py, "hf_sealed": args.hf_sealed, "inputs": inputs,
@@ -1959,14 +2122,17 @@ def _run(args):
             if not children.interrupted:
                 existing = e0_gate_reasons(e0_path, ident)
                 if existing[0]:
-                    shas = {}
+                    shas, ids = {}, set()
                     for c in e0_cells:
                         rp = cell_paths(c, farm, wt, DUMP_ROOT)["receipt"]
                         if os.path.isfile(rp):
-                            shas[c["cell"]] = kit.sha256_file(rp)
+                            _, shas[c["cell"]], rec = _read(rp)
+                            ids.add((rec.get("runtime_inputs_sha256"), rec.get("ar_receipt_sha256")))
+                    if len(ids) > 1:                        # receipts from different runtime inputs
+                        f0 = f0 + [("E0", [f"the E0 cell receipts carry {len(ids)} runtime-input identities"])]
                     verdict = "EQUAL" if not f0 and sorted(shas) == sorted(E0) else ("NOT_EQUAL" if f0 else "PARTIAL")
-                    kit.atomic_write_json(e0_path, e0_receipt_doc(verdict, ident, ref, inputs_sha,
-                                                                  inputs["ar_verify"]["sha256"], shas, f0))
+                    ri_sha, ar_sha = ids.pop() if len(ids) == 1 else (inputs_sha, inputs["ar_verify"]["sha256"])
+                    kit.atomic_write_json(e0_path, e0_receipt_doc(verdict, ident, ref, ri_sha, ar_sha, shas, f0))
             fails += f0
         if rest and not children.interrupted:
             gate, e0_sha, _ = e0_gate_reasons(e0_path, ident)
