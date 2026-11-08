@@ -4,3 +4,23 @@ Branch `exp-38-data-efficiency`, cut from `localization-exp` `2b42468c8f429b1d93
 
 | # | SHA | Summary |
 |---|---|---|
+| 1 | 6acf1bbb | exp_38 data_efficiency: scaffold + plan r0 (YAW/B-F at exp_14's 25/50/75 % subsets; YAW 100 % = exp_17 A6000 arm; data-side port onto localization-exp; B-F per-angle chunk cap; 2x32 rung recommended on neuronic) |
+| 2 | febba510 | exp_38 plan r1: Codex plan review r1 (REVISE) folded — primary = all six on 2xA6000, monolithic only, positive backend probe, exhaustive subset audit, full-state ckpt audit, E0a-d exact replays |
+| 3 | fac501b0 | exp_38 round A1-A2: port exp_14's context restriction (AR_md.py byte copy fb2f6882, dataset.py DatasetContractError re-raise +7) with exp_14's hermetic test (byte copy 5f63591e; red ImportError -> 50 passed) |
+| 4 | 4187ef77 | exp_38 round A3: exp_14's nested subsets byte-for-byte (3 splits, manifest, 3 dataset configs) + self-contained identity tests (16 red -> 21 green) |
+| 5 | 84aa927a | exp_38 plan r2: Codex plan review r2 (REVISE) folded — E0 receipt upstream of FULL, no resume exception, in-process run evidence, immutable campaign closure, card lock, Slurm intent tokens |
+| 6 | edc0809c | exp_38 B3: observe-only first-step run evidence (src/training/run_evidence.py) behind a default-off --evidence-json flag; flag off = callbacks unchanged (red ImportError -> 49 green incl. train suites) |
+| 7 | 8ec30c05 | exp_38 B1/B2: run registry (configs, B-F per-angle cap = micro, argv, run-dir states, full-state checkpoint audit, log + evidence gates, closure digest, untracked/shadow check, env / E0 / SMOKE receipts, snapshot) |
+| 8 | a8e21dfa | exp_38 A4: exhaustive subset audit (ordered targets, every context pool vs AR_md's own, manifest histograms, root fingerprint, --verify) + PASS artifact v2 |
+| 9 | 08e98942 | exp_38 B3/B4: seed-42 init digest (CPU == in-process GPU evidence, equal for YAW/B-F/P1); B-F loop vs cap=B bit-identical in training mode on the real DINOv3 conditioner; DistributedSampler / launcher-environment equivalence tests |
+| 10 | cae0ea66 | exp_38 B6/B7: A6000 launcher (DRY_RUN / SMOKE / SMOKE_DDP / FULL, campaign tree, card lock, E0 + SMOKE receipts, snapshot audits), neuronic monolithic sbatch + exactly-once submitter; GPU-0 single-rank smokes YAW f025 + B-F f025 PASS |
+| 11 | 16560e34 | exp_38 B8/B9: eval driver (E0a-d exact replays, reference argv incl. --num-workers 4, no-flash launcher, transactional admission, input-hash pins) + collector (atomic result pair) + imported reference cells |
+| 12 | 5d51df01 | exp_38 records: implementation + ladder rungs 1-6 (GPU-0 smokes PASS, init digest shared by all arms, subset audit v2 PASS), dry-run log |
+| 13 | 0d6edf46 | exp_38: per-card locks shared by training and the two eval lanes; command file + neuronic command sheet; sbatch dry-run log (first pass, 4 runs saw this edit's dirty tree) |
+| 14 | bd9cb8e8 | exp_38 code r1 HIGH 8: the subset audit binds the AR tree by content, not by path (audit v3 PASS, identical fractions) |
+| 15 | 939f1933 | exp_38 code r1: registry with exact schemas and sealed receipts (B1 B2 B4 H1 H2 H3 H5 H9 N1 N2) |
+| 16 | a2d4d39f | exp_38 code r1: the training supervisor owns every launch; neuronic owner records (H4 H5 H6 H7) |
+| 17 | d181a22c | exp_38 code r1: evaluation bound to E0, the training receipt and this box (B3 B5 B6 B7 H10) + table rows (B10) |
+| 18 | (this) | exp_38 records: Codex code review r1 + fix-round worklog, plan §15 amendments, command sheets, .gitattributes |
+
+Note: commit 4's message says '21 green'; after the git-dependent base-commit test moved into the audit tool (Codex plan r1 NIT 6) the file has 20 tests (all green).

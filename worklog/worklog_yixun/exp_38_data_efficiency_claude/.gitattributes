@@ -1,0 +1,3 @@
+# raw run / test logs are verbatim terminal captures: exempt from git's whitespace checks (Codex code r1 NIT 4)
+*.log -whitespace
+*.out -whitespace
