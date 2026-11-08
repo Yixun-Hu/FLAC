@@ -51,6 +51,14 @@ def _load_capture():
 
 
 cap = _load_capture()
+E1_DIR = _HERE.parents[1] / "worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/e1_captures"
+
+
+@pytest.fixture(autouse=True)
+def _no_flash(monkeypatch):
+    """CPU tests: force the DiT's SDPA branch, restored after every test (code review 1 M1)."""
+    import src.models.transformer as transformer
+    monkeypatch.setattr(transformer, "flash_attn_func", None)
 
 
 @pytest.fixture(scope="module")
@@ -72,11 +80,39 @@ def _snap(values, s):
 # --------------------------------------------------------------------------- #
 def test_fixture_binds_the_four_reference_pins(fixture):
     meta = fixture["_meta"]
-    assert set(meta["pins"]) == REFERENCE_PINS
-    assert set(meta["pins"].values()) == {GOLDEN_RECORD_SHA256}
+    assert set(meta["pins"]) == REFERENCE_PINS == set(cap.REFERENCE_PINS)
+    assert {v["record_sha256"] for v in meta["pins"].values()} == {GOLDEN_RECORD_SHA256}
     assert meta["record_sha256"] == GOLDEN_RECORD_SHA256
     assert cap.canonical_sha256(fixture["record"]) == GOLDEN_RECORD_SHA256
     assert meta["yaw_seed"] == 42 and meta["rungs"] == {"8x8": [8, 8], "2x32": [2, 32]}
+    assert meta["python"] and meta["torch"].startswith("2.7.0")
+
+
+def test_per_pin_capture_evidence_is_committed_and_consistent(fixture):
+    meta = fixture["_meta"]
+    files = sorted(E1_DIR.glob("capture_*.json"))
+    caps = [json.loads(f.read_text()) for f in files]
+    assert sorted(c["sha"] for c in caps) == sorted(REFERENCE_PINS)
+    for c in caps:
+        assert c["tool_sha256"] == meta["capture_tool_sha256"]
+        assert c["record_sha256"] == GOLDEN_RECORD_SHA256 == cap.canonical_sha256(c["record"])
+        assert c["source_tree_digest"] == meta["pins"][c["sha"]]["source_tree_digest"]
+        assert (c["python"], c["torch"]) == (meta["python"], meta["torch"])
+    assert cap.assemble_reasons(caps, meta["capture_tool_sha256"]) == []
+
+
+def test_assembly_refuses_wrong_pin_sets_tools_and_records(fixture):
+    caps = [json.loads(f.read_text()) for f in sorted(E1_DIR.glob("capture_*.json"))]
+    tool = fixture["_meta"]["capture_tool_sha256"]
+    assert cap.assemble_reasons(caps[:3] + [caps[0]], tool)                    # duplicate / missing pin
+    bad = copy.deepcopy(caps)
+    bad[1]["sha"] = "0" * 40
+    assert cap.assemble_reasons(bad, tool)                                       # unknown pin
+    assert cap.assemble_reasons(caps, "f" * 64)                                  # another tool
+    bad = copy.deepcopy(caps)
+    bad[2]["record"]["real"]["global_rng_untouched"] = False
+    bad[2]["record_sha256"] = cap.canonical_sha256(bad[2]["record"])
+    assert any("record_sha256" in r for r in cap.assemble_reasons(bad, tool))   # records differ
 
 
 def test_absent_offset_step_reproduces_the_reference_record_exactly(golden):
@@ -348,18 +384,28 @@ def test_c16_step_equals_a_vanilla_step_on_prerotated_inputs(step, rank):
         for key in ("depth", "source", "source_vit", "context_poses", "context_poses_vit"):
             assert torch.allclose(got[key], ref[key], atol=1e-5), (key, d)
 
+    # code review 1 HIGH 1: the control path is fed the FIRST-PRINCIPLES rotation (torch.roll +
+    # explicit z-rotation matrices, no rotate_scene_metadata), so the comparison is independent;
+    # float32 rounding of the two rotation formulae is the only allowed difference.
+    indep = [_first_principles_rotate(x, d, img_w) for x, d in zip(md, snapped)]
     seen_a, loss_a, grads_a = _run_step(c16, (reals.clone(), md), seed=123)
-    seen_b, loss_b, grads_b = _run_step(plain, (reals.clone(), pre), seed=123)
+    seen_b, loss_b, grads_b = _run_step(plain, (reals.clone(), indep), seed=123)
     for x, y in zip(seen_a["metadata"], seen_b["metadata"]):
         for key in ("depth", "source", "source_vit", "context_poses", "context_poses_vit"):
-            assert torch.equal(x[key], y[key])
+            assert torch.allclose(x[key], y[key], atol=1e-5), key
     assert seen_a["conditioning"].keys() == seen_b["conditioning"].keys()
     for k in seen_a["conditioning"]:
-        assert torch.equal(seen_a["conditioning"][k], seen_b["conditioning"][k]), k
-    assert torch.equal(loss_a, loss_b)
+        assert torch.allclose(seen_a["conditioning"][k], seen_b["conditioning"][k], atol=1e-4), k
+    assert torch.allclose(loss_a, loss_b, rtol=1e-5, atol=1e-6)
     assert grads_a.keys() == grads_b.keys() and grads_a
     for k in grads_a:
-        assert torch.equal(grads_a[k], grads_b[k]), k
+        assert torch.allclose(grads_a[k], grads_b[k], rtol=1e-4, atol=1e-6), k
+    # ...and fed the production rotation instead, the two paths agree BIT FOR BIT
+    _seed_all(cap.GOLDEN_SEED)
+    plain2 = cap.build_wrapper(m, cfg_plain)                 # a fresh control (Sobol state, grads)
+    cap.attach_stub_trainer(plain2, step, rank)
+    seen_c, loss_c, grads_c = _run_step(plain2, (reals.clone(), pre), seed=123)
+    assert torch.equal(loss_a, loss_c) and all(torch.equal(grads_a[k], grads_c[k]) for k in grads_a)
 
 
 def test_validation_step_never_augments_with_offset_step():
@@ -370,6 +416,14 @@ def test_validation_step_never_augments_with_offset_step():
     g = torch.Generator().manual_seed(1)
     w.validation_step((torch.randn(2, 4, 64, generator=g),
                        [cap.make_md(m, i, cap.TINY_IMG_W) for i in range(2)]), 0)
+
+
+def test_test_step_never_augments_with_offset_step():
+    m = cap._mods()
+    w = cap.build_wrapper(m, cap.tiny_config(cap.TINY_IMG_W, {"offset_step": 4}))
+    assert "_apply_yaw_aug" not in (tdiff.DiffusionCondTrainingWrapper.test_step.__code__.co_names
+                                    + tdiff.DiffusionCondTrainingWrapper.validation_step.__code__.co_names)
+    assert w.yaw_aug_offset_step == 4
 
 
 def test_canonicalize_still_refuses_a_c16_arm():

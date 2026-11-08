@@ -1,16 +1,29 @@
 {
  "_meta": {
   "capture_tool": "src/tests/exp40_yaw_aug_golden_capture.py",
-  "capture_tool_sha256": "69d92e2617160a54ad44696b5cfed5adfd227315a613c2f274741b41775b9610",
+  "capture_tool_sha256": "d95224bb63caf41a707326a81927ec09dc6538d4c66e2d729901ed8510da4a74",
   "experiment": "exp_40",
   "master_seed": 20261107,
   "pins": {
-   "2b42468c8f429b1d93da93b3e4ddb7bd6f8f1932": "76c1f63419f1038d4ceb22cc788941ef5843ac5699c44603f17caa6181427909",
-   "41aa31dc0f5787019f26912654e4c5a14be7feeb": "76c1f63419f1038d4ceb22cc788941ef5843ac5699c44603f17caa6181427909",
-   "88897e02e75710feef37044b6c0937135fa49a22": "76c1f63419f1038d4ceb22cc788941ef5843ac5699c44603f17caa6181427909",
-   "fb4fc7497c3e024bfa35b7c02744a32d9a1a0d48": "76c1f63419f1038d4ceb22cc788941ef5843ac5699c44603f17caa6181427909"
+   "2b42468c8f429b1d93da93b3e4ddb7bd6f8f1932": {
+    "record_sha256": "76c1f63419f1038d4ceb22cc788941ef5843ac5699c44603f17caa6181427909",
+    "source_tree_digest": "40815af94555049dac4bfafe6dd1b652b46459a3f4d46abad2ae025b2bc25c18"
+   },
+   "41aa31dc0f5787019f26912654e4c5a14be7feeb": {
+    "record_sha256": "76c1f63419f1038d4ceb22cc788941ef5843ac5699c44603f17caa6181427909",
+    "source_tree_digest": "c1f1841ad8391b6469452b33041b25ccbb3584c98c4f398353159e6bc2056475"
+   },
+   "88897e02e75710feef37044b6c0937135fa49a22": {
+    "record_sha256": "76c1f63419f1038d4ceb22cc788941ef5843ac5699c44603f17caa6181427909",
+    "source_tree_digest": "c106d37fa680721a63e2aa587527180e12f078de9145c204cb1eee845e95a986"
+   },
+   "fb4fc7497c3e024bfa35b7c02744a32d9a1a0d48": {
+    "record_sha256": "76c1f63419f1038d4ceb22cc788941ef5843ac5699c44603f17caa6181427909",
+    "source_tree_digest": "8bfe35c9e2a93203e2feb22f33db6d73ec5ffaf35eb7aede5857c7bcd01b5460"
+   }
   },
   "purpose": "yaw_aug ENABLED-path golden: the reference arms' training-step behaviour (offset_step ABSENT), captured at their source pins",
+  "python": "3.10.20",
   "real_steps": [
    0,
    1,
@@ -50,9 +63,7 @@
     3
    ]
   ],
-  "torch": [
-   "2.7.0+cu126"
-  ],
+  "torch": "2.7.0+cu126",
   "yaw_seed": 42
  },
  "record": {

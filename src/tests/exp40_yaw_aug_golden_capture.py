@@ -17,25 +17,31 @@ enabled path does:
   case and a check that the global RNG streams were left untouched.
 
 It runs against the CURRENT checkout when imported (the pytest replays it), or
-against an exported historical tree when run as a script::
+against a historical commit when run as a script::
 
-    python src/tests/exp40_yaw_aug_golden_capture.py capture --src-root <tree> --out <json>
-    python src/tests/exp40_yaw_aug_golden_capture.py assemble --pin <sha>=<json> ... \
-        --out src/tests/fixtures/exp40_yaw_aug_enabled_golden.json
+    python src/tests/exp40_yaw_aug_golden_capture.py capture --repo <git repo> --sha <40-hex> --out <json>
+    python src/tests/exp40_yaw_aug_golden_capture.py assemble --capture <json> [...] --out <fixture>
 
-where ``<tree>`` is ``git archive <sha> src | tar -x -C <tree>``. ``capture`` puts
-``<tree>`` first on ``sys.path`` and refuses to run if ``src`` resolves elsewhere;
-``assemble`` refuses unless every pin's record is identical. The pytest
-(``test_yaw_aug_c16.py``) only READS the committed fixture -- it never needs git.
+``capture`` exports ``git archive <sha> src`` ITSELF into a temporary directory (so the label
+cannot differ from the source), records the commit, the digest of its ``git ls-tree -r <sha>
+src`` blob list, the python / torch versions and the sha256 of THIS executing file, puts the
+export first on ``sys.path`` and refuses if ``src`` resolves elsewhere. ``assemble`` refuses
+unless the captures are exactly the four REFERENCE_PINS, once each, made by the same tool
+bytes as the assembler itself, with the same python / torch and identical records (code
+review 1 BLOCKING 1). The pytest (``test_yaw_aug_c16.py``) only READS the committed fixture
+and the per-pin capture evidence -- it never needs git.
 
 Written by the exp_40 Coder seat (Claude Opus 5.5).
 """
 import argparse
+import contextlib
 import hashlib
 import json
 import os
 import random
+import subprocess
 import sys
+import tempfile
 import types
 
 GOLDEN_SEED = 20261107
@@ -46,6 +52,12 @@ TINY_CASES = ((0, 0), (7, 0), (7, 1), (2500, 3))      # (global_step, global_ran
 REAL_IMG_W = 512
 REAL_STEPS = (0, 1, 2, 3, 1000, 2499, 2500, 39999)
 RUNGS = {"8x8": (8, 8), "2x32": (2, 32)}               # name -> (world size, micro-batch)
+REFERENCE_PINS = (
+    "fb4fc7497c3e024bfa35b7c02744a32d9a1a0d48",   # exp_15 first training pin
+    "88897e02e75710feef37044b6c0937135fa49a22",   # exp_15 last leg
+    "41aa31dc0f5787019f26912654e4c5a14be7feeb",   # exp_17 audited base
+    "2b42468c8f429b1d93da93b3e4ddb7bd6f8f1932",   # exp_40 base (localization-exp)
+)
 _MD_TENSOR_KEYS = ("source", "source_vit", "context_poses", "context_poses_vit",
                    "context_audio", "depth", "padding_mask")
 
@@ -105,8 +117,7 @@ def _mods():
     from src.data import yaw_rotation as yr
     from src.models.factory import create_model_from_config
     from src.training.factory import create_training_wrapper_from_config
-    transformer.flash_attn_func = None      # CPU: the installed kernel is CUDA-only
-    return types.SimpleNamespace(np=np, torch=torch, tdiff=tdiff, yr=yr,
+    return types.SimpleNamespace(np=np, torch=torch, tdiff=tdiff, yr=yr, transformer=transformer,
                                  create_model=create_model_from_config,
                                  create_wrapper=create_training_wrapper_from_config)
 
@@ -243,70 +254,108 @@ def capture_real(m, yaw_aug=None):
             "global_rng_untouched": rng_before == rng_after}
 
 
+@contextlib.contextmanager
+def flash_disabled(m):
+    """CPU capture: the installed flash kernel is CUDA-only. Scoped and RESTORED (code review 1
+    MEDIUM 1), so importing this helper never changes another test's attention backend."""
+    saved = m.transformer.flash_attn_func
+    m.transformer.flash_attn_func = None
+    try:
+        yield
+    finally:
+        m.transformer.flash_attn_func = saved
+
+
 def capture_all(tiny_yaw_aug=None, real_yaw_aug=None):
     """The whole record. ``*_yaw_aug`` override fields of the enabled block (exp_40's
     ``offset_step``); the golden itself is captured with both ``None`` -- the
     reference arms' block ``{enabled, img_w, seed}``, nothing else."""
     m = _mods()
-    return {
-        "tiny": {f"step{s}_rank{r}": capture_tiny_case(m, s, r, tiny_yaw_aug)
-                 for s, r in TINY_CASES},
-        "real": capture_real(m, real_yaw_aug),
-    }
+    with flash_disabled(m):
+        return {
+            "tiny": {f"step{s}_rank{r}": capture_tiny_case(m, s, r, tiny_yaw_aug)
+                     for s, r in TINY_CASES},
+            "real": capture_real(m, real_yaw_aug),
+        }
 
 
 def canonical_sha256(record):
     return hashlib.sha256(json.dumps(record, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def tool_sha256():
+    with open(os.path.abspath(__file__), "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def source_tree_digest(repo, sha):
+    out = subprocess.run(["git", "ls-tree", "-r", sha, "--", "src"], cwd=repo, capture_output=True,
+                         text=True, check=True).stdout
+    return hashlib.sha256(out.encode()).hexdigest()
+
+
 def _capture_cmd(args):
-    root = os.path.realpath(args.src_root)
-    sys.path.insert(0, root)
-    import src
-    got = os.path.realpath(os.path.dirname(src.__file__))
-    if got != os.path.join(root, "src"):
-        raise SystemExit(f"src resolved to {got}, not under --src-root {root}")
-    import torch
-    record = capture_all()
-    payload = {"src_root": root, "torch": torch.__version__, "record": record,
-               "record_sha256": canonical_sha256(record)}
+    if args.sha not in REFERENCE_PINS:
+        raise SystemExit(f"{args.sha} is not one of the reference pins {REFERENCE_PINS}")
+    with tempfile.TemporaryDirectory(prefix="exp40_e1_") as root:
+        tar = subprocess.run(["git", "archive", "--format=tar", args.sha, "--", "src"], cwd=args.repo,
+                             capture_output=True, check=True).stdout
+        subprocess.run(["tar", "-x", "-C", root], input=tar, check=True)
+        sys.dont_write_bytecode = True
+        sys.path.insert(0, root)
+        import src
+        got = os.path.realpath(os.path.dirname(src.__file__))
+        if got != os.path.join(os.path.realpath(root), "src"):
+            raise SystemExit(f"src resolved to {got}, not the export of {args.sha}")
+        import torch
+        record = capture_all()
+    payload = {"sha": args.sha, "source_tree_digest": source_tree_digest(args.repo, args.sha),
+               "python": sys.version.split()[0], "torch": torch.__version__,
+               "tool_sha256": tool_sha256(), "record": record, "record_sha256": canonical_sha256(record)}
     with open(args.out, "w") as f:
         json.dump(payload, f, indent=1, sort_keys=True)
         f.write("\n")
-    print(f"record_sha256 {payload['record_sha256']}  ({args.out})")
+    print(f"{args.sha} record_sha256 {payload['record_sha256']}  ({args.out})")
     return 0
 
 
+def assemble_reasons(captures, own_tool_sha):
+    """Why a set of per-pin captures cannot become the fixture (empty list = assemble)."""
+    reasons = []
+    shas = [c.get("sha") for c in captures]
+    if sorted(shas) != sorted(REFERENCE_PINS) or len(set(shas)) != len(shas):
+        reasons.append(f"captures name pins {shas}, need each of {list(REFERENCE_PINS)} exactly once")
+    for c in captures:
+        if canonical_sha256(c["record"]) != c.get("record_sha256"):
+            reasons.append(f"{c.get('sha')}: record_sha256 does not match its record")
+        if c.get("tool_sha256") != own_tool_sha:
+            reasons.append(f"{c.get('sha')}: captured by tool {c.get('tool_sha256')}, assembler is {own_tool_sha}")
+    for key in ("python", "torch", "record_sha256"):
+        if len({c.get(key) for c in captures}) != 1:
+            reasons.append(f"captures differ in {key}: {sorted({str(c.get(key)) for c in captures})}")
+    return reasons
+
+
 def _assemble_cmd(args):
-    """Combine per-pin captures into the fixture; refuse unless every record is equal."""
-    pins, record, torch_versions = {}, None, set()
-    for item in args.pin:
-        sha, _, path = item.partition("=")
-        if len(sha) != 40 or not path:
-            raise SystemExit(f"--pin wants <40-hex sha>=<capture json>, got {item!r}")
+    captures = []
+    for path in args.capture:
         with open(path) as f:
-            payload = json.load(f)
-        got = canonical_sha256(payload["record"])
-        if got != payload["record_sha256"]:
-            raise SystemExit(f"{path}: record_sha256 does not match its record")
-        if record is None:
-            record = payload["record"]
-        elif canonical_sha256(record) != got:
-            raise SystemExit(f"{path}: the record at {sha} differs from the first pin's")
-        pins[sha] = got
-        torch_versions.add(payload["torch"])
-    with open(os.path.abspath(__file__), "rb") as f:
-        tool_sha = hashlib.sha256(f.read()).hexdigest()
+            captures.append(json.load(f))
+    reasons = assemble_reasons(captures, tool_sha256())
+    if reasons:
+        raise SystemExit("REFUSED: " + "; ".join(reasons))
+    record = captures[0]["record"]
     fixture = {
         "_meta": {
             "experiment": "exp_40",
             "purpose": "yaw_aug ENABLED-path golden: the reference arms' training-step "
                        "behaviour (offset_step ABSENT), captured at their source pins",
             "capture_tool": "src/tests/exp40_yaw_aug_golden_capture.py",
-            "capture_tool_sha256": tool_sha,
-            "pins": pins,
+            "capture_tool_sha256": tool_sha256(),
+            "pins": {c["sha"]: {"record_sha256": c["record_sha256"],
+                                "source_tree_digest": c["source_tree_digest"]} for c in captures},
             "record_sha256": canonical_sha256(record),
-            "torch": sorted(torch_versions),
+            "python": captures[0]["python"], "torch": captures[0]["torch"],
             "master_seed": GOLDEN_SEED, "yaw_seed": YAW_SEED,
             "tiny_cases": [list(c) for c in TINY_CASES], "real_steps": list(REAL_STEPS),
             "rungs": {k: list(v) for k, v in RUNGS.items()},
@@ -316,18 +365,19 @@ def _assemble_cmd(args):
     with open(args.out, "w") as f:
         json.dump(fixture, f, indent=1, sort_keys=True)
         f.write("\n")
-    print(f"wrote {args.out}: {len(pins)} pins, record_sha256 {fixture['_meta']['record_sha256']}")
+    print(f"wrote {args.out}: {len(captures)} pins, record_sha256 {fixture['_meta']['record_sha256']}")
     return 0
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    c = sub.add_parser("capture", help="capture from an exported source tree")
-    c.add_argument("--src-root", required=True, help="an exported source tree holding src/")
+    c = sub.add_parser("capture", help="capture one reference pin (exports it itself)")
+    c.add_argument("--repo", required=True)
+    c.add_argument("--sha", required=True)
     c.add_argument("--out", required=True)
-    a = sub.add_parser("assemble", help="combine equal per-pin captures into the fixture")
-    a.add_argument("--pin", action="append", required=True, help="<40-hex sha>=<capture json>")
+    a = sub.add_parser("assemble", help="combine the four per-pin captures into the fixture")
+    a.add_argument("--capture", action="append", required=True)
     a.add_argument("--out", required=True)
     args = ap.parse_args(argv)
     return _capture_cmd(args) if args.cmd == "capture" else _assemble_cmd(args)
