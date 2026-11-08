@@ -1,0 +1,201 @@
+{
+ "dump_root": "/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms",
+ "e0": {
+  "exp40_E0_YAW_C4_S40000_K8_s42_th90": {
+   "dump": {
+    "complete_sha256": "fe53d98ebc79d0587df253c2ecc7106fc16aa536360278ed3325c97d5794932c",
+    "dir": "/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K8_s42_th90_rot90",
+    "manifest_sha256": "6a702f0007654f5b4a23e463207e4d494889d34a1b63263821213c21d43d2002",
+    "sidecar_sha256": "b5cd2f8b1dc7088afd357dfb0e071da46abcbb0926d0194a77dca2d875b11381",
+    "waveforms_sha256": "1485ef84c6753959effa202b7cfe3b1fd364c1d66d995c864a1d22ac4b33d6ee"
+   },
+   "metrics": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K8_s42_th90_rot90.json",
+    "sha256": "fc8cb212a9a5b852d1ad3bc31e01ff17c1b0b93b79141d92d0c016751eb11130"
+   },
+   "receipt": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K8_s42_th90_rot90.cell.json",
+    "sha256": "ee7d624a0c5a5df589fa7e47690aca85e2d6297007a466ad69820bf3c7bf9177"
+   },
+   "reference": "exp25_YAW_C4_S40000_K8_s42_th90",
+   "stem": "epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K8_s42_th90_rot90",
+   "stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K8_s42_th90_rot90.stream.json",
+    "sha256": "e671270fc3cd61f5a47dd68f6f41707db68d6e62b4f2750ae52e9e7f9b7085a8"
+   }
+  },
+  "exp40_E0_YAW_R_S40000_K8_s42": {
+   "dump": {
+    "complete_sha256": "b3935574712ba792ade49610ae14fbda2b5e216a323581abf1b85c6e0d5ff31d",
+    "dir": "/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K8_s42_rotrand42",
+    "manifest_sha256": "e753177824a641e6322871eb5fd5871e56b0843797902c2406859e849182f016",
+    "sidecar_sha256": "453d4585b4cde84c1a21b154984cc9db8d5dc93c4f8dc6df6583d0f722a25904",
+    "waveforms_sha256": "cca768399f93660dad4e167c5488294b156a0b0cffe03e47674a69fa53c8dfbf"
+   },
+   "metrics": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K8_s42_rotrand42.json",
+    "sha256": "d0d34a6bd10e87fe911429ed90fae6de82116137569b6d1bfd88fcd1640b90f5"
+   },
+   "receipt": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K8_s42_rotrand42.cell.json",
+    "sha256": "3327a79372f8e00d9b15a955be19f796aa32e2f367cdbde2edf2c327ec7a6b3e"
+   },
+   "reference": "exp25_YAW_R_S40000_K8_s42",
+   "stem": "epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K8_s42_rotrand42",
+   "stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K8_s42_rotrand42.stream.json",
+    "sha256": "b91aa76610f2b5b8b681b7e7afa501d65644d773e8d461444ca7e2f9fd5977ab"
+   }
+  },
+  "exp40_E0_YAW_T_S40000_K1_s42": {
+   "dump": {
+    "complete_sha256": "52d42dbc717d5ad72421b94319a67cb62cb064c06b05b99c5561047b0b6255fe",
+    "dir": "/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K1_s42",
+    "manifest_sha256": "d9f7990402b044fdbae531dd53dc7d436e4125bac19185ad52b70bb9f75f2284",
+    "sidecar_sha256": "f273070b5a56bba149ccc14d59407f53083af519f73ca7457d2b3108ecd5cf18",
+    "waveforms_sha256": "3ed0e96991bc62ca7574856b0b330332d1dbe6d6558e138d94e109333665b487"
+   },
+   "metrics": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K1_s42.json",
+    "sha256": "b643aefe52e1a1b229c844ae543ad4917dca35e2a2d2e10cd2e16b27c0849379"
+   },
+   "receipt": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K1_s42.cell.json",
+    "sha256": "10af00403dcb213771c1c3ab1ea8f29fc21c527c22a32a2ea7fc93c88dc13ed0"
+   },
+   "reference": "exp25_YAW_T_S40000_K1_s42",
+   "stem": "epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K1_s42",
+   "stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K1_s42.stream.json",
+    "sha256": "31aa02dcd5dcb2f6d80247f13e8a4e76ae28bc050f7f2c8f353e2b0808e0793d"
+   }
+  }
+ },
+ "exp25_cells_sha256": "1073ef647434318d219dba3c20e3a18b5a909c90aa3ee6e6bd86021c965f0575",
+ "exp25_pin": "d6ca307a85b9b0a75ec9d47f4d237e63a3db527e",
+ "expected": {
+  "K1_s42": {
+   "R_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K1_s42_rotrand42.stream.json",
+    "sha256": "d5333a61a691b0599b8796239e0b3f0571a72fe211f7cd2fdef01e68022bc190"
+   },
+   "T_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K1_s42.stream.json",
+    "sha256": "31aa02dcd5dcb2f6d80247f13e8a4e76ae28bc050f7f2c8f353e2b0808e0793d"
+   },
+   "assignment_hash_random": "3df157e1df19281d84ecdb925fbe3e656906e3cc7d6da6e22c6245823b5d0ff4",
+   "input_hash": "37d2f5693fa6c7731c49b4ff4b68571ec0c5feb8455c80b0657ce06cba6fd759"
+  },
+  "K1_s43": {
+   "R_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K1_s43_rotrand43.stream.json",
+    "sha256": "8e40d48741c69be833e37c9da7412a45f89b3bc52b5fff59d4f3004dcc2aeb4c"
+   },
+   "T_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K1_s43.stream.json",
+    "sha256": "adf76ffd81806910963cc9221ae3e17d1e9f7705e2a764147cbe505ab89d4ae8"
+   },
+   "assignment_hash_random": "ea95d3cb08c87a002bbabfe70f7b5c8a100aa30517e786306c6c8e59516a275d",
+   "input_hash": "df150ea93d68a1e97caff05ddd3b69a4fb5ac1410df32ca9b3459deb82e363f8"
+  },
+  "K1_s44": {
+   "R_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K1_s44_rotrand44.stream.json",
+    "sha256": "0313e24d287e5d30cd266af3dbbdce8c07ac7b0edbcb623b120e472624eb7e0d"
+   },
+   "T_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K1_s44.stream.json",
+    "sha256": "316fac4c6ec17f56e14956671e06ecdd0105aac404c423c367d9bfbf147d7564"
+   },
+   "assignment_hash_random": "fc3baefa59032f22be0e8c131f3a531f145f63533b01d17d6ca42219af964fef",
+   "input_hash": "5709f434b246d7d881d3add6a6e26ec0285e21bcbfcff0314f814f3a33922eb5"
+  },
+  "K1_s45": {
+   "R_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K1_s45_rotrand45.stream.json",
+    "sha256": "9ab9ab8d1ab75a45469331388935ef73bb901be8c3d548a6a2ff3301f0164816"
+   },
+   "T_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K1_s45.stream.json",
+    "sha256": "300ea90fbf888aa49a3406173564f898fac65d421908d8bddb87a6545e7eeed2"
+   },
+   "assignment_hash_random": "9d69ba364e6e14e63388785d504f45231d72aec1880e4ed66019f9084d139ffa",
+   "input_hash": "fb4df53656ca75b4eb316c4a17846dceb153607e56edeca65496d431eddebc2e"
+  },
+  "K1_s46": {
+   "R_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K1_s46_rotrand46.stream.json",
+    "sha256": "ae0362e61b1c89cc42fbe82f2f615df0081e76e52b1ad1572679e819079df8dc"
+   },
+   "T_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K1_s46.stream.json",
+    "sha256": "8a7d7817c10f2b978b0264e94cdd233627241b5101e5a072e4d6632cd3ac48c1"
+   },
+   "assignment_hash_random": "bdc1eeba2fe05ef1edf56b34d51c2f8ee24b7d15359e2517cffb3da28688f6fc",
+   "input_hash": "7d139a5679ed198787326a544f1cc18ea891afa7799c973272add6b2ce0fcced"
+  },
+  "K8_s42": {
+   "R_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K8_s42_rotrand42.stream.json",
+    "sha256": "b91aa76610f2b5b8b681b7e7afa501d65644d773e8d461444ca7e2f9fd5977ab"
+   },
+   "T_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K8_s42.stream.json",
+    "sha256": "8d8018cabfd803be559b4224ef7c8833fe0af7b96542cbce65cd0a3e1d1d4af6"
+   },
+   "assignment_hash_random": "3df157e1df19281d84ecdb925fbe3e656906e3cc7d6da6e22c6245823b5d0ff4",
+   "input_hash": "4c950c1e2ed021a352f5c454b67e3b21234cdbd52060debc1c58919c9e3645ac"
+  },
+  "K8_s43": {
+   "R_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K8_s43_rotrand43.stream.json",
+    "sha256": "96852ec869e5dc2e325d900ffcd833cee07d4cb426ccd0f9a386f4483a99038e"
+   },
+   "T_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K8_s43.stream.json",
+    "sha256": "124201165bf27cde1bcd0ef299f3f3af23c6036c96a1f93daf8895d8e0a844f9"
+   },
+   "assignment_hash_random": "ea95d3cb08c87a002bbabfe70f7b5c8a100aa30517e786306c6c8e59516a275d",
+   "input_hash": "1c048da9c6afd2b240d4f5650d930fff92e455e14429d37eb869b3a7b8317e20"
+  },
+  "K8_s44": {
+   "R_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K8_s44_rotrand44.stream.json",
+    "sha256": "4d9e5323d53b5697f35f749d766bacf567c7fad205429698c425e8010c42e23b"
+   },
+   "T_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K8_s44.stream.json",
+    "sha256": "e121c3b74c3ff81ce66bd0fd72072f64b12e940f83b4605689e3af25767dcc60"
+   },
+   "assignment_hash_random": "fc3baefa59032f22be0e8c131f3a531f145f63533b01d17d6ca42219af964fef",
+   "input_hash": "8398cd8655ad8b44a09cd608035504744776d88a43335176b2ae5a5492a66f83"
+  },
+  "K8_s45": {
+   "R_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K8_s45_rotrand45.stream.json",
+    "sha256": "9eda8a20eaf3174e1d2e329dc7c866a8a9ad314b5f2fe97bee8a75efb3e3ce67"
+   },
+   "T_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K8_s45.stream.json",
+    "sha256": "58a49cdf95274e54d2402e259001bb4db47eac80d66f563b35bc69cfd53d5cd1"
+   },
+   "assignment_hash_random": "9d69ba364e6e14e63388785d504f45231d72aec1880e4ed66019f9084d139ffa",
+   "input_hash": "ef2c937139f8ec09e4034cccf3751ce15a9ba1761bbc7a5f6ec748bb6753063e"
+  },
+  "K8_s46": {
+   "R_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_R_S40000_K8_s46_rotrand46.stream.json",
+    "sha256": "fca346304895adf408fcfd8f265418aaa8c1bfe1f855e12f804a73d44fb7b3ca"
+   },
+   "T_stream": {
+    "path": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_T_S40000_K8_s46.stream.json",
+    "sha256": "f0a0221f8fab4a6e42b2471ca88dfb61ee899aa95035457eb2374874a66da4ab"
+   },
+   "assignment_hash_random": "bdc1eeba2fe05ef1edf56b34d51c2f8ee24b7d15359e2517cffb3da28688f6fc",
+   "input_hash": "163f89a4b84a8071f1fa8091883cc9ab2c9bff97fccdb37b5196bbb8c1490b17"
+  }
+ },
+ "farm": "/home/yixunhu/codespace/exp-25-depth-canon/outputs_FLAC/exp25_depth_canon/YAW",
+ "kind": "exp40_e0_reference",
+ "schema_version": 1
+}
