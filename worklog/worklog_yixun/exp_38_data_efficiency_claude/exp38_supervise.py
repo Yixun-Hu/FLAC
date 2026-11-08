@@ -178,41 +178,43 @@ def supervise(child, record, start_check=None, start_timeout=START_TIMEOUT_S, ev
             record.update(**{f"{name}_gate": "PASS" if not res else res})
             if res:
                 rc = child.terminate(grace)
-                record.update(status=f"{name} gate failed; our process group terminated", child_rc=rc)
+                record.update(strict=True, status=f"{name} gate failed; our process group terminated", child_rc=rc,
+                              finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
                 return EXIT_START
         while not child.exited():
             sleep_checked(poll)
         rc = child.reap()
-        record.update(child_rc=rc, child_exited_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
+        record.update(strict=True, child_rc=rc, child_exited_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
         return 128 - rc if rc < 0 else rc
     except Stopped as st:
         rc = child.terminate(grace)
-        record.update(status=f"terminated by signal {st.signum}; our process group stopped", child_rc=rc,
+        record.update(strict=True, status=f"terminated by signal {st.signum}; our process group stopped", child_rc=rc,
                       finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
         return 128 + st.signum
 
 
 class Record:
-    """The launch record, rewritten atomically (JSON) at every change, at every listed path."""
+    """The launch record, rewritten atomically (JSON) at every change. ``paths[0]`` is AUTHORITATIVE:
+    its write must succeed at creation (before any launch) and at every terminal transition
+    (``strict=True``), else OSError propagates; the other copies are best-effort, and a failed
+    non-terminal update of the authoritative copy is reported, not fatal, while a trainer runs."""
 
     def __init__(self, paths, **fields):
         self.paths, self.data = list(paths), dict(fields)
-        self.flush()
+        self.flush(strict=True)
 
-    def add_path(self, path):
-        self.paths.append(path)
-        self.flush()
-
-    def update(self, **fields):
+    def update(self, strict=False, **fields):
         self.data.update(fields)
-        self.flush()
+        self.flush(strict=strict)
 
-    def flush(self):
+    def flush(self, strict=False):
         text = (json.dumps(self.data, indent=1, sort_keys=True, default=str) + "\n").encode()
-        for p in self.paths:
+        for i, p in enumerate(self.paths):
             try:
                 reg.atomic_write_bytes(p, text)
-            except OSError as err:              # a record copy must never kill a running supervisor
+            except OSError as err:
+                if i == 0 and strict:
+                    raise
                 print(f"record write {p} failed: {err}", file=sys.stderr, flush=True)
 
 
@@ -222,10 +224,13 @@ def git(*args, repo=None):
 
 
 def child_env(platform, backend, launch_root, cuda_devices=None):
-    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "PYTHONDONTWRITEBYTECODE")}
-    if platform == "neuronic":           # PL 2.1 must elect TorchElastic, not SLURM (recorded first)
-        for k in SLURM_RANK_VARS:
-            env.pop(k, None)
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "PYTHONDONTWRITEBYTECODE")
+           and k not in reg.LAUNCHER_VARS and not k.startswith(reg.LAUNCHER_PREFIXES)}
+    for k in list(env):
+        # neuronic: PL 2.1 must elect TorchElastic, not SLURM (the SLURM rank variables are recorded first);
+        # this box: no SLURM variable at all (SLURM_PROCID would shift train.py's seed)
+        if (platform == "neuronic" and k in SLURM_RANK_VARS) or (platform == "a6000" and k.startswith("SLURM_")):
+            env.pop(k)
     env.update({"HF_HUB_OFFLINE": "1", "PYTHONUNBUFFERED": "1", "PYTHONNOUSERSITE": "1"})
     if backend == "sdpa":
         env.update({"PYTHONPATH": os.path.join(launch_root, "overlays", "no_flash"), "PYTHONDONTWRITEBYTECODE": "1"})
@@ -235,19 +240,23 @@ def child_env(platform, backend, launch_root, cuda_devices=None):
 
 
 def backend_gate(backend, launch_root, env):
-    """Resolve ``flash_attn`` exactly as the child will (same interpreter, cwd and env)."""
-    code = ("import importlib.util, os; s = importlib.util.find_spec('flash_attn'); "
-            "print(os.path.realpath(s.origin) if s and s.origin else '')")
-    out = subprocess.run([sys.executable, "-c", code], cwd=launch_root, env=env, capture_output=True, text=True, timeout=300)
+    """Resolve ``flash_attn`` AND import the production transformer exactly as the child will (same
+    interpreter, cwd and env): flash needs a real flash_attn bound as ``src.models.transformer.
+    flash_attn_func``; sdpa needs the overlay (or none) and that name unbound."""
+    code = ("import importlib.util, json, os, sys; sys.path.insert(0, os.getcwd()); "
+            "s = importlib.util.find_spec('flash_attn'); "
+            "import src.models.transformer as T; "
+            "print(json.dumps([os.path.realpath(s.origin) if s and s.origin else '', T.flash_attn_func is not None]))")
+    out = subprocess.run([sys.executable, "-c", code], cwd=launch_root, env=env, capture_output=True, text=True, timeout=600)
     if out.returncode:
         raise Refused(f"backend probe failed: {out.stderr.strip()[-400:]}", EXIT_ENV)
-    origin = out.stdout.strip()
+    origin, bound = json.loads(out.stdout.strip().split("\n")[-1])
     overlay = os.path.realpath(os.path.join(launch_root, "overlays", "no_flash", "flash_attn.py"))
-    if backend == "flash" and (not origin or origin == overlay):
-        raise Refused("ATTN_BACKEND=flash but the child cannot import a real flash_attn")
-    if backend == "sdpa" and origin not in ("", overlay):
-        raise Refused(f"ATTN_BACKEND=sdpa but the child would import {origin}")
-    return {"attention_backend": backend, "flash_attn": origin or "absent"}
+    if backend == "flash" and (not origin or origin == overlay or bound is not True):
+        raise Refused(f"ATTN_BACKEND=flash but the child's transformer binds flash_attn_func={bound} ({origin or 'absent'})")
+    if backend == "sdpa" and (origin not in ("", overlay) or bound is not False):
+        raise Refused(f"ATTN_BACKEND=sdpa but the child would import {origin} (flash bound: {bound})")
+    return {"attention_backend": backend, "flash_attn": origin or "absent", "flash_attn_func_bound": bound}
 
 
 def interpreter_gate(platform, expect_python=None):
@@ -256,7 +265,7 @@ def interpreter_gate(platform, expect_python=None):
         raise Refused(f"python resolves to {exe}, not the flac env", EXIT_ENV)
     if platform == "neuronic" and (not expect_python or exe != os.path.realpath(expect_python)):
         raise Refused(f"python is {exe}, not {expect_python}", EXIT_ENV)
-    probs = reg.env_problems()
+    probs = reg.env_problems() + reg.launcher_env_problems(platform)
     if probs:
         raise Refused("; ".join(probs), EXIT_ENV)
     return exe
@@ -317,6 +326,37 @@ def neuronic_allocation_gate(ngpu, env):
         raise Refused(f"torch sees {names}, not {ngpu} x L40")
     rows = reg._gpu_rows()
     return reg.gpu_identity("neuronic", ngpu, [[r[1], r[2]] for r in rows])
+
+
+LOCK_HOLDER = r"""
+import os, sys, time
+pg = int(sys.argv[1])
+
+def alive():
+    for d in os.listdir("/proc"):
+        if d.isdigit():
+            try:
+                st = open("/proc/%s/stat" % d).read()
+            except OSError:
+                continue
+            if int(st[st.rindex(")") + 2:].split()[2]) == pg:
+                return True
+    return False
+
+while alive():
+    time.sleep(2)
+"""
+
+
+def start_lock_holder(pgid, fds):
+    """A detached process holding the card-lock fds until NO process of group ``pgid`` remains (the
+    trainer, every rank Lightning's launcher spawns -- a plain Popen that does not inherit fds -- and
+    every data worker share that group). Survives a killed supervisor."""
+    if not fds:
+        return None
+    return subprocess.Popen([sys.executable, "-I", "-c", LOCK_HOLDER, str(pgid)], pass_fds=tuple(fds),
+                            start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL)
 
 
 def lock_cards(cards, lockdir):
@@ -432,7 +472,8 @@ def mode_smoke_single(a):
                                stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
     try:
         child = OwnedChild(launch_cmd("a6000", 1, argv), reg.REPO, env, log, pass_fds=fds)
-        rec.update(pid=child.pid, pgid=child.pgid, start_time=child.start)
+        holder = start_lock_holder(child.pgid, fds)
+        rec.update(pid=child.pid, pgid=child.pgid, start_time=child.start, lock_holder_pid=holder.pid if holder else None)
         rc = supervise(child, rec)
     finally:
         sampler.terminate()
@@ -447,7 +488,7 @@ def mode_smoke_single(a):
     lg = reg.log_gate(open(log, errors="replace").read(), a.run, "end", a.backend, 1, max_steps=a.smoke_steps, min_losses=1)
     eg = reg.evidence_gate(os.path.join(sdir, "evidence"), a.run, 1, a.backend, a.smoke_steps)
     verdict = "PASS" if rc == 0 and n_ckpt == 0 and not lg and not eg else "FAIL"
-    rec.update(rc=rc, checkpoints_written=n_ckpt, log_gate="PASS" if not lg else lg,
+    rec.update(strict=True, rc=rc, checkpoints_written=n_ckpt, log_gate="PASS" if not lg else lg,
                evidence_gate="PASS" if not eg else eg, peak_vram_mib_card=max(vals) if vals else None,
                verdict=verdict, status="finished", log=log)
     print(f"SMOKE VERDICT: {verdict} (log {log})", flush=True)
@@ -487,6 +528,13 @@ def mode_campaign(a, platform):
         if platform == "a6000" and e0["head"] != head:      # one frozen campaign tree on this box
             raise Refused(f"HEAD {head} != the E0 campaign's {e0['head']}")
         smoke = reg.check_smoke_receipt(a.run, platform, a.backend, head, gpus if platform == "a6000" else None)
+        # the BYTES of every AR file the run can read (Codex code r2 BLOCKING 3); minutes over CIFS
+        if reg.AR_CONTENT_SHA256 is None:
+            raise Refused("the AR content manifest is not pinned in the registry")
+        import exp38_content_manifest as cm
+        cprobs = cm.verify(reg._abs(reg.AR_CONTENT_MANIFEST), "AcousticRooms", reg.REPO, want_sha=reg.AR_CONTENT_SHA256)
+        if cprobs:
+            raise Refused("AR content: " + "; ".join(cprobs))
     # ---- run dir + storage
     if full:
         rd = reg.save_dir(platform, a.run)
@@ -511,6 +559,10 @@ def mode_campaign(a, platform):
     reg.atomic_write_bytes(os.path.join(rd, ".exp38_lock", "holder"), json.dumps(
         {"pid": os.getpid(), "host": os.uname().nodename, "ts": ts, "head": head,
          "job": os.environ.get("SLURM_JOB_ID")}).encode())
+    retained = None
+    if full:                         # the exact receipt bytes this run is admitted under (Codex code r2 HIGH 6)
+        retained = reg.retain_receipts(rd, {"e0": reg._abs(reg.E0_RECEIPT), "smoke": smoke["smoke_receipt"],
+                                            "env": reg._abs(reg.env_receipt_rel(platform))})
     # ---- snapshot (launch root)
     snap = (os.path.join(SNAPSHOT_ROOT["a6000"], f"{a.run}_{a.mode}_{ts}") if platform == "a6000"
             else os.path.join(rd, ".exp38_tools"))
@@ -540,7 +592,9 @@ def mode_campaign(a, platform):
     print(json.dumps(rec.data, indent=1, default=str), flush=True)
     def launch_and_audit():
         child = OwnedChild(cmd, snap, env, log, pass_fds=fds)
-        rec.update(pid=child.pid, pgid=child.pgid, start_time=child.start, status="running")
+        holder = start_lock_holder(child.pgid, fds)
+        rec.update(pid=child.pid, pgid=child.pgid, start_time=child.start, status="running",
+                   lock_holder_pid=holder.pid if holder else None)
 
         def start_check():
             text = open(log, errors="replace").read()
@@ -557,7 +611,7 @@ def mode_campaign(a, platform):
         rc = supervise(child, rec, start_check if full else None, evidence_check=evidence_check if full else None,
                        grace=a.grace)
         if rc != 0:
-            rec.update(status=rec.data.get("status", "running") if rc in (EXIT_START,) or rc >= 128
+            rec.update(strict=True, status=rec.data.get("status", "running") if rc in (EXIT_START,) or rc >= 128
                        else f"train exited {rc}", finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
             print(f"EXP38 {a.run} {a.mode} FAILED rc={rc}; the run lock stays as the crash marker", flush=True)
             return rc
@@ -569,20 +623,21 @@ def mode_campaign(a, platform):
             if full:
                 out = reg.write_training_receipt(a.run, platform, a.backend, head, rd, log, rc, snapshot["snapshot_sha256"],
                                                  e0["sha256"], smoke, gpus, rec.data["launched_at"], env_sha,
-                                                 repo=snap, tree=reg.REPO)
+                                                 retained, reg.AR_CONTENT_SHA256, repo=snap, tree=reg.REPO)
                 verdict = "COMPLETE"
                 rec.update(training_receipt=os.path.join(rd, reg.TRAINING_RECEIPT), final_ckpt_sha256=out["final_ckpt_sha256"])
             else:
                 out = reg.write_smoke_receipt(a.run, platform, a.backend, head, rd, log, rc, gpus, snapshot["snapshot_sha256"],
-                                              rec.data["launched_at"], ts, env_sha, repo=snap, out_repo=reg.REPO)
+                                              rec.data["launched_at"], ts, env_sha, repo=snap, out_repo=reg.REPO,
+                                              snapshot_dir=snap)
                 verdict = out["verdict"]
                 rec.update(smoke_receipt=out)
         except (reg.GateError, OSError, ValueError, KeyError) as err:
-            rec.update(status=f"end audit failed: {err}", finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
+            rec.update(strict=True, status=f"end audit failed: {err}", finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
             print(f"EXP38 {a.run} {a.mode} END AUDIT FAILED: {err}", flush=True)
             return EXIT_END
         os.rename(os.path.join(rd, ".exp38_lock"), os.path.join(rd, f".exp38_lock.released_{ts}"))
-        rec.update(status=verdict, finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
+        rec.update(strict=True, status=verdict, finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
         print(f"EXP38 {a.run} {a.mode} {verdict}", flush=True)
         return 0 if verdict in ("COMPLETE", "PASS") else EXIT_END
 

@@ -21,6 +21,9 @@ import sys
 
 import pytest
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import exp38_fixtures as fx  # noqa: E402
+
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_38_data_efficiency_claude")
 sys.path.insert(0, EXP)
@@ -209,8 +212,11 @@ def _smoke(tree, run="de_bf_f025", ts="2026-11-08_04-00-00", rc=0, ckpt=False, r
         (sd / "epoch=0-step=1.ckpt").write_bytes(b"x")
     lp = tree / f"smoke_{ts}.log"
     lp.write_text(log if log is not None else smoke_log(run, backend=backend))
-    return reg.write_smoke_receipt(run, platform, backend, HEAD, str(sd), str(lp), rc, gpus or A6000_GPUS, "5" * 64,
-                                   "2026-11-08T04:00:00-0500", ts, ENV_SHA, repo=str(tree), out_repo=str(tree))
+    snap = tree / f"snap_{ts}"
+    snap_sha = fx.fake_snapshot(reg, str(snap))
+    return reg.write_smoke_receipt(run, platform, backend, HEAD, str(sd), str(lp), rc, gpus or A6000_GPUS, snap_sha,
+                                   "2026-11-08T04:00:00-0500", ts, ENV_SHA, repo=str(tree), out_repo=str(tree),
+                                   snapshot_dir=str(snap))
 
 
 def test_the_smoke_writer_recomputes_every_gate(tree):
@@ -265,6 +271,9 @@ SMOKE_MUTATIONS = {
     "evidence rank": lambda r: r["evidence"].pop("1"), "evidence sdpa": lambda r: r["evidence"]["0"].update(
         flash_attn_func_set=False, flash_calls=0, sdpa_calls=48),
     "snapshot": lambda r: r.update(snapshot_sha256="nope"), "schema": lambda r: r.update(schema=2),
+    "snapshot sha (valid-looking)": lambda r: r.update(snapshot_sha256="7" * 64),
+    "snapshot dir": lambda r: r.update(snapshot_dir="/nonexistent/snapshot"),
+    "log sha (valid-looking)": lambda r: r.update(log_sha256="7" * 64), "log path": lambda r: r.update(log="/nonexistent.log"),
     "extra key": lambda r: r.update(extra=1), "missing key": lambda r: r.pop("finished_at"),
 }
 
@@ -274,6 +283,22 @@ def test_the_smoke_consumer_refuses_each_field_mutation(tree, name):
     out = _smoke(tree)
     _reseal(out["smoke_receipt"], SMOKE_MUTATIONS[name])
     with pytest.raises(reg.GateError):
+        reg.check_smoke_receipt("de_bf_f025", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
+
+
+def test_the_smoke_consumer_re_opens_its_log_and_snapshot(tree):
+    """Durable bindings are re-hashed (Codex code r2 HIGH 3): an edited log or snapshot file refuses
+    although the sealed receipt is untouched; a log that no longer passes its gate refuses too."""
+    out = _smoke(tree)
+    rec = json.load(open(out["smoke_receipt"]))
+    reg.check_smoke_receipt("de_bf_f025", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
+    open(os.path.join(rec["snapshot_dir"], "x.txt"), "a").write("tampered\n")
+    with pytest.raises(reg.GateError, match="snapshot"):
+        reg.check_smoke_receipt("de_bf_f025", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
+    out = _smoke(tree, ts="2026-11-08_05-00-00")
+    rec = json.load(open(out["smoke_receipt"]))
+    open(rec["log"], "a").write("one more line\n")
+    with pytest.raises(reg.GateError, match="log"):
         reg.check_smoke_receipt("de_bf_f025", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
 
 
@@ -301,57 +326,163 @@ def test_a_neuronic_smoke_receipt_needs_its_l40_allocation(tree):
 
 
 # ------------------------------------------------------------------ TRAINING_COMPLETE
+import exp38_eval  # noqa: E402  (E0_KEYS for the retained E0 copy)
+
+
+def _admitted(tree, monkeypatch, run="de_yaw_f050"):
+    """The sealed E0 / environment / SMOKE_DDP receipts a FULL launch validated, in the campaign tree,
+    mutually consistent; returns (paths, digests)."""
+    exp = tree / reg.EXP_DIR
+    _, e0d = fx.sealed(reg, str(exp / "data_efficiency_e0_receipt.json"), exp38_eval.E0_KEYS, verdict="PASS",
+                       closure_sha256=CLOSURE)
+    _, envd = fx.sealed(reg, str(exp / "data_efficiency_env_receipt_a6000.json"), reg.ENV_RECEIPT_KEYS, platform="a6000")
+    monkeypatch.setattr(reg, "env_receipt_sha", lambda platform, repo=None: envd)
+    argv = reg.build_train_argv(run, "a6000")
+    smk_path = str(exp / f"data_efficiency_smoke_{run}_a6000_2026-11-08_04-00-00.json")
+    _, smkd = fx.sealed(reg, smk_path, reg.SMOKE_KEYS, schema=1, mode="SMOKE_DDP", run=run, platform="a6000",
+                        backend="flash", head=HEAD, closure_sha256=CLOSURE, env_receipt_sha256=envd, rc=0,
+                        checkpoints_written=0, log_gate="PASS", evidence_gate="PASS", verdict="PASS",
+                        argv_projection=reg.argv_projection(argv),
+                        evidence={str(r): e for r, e in records(run).items()})
+    paths = {"e0": str(exp / "data_efficiency_e0_receipt.json"), "smoke": smk_path,
+             "env": str(exp / "data_efficiency_env_receipt_a6000.json")}
+    return paths, {"e0": e0d, "env": envd, "smoke": smkd}
+
+
 def _full_run(tree, monkeypatch, run="de_yaw_f050", losses=60, rc=0, drop=None):
     arm, tag, _ = reg.parse_run_id(run)
     rd = tree / run
     rd.mkdir()
-    for s in reg.cadence_steps():
-        if s != drop:
-            (rd / reg.ckpt_name(s, tag)).write_bytes(f"ckpt {s}".encode())
+    for s_ in reg.cadence_steps():
+        if s_ != drop:
+            (rd / reg.ckpt_name(s_, tag)).write_bytes(f"ckpt {s_}".encode())
     (rd / ".exp38_lock").mkdir()
     write_evidence(str(rd / "evidence"), records(run, max_steps=40000))
     log = tree / f"{run}.log"
     log.write_text(smoke_log(run, steps=40000, losses=losses))
     monkeypatch.setattr(reg, "audit_ckpt", lambda path, run, step, repo=None, run_dir=None: {
         "sha256": reg.sha256_file(path), "bytes": os.path.getsize(path), "global_step": step})
-    return rd, log
+    paths, digests = _admitted(tree, monkeypatch, run)
+    retained = reg.retain_receipts(str(rd), paths)
+    return rd, log, retained, paths, digests
 
 
-def _write_tr(rd, log, run="de_yaw_f050", rc=0):
-    return reg.write_training_receipt(run, "a6000", "flash", HEAD, str(rd), str(log), rc, "5" * 64, "e" * 64,
-                                      {"smoke_receipt": "s.json", "sha256": "6" * 64}, A6000_GPUS,
-                                      "2026-11-08T04:00:00-0500", ENV_SHA, repo=str(rd.parent), tree=str(rd.parent))
+def _write_tr(tree, rd, log, retained, paths, digests, run="de_yaw_f050", rc=0, content=None):
+    return reg.write_training_receipt(run, "a6000", "flash", HEAD, str(rd), str(log), rc, "5" * 64, digests["e0"],
+                                      {"smoke_receipt": paths["smoke"], "sha256": digests["smoke"]}, A6000_GPUS,
+                                      "2026-11-08T04:00:00-0500", digests["env"], retained,
+                                      reg.AR_CONTENT_SHA256 if content is None else content,
+                                      repo=str(tree), tree=str(tree))
 
 
 def test_the_training_receipt_is_published_only_after_every_end_audit(tree, monkeypatch):
-    rd, log = _full_run(tree, monkeypatch)
-    rec = _write_tr(rd, log)
+    rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+    rec = _write_tr(tree, rd, log, retained, paths, digests)
     assert rec["final_ckpt_bytes"] == len(b"ckpt 40000") and rec["rc"] == 0
-    got, digest = reg.check_training_receipt("de_yaw_f050", str(rd), closure=CLOSURE)
+    assert sorted(os.listdir(rd / reg.RECEIPTS_DIR)) == sorted(
+        [os.path.basename(p) for p in paths.values()] + [os.path.basename(p) + ".sha256" for p in paths.values()]
+        + ["train.log"])
+    got, digest = reg.check_training_receipt("de_yaw_f050", str(rd), closure=CLOSURE, e0_sha=digests["e0"],
+                                             platform="a6000")
     assert got == rec and len(digest) == 64
+    for kw in ({"closure": "0" * 64}, {"e0_sha": "0" * 64}, {"platform": "neuronic"}):
+        with pytest.raises(reg.GateError):
+            reg.check_training_receipt("de_yaw_f050", str(rd), **kw)
     with pytest.raises(reg.GateError):
-        reg.check_training_receipt("de_yaw_f050", str(rd), closure="0" * 64)     # another campaign
+        _write_tr(tree, rd, log, retained, paths, digests)                       # written once
     with pytest.raises(reg.GateError):
-        _write_tr(rd, log)                                                       # written once
+        reg.retain_receipts(str(rd), paths)                                      # retained once
 
 
-@pytest.mark.parametrize("case", ["rc", "few losses", "missing ckpt", "bad evidence", "sdpa evidence"])
+@pytest.mark.parametrize("case", ["rc", "few losses", "missing ckpt", "bad evidence", "sdpa evidence", "content"])
 def test_the_training_receipt_refuses_a_failed_run(tree, monkeypatch, case):
-    rd, log = _full_run(tree, monkeypatch, losses=10 if case == "few losses" else 60,
-                        drop=20000 if case == "missing ckpt" else None)
+    rd, log, retained, paths, digests = _full_run(tree, monkeypatch, losses=10 if case == "few losses" else 60,
+                                                  drop=20000 if case == "missing ckpt" else None)
     if case == "bad evidence":
         write_evidence(str(rd / "evidence"), {**records("de_yaw_f050", max_steps=40000),
                                               1: dict(records("de_yaw_f050", max_steps=40000)[1], local_rank=0)})
     if case == "sdpa evidence":
         write_evidence(str(rd / "evidence"), records("de_yaw_f050", backend="sdpa", max_steps=40000))
     with pytest.raises(reg.GateError):
-        _write_tr(rd, log, rc=1 if case == "rc" else 0)
+        _write_tr(tree, rd, log, retained, paths, digests, rc=1 if case == "rc" else 0,
+                  content="0" * 64 if case == "content" else None)
     assert not (rd / reg.TRAINING_RECEIPT).exists()
 
 
+def _reseal_tr(rd, fn):
+    path = str(rd / reg.TRAINING_RECEIPT)
+    rec = json.load(open(path))
+    fn(rec)
+    os.remove(path)
+    os.remove(path + ".sha256")
+    reg.write_sealed(path, rec)
+
+
+TR_MUTATIONS = {
+    "platform": lambda r: r.update(platform="neuronic"), "backend": lambda r: r.update(backend="sdpa"),
+    "head": lambda r: r.update(head="e" * 40), "head malformed": lambda r: r.update(head="abc"),
+    "argv": lambda r: r.update(argv=r["argv"][:-2]), "argv batch": lambda r: r["argv"].__setitem__(r["argv"].index("--batch-size") + 1, "16"),
+    "model cfg": lambda r: r.update(model_config_sha256="0" * 64), "data cfg": lambda r: r.update(dataset_config_sha256="0" * 64),
+    "split": lambda r: r.update(split_sha256="0" * 64), "content": lambda r: r.update(data_content_sha256="0" * 64),
+    "rc": lambda r: r.update(rc=1), "log gate": lambda r: r.update(log_gate=["x"]), "evidence gate": lambda r: r.update(evidence_gate=["x"]),
+    "env sha": lambda r: r.update(env_receipt_sha256="1" * 64), "smoke sha": lambda r: r.update(smoke_receipt_sha256="1" * 64),
+    "e0 sha": lambda r: r.update(e0_receipt_sha256="1" * 64), "snapshot": lambda r: r.update(snapshot_sha256="x"),
+    "log sha": lambda r: r.update(log_sha256="1" * 64), "evidence sha": lambda r: r.update(evidence_sha256="1" * 64),
+    "manifest sha": lambda r: r.update(checkpoints_sha256="1" * 64), "final sha": lambda r: r.update(final_ckpt_sha256="1" * 64),
+    "final bytes": lambda r: r.update(final_ckpt_bytes=1), "final bytes type": lambda r: r.update(final_ckpt_bytes=10.0),
+    "final name": lambda r: r.update(final_ckpt="epoch=0-step=40000.ckpt"),
+    "gpus": lambda r: r.update(gpus=[["GPU-x", "NVIDIA RTX A6000"]] * 2), "gpus l40": lambda r: r.update(gpus=[["GPU-0", "NVIDIA L40"]] * 2),
+    "receipts map": lambda r: r["receipts"].pop("smoke"), "receipts name": lambda r: r["receipts"].update(env="other.json"),
+    "time": lambda r: r.update(finished_at=None), "schema": lambda r: r.update(schema=2), "run": lambda r: r.update(run="de_yaw_f025"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+    """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+    rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+    _write_tr(tree, rd, log, retained, paths, digests)
+    _reseal_tr(rd, TR_MUTATIONS[name])
+    with pytest.raises(reg.GateError):
+        reg.check_training_receipt("de_yaw_f050", str(rd), closure=CLOSURE, e0_sha=digests["e0"])
+
+
+@pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
+                                  "smoke copy evidence"])
+def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
+    rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+    _write_tr(tree, rd, log, retained, paths, digests)
+    rdir = rd / reg.RECEIPTS_DIR
+    if what == "e0 copy":
+        p = rdir / retained["e0"]
+        p.write_bytes(p.read_bytes().replace(b'"PASS"', b'"FAIL"'))
+    elif what == "env copy":
+        p = rdir / retained["env"]
+        p.write_bytes(p.read_bytes() + b" ")
+    elif what in ("smoke copy resealed", "smoke copy evidence"):
+        p = str(rdir / retained["smoke"])
+        rec = json.load(open(p))
+        if what == "smoke copy resealed":
+            rec["backend"] = "sdpa"
+        else:
+            rec["evidence"]["1"]["rng_at_fit_start"]["torch_cuda"] = "0" * 64
+        os.remove(p)
+        os.remove(p + ".sha256")
+        reg.write_sealed(p, rec)
+    elif what == "log copy":
+        (rdir / "train.log").write_text("Seed set to 42\n")
+    else:
+        f = rd / "evidence" / "run_evidence.json.rank1.json"
+        e = json.load(open(f))
+        e["n_state_tensors"] = 1
+        json.dump(e, open(f, "w"))
+    with pytest.raises(reg.GateError):
+        reg.check_training_receipt("de_yaw_f050", str(rd), closure=CLOSURE, e0_sha=digests["e0"])
+
+
 def test_the_training_receipt_binds_manifest_sha_and_bytes(tree, monkeypatch):
-    rd, log = _full_run(tree, monkeypatch)
-    _write_tr(rd, log)
+    rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+    _write_tr(tree, rd, log, retained, paths, digests)
     final = rd / reg.ckpt_name(40000, "050")
     final.write_bytes(b"ckpt 40001")                                             # same length, other bytes
     with pytest.raises(reg.GateError):

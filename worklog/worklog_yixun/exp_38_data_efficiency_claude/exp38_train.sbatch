@@ -45,6 +45,10 @@ main() {
   local PY; PY="$(command -v python)" || die "no python" 3
   [ "$(readlink -f "$PY")" = "$(readlink -f "$ENV_PREFIX/bin/python")" ] || die "python is $(readlink -f "$PY"), not ${ENV_PREFIX}/bin/python" 3
 
+  # no untracked importable file may sit next to the kit the supervisor imports (Codex code r2 HIGH 10)
+  local KITLIST; KITLIST="$(git -C "$REPO/$EXP" ls-files --others -- .)" || die "git ls-files failed in the kit folder" 3
+  local SHADOW; SHADOW="$(grep -v '__pycache__/' <<< "$KITLIST" | grep -E '\.(py|pyc|pyo|so|pyd|pth)$|(^|/)(site|user)customize' || true)"
+  [ -z "$SHADOW" ] || die "untracked importable files in the kit folder: ${SHADOW//$'\n'/ }" 3
   local ARGS=(--platform neuronic --run "$RUN" --backend "$ATTN_BACKEND" --expect-python "$ENV_PREFIX/bin/python"
               --expect-flash-version "${EXPECT_FLASH_VERSION:-}")
   [ "$ALLOW" = 1 ] && ARGS+=(--allow-nonmatched-rung)

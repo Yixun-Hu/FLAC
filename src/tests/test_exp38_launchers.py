@@ -267,3 +267,37 @@ def test_run_dirs_owner_dirs_and_resources():
         sub.run_dir("de_p1_f050", "FULL", "/r")
     with pytest.raises(sub.SubmitError):
         sub.submit("de_bf_f025", "FULL", "forever", "flash", "", False, True)
+
+
+def _claim_proc(args):
+    tmp, token, jid, name, sd = args
+    os.environ["SLURM_JOB_ID"], os.environ["SLURM_JOB_NAME"] = jid, name
+    try:
+        sub.claim_attempt("de_bf_f050", "FULL", token, "a" * 40, "flash", sd, reg.FLASH_VERSION, False, root=tmp)
+        return jid
+    except reg.GateError:
+        return None
+
+
+def test_two_simultaneous_jobs_of_one_owner_cannot_both_claim(tmp_path, no_preflight):
+    """Codex code r2 HIGH 2: an interrupted submission (job id unknown) and a duplicate job start at
+    once: the fixed owner-scoped claim admits exactly one."""
+    import multiprocessing as mp
+    with pytest.raises(sub.SubmitError):
+        _submit(tmp_path, run="de_bf_f050", fake=FakeScheduler(fail={"sbatch"}))
+    od, intent = sub.find_intent("de_bf_f050", "FULL", root=str(tmp_path))
+    args = [(str(tmp_path), intent["token"], str(1000 + i), intent["job_name"], intent["save_dir"]) for i in range(6)]
+    with mp.get_context("fork").Pool(6) as pool:
+        got = pool.map(_claim_proc, args)
+    assert len([g for g in got if g]) == 1
+    assert len([n for n in os.listdir(od) if n.startswith("attempt_")]) == 1
+
+
+def test_an_untracked_importable_next_to_the_kit_refuses_every_mode(tmp_path):
+    shadow = os.path.join(EXP, f"zz_exp38_shadow_test_{os.getpid()}.py")
+    open(shadow, "w").write("raise SystemExit(99)\n")
+    try:
+        r = _launch(MODE="DRY_RUN", RUN="de_yaw_f025", EXP38_DRY_SAVE_ROOT=str(tmp_path))
+        assert r.returncode == 3 and "untracked importable files in the kit folder" in r.stderr
+    finally:
+        os.remove(shadow)

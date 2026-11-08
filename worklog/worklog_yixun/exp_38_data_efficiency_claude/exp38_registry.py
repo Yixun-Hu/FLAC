@@ -274,6 +274,9 @@ def check_subset(tag, repo=None):
 
 
 SUBSET_AUDIT = f"{EXP_DIR}/data_efficiency_subset_audit.json"
+# the BYTES of every AR file the registered runs read (exp38_content_manifest.py; Codex code r2 BLOCKING 3)
+AR_CONTENT_MANIFEST = f"{EXP_DIR}/data_efficiency_ar_content_manifest.txt.gz"
+AR_CONTENT_SHA256 = "369bd4fcf015f232f5dbd0561ea77ccc6b32e1dcc6a71788e264bd9825f0042c"   # 445,414 files, 17.87 GB, 729 groups (2026-11-08)
 SUBSET_AUDIT_BOUND = frozenset({"src/configs/dataset_configs/custom_metadata/AR_md.py", "src/data/dataset.py",
                                 "data/AR/train_frac_manifest_s2026.json", "data/AR/train.json",
                                 f"{EXP_DIR}/exp38_subset_audit.py"}
@@ -322,7 +325,7 @@ def cadence_steps(upto=MAX_STEPS):
     return list(range(CADENCE, upto + 1, CADENCE))
 
 
-RUN_DIR_OWN = (".exp38_lock", ".exp38_tools", "CHECKPOINTS.sha256", "evidence", "TRAINING_COMPLETE.json",
+RUN_DIR_OWN = (".exp38_lock", ".exp38_tools", "CHECKPOINTS.sha256", "evidence", "receipts", "TRAINING_COMPLETE.json",
                "TRAINING_COMPLETE.json.sha256")
 
 
@@ -361,6 +364,28 @@ def inverse_lr(step, base=5e-5, inv_gamma=1e6, power=0.5, warmup=0.99):
 # exact checkpoint schema of a 40k checkpoint of this architecture under PL 2.1.0 (read from the
 # YAW / B-F 100 % checkpoints and dc_van_f025, 2026-11-07; dc_van carries one extra exp_14 key)
 N_OPT_STATE = 449            # of the 753 group parameters, those that receive gradients carry Adam state
+N_OPT_PARAMS = 753
+# the parameters WITHOUT Adam state (no gradient ever reaches them) -- identical in the dc_van_f025, YAW and B-F
+# 40k endpoints (read 2026-11-07); every other index carries state
+OPT_NO_STATE_RANGES = ((173, 175), (179, 179), (391, 393), (456, 752))
+OPT_STATE_IDS = tuple(i for i in range(N_OPT_PARAMS) if not any(a <= i <= b for a, b in OPT_NO_STATE_RANGES))
+# sha256 of the recursive key / type template of ck["loops"] (identical in the three real endpoints)
+LOOPS_TEMPLATE_SHA256 = "b4c3a3568ee36f831ce4badb398f7e23a8cb634fd4e1d36b1ec8b820f07437ef"
+
+
+def loops_template(x):
+    if isinstance(x, dict):
+        return {str(k): loops_template(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [type(x).__name__, [loops_template(v) for v in x]]
+    return type(x).__name__
+
+
+def _zero_progress(d):
+    """All counters of a never-run loop's progress tree are 0 (bools False)."""
+    if isinstance(d, dict):
+        return all(_zero_progress(v) for v in d.values())
+    return d in (0, False) and type(d) in (int, bool)
 N_STATE_TENSORS = 1279
 CKPT_TOP_KEYS = frozenset({"callbacks", "epoch", "global_step", "loops", "lr_schedulers", "model_config",
                            "optimizer_states", "pytorch-lightning_version", "state_dict"})
@@ -390,8 +415,12 @@ def fresh_inventory(arm, rung, repo=None):
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
         if (repo or REPO) not in sys.path:
             sys.path.insert(0, repo or REPO)
+        import src
         from src.models import create_model_from_config
         from src.training import create_training_wrapper_from_config
+        # the flac env also carries an upstream `src` package in site-packages: refuse to audit against it
+        if not os.path.realpath(src.__file__).startswith(os.path.realpath(repo or REPO) + os.sep):
+            raise GateError(f"`src` resolves to {src.__file__}, not inside {repo or REPO}")
         cfg = json.load(open(_abs(model_config_rel(arm, rung), repo)))
         wrapper = create_training_wrapper_from_config(cfg, create_model_from_config(cfg))
         inv = {k: (tuple(v.shape), str(v.dtype)) for k, v in wrapper.state_dict().items()}
@@ -459,15 +488,18 @@ def ckpt_schema_problems(ck, step, tag, run_dir=None, opt_shapes=None, extra_top
                 p.append(f"param group {k} {g.get(k)!r} != {v!r}")
         if g.get("lr") != (sch.get("_last_lr") or [None])[0]:
             p.append("optimizer lr != scheduler _last_lr")
-        if len(st) != N_OPT_STATE or not all(type(i) is int for i in st):
-            p.append(f"optimizer state for {len(st)} parameters != {N_OPT_STATE}")
-        if opt_shapes is not None and g.get("params") != list(range(len(opt_shapes))):
-            p.append(f"param group lists {len(g.get('params', []))} params != the fresh wrapper's {len(opt_shapes)}")
+        if not all(type(i) is int for i in st) or tuple(sorted(st)) != OPT_STATE_IDS:
+            p.append(f"optimizer state ids ({len(st)}) != the registered {N_OPT_STATE} parameter ids")
+        if g.get("params") != list(range(N_OPT_PARAMS)) or (opt_shapes is not None and len(opt_shapes) != N_OPT_PARAMS):
+            p.append(f"param group lists {len(g.get('params', []))} params != {N_OPT_PARAMS}")
         for i, s_ in st.items():
             if not isinstance(s_, dict) or set(s_) != OPT_STATE_KEYS:
                 p.append(f"optimizer state {i} keys {sorted(s_) if isinstance(s_, dict) else s_!r}")
                 break
-            shp = opt_shapes[i] if opt_shapes is not None and isinstance(i, int) and i < len(opt_shapes) else None
+            if opt_shapes is not None and not (isinstance(i, int) and 0 <= i < len(opt_shapes)):
+                p.append(f"optimizer state id {i!r} names no parameter")
+                break
+            shp = opt_shapes[i] if opt_shapes is not None else None
             if (shp is not None and not (tuple(s_["exp_avg"].shape) == shp == tuple(s_["exp_avg_sq"].shape))) \
                     or not bool(torch.isfinite(s_["exp_avg"]).all()) or not bool(torch.isfinite(s_["exp_avg_sq"]).all()) \
                     or float(s_["step"]) != float(step):
@@ -484,6 +516,8 @@ def ckpt_schema_problems(ck, step, tag, run_dir=None, opt_shapes=None, extra_top
     loops = ck.get("loops")
     if not isinstance(loops, dict) or set(loops) != LOOP_KEYS or set(loops.get("fit_loop", {})) != FIT_LOOP_KEYS:
         p.append("loop state keys differ from PL 2.1's")
+    elif hashlib.sha256(json.dumps(loops_template(loops), sort_keys=True).encode()).hexdigest() != LOOPS_TEMPLATE_SHA256:
+        p.append("loop state structure / types differ from the registered PL 2.1 template")
     else:
         fl = loops["fit_loop"]
         try:
@@ -495,6 +529,12 @@ def ckpt_schema_problems(ck, step, tag, run_dir=None, opt_shapes=None, extra_top
             p.append(f"fit-loop progress {done} / {bp} != step {step}")
         if ep.get("processed") not in (epoch_of_step(step, tag), epoch_of_step(step, tag) + 1):
             p.append(f"epoch progress {ep} inconsistent with epoch {epoch_of_step(step, tag)}")
+        if fl["epoch_loop.state_dict"].get("_batches_that_stepped") != step - 1 \
+                or fl["epoch_loop.scheduler_progress"]["total"] != {"ready": step, "completed": step} \
+                or not _zero_progress(fl["epoch_loop.manual_optimization.optim_step_progress"]) \
+                or not _zero_progress(fl["epoch_loop.val_loop.batch_progress"]) \
+                or not all(_zero_progress(loops[k]["batch_progress"]) for k in ("predict_loop", "test_loop", "validate_loop")):
+            p.append("loop counters off (batches stepped / scheduler / manual / validation / test / predict loops)")
     cbs = ck.get("callbacks")
     if not isinstance(cbs, dict) or list(cbs) != [MODEL_CHECKPOINT_KEY]:
         p.append(f"callback state keys {list(cbs) if isinstance(cbs, dict) else cbs!r} != [{MODEL_CHECKPOINT_KEY}]")
@@ -504,8 +544,16 @@ def ckpt_schema_problems(ck, step, tag, run_dir=None, opt_shapes=None, extra_top
             p.append("ModelCheckpoint state keys differ")
         elif run_dir is not None and os.path.realpath(str(mc.get("dirpath", ""))) != os.path.realpath(run_dir):
             p.append(f"ModelCheckpoint dirpath {mc.get('dirpath')} != {run_dir}")
-        elif mc.get("monitor") is not None:
-            p.append("ModelCheckpoint monitors a metric")
+        else:
+            kv = mc.get("kth_value")
+            want_mc = {"monitor": None, "best_model_score": None, "current_score": None, "best_k_models": {},
+                       "kth_best_model_path": "", "last_model_path": "",
+                       "best_model_path": os.path.join(str(mc.get("dirpath")), ckpt_name(step, tag))}
+            bad = sorted(k for k, v in want_mc.items() if mc.get(k) != v or type(mc.get(k)) is not type(v))
+            if not (torch.is_tensor(kv) and kv.dim() == 0 and kv.dtype == torch.float32 and float(kv) == float("inf")):
+                bad.append("kth_value")
+            if bad:
+                p.append(f"ModelCheckpoint state values {bad} off the registered save_top_k=-1 / monitor=None state")
     return p
 
 
@@ -876,7 +924,9 @@ def storage_gate(platform, path, need_bytes, tag="exp38"):
 
 
 # ---------------------------------------------------------------- campaign closure + immutable snapshot
-CLOSURE_ROOTS = ("train.py", "defaults.ini", "eval_FLAC.py", "pyproject.toml", "src", "overlays", "data/AR")
+# AGREE/: the metric code imports `AGREE.AGREE` -- every reference cell ran with the repo root (so the
+# repo copy, not the site-packages one) first on sys.path; the snapshots keep that
+CLOSURE_ROOTS = ("train.py", "defaults.ini", "eval_FLAC.py", "pyproject.toml", "src", "overlays", "data/AR", "AGREE")
 CLOSURE_EXP_PREFIXES = ("exp38_", "FLAC_AR_BF_cap", "data_efficiency_subset_audit.json")
 
 
@@ -923,7 +973,7 @@ def snapshot_files(run, repo=None):
     return sorted(set(closure_files(repo)) | {r for r in RECEIPT_FILES if os.path.exists(_abs(r, repo))})
 
 
-def snapshot_tools(run, dest, repo=None):
+def snapshot_tools(run, dest, repo=None, links=SNAPSHOT_LINKS):
     """Copy the closure into ``dest`` (refused if it exists), link the two data inputs to the
     campaign tree's verified targets, and seal SNAPSHOT.sha256 + SNAPSHOT.links. Training is
     launched FROM the snapshot and every later audit reads it (Codex code r1 HIGH 5)."""
@@ -937,16 +987,16 @@ def snapshot_tools(run, dest, repo=None):
         os.makedirs(os.path.dirname(out), exist_ok=True)
         shutil.copyfile(_abs(rel, repo), out)
         lines.append(f"{sha256_file(out)}  {rel}")
-    links = []
-    for rel in SNAPSHOT_LINKS:
+    made = []
+    for rel in links:
         target = os.path.realpath(_abs(rel, repo))
         if not os.path.exists(target):
             raise GateError(f"{rel} does not resolve in {repo}")
         os.makedirs(os.path.dirname(os.path.join(dest, rel)) or dest, exist_ok=True)
         os.symlink(target, os.path.join(dest, rel))
-        links.append(f"{target}  {rel}")
+        made.append(f"{target}  {rel}")
     atomic_write_bytes(os.path.join(dest, "SNAPSHOT.sha256"), ("\n".join(lines) + "\n").encode())
-    atomic_write_bytes(os.path.join(dest, "SNAPSHOT.links"), ("\n".join(links) + "\n").encode())
+    atomic_write_bytes(os.path.join(dest, "SNAPSHOT.links"), ("\n".join(made) + "\n").encode())
     return {"snapshot": dest, "files": len(lines), "snapshot_sha256": snapshot_digest(dest)}
 
 
@@ -957,17 +1007,20 @@ def snapshot_digest(dest):
 
 def verify_snapshot(dest, want_digest=None):
     p = []
-    for line in open(os.path.join(dest, "SNAPSHOT.sha256")).read().strip().split("\n"):
+    for line in filter(None, open(os.path.join(dest, "SNAPSHOT.sha256")).read().split("\n")):
         digest, rel = line.split("  ", 1)
         path = os.path.join(dest, rel)
         if os.path.islink(path) or not os.path.isfile(path) or sha256_file(path) != digest:
             p.append(f"snapshot file {rel} changed")
-    for line in open(os.path.join(dest, "SNAPSHOT.links")).read().strip().split("\n"):
+    linked = []
+    for line in filter(None, open(os.path.join(dest, "SNAPSHOT.links")).read().split("\n")):
         target, rel = line.split("  ", 1)
+        linked.append(rel)
         if not os.path.islink(os.path.join(dest, rel)) or os.readlink(os.path.join(dest, rel)) != target:
             p.append(f"snapshot link {rel} changed")
-    if VAE_PATH in SNAPSHOT_LINKS and sha256_file(os.path.join(dest, VAE_PATH)) != VAE_SHA256:
-        p.append("snapshot VAE is not the pinned file")
+    for rel, want in ((VAE_PATH, VAE_SHA256), (VAE_CKPT_REL, VAE_CKPT_SHA256), (AGREE_REL, AGREE_SHA256)):
+        if (rel in linked or os.path.dirname(rel) in linked) and sha256_file(os.path.join(dest, rel)) != want:
+            p.append(f"snapshot {rel} is not the pinned file")
     if want_digest is not None and snapshot_digest(dest) != want_digest:
         p.append("snapshot manifests differ from the launch record")
     if p:
@@ -1087,18 +1140,39 @@ FORBIDDEN_ENV = ("PYTHONOPTIMIZE", "PYTHONSTARTUP", "PYTHONINSPECT", "PYTHONHOME
 ENV_PREFIXES = ("NCCL_", "TORCH", "PYTORCH_", "CUBLAS", "CUDNN", "PL_", "LIGHTNING_", "PYTHONHASHSEED")
 
 
+# the ONLY untracked (not ignored) entries a campaign tree may hold besides TREE_LINKS: the records the
+# kit itself writes into its own folder (Codex code r2 HIGH 10)
+UNTRACKED_RECORDS = re.compile(r"^" + re.escape(EXP_DIR) + r"/(data_efficiency_[^/]+\.(json|sha256|log|out|md|txt\.gz)"
+                               r"|at_launch_[^/]+\.json|eval_logs/data_efficiency_[^/]+\.log|slurm_train_[^/]+\.out"
+                               r"|exp38_neuronic_submissions\.log|\.collect\.lock)$")
+IMPORTABLE = (".py", ".pyc", ".pyo", ".so", ".pyd", ".pth", ".egg-link", ".egg-info", ".dist-info")
+
+
+def _importable(rel):
+    base = os.path.basename(rel.rstrip("/"))
+    return base.endswith(IMPORTABLE) or base.startswith(("sitecustomize", "usercustomize"))
+
+
 def check_untracked(platform, repo=None):
-    """Problems (empty = PASS): import shadows, unexpected untracked entries, and every allowed link
-    validated by content (and, on this box, by its registered target)."""
+    """Problems (empty = PASS): import shadows, unexpected untracked entries (an exact allowlist of
+    the kit's record names), importable files anywhere outside the tracked tree (ignored ones too,
+    ``__pycache__`` excepted), and every allowed link validated by content (and, on this box, by its
+    registered target)."""
     repo = repo or REPO
     p = []
     untracked = _git_out(repo, "ls-files", "-z", "--others", "--exclude-standard").decode().split("\0")
     for rel in filter(None, untracked):
-        if rel.startswith(("worklog/", "outputs_FLAC/")) and not rel.endswith(".py"):
-            continue
         if rel in TREE_LINKS or any(rel.startswith(k + "/") for k in TREE_LINKS):
             continue
+        if UNTRACKED_RECORDS.match(rel) and not _importable(rel):
+            continue
         p.append(f"unexpected untracked entry {rel}")
+    ignored = _git_out(repo, "ls-files", "-z", "--others", "--ignored", "--exclude-standard").decode().split("\0")
+    for rel in filter(None, ignored):
+        if "__pycache__" in rel.split("/") or rel.rstrip("/") in TREE_LINKS:
+            continue
+        if _importable(rel):
+            p.append(f"ignored importable entry {rel}")
     for rel, kind in TREE_LINKS.items():
         path = os.path.join(repo, rel)
         if not os.path.lexists(path):
@@ -1128,6 +1202,20 @@ def check_untracked(platform, repo=None):
     return p
 
 
+# variables only the chosen launcher may create (PL's subprocess launcher / torchrun); an inherited one
+# could change the topology, the seed (SLURM_PROCID) or a Trainer argument (PL_TRAINER_*)
+LAUNCHER_VARS = ("RANK", "LOCAL_RANK", "WORLD_SIZE", "GROUP_RANK", "GROUP_WORLD_SIZE", "LOCAL_WORLD_SIZE",
+                 "ROLE_RANK", "ROLE_NAME", "ROLE_WORLD_SIZE", "MASTER_ADDR", "MASTER_PORT", "NODE_RANK")
+LAUNCHER_PREFIXES = ("TORCHELASTIC_", "PL_", "LIGHTNING_")
+
+
+def launcher_env_problems(platform, environ=None):
+    environ = os.environ if environ is None else environ
+    bad = sorted(k for k in environ if k in LAUNCHER_VARS or k.startswith(LAUNCHER_PREFIXES)
+                 or (platform == "a6000" and k.startswith("SLURM_")))
+    return [f"inherited launcher variables {bad} (only the launcher may set them)"] if bad else []
+
+
 def env_problems(environ=None):
     """The interpreter flags / variables every launch and evaluation must run under (NIT: PYTHONOPTIMIZE)."""
     environ = os.environ if environ is None else environ
@@ -1140,7 +1228,50 @@ def env_problems(environ=None):
 
 
 ENV_RECEIPT_KEYS = frozenset({"schema", "platform", "python", "executable", "torch", "cuda", "cudnn", "nccl",
-                              "driver", "gpu_names", "packages", "packages_sha256", "flags", "env_vars"})
+                              "driver", "gpu_names", "packages", "packages_sha256", "flags", "env_vars",
+                              "module_origins", "dist_records"})
+# the modules a run imports from site-packages: their resolved origin must lie inside the interpreter's
+# prefix, and their distributions' RECORD files (per-file hashes of the installed bytes) are pinned
+CRITICAL_MODULES = ("torch", "pytorch_lightning", "lightning_fabric", "transformers", "flash_attn", "numpy",
+                    "torchaudio", "einops", "safetensors", "prefigure", "ema_pytorch", "huggingface_hub")
+
+
+def _tree_digest(d):
+    h = hashlib.sha256()
+    for root, dirs, files in os.walk(d):
+        dirs[:] = sorted(x for x in dirs if x != "__pycache__")
+        for f in sorted(files):
+            path = os.path.join(root, f)
+            h.update(f"{os.path.relpath(path, d)}\0{sha256_file(path)}\n".encode())
+    return h.hexdigest()
+
+
+def module_identity():
+    """({module: resolved origin}, {module: identity of its installed bytes}) -- fail-closed. The
+    identity is the sha256 of its distribution's RECORD (per-file hashes) or, for a package installed
+    without one, of every file of the package directory."""
+    import importlib.metadata as md
+    import importlib.util
+    prefix = os.path.realpath(sys.prefix)
+    dists = md.packages_distributions()
+    origins, records = {}, {}
+    for mod in CRITICAL_MODULES:
+        spec = importlib.util.find_spec(mod)
+        origin = os.path.realpath(spec.origin) if spec is not None and spec.origin else None
+        if origin is None or not origin.startswith(prefix + os.sep):
+            raise GateError(f"module {mod} resolves to {origin}, not inside {prefix}")
+        origins[mod] = origin
+        texts = []
+        for name in sorted(dists.get(mod) or []):
+            try:
+                texts.append(md.distribution(name).read_text("RECORD") or "")
+            except md.PackageNotFoundError:
+                texts.append("")
+        if texts and all(texts):
+            records[mod] = "record:" + hashlib.sha256("\0".join(texts).encode()).hexdigest()
+        else:
+            records[mod] = "tree:" + _tree_digest(os.path.dirname(origin))
+    return origins, records
 
 
 def _gpu_rows():
@@ -1183,6 +1314,7 @@ def env_snapshot(platform):
                      "ignore_environment": sys.flags.ignore_environment, "isolated": sys.flags.isolated},
            "env_vars": {k: v for k, v in sorted(os.environ.items())
                         if k.startswith(ENV_PREFIXES) and k != "CUDA_VISIBLE_DEVICES"}}
+    rec["module_origins"], rec["dist_records"] = module_identity()
     if None in (rec["cuda"], rec["cudnn"]) or not rec["gpu_names"]:
         raise GateError("CUDA / cuDNN / GPU probe returned nothing")
     if platform == "a6000" and pk.get("flash-attn") != FLASH_VERSION:
@@ -1228,13 +1360,14 @@ def check_e0_receipt(platform, repo=None):
     if HERE not in sys.path:
         sys.path.insert(0, HERE)
     import exp38_eval
-    return exp38_eval.validate_e0_receipt(repo=repo, platform=platform)
+    # on neuronic only the sealed receipt is present (E0 ran on this box): no cell re-admission there
+    return exp38_eval.validate_e0_receipt(repo=repo, platform=platform, readmit=platform == "a6000")
 
 
 # ---------------------------------------------------------------- SMOKE_DDP receipt (Codex code r1 BLOCKING 1)
 SMOKE_STEPS_DDP = 30
 SMOKE_KEYS = frozenset({"schema", "mode", "run", "platform", "backend", "head", "closure_sha256",
-                        "env_receipt_sha256", "subset_audit_sha256", "snapshot_sha256", "argv_projection",
+                        "env_receipt_sha256", "subset_audit_sha256", "snapshot_sha256", "snapshot_dir", "argv_projection",
                         "model_config_sha256", "dataset_config_sha256", "split_sha256", "rc", "checkpoints_written",
                         "log", "log_sha256", "log_gate", "evidence", "evidence_gate", "gpus", "verdict",
                         "launched_at", "finished_at"})
@@ -1272,7 +1405,7 @@ def _same_env(platform, env_sha, tree):
 
 
 def write_smoke_receipt(run, platform, backend, head, smoke_dir, log_path, rc, gpus, snapshot_sha, launched_at,
-                        ts, env_sha, repo=None, out_repo=None):
+                        ts, env_sha, repo=None, out_repo=None, snapshot_dir=None):
     """Recomputes every gate from the artifacts (never trusts a caller's verdict) and seals the
     receipt into ``out_repo`` (the campaign tree); the code bindings are computed from ``repo``
     (the snapshot the smoke ran from), the environment binding from the tree's receipt (``env_sha``
@@ -1292,11 +1425,12 @@ def write_smoke_receipt(run, platform, backend, head, smoke_dir, log_path, rc, g
            "closure_sha256": closure_digest(repo)["closure_sha256"],
            "env_receipt_sha256": _same_env(platform, env_sha, out_repo or repo),
            "subset_audit_sha256": check_subset_audit(repo)["sha256"], "snapshot_sha256": snapshot_sha,
+           "snapshot_dir": snapshot_dir or repo,
            "argv_projection": argv_projection(build_train_argv(run, platform, allow_nonmatched=rung != "2x32")),
            "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung), repo)),
            "dataset_config_sha256": sha256_file(_abs(FRACS[tag]["dataset_config"], repo)),
            "split_sha256": sha256_file(_abs(FRACS[tag]["split"], repo)), "rc": int(rc),
-           "checkpoints_written": n_ckpt, "log": log_path, "log_sha256": hashlib.sha256(text.encode()).hexdigest(),
+           "checkpoints_written": n_ckpt, "log": log_path, "log_sha256": sha256_file(log_path),
            "log_gate": "PASS" if not lg else lg, "evidence": {str(r): v for r, v in sorted(recs.items())},
            "evidence_gate": "PASS" if not eg else eg, "gpus": gpus, "verdict": verdict,
            "launched_at": launched_at, "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
@@ -1319,9 +1453,25 @@ def smoke_receipt_problems(rec, run, platform, backend, head, gpus=None, repo=No
             "rc": 0, "checkpoints_written": 0, "log_gate": "PASS", "evidence_gate": "PASS", "verdict": "PASS"}
     p = [f"{k} {rec.get(k)!r} != {v!r}" for k, v in want.items() if canonical(rec.get(k)) != canonical(v)]
     if not (_is_sha(rec.get("snapshot_sha256")) and _is_sha(rec.get("log_sha256"))
-            and isinstance(rec.get("log"), str) and isinstance(rec.get("launched_at"), str)
-            and isinstance(rec.get("finished_at"), str)):
+            and isinstance(rec.get("log"), str) and isinstance(rec.get("snapshot_dir"), str)
+            and isinstance(rec.get("launched_at"), str) and isinstance(rec.get("finished_at"), str)):
         p.append("snapshot / log / time fields malformed")
+        return p
+    # the durable bindings are re-opened, not trusted (Codex code r2 HIGH 3)
+    try:
+        verify_snapshot(rec["snapshot_dir"], rec["snapshot_sha256"])
+        if closure_digest(rec["snapshot_dir"])["closure_sha256"] != want["closure_sha256"]:
+            p.append("the smoke's snapshot is not this closure")
+    except (GateError, OSError, ValueError) as err:
+        p.append(f"smoke snapshot: {err}")
+    try:
+        if sha256_file(rec["log"]) != rec["log_sha256"]:
+            p.append("the smoke log changed since its receipt")
+        else:
+            p += log_gate(open(rec["log"], errors="replace").read(), run, "end", backend, ngpu,
+                          max_steps=SMOKE_STEPS_DDP, min_losses=1)
+    except OSError as err:
+        p.append(f"smoke log: {err}")
     if gpus is not None and canonical(rec.get("gpus")) != canonical(gpus):
         p.append(f"GPUs {rec.get('gpus')} != this launch's {gpus}")
     g = rec.get("gpus")
@@ -1356,7 +1506,8 @@ TRAINING_RECEIPT = "TRAINING_COMPLETE.json"
 FULL_MIN_LOSSES = 50          # the end gate of a 40k run: at least 50 finite progress-bar losses
 TRAINING_KEYS = frozenset({"schema", "run", "platform", "backend", "head", "closure_sha256", "snapshot_sha256",
                            "env_receipt_sha256", "e0_receipt_sha256", "smoke_receipt", "smoke_receipt_sha256",
-                           "model_config_sha256", "dataset_config_sha256", "split_sha256", "argv", "rc", "log",
+                           "model_config_sha256", "dataset_config_sha256", "split_sha256", "data_content_sha256",
+                           "receipts", "argv", "rc", "log",
                            "log_sha256", "log_gate", "evidence_sha256", "evidence_gate", "checkpoints_sha256",
                            "final_ckpt", "final_ckpt_sha256", "final_ckpt_bytes", "gpus", "launched_at",
                            "finished_at"})
@@ -1369,14 +1520,38 @@ def evidence_digest(evidence_dir):
     return h.hexdigest()
 
 
+RECEIPTS_DIR = "receipts"          # in the run dir: byte copies of the receipts the run was admitted under
+
+
+def retain_receipts(rd, paths):
+    """Copy each sealed receipt (+ sidecar) the launch validated into <run dir>/receipts/ under its own
+    basename (the sidecar names it); returns {role: basename}. Called before the child starts."""
+    import shutil
+    d = os.path.join(rd, RECEIPTS_DIR)
+    try:
+        os.makedirs(d, exist_ok=False)
+    except FileExistsError:
+        raise GateError(f"{d} exists (receipts are retained once, at launch)")
+    out = {}
+    for role, path in paths.items():
+        for src in (path, path + ".sha256"):
+            shutil.copyfile(src, os.path.join(d, os.path.basename(src)))
+        out[role] = os.path.basename(path)
+    return out
+
+
 def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snapshot_sha, e0_sha, smoke, gpus,
-                           launched_at, env_sha, repo=None, tree=None):
+                           launched_at, env_sha, retained, content_sha, repo=None, tree=None):
     """Published only after every end audit passes (re-run here, from the snapshot ``repo``; the
-    environment receipt is the campaign ``tree``'s, re-checked against the launch-time ``env_sha``)."""
+    environment receipt is the campaign ``tree``'s, re-checked against the launch-time ``env_sha``).
+    The train log is retained beside the launch-time receipt copies (``retained``)."""
+    import shutil
     arm, tag, rung = parse_run_id(run)
     ngpu = RUNGS[rung]["ngpu"]
     if rc != 0:
         raise GateError(f"train exit status {rc}")
+    if content_sha != AR_CONTENT_SHA256:
+        raise GateError("the run was not admitted under the pinned AR content manifest")
     text = open(log_path, errors="replace").read()
     lg = log_gate(text, run, "end", backend, ngpu, min_losses=FULL_MIN_LOSSES)
     eg = evidence_gate(os.path.join(rd, "evidence"), run, ngpu, backend)
@@ -1389,52 +1564,120 @@ def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snaps
     lines = dict(reversed(ln.split("  ", 1)) for ln in open(manifest).read().strip().split("\n"))
     if lines.get(final) != audit["sha256"]:
         raise GateError("final checkpoint changed between the audit and the manifest")
+    log_copy = os.path.join(rd, RECEIPTS_DIR, "train.log")
+    shutil.copyfile(log_path, log_copy)
+    if sha256_file(log_copy) != sha256_file(log_path):
+        raise GateError("the retained train log differs from the log")
     rec = {"schema": 1, "run": run, "platform": platform, "backend": backend, "head": head,
            "closure_sha256": closure_digest(repo)["closure_sha256"], "snapshot_sha256": snapshot_sha,
            "env_receipt_sha256": _same_env(platform, env_sha, tree), "e0_receipt_sha256": e0_sha,
            "smoke_receipt": smoke["smoke_receipt"], "smoke_receipt_sha256": smoke["sha256"],
            "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung), repo)),
            "dataset_config_sha256": sha256_file(_abs(FRACS[tag]["dataset_config"], repo)),
-           "split_sha256": sha256_file(_abs(FRACS[tag]["split"], repo)),
+           "split_sha256": sha256_file(_abs(FRACS[tag]["split"], repo)), "data_content_sha256": content_sha,
            "argv": build_train_argv(run, platform, allow_nonmatched=rung != "2x32"), "rc": 0, "log": log_path,
-           "log_sha256": hashlib.sha256(text.encode()).hexdigest(), "log_gate": "PASS",
+           "log_sha256": sha256_file(log_copy), "log_gate": "PASS",
            "evidence_sha256": evidence_digest(os.path.join(rd, "evidence")), "evidence_gate": "PASS",
            "checkpoints_sha256": sha256_file(manifest), "final_ckpt": final, "final_ckpt_sha256": audit["sha256"],
-           "final_ckpt_bytes": audit["bytes"], "gpus": gpus, "launched_at": launched_at,
-           "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+           "final_ckpt_bytes": audit["bytes"], "gpus": gpus, "receipts": dict(retained, log="train.log"),
+           "launched_at": launched_at, "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     write_sealed(os.path.join(rd, TRAINING_RECEIPT), rec)
     return rec
 
 
-def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes=True, e0_sha=None):
-    """The sealed terminal receipt of a run (in ``receipt_dir`` or the run dir), bound to the run, the
-    campaign ``closure``, the checkpoint manifest and -- with ``verify_bytes`` -- the final
-    checkpoint's current sha256 and byte count. Returns (receipt, receipt sha256)."""
+def _gpus_ok(platform, ngpu, g):
+    if platform == "a6000":
+        return canonical(g) == canonical(sorted([u, "NVIDIA RTX A6000"] for u in A6000_UUIDS))
+    return isinstance(g, list) and len(g) == ngpu and all(isinstance(x, list) and len(x) == 2 and "L40" in str(x[1])
+                                                         for x in g)
+
+
+def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes=True, e0_sha=None, platform=None):
+    """The sealed terminal receipt of a run (in ``receipt_dir`` or the run dir), every field checked
+    (Codex code r2 BLOCKING 1): the run, platform, backend, HEAD, the campaign ``closure`` / ``e0_sha``,
+    the registered argv, configs, split and AR content, GPU topology; the RETAINED copies of the E0,
+    SMOKE_DDP and environment receipts (sealed, their shas == the receipt's, the SMOKE one re-validated
+    incl. its evidence); the retained train log (sha + the end gate re-run); the evidence (digest + the
+    gate re-run); the checkpoint manifest and -- with ``verify_bytes`` -- the final checkpoint's current
+    sha256 and byte count. Returns (receipt, receipt sha256)."""
+    if HERE not in sys.path:
+        sys.path.insert(0, HERE)
+    import exp38_eval
     arm, tag, rung = parse_run_id(run)
+    ngpu = RUNGS[rung]["ngpu"]
     src = receipt_dir or rd
     rec, digest = read_sealed(os.path.join(src, TRAINING_RECEIPT), TRAINING_KEYS)
     final = ckpt_name(MAX_STEPS, tag)
     p = []
+    plat, backend = rec["platform"], rec["backend"]
+    if plat not in PLATFORMS or (platform is not None and plat != platform) or backend not in ("flash", "sdpa"):
+        raise GateError(f"{run} training receipt: platform {plat!r} / backend {backend!r}")
     want = {"schema": 1, "run": run, "rc": 0, "log_gate": "PASS", "evidence_gate": "PASS", "final_ckpt": final,
             "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung))),
-            "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"]}
-    p += [f"{k} {rec.get(k)!r} != {v!r}" for k, v in want.items() if rec.get(k) != v]
-    if closure is not None and rec.get("closure_sha256") != closure:
-        p.append(f"trained at closure {str(rec.get('closure_sha256'))[:12]}, not the campaign's {closure[:12]}")
-    if e0_sha is not None and rec.get("e0_receipt_sha256") != e0_sha:
+            "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"],
+            "data_content_sha256": AR_CONTENT_SHA256,
+            "argv": build_train_argv(run, plat, allow_nonmatched=rung != "2x32")}
+    p += [f"{k} {str(rec.get(k))[:60]!r} != {str(v)[:60]!r}" for k, v in want.items() if canonical(rec.get(k)) != canonical(v)]
+    if closure is not None and rec["closure_sha256"] != closure:
+        p.append(f"trained at closure {str(rec['closure_sha256'])[:12]}, not the campaign's {closure[:12]}")
+    if e0_sha is not None and rec["e0_receipt_sha256"] != e0_sha:
         p.append("trained under another E0 receipt than the campaign's")
-    if not (type(rec.get("final_ckpt_bytes")) is int and _is_sha(rec.get("final_ckpt_sha256"))):
-        p.append("final checkpoint sha / bytes malformed")
+    if not (isinstance(rec["head"], str) and re.fullmatch(r"[0-9a-f]{40}", rec["head"])
+            and all(_is_sha(rec[k]) for k in ("closure_sha256", "snapshot_sha256", "env_receipt_sha256",
+                                              "e0_receipt_sha256", "smoke_receipt_sha256", "log_sha256",
+                                              "evidence_sha256", "checkpoints_sha256", "final_ckpt_sha256"))
+            and type(rec["final_ckpt_bytes"]) is int and isinstance(rec["launched_at"], str)
+            and isinstance(rec["finished_at"], str) and isinstance(rec["log"], str)
+            and isinstance(rec["smoke_receipt"], str)):
+        p.append("hash / byte / time / path fields malformed")
+    if not _gpus_ok(plat, ngpu, rec["gpus"]):
+        p.append(f"GPUs {rec['gpus']} are not the {plat} topology")
+    # ---- the retained receipts and log
+    rdir = os.path.join(src, RECEIPTS_DIR)
+    names = rec["receipts"] if isinstance(rec["receipts"], dict) else {}
+    try:
+        if sorted(names) != ["e0", "env", "log", "smoke"]:
+            raise GateError(f"retained receipts {sorted(names)}")
+        e0c, d_e0 = read_sealed(os.path.join(rdir, names["e0"]), exp38_eval.E0_KEYS)
+        envc, d_env = read_sealed(os.path.join(rdir, names["env"]), ENV_RECEIPT_KEYS)
+        smk, d_smk = read_sealed(os.path.join(rdir, names["smoke"]), SMOKE_KEYS)
+        if (d_e0, d_env, d_smk) != (rec["e0_receipt_sha256"], rec["env_receipt_sha256"], rec["smoke_receipt_sha256"]):
+            p.append("a retained receipt copy != the sha the training receipt bound")
+        if e0c["verdict"] != "PASS" or e0c["closure_sha256"] != rec["closure_sha256"]:
+            p.append("the retained E0 receipt is not a PASS at the run's closure")
+        if envc["platform"] != plat:
+            p.append("the retained environment receipt is another platform's")
+        want_s = {"mode": "SMOKE_DDP", "run": run, "platform": plat, "backend": backend, "head": rec["head"],
+                  "closure_sha256": rec["closure_sha256"], "env_receipt_sha256": rec["env_receipt_sha256"],
+                  "rc": 0, "checkpoints_written": 0, "log_gate": "PASS", "evidence_gate": "PASS", "verdict": "PASS",
+                  "argv_projection": argv_projection(rec["argv"])}
+        p += [f"retained SMOKE {k} {str(smk.get(k))[:40]!r} != {str(v)[:40]!r}" for k, v in want_s.items()
+              if canonical(smk.get(k)) != canonical(v)]
+        ev = smk.get("evidence") or {}
+        p += evidence_problems({int(r): v for r, v in ev.items()} if sorted(ev) == [str(r) for r in range(ngpu)] else {},
+                               run, ngpu, backend, SMOKE_STEPS_DDP)
+        logc = os.path.join(rdir, names["log"])
+        if sha256_file(logc) != rec["log_sha256"]:
+            p.append("the retained train log != the receipt's sha")
+        else:
+            p += log_gate(open(logc, errors="replace").read(), run, "end", backend, ngpu, min_losses=FULL_MIN_LOSSES)
+        evd = os.path.join(src, "evidence")
+        if evidence_digest(evd) != rec["evidence_sha256"]:
+            p.append("the evidence files != the receipt's digest")
+        else:
+            p += evidence_gate(evd, run, ngpu, backend)
+    except (GateError, OSError, ValueError, KeyError, TypeError) as err:
+        p.append(f"retained records: {err}")
     try:
         manifest = os.path.join(src, "CHECKPOINTS.sha256")
-        if sha256_file(manifest) != rec.get("checkpoints_sha256"):
+        if sha256_file(manifest) != rec["checkpoints_sha256"]:
             p.append("CHECKPOINTS.sha256 != the receipt's")
         lines = dict(reversed(ln.split("  ", 1)) for ln in open(manifest).read().strip().split("\n"))
-        if sorted(lines) != sorted(ckpt_name(s, tag) for s in cadence_steps()) or lines[final] != rec.get("final_ckpt_sha256"):
+        if sorted(lines) != sorted(ckpt_name(s, tag) for s in cadence_steps()) or lines[final] != rec["final_ckpt_sha256"]:
             p.append("checkpoint manifest set / final line")
         if verify_bytes:
             path = os.path.join(rd, final)
-            if os.path.getsize(path) != rec.get("final_ckpt_bytes") or sha256_file(path) != rec.get("final_ckpt_sha256"):
+            if os.path.getsize(path) != rec["final_ckpt_bytes"] or sha256_file(path) != rec["final_ckpt_sha256"]:
                 p.append(f"{path} sha / bytes != the training receipt")
     except (OSError, ValueError) as err:
         p.append(f"checkpoint manifest: {err}")

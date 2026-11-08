@@ -40,6 +40,7 @@ LIVE = {"PENDING", "RUNNING", "CONFIGURING", "COMPLETING", "SUSPENDED", "REQUEUE
         "SIGNALING", "STAGE_OUT", "REQUEUE_HOLD", "REQUEUE_FED", "SPECIAL_EXIT"}
 SUBLOG = f"{reg.EXP_DIR}/exp38_neuronic_submissions.log"
 OWNERS = ".exp38_owners"
+ATTEMPT_CLAIM = "attempt.claim"
 FLASH_VERSION_DEFAULT = reg.FLASH_VERSION
 
 
@@ -190,8 +191,12 @@ def claim_attempt(run, mode, token, head, backend, sd, flash_version, allow_nonm
         bad["save_dir_registry"] = (sd, run_dir(run, mode, root))
     if bad:
         raise reg.GateError(f"this job does not own {run} {mode}: {bad}")
-    if [n for n in os.listdir(od) if n.startswith("attempt_")]:
+    try:                              # ONE fixed owner-scoped claim, atomic (Codex code r2 HIGH 2)
+        os.mkdir(os.path.join(od, ATTEMPT_CLAIM))
+    except FileExistsError:
         raise reg.GateError(f"{od} already has an attempt (exactly once: abandon to retry)")
+    with open(os.path.join(od, ATTEMPT_CLAIM, "job"), "w") as fh:
+        fh.write(f"{jid} {os.uname().nodename}\n")
     path = os.path.join(od, f"attempt_{jid}.json")
     rec = {"job_id": jid, "host": os.uname().nodename, "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
            "state": "running"}

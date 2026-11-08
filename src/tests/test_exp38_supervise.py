@@ -44,6 +44,7 @@ def _harness(tmp_path, cmd, start="none", grace=30, lock=False, start_timeout=60
         rec = s.Record([{str(rec)!r}], status="running")
         fds = s.lock_cards([0], {str(tmp_path)!r}) if {lock!r} else []
         child = s.OwnedChild({cmd!r}, {str(tmp_path)!r}, dict(os.environ), {str(tmp_path / 'child.log')!r}, pass_fds=fds)
+        s.start_lock_holder(child.pgid, fds)
         rec.update(pid=child.pid)
         print("CHILD", child.pid, flush=True)
         checks = {{"none": None, "fail": lambda: ["bad first step"], "never": lambda: None}}
@@ -240,16 +241,89 @@ def test_neuronic_allocation_gate_refusals(monkeypatch):
         sv.neuronic_allocation_gate(2, {**os.environ, "CUDA_VISIBLE_DEVICES": ""})
 
 
+LAUNCHER_ENV = {"RANK": "1", "LOCAL_RANK": "1", "WORLD_SIZE": "4", "GROUP_RANK": "0", "LOCAL_WORLD_SIZE": "2",
+                "MASTER_ADDR": "x", "MASTER_PORT": "1", "NODE_RANK": "1", "TORCHELASTIC_RUN_ID": "r",
+                "PL_TRAINER_DEVICES": "1", "PL_GLOBAL_SEED": "7", "LIGHTNING_X": "1"}
+
+
 def test_child_env_is_exact(monkeypatch, tmp_path):
+    """Codex code r2 BLOCKING 4: only the chosen launcher creates rank variables."""
     monkeypatch.setenv("PYTHONPATH", "/nowhere")
     monkeypatch.setenv("SLURM_PROCID", "0")
     monkeypatch.setenv("SLURM_JOB_ID", "7")
+    for k, v in LAUNCHER_ENV.items():
+        monkeypatch.setenv(k, v)
     e = sv.child_env("neuronic", "flash", str(tmp_path))
     assert "PYTHONPATH" not in e and "SLURM_PROCID" not in e and e["SLURM_JOB_ID"] == "7"
+    assert not set(LAUNCHER_ENV) & set(e)
     assert (e["HF_HUB_OFFLINE"], e["PYTHONNOUSERSITE"], e["PYTHONUNBUFFERED"]) == ("1", "1", "1")
     e = sv.child_env("a6000", "sdpa", str(tmp_path), "0,1")
     assert e["PYTHONPATH"] == str(tmp_path / "overlays" / "no_flash") and e["CUDA_VISIBLE_DEVICES"] == "0,1"
-    assert e["PYTHONDONTWRITEBYTECODE"] == "1" and e["SLURM_PROCID"] == "0"
+    assert e["PYTHONDONTWRITEBYTECODE"] == "1" and not any(k.startswith("SLURM_") for k in e)
+    assert not set(LAUNCHER_ENV) & set(e)
+
+
+@pytest.mark.parametrize("var", sorted(LAUNCHER_ENV) + ["SLURM_PROCID"])
+def test_inherited_launcher_variables_refuse_the_launch(monkeypatch, var):
+    monkeypatch.setenv("PYTHONNOUSERSITE", "1")
+    monkeypatch.setenv(var, "1")
+    with pytest.raises(sv.Refused, match="launcher variables"):
+        sv.interpreter_gate("a6000")
+    if not var.startswith("SLURM_"):
+        with pytest.raises(sv.Refused, match="launcher variables"):
+            sv.interpreter_gate("neuronic", sys.executable)
+    else:
+        sv.interpreter_gate("neuronic", sys.executable)                        # expected inside a job
+
+
+def test_the_lock_holder_outlives_a_rank_that_did_not_inherit_the_lock(tmp_path):
+    """Codex code r2 HIGH 1: Lightning's launcher starts rank 1 with a plain Popen (close_fds=True),
+    so rank 1 does not inherit the lock fd. Here the direct child spawns such a grandchild and exits;
+    the supervisor is SIGKILLed: the card stays locked until the grandchild is gone."""
+    gc_file = tmp_path / "rank1.pid"
+    code = ("import subprocess, sys, time; "
+            "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(6)']); "
+            f"open({str(gc_file)!r}, 'w').write(str(p.pid)); time.sleep(0.5)")
+    p, pid, rec = _harness(tmp_path, [PY, "-c", code], lock=True)
+    gc = int(_wait_file(gc_file))
+    p.send_signal(signal.SIGKILL)
+    p.wait(timeout=30)
+    assert _gone(pid, timeout=20)                     # rank 0 (the direct child) has exited
+    fd = os.open(tmp_path / ".exp38_card0.lock", os.O_WRONLY)
+    try:
+        with pytest.raises(OSError):
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)                     # rank 1 still runs
+        assert _gone(gc, timeout=30)
+        end = time.time() + 15
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)                 # freed within the holder's poll
+                break
+            except OSError:
+                assert time.time() < end, "the lock holder never released the card"
+                time.sleep(0.5)
+    finally:
+        os.close(fd)
+
+
+def test_the_authoritative_record_must_be_written(tmp_path):
+    """Codex code r2 HIGH 8: the first copy is authoritative at creation and at terminal transitions."""
+    good, bad = str(tmp_path / "a.json"), str(tmp_path / "missing_dir" / "b.json")
+    r = sv.Record([good, bad], x=1)                                            # a secondary failure is tolerated
+    r.update(strict=True, y=2)
+    assert json.load(open(good)) == {"x": 1, "y": 2}
+    with pytest.raises(OSError):
+        sv.Record([bad, good], x=1)                                            # no authoritative copy: no launch
+    d = tmp_path / "ro"
+    d.mkdir()
+    r2 = sv.Record([str(d / "c.json")], x=1)
+    os.chmod(d, 0o500)
+    try:
+        r2.update(y=3)                                                         # non-terminal: reported, not fatal
+        with pytest.raises(OSError):
+            r2.update(strict=True, status="finished")                          # terminal: fatal
+    finally:
+        os.chmod(d, 0o700)
 
 
 def test_backend_gate_resolves_like_the_child():
@@ -307,6 +381,12 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
     monkeypatch.setattr(reg, "storage_gate", lambda *x, **k: {"fstype": "cifs"})
     monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": "c" * 64})
     monkeypatch.setattr(reg, "_gpu_rows", lambda: [["0", reg.A6000_UUIDS[0], "NVIDIA RTX A6000", "570.86"]])
+    import exp38_content_manifest as cm
+    content_calls = []
+    monkeypatch.setattr(cm, "verify", lambda *x, **k: content_calls.append(k.get("want_sha")) or [])
+    retained_calls = []
+    monkeypatch.setattr(reg, "retain_receipts", lambda rd_, paths: retained_calls.append(sorted(paths)) or
+                        {k: os.path.basename(v) for k, v in paths.items()})
     rd = tmp_path / "nas" / run
     ev = {f"run_evidence.json.rank{r}.json": e for r, e in tr.records(run, max_steps=40000).items()}
     log = tr.smoke_log(run, steps=40000, losses=2, end=False)
@@ -329,7 +409,9 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
 
     def fake_receipt(*args, **kw):
         real_sig.bind(*args, **kw)                               # the supervisor calls the real signature
-        assert args[-1] == "d" * 64 and kw == {"repo": kw["repo"], "tree": str(tmp_path)}
+        assert args[12] == "d" * 64 and kw == {"repo": kw["repo"], "tree": str(tmp_path)}
+        assert sorted(args[13]) == ["e0", "env", "smoke"] and args[14] == reg.AR_CONTENT_SHA256
+        assert content_calls == [reg.AR_CONTENT_SHA256] and retained_calls == [["e0", "env", "smoke"]]
         calls.append(args)
         if not audit_ok:
             raise reg.GateError("end gates: synthetic failure")
@@ -339,7 +421,7 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
 
     def fake_smoke(*args, **kw):
         smoke_sig.bind(*args, **kw)
-        assert args[11] == "d" * 64 and kw["out_repo"] == str(tmp_path)
+        assert args[11] == "d" * 64 and kw["out_repo"] == str(tmp_path) and kw["snapshot_dir"] == kw["repo"]
         calls.append(args)
         return {"verdict": "PASS" if audit_ok else "FAIL"}
     monkeypatch.setattr(reg, "write_smoke_receipt", fake_smoke)
@@ -381,3 +463,31 @@ def test_a_smoke_ddp_seals_its_receipt_from_the_snapshot(tmp_path, monkeypatch, 
 def test_a_full_run_refuses_an_e0_receipt_of_another_head(tmp_path, monkeypatch):
     with pytest.raises(sv.Refused, match="E0 campaign"):
         _campaign(tmp_path, monkeypatch, e0_head="a" * 40)
+
+
+def test_a_full_run_refuses_unverified_ar_content(tmp_path, monkeypatch):
+    import exp38_content_manifest as cm
+    orig = cm.verify
+    try:
+        monkeypatch.setattr(cm, "verify", lambda *x, **k: ["3 group(s) differ from the content manifest"])
+        monkeypatch.setattr(sv.reg, "AR_CONTENT_SHA256", sv.reg.AR_CONTENT_SHA256)
+        with pytest.raises(sv.Refused, match="AR content"):
+            _campaign_no_content_patch(tmp_path, monkeypatch)
+    finally:
+        cm.verify = orig
+
+
+def _campaign_no_content_patch(tmp_path, monkeypatch):
+    import exp38_content_manifest as cm
+    bad = cm.verify
+    real_setattr = monkeypatch.setattr
+
+    def keep_verify(obj, name, value, *a, **k):                # let _campaign patch everything but cm.verify
+        if obj is cm and name == "verify":
+            return real_setattr(obj, name, bad)
+        return real_setattr(obj, name, value, *a, **k)
+    monkeypatch.setattr = keep_verify
+    try:
+        return _campaign(tmp_path, monkeypatch)
+    finally:
+        monkeypatch.setattr = real_setattr

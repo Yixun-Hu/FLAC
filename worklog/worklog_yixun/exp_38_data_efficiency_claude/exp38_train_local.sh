@@ -49,6 +49,10 @@ main() {
   unset PYTHONPATH PYTHONOPTIMIZE PYTHONSTARTUP PYTHONINSPECT PYTHONHOME ENABLE_TORCH_COMPILE PYTHONDONTWRITEBYTECODE
   export HF_HUB_OFFLINE=1 PYTHONUNBUFFERED=1 PYTHONNOUSERSITE=1
 
+  # no untracked importable file may sit next to the kit the supervisor imports (Codex code r2 HIGH 10)
+  local KITLIST; KITLIST="$(git -C "$HERE" ls-files --others -- .)" || die "git ls-files failed in the kit folder" 3
+  local SHADOW; SHADOW="$(grep -v '__pycache__/' <<< "$KITLIST" | grep -E '\.(py|pyc|pyo|so|pyd|pth)$|(^|/)(site|user)customize' || true)"
+  [ -z "$SHADOW" ] || die "untracked importable files in the kit folder: ${SHADOW//$'\n'/ }" 3
   local ARGS=(--platform a6000 --mode "$MODE" --run "$RUN" --backend "$ATTN_BACKEND" --gpu-policy "$GPU_POLICY"
               --smoke-gpu "$SMOKE_GPU" --smoke-steps "$SMOKE_STEPS")
   [ -n "${EXPECT_SHA:-}" ] && ARGS+=(--expect-sha "$EXPECT_SHA")

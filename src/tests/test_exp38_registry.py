@@ -336,6 +336,29 @@ def _ckpt_dict(run, step, run_dir, n_state=None, shapes=None):
     ep = reg.epoch_of_step(step, tag)
     prog = {"ready": step, "completed": step, "started": step, "processed": step}
     shp = (lambda i: shapes[i]) if shapes else (lambda i: (1,))
+    z2 = {"ready": 0, "completed": 0}
+    z4 = {"ready": 0, "completed": 0, "started": 0, "processed": 0}
+    p2 = {"ready": step, "completed": step}
+    p3 = {"ready": step, "completed": step, "started": step}
+    batch = {"total": dict(prog, completed=step - 1), "current": dict(prog, completed=step - 1), "is_last_batch": False}
+    eprog = {"ready": ep + 1, "completed": ep, "started": ep + 1, "processed": ep}
+    loops = {   # the exact PL 2.1 structure of the real endpoints, with this step's counters
+        "fit_loop": {"epoch_loop.state_dict": {"_batches_that_stepped": step - 1}, "epoch_loop.batch_progress": batch,
+                     "epoch_loop.scheduler_progress": {"total": p2, "current": p2},
+                     "epoch_loop.automatic_optimization.state_dict": {},
+                     "epoch_loop.automatic_optimization.optim_progress": {"optimizer": {
+                         "step": {"total": p2, "current": p2}, "zero_grad": {"total": p3, "current": p3}}},
+                     "epoch_loop.manual_optimization.state_dict": {},
+                     "epoch_loop.manual_optimization.optim_step_progress": {"total": z2, "current": z2},
+                     "epoch_loop.val_loop.state_dict": {},
+                     "epoch_loop.val_loop.batch_progress": {"total": z4, "current": z4, "is_last_batch": False},
+                     "epoch_progress": {"total": eprog, "current": eprog}, "state_dict": {}},
+        "predict_loop": {"state_dict": {}, "batch_progress": {"total": z4, "current": z4}},
+        "test_loop": {"state_dict": {}, "batch_progress": {"total": z4, "current": z4, "is_last_batch": False}},
+        "validate_loop": {"state_dict": {}, "batch_progress": {"total": z4, "current": z4, "is_last_batch": False}}}
+    mc = {"monitor": None, "best_model_score": None, "best_model_path": os.path.join(run_dir, reg.ckpt_name(step, tag)),
+          "current_score": None, "dirpath": run_dir, "best_k_models": {}, "kth_best_model_path": "",
+          "kth_value": torch.tensor(float("inf")), "last_model_path": ""}
     return {
         "global_step": step, "epoch": ep, "model_config": cfg, "pytorch-lightning_version": "2.1.0",
         "state_dict": {"diffusion_ema.ema_model.w": torch.zeros(2), "diffusion.model.w": torch.zeros(2),
@@ -343,7 +366,7 @@ def _ckpt_dict(run, step, run_dir, n_state=None, shapes=None):
                        "diffusion.conditioner.c": torch.zeros(1),
                        **{f"diffusion.pretransform.f{i}": torch.zeros(1) for i in range(reg.N_STATE_TENSORS - 5)}},
         "optimizer_states": [{"state": {i: {"step": torch.tensor(float(step)), "exp_avg": torch.zeros(shp(i)),
-                                            "exp_avg_sq": torch.zeros(shp(i))} for i in range(n)},
+                                            "exp_avg_sq": torch.zeros(shp(i))} for i in reg.OPT_STATE_IDS[:n]},
                               "param_groups": [{"lr": lr, "betas": [0.9, 0.999], "eps": 1e-08, "weight_decay": 0.001,
                                                 "amsgrad": False, "maximize": False, "foreach": None,
                                                 "capturable": False, "differentiable": False, "fused": None,
@@ -352,13 +375,7 @@ def _ckpt_dict(run, step, run_dir, n_state=None, shapes=None):
         "lr_schedulers": [{"inv_gamma": 1000000, "power": 0.5, "warmup": 0.99, "final_lr": 0.0, "base_lrs": [5e-05],
                            "last_epoch": step, "_step_count": step + 1, "_last_lr": [lr],
                            "_get_lr_called_within_step": False}],
-        "loops": {"fit_loop": {**{k: {} for k in reg.FIT_LOOP_KEYS},
-                               "epoch_loop.automatic_optimization.optim_progress":
-                                   {"optimizer": {"step": {"total": {"completed": step}}}},
-                               "epoch_loop.batch_progress": {"total": prog},
-                               "epoch_progress": {"total": {"processed": ep}}},
-                  "predict_loop": {}, "test_loop": {}, "validate_loop": {}},
-        "callbacks": {reg.MODEL_CHECKPOINT_KEY: {k: None for k in reg.MODEL_CHECKPOINT_STATE_KEYS} | {"dirpath": run_dir}}}
+        "loops": loops, "callbacks": {reg.MODEL_CHECKPOINT_KEY: mc}}
 
 
 def _fake_ckpt(path, run, step, run_dir=None, mutate=None):
@@ -412,6 +429,21 @@ def _mutations():
         "group betas": _set(_G + ("betas",), [0.9, 0.99]), "group wd": _set(_G + ("weight_decay",), 0.01),
         "group foreach": _set(_G + ("foreach",), True), "group lr": _set(_G + ("lr",), 1e-4),
         "state count": _set(_OS + ("state",), lambda st: {k: v for k, v in st.items() if k != 0}),
+        "state id swapped": _set(_OS + ("state",), lambda st: {(500 if k == 0 else k): v for k, v in st.items()}),
+        "state id out of range": _set(_OS + ("state",), lambda st: {(9999 if k == 0 else k): v for k, v in st.items()}),
+        "params list": _set(_G + ("params",), list(range(752))),
+        "loop extra nested key": _set(_FL + ("epoch_loop.state_dict", "extra"), 1),
+        "loop counter type": _set(_FL + ("epoch_loop.state_dict", "_batches_that_stepped"), 39999.0),
+        "loop batches stepped": _set(_FL + ("epoch_loop.state_dict", "_batches_that_stepped"), 1),
+        "loop scheduler progress": _set(_FL + ("epoch_loop.scheduler_progress", "total", "ready"), 1),
+        "loop manual steps": _set(_FL + ("epoch_loop.manual_optimization.optim_step_progress", "total", "ready"), 3),
+        "loop validation ran": _set(_FL + ("epoch_loop.val_loop.batch_progress", "total", "ready"), 3),
+        "test loop ran": _set(("loops", "test_loop", "batch_progress", "total", "completed"), 1),
+        "callback best_k_models": _set(("callbacks", _MC, "best_k_models"), {"a.ckpt": 1.0}),
+        "callback kth_value": _set(("callbacks", _MC, "kth_value"), None),
+        "callback last path": _set(("callbacks", _MC, "last_model_path"), "x.ckpt"),
+        "callback best path": _set(("callbacks", _MC, "best_model_path"), "/elsewhere/x.ckpt"),
+        "callback score": _set(("callbacks", _MC, "best_model_score"), 0.5),
         "state key": _set(_OS + ("state", 3, "max_exp_avg_sq"), torch.zeros(1)),
         "state step": _set(_OS + ("state", 5, "step"), torch.tensor(1.0)),
         "state nan": _set(_OS + ("state", 7, "exp_avg"), torch.tensor([float("inf")])),
@@ -503,7 +535,11 @@ def test_the_real_100_percent_endpoints_satisfy_the_exact_schema(name):
     import torch
     ck = torch.load(REAL_100[name], map_location="cpu", weights_only=False)
     probs = reg.ckpt_schema_problems(ck, 40000, "025")
-    assert len(probs) == 2 and probs[0] == "epoch 8 != 34" and probs[1].startswith("epoch progress")
+    # all three are the 100 % run's epoch counter (8, not the f025 34): the epoch, its progress, and the
+    # epoch in the ModelCheckpoint's own file name
+    assert len(probs) == 3 and probs[0] == "epoch 8 != 34" and probs[1].startswith("epoch progress")
+    assert "best_model_path" in probs[2] and ck["callbacks"][reg.MODEL_CHECKPOINT_KEY]["best_model_path"].endswith(
+        "/epoch=8-step=40000.ckpt")
 
 
 def test_ckpt_manifest_needs_the_full_cadence(tmp_path):
