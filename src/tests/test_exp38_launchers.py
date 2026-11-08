@@ -71,7 +71,9 @@ def test_dry_run_prints_the_registered_commands_and_spawns_nothing(run, tmp_path
     ({"MODE": "FULL", "RUN": "de_yaw_f025", "EXP38_DRY_SAVE_ROOT": "/tmp/x"}, "DRY_RUN test hooks"),
     ({"MODE": "DRY_RUN", "RUN": "de_yaw_f025", "GPU_POLICY": "maybe"}, "GPU_POLICY"),
     ({"MODE": "DRY_RUN", "RUN": "de_yaw_f025", "ATTN_BACKEND": "xformers"}, "ATTN_BACKEND"),
-    ({"MODE": "FULL", "RUN": "de_yaw_f025"}, "runs only from the campaign tree"),
+    ({"MODE": "SMOKE_DDP", "RUN": "de_yaw_f025"}, "runs only from the campaign tree"),
+    # D2 = neuronic (Yixun 2026-11-08): a FULL on this box refuses before any tree / card work
+    ({"MODE": "FULL", "RUN": "de_yaw_f025"}, "D2: every exp_38 training runs on neuronic; FULL refuses on a6000"),
 ])
 def test_launcher_refusals(kw, needle):
     r = _launch(**kw)
