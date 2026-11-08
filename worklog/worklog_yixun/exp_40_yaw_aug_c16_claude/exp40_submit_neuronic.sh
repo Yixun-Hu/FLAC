@@ -43,8 +43,8 @@ exec 9>"$SAVE_ROOT/.submit.lock" || die "lock"; flock -n 9 || die "another submi
 # --- this cluster's dataset must reproduce the committed full AR manifest (plan §14 H2) ---- #
 ARRCPT="$RECEIPTS/ar_verify_neuronic.json"
 [ -f "$ARRCPT" ] || die "no $ARRCPT: first run (CPU node, ~1 h): $PY $EXPREL/exp40_kit.py ar-verify --ar-root \$(readlink -f AcousticRooms) --manifest $EXPREL/exp40_ar_manifest.json --out $ARRCPT"
-"$PY" -c "import json,sys; r=json.load(open(sys.argv[1])); m=json.load(open(sys.argv[2])); sys.exit(0 if r['verdict']=='PASS' and r['got_digest']==m['digest'] else 1)" \
-  "$ARRCPT" "$EXPREL/exp40_ar_manifest.json" || die "$ARRCPT is not a PASS of the committed manifest"
+"$PY" "$EXPREL/exp40_kit.py" ar-receipt-check --receipt "$ARRCPT" --manifest "$EXPREL/exp40_ar_manifest.json" \
+  --ar-root "$(readlink -f AcousticRooms)" || die "$ARRCPT is not a fresh (0..48 h) PASS of the committed manifest over this AcousticRooms root"
 
 # --- the sealed HF hub (plan §14 H3), built once from this cluster's cache ------------------ #
 [ -d "$SAVE_ROOT/hf_sealed" ] || "$PY" "$EXPREL/exp40_kit.py" build-hf-sealed --src-hub /n/fs/gatrdp/hf_cache/hub \

@@ -754,10 +754,110 @@ def test_ar_counts_and_verify_receipt(tmp_path):
     (ar / "metadata" / "Cafe" / "Cafe_idx_0" / "a.bin").write_bytes(b"9")                # same-size mutation
     again = kit.ar_manifest(str(ar), [("Cafe", "Cafe_idx_0")], content=True, workers=1)
     assert again != man, "a same-size content change must change the full content manifest"
-    rec = {"verdict": "PASS", "manifest_digest": kit.digest_obj(man), "got_digest": kit.digest_obj(man),
-           "t": time.time()}
-    kit.atomic_write_json(str(tmp_path / "r.json"), rec)
-    assert kit.ar_verify_reasons(str(tmp_path / "r.json"), {"digest": kit.digest_obj(man)}) == []
-    rec["t"] = time.time() - 49 * 3600
-    kit.atomic_write_json(str(tmp_path / "r.json"), rec)
-    assert kit.ar_verify_reasons(str(tmp_path / "r.json"), {"digest": kit.digest_obj(man)})
+    pinned = {"rooms": man, "digest": kit.digest_obj(man)}
+    base = {"verdict": "PASS", "manifest_digest": kit.digest_obj(man), "got_digest": kit.digest_obj(man),
+            "ar_root": os.path.realpath(str(ar)), "t": time.time(), "seconds": 1.0, "differing_rooms": []}
+    r = str(tmp_path / "r.json")
+    kit.atomic_write_json(r, base)
+    assert kit.ar_verify_reasons(r, pinned, str(ar)) == []
+    now = base["t"]
+    mutations = [("t", now - 49 * 3600), ("t", now + 3600), ("t", True), ("t", "1"),
+                 ("verdict", "FAIL"), ("differing_rooms", ["Cafe/Cafe_idx_0"]),
+                 ("manifest_digest", "0" * 64), ("got_digest", "0" * 64), ("ar_root", "/elsewhere")]
+    for key, val in mutations:
+        kit.atomic_write_json(r, {**base, key: val})
+        assert kit.ar_verify_reasons(r, pinned, str(ar), now=now), (key, val)
+    kit.atomic_write_json(r, {**base, "extra": 1})
+    assert kit.ar_verify_reasons(r, pinned, str(ar), now=now)
+    kit.atomic_write_json(r, {k: v for k, v in base.items() if k != "seconds"})
+    assert kit.ar_verify_reasons(r, pinned, str(ar), now=now)
+    kit.atomic_write_json(r, base)
+    assert kit.ar_verify_reasons(r, {"rooms": man, "digest": "0" * 64}, str(ar), now=now)
+    (tmp_path / "r.json").write_text("{trunc")
+    assert kit.ar_verify_reasons(r, pinned, str(ar), now=now)
+
+
+def test_driver_pin_is_enforced_on_a6000_and_recorded_on_neuronic():
+    assert kit.driver_reasons("a6000", kit.DRIVER_A6000) == []
+    assert kit.driver_reasons("a6000", "580.1")
+    assert kit.driver_reasons("a6000", None)
+    assert kit.driver_reasons("neuronic", "550.54.15") == []
+    assert kit.driver_reasons("neuronic", "")
+
+
+def _admission(tmp_path, **over):
+    run_id = "exp40_C16_a6000_2x32"
+    nas = tmp_path / "nas" / run_id
+    nas.mkdir(parents=True)
+    ck = {}
+    for name in kit.EXPECTED_CKPTS:
+        (nas / name).write_bytes(name.encode())
+        ck[name] = hashlib.sha256(name.encode()).hexdigest()
+    kit.write_manifest(str(nas / "MANIFEST.sha256"), ck)
+    final = kit.ckpt_name(kit.ENDPOINT)
+    rec = {"kind": "exp40_admission", "admitted": True, "arm": "C16", "run_id": run_id,
+           "platform": "a6000", "rung": "2x32", "train_sha": "a" * 40, "runtree_digest": "1" * 64,
+           "env_digest": "2" * 64, "nas_dir": str(nas), "checkpoints": ck,
+           "manifest_sha256": kit.sha256_file(str(nas / "MANIFEST.sha256")),
+           "ckpt_path": str(nas / final), "sha256": ck[final], "bytes": 9, "global_step": 40000,
+           "model_config": kit.ARM_CONFIG, "model_config_sha256": kit.PINS[kit.ARM_CONFIG],
+           "embedded_config_sha256": "3" * 64, "ema_inventory_sha256": "4" * 64,
+           "strict_load": True, "full_evidence_sha256": "5" * 64, "check_sha256": "6" * 64,
+           "audit_sha256": "7" * 64, "historical": {}, "current_assets": {},
+           "trajectory_equivalence_claim_allowed": False, "note": "", "t": 1.0}
+    rec.update(over)
+    path = tmp_path / "admission.json"
+    kit.atomic_write_json(str(path), rec)
+    return str(path), rec, nas
+
+
+def test_ckpt_names_are_the_lightning_epoch_step_names():
+    assert kit.ckpt_name(2500) == "epoch=0-step=2500.ckpt"
+    assert kit.ckpt_name(5000) == "epoch=1-step=5000.ckpt"
+    assert kit.ckpt_name(40000) == "epoch=8-step=40000.ckpt"
+    assert len(kit.EXPECTED_CKPTS) == 16
+
+
+def test_admission_validator_accepts_the_exact_record_and_rehashes(tmp_path):
+    path, rec, nas = _admission(tmp_path)
+    for mode in (None, "final", "all"):
+        reasons, got, sha = kit.admission_reasons(path, nas_root=str(tmp_path / "nas"), rehash=mode)
+        assert reasons == [] and got == rec and sha == kit.sha256_file(path), (mode, reasons)
+
+
+@pytest.mark.parametrize("key,val", [
+    ("admitted", 1), ("arm", "YAW"), ("kind", "admission"), ("run_id", "exp40_C16_neuronic_2x32"),
+    ("platform", "neuronic"), ("rung", "8x8"), ("train_sha", "a" * 39), ("sha256", "0" * 64),
+    ("ckpt_path", "/elsewhere/epoch=8-step=40000.ckpt"), ("global_step", 40000.0), ("global_step", True),
+    ("bytes", 0), ("model_config", "x.json"), ("strict_load", False), ("audit_sha256", "Z" * 64),
+    ("trajectory_equivalence_claim_allowed", None), ("note", None), ("t", True)])
+def test_admission_validator_rejects_every_field_mutation(tmp_path, key, val):
+    path, rec, nas = _admission(tmp_path, **{key: val})
+    reasons, got, _ = kit.admission_reasons(path, nas_root=str(tmp_path / "nas"), rehash=None)
+    assert reasons and got is None
+
+
+def test_admission_validator_rejects_schema_and_nas_mutations(tmp_path):
+    path, rec, nas = _admission(tmp_path)
+    root = str(tmp_path / "nas")
+    kit.atomic_write_json(path, {**rec, "extra": 1})
+    assert kit.admission_reasons(path, nas_root=root)[0]
+    kit.atomic_write_json(path, {k: v for k, v in rec.items() if k != "note"})
+    assert kit.admission_reasons(path, nas_root=root)[0]
+    kit.atomic_write_json(path, {**rec, "checkpoints": {k: v for k, v in list(rec["checkpoints"].items())[1:]}})
+    assert kit.admission_reasons(path, nas_root=root)[0]
+    kit.atomic_write_json(path, rec)
+    for name in kit.EXPECTED_CKPTS:                       # every cadence file, one at a time
+        p = nas / name
+        old = p.read_bytes()
+        p.write_bytes(old + b"x")
+        assert kit.admission_reasons(path, nas_root=root, rehash="all")[0], name
+        if name == kit.ckpt_name(kit.ENDPOINT):
+            assert kit.admission_reasons(path, nas_root=root, rehash="final")[0]
+        p.write_bytes(old)
+    assert kit.admission_reasons(path, nas_root=root, rehash="all")[0] == []
+    (nas / "epoch=8-step=40000.ckpt.partial").write_bytes(b"")
+    assert kit.admission_reasons(path, nas_root=root, rehash="all")[0]
+    (nas / "epoch=8-step=40000.ckpt.partial").unlink()
+    (tmp_path / "admission.json").write_text("{trunc")
+    assert kit.admission_reasons(path, nas_root=root)[0]

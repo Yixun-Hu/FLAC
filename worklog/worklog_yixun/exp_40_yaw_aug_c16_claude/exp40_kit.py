@@ -52,11 +52,17 @@ PINS = {
     VAE: "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9",
 }
 AR_SAMPLE_DIGEST = "a6ec819505de2bf1b196731ad1160aa59ff82735eb18d2ae95e944d48797d703"
+# the same 16-item construction over data/AR/unseen_eval.json (read 2026-11-07 23:20 from
+# /media/diskstation/yixunhu/FLAC/AcousticRooms; the evaluation per-batch quick gate, code-r1 H7)
+AR_EVAL_SAMPLE_DIGEST = "ce890a70df2f81b6b7385b47155812f12ccc55e982681c7ab2df9007477a01dd"
 DINO_REPO_DIR = "models--facebook--dinov3-vits16-pretrain-lvd1689m"
 DINO_SHA256 = "4610ad75edef83e75afdebf162d148dc628045ea6cbb83d67d4708c709c4f91d"
 DINO_CONFIG_SHA256 = "9481247be9f95a134a5599402b4bfc838eecdf9a7fffbf4debd1c70ec213898b"
 AR_MANIFEST = f"{EXPREL}/exp40_ar_manifest.json"      # committed once the one-time manifest exists
 HANDSHAKE_DIR = "/home/yixunhu/codespace/claude_gpu_yield"
+# One exp_40 user of the A6000 cards at a time, training and evaluation alike, independent of
+# the checkout (code-r1 H8): a fixed path, not one under any worktree.
+CARDS_LOCK = os.path.expanduser("~/.exp40_cards.lock")
 RUNTREE_MANIFEST = ".exp40_runtree_manifest.json"
 # What the run tree holds: the training closure + this folder (kit, driver, config) + the
 # reference config + the E1 fixture (read by the evidence checks).
@@ -416,10 +422,13 @@ def tree_digest(repo, sha, links, paths=ARCHIVE_PATHS):
     return digest_obj({"sha": sha, "blobs": tracked_blobs(repo, sha, paths), "links": links})
 
 
-def ar_sample_digest(tree):
-    """16 deterministic train items x {IR wav, depth npy, metadata json} (plan §4.2)."""
-    with open(os.path.join(tree, "data/AR/train.json")) as f:
+def ar_sample_digest(tree, split_rel="data/AR/train.json", ar_root=None):
+    """16 deterministic items of a split x {IR wav, depth npy, metadata json} (plan §4.2).
+    Training pins the train split (AR_SAMPLE_DIGEST); evaluation pins the eval split
+    (AR_EVAL_SAMPLE_DIGEST, code-r1 H7)."""
+    with open(os.path.join(tree, split_rel)) as f:
         split = json.load(f)
+    root = ar_root if ar_root is not None else os.path.join(tree, "AcousticRooms")
     items = sorted((t, r, x) for t in split for r in split[t] for x in split[t][r])
     h = hashlib.sha256()
     for t, r, x in (items[i * len(items) // 16] for i in range(16)):
@@ -427,7 +436,7 @@ def ar_sample_digest(tree):
         src, rec = int(stem.split("_")[0][1:]), int(stem.split("_")[1][1:])
         for rel in (f"single_channel_ir_1/{t}/{r}/{x}", f"depth_map/{t}/{r}/{rec}.npy",
                     f"metadata/{t}/{r}/S00{src}_R00{rec}.json"):
-            h.update(f"{rel} {sha256_file(os.path.join(tree, 'AcousticRooms', rel))}\n".encode())
+            h.update(f"{rel} {sha256_file(os.path.join(root, rel))}\n".encode())
     return h.hexdigest()
 
 
@@ -484,20 +493,49 @@ def ar_counts_reasons(ar_root, rooms, pinned):
     return reasons
 
 
-def ar_verify_reasons(receipt_path_, manifest, max_age_s=48 * 3600):
-    """FULL / eval-freeze gate: a PASS full content re-hash of THIS manifest, <= 48 h old."""
+AR_RECEIPT_KEYS = {"verdict", "manifest_digest", "got_digest", "ar_root", "t", "seconds",
+                   "differing_rooms"}
+
+
+def ar_verify_reasons(receipt_path_, manifest, ar_root, now=None, max_age_s=48 * 3600):
+    """FULL / eval-freeze gate (code-r1 M3/H7): a PASS full content re-hash of THIS manifest
+    over THIS AcousticRooms root, 0 <= age <= 48 h, exact receipt schema. The one validator
+    used by the in-job FULL gate, the neuronic submitter and the evaluation driver."""
     try:
         rec = read_json(receipt_path_)
     except (OSError, ValueError) as err:
         return [f"no readable full AcousticRooms re-hash receipt {receipt_path_} ({err}); run "
                 "exp40_kit.py ar-verify first"]
+    if not isinstance(rec, dict) or set(rec) != AR_RECEIPT_KEYS:
+        return [f"AR re-hash receipt {receipt_path_} keys {sorted(rec) if isinstance(rec, dict) else rec!r} "
+                f"!= {sorted(AR_RECEIPT_KEYS)}"]
     reasons = []
-    if rec.get("verdict") != "PASS" or rec.get("manifest_digest") != manifest["digest"] \
-            or rec.get("got_digest") != manifest["digest"]:
-        reasons.append(f"AR re-hash receipt {receipt_path_} is not a PASS of manifest {manifest['digest'][:12]}")
-    if time.time() - float(rec.get("t", 0)) > max_age_s:
-        reasons.append(f"AR re-hash receipt {receipt_path_} is older than {max_age_s // 3600} h")
+    if digest_obj(manifest.get("rooms")) != manifest.get("digest"):
+        reasons.append("the pinned AcousticRooms manifest is internally inconsistent")
+    if rec["verdict"] != "PASS" or rec["differing_rooms"] != [] \
+            or rec["manifest_digest"] != manifest.get("digest") or rec["got_digest"] != manifest.get("digest"):
+        reasons.append(f"AR re-hash receipt {receipt_path_} is not a PASS of manifest "
+                       f"{str(manifest.get('digest'))[:12]}")
+    if rec["ar_root"] != os.path.realpath(ar_root):
+        reasons.append(f"AR re-hash receipt root {rec['ar_root']} != {os.path.realpath(ar_root)}")
+    t = rec["t"]
+    if isinstance(t, bool) or not isinstance(t, (int, float)) or not math.isfinite(t):
+        reasons.append(f"AR re-hash receipt time {t!r} is not a number")
+    else:
+        age = (time.time() if now is None else now) - t
+        if not 0 <= age <= max_age_s:
+            reasons.append(f"AR re-hash receipt {receipt_path_} age {age / 3600:.1f} h is outside "
+                           f"[0, {max_age_s // 3600}] h")
     return reasons
+
+
+def driver_reasons(platform, driver_version):
+    """code-r1 H4: the A6000 NVIDIA driver is pinned; neuronic records it (PILOT -> FULL)."""
+    if platform == "a6000" and driver_version != DRIVER_A6000:
+        return [f"NVIDIA driver {driver_version!r} != pinned {DRIVER_A6000!r}"]
+    if not driver_version:
+        return ["the NVIDIA driver version was not measured (EXP40_DRIVER_VERSION)"]
+    return []
 
 
 def ar_listing_reasons(ar_root, rooms, pinned, workers=8):
@@ -830,7 +868,8 @@ def check(platform, rung, mode, run_id, sha, repo, tree, links, save_root, stamp
                                              split_rooms(os.path.join(tree, "data/AR/train.json")),
                                              man["rooms"])
                 if mode == "FULL":
-                    reasons += ar_verify_reasons(os.path.join(receipts_dir, f"ar_verify_{platform}.json"), man)
+                    reasons += ar_verify_reasons(os.path.join(receipts_dir, f"ar_verify_{platform}.json"),
+                                                 man, os.path.join(tree, "AcousticRooms"))
     reasons += hf_sealed_reasons(hf_sealed)
     reasons += hf_resolution_reasons(hf_sealed, PLATFORMS[platform]["python"], env)
     for k, v in hf_env(hf_sealed).items():
@@ -839,6 +878,7 @@ def check(platform, rung, mode, run_id, sha, repo, tree, links, save_root, stamp
     measured = measure_environment(tree, PLATFORMS[platform]["python"], env)
     info["environment"] = measured
     reasons += environment_reasons(platform, measured, tree, env)
+    reasons += driver_reasons(platform, env.get("EXP40_DRIVER_VERSION"))
     info["env_digest"] = environment_digest(measured, env.get("EXP40_DRIVER_VERSION"))
     reasons += config_contract_reasons(tree, PLATFORMS[platform]["python"])
     argv = train_argv(platform, rung, mode, run_id, save_root, stamp)
@@ -1553,6 +1593,92 @@ def admit(nas_run_dir, tree, expected_dirpath, meta, evidence, audit_json, stric
             "manifest_sha256": sha256_file(os.path.join(nas_run_dir, "MANIFEST.sha256"))}
 
 
+def ckpt_name(step):
+    """The exact Lightning name of the step's cadence checkpoint (epoch = (step-1) // 4550)."""
+    return f"epoch={(step - 1) // STEPS_PER_EPOCH}-step={step}.ckpt"
+
+
+EXPECTED_CKPTS = tuple(ckpt_name(s) for s in CKPT_STEPS)
+_HEX64 = re.compile(r"[0-9a-f]{64}")
+_HEX40 = re.compile(r"[0-9a-f]{40}")
+ADMISSION_KEYS = frozenset((
+    "kind", "admitted", "arm", "run_id", "platform", "rung", "train_sha", "runtree_digest",
+    "env_digest", "nas_dir", "checkpoints", "manifest_sha256", "ckpt_path", "sha256", "bytes",
+    "global_step", "model_config", "model_config_sha256", "embedded_config_sha256",
+    "ema_inventory_sha256", "strict_load", "full_evidence_sha256", "check_sha256", "audit_sha256",
+    "historical", "current_assets", "trajectory_equivalence_claim_allowed", "note", "t"))
+
+
+def admission_reasons(path, nas_root=NAS_ROOT, rehash="final"):
+    """The ONE admission validator (code-r1 B6/B10), shared by the evaluation driver, collect,
+    figure and table publication. ``rehash``: "final" re-hashes the 40k checkpoint, "all" also
+    re-hashes every cadence checkpoint and MANIFEST.sha256 and rejects extra/partial files,
+    None checks the record only. Returns (reasons, record or None, sha256 of the file)."""
+    try:
+        rec = read_json(path)
+        file_sha = sha256_file(path)
+    except (OSError, ValueError) as err:
+        return [f"admission {path} unreadable ({err})"], None, None
+    if not isinstance(rec, dict) or set(rec) != ADMISSION_KEYS:
+        got = sorted(rec) if isinstance(rec, dict) else type(rec).__name__
+        return [f"admission {path} keys {got} != the exact admission schema"], None, file_sha
+    r = []
+
+    def need(cond, msg):
+        if not cond:
+            r.append(msg)
+    need(rec["kind"] == "exp40_admission" and rec["admitted"] is True and rec["arm"] == "C16",
+         "not an exp_40 C16 admission")
+    m = RUN_ID_RE.match(rec["run_id"]) if isinstance(rec["run_id"], str) else None
+    need(m is not None and m.group(1) == rec["platform"] and m.group(2) == rec["rung"],
+         f"run_id {rec['run_id']!r} / platform / rung inconsistent")
+    need(isinstance(rec["train_sha"], str) and _HEX40.fullmatch(rec["train_sha"]) is not None,
+         "train_sha is not a 40-hex commit")
+    for k in ("runtree_digest", "env_digest", "manifest_sha256", "sha256", "embedded_config_sha256",
+              "ema_inventory_sha256", "full_evidence_sha256", "check_sha256", "audit_sha256"):
+        need(isinstance(rec[k], str) and _HEX64.fullmatch(rec[k]) is not None, f"{k} is not a sha256")
+    need(rec["nas_dir"] == os.path.join(nas_root, str(rec["run_id"])),
+         f"nas_dir {rec['nas_dir']!r} != {os.path.join(nas_root, str(rec['run_id']))}")
+    ck = rec["checkpoints"]
+    need(isinstance(ck, dict) and sorted(ck) == sorted(EXPECTED_CKPTS)
+         and all(isinstance(v, str) and _HEX64.fullmatch(v) for v in ck.values()),
+         "checkpoints is not exactly the 16 cadence names -> sha256")
+    final = ckpt_name(ENDPOINT)
+    need(rec["ckpt_path"] == os.path.join(str(rec["nas_dir"]), final), f"ckpt_path is not <nas_dir>/{final}")
+    need(isinstance(ck, dict) and ck.get(final) == rec["sha256"], "sha256 != checkpoints[40k]")
+    need(type(rec["bytes"]) is int and rec["bytes"] > 0, "bytes is not a positive int")
+    need(type(rec["global_step"]) is int and rec["global_step"] == ENDPOINT, "global_step != 40000")
+    need(rec["model_config"] == ARM_CONFIG and rec["model_config_sha256"] == PINS[ARM_CONFIG],
+         "model_config is not the pinned C16 arm config")
+    need(rec["strict_load"] is True, "admission without a strict load")
+    need(rec["trajectory_equivalence_claim_allowed"] is False, "trajectory claim must be False")
+    need(isinstance(rec["historical"], dict) and isinstance(rec["current_assets"], dict),
+         "historical/current_assets must be objects")
+    need(isinstance(rec["note"], str), "note must be a string")
+    need(isinstance(rec["t"], (int, float)) and not isinstance(rec["t"], bool), "t must be a number")
+    if r or rehash is None:
+        return r, (rec if not r else None), file_sha
+    if rehash == "all":
+        try:
+            names = sorted(os.listdir(rec["nas_dir"]))
+        except OSError as err:
+            return [f"NAS run dir unreadable ({err})"], None, file_sha
+        if names != sorted(list(EXPECTED_CKPTS) + ["MANIFEST.sha256"]):
+            r.append(f"NAS run dir holds {names}, not exactly the 16 checkpoints + MANIFEST.sha256")
+        elif sha256_file(os.path.join(rec["nas_dir"], "MANIFEST.sha256")) != rec["manifest_sha256"]:
+            r.append("NAS MANIFEST.sha256 changed since admission")
+        else:
+            for name, want in sorted(ck.items()):
+                if sha256_file(os.path.join(rec["nas_dir"], name)) != want:
+                    r.append(f"NAS {name} no longer hashes to its admitted sha256")
+    elif rehash == "final":
+        if not os.path.isfile(rec["ckpt_path"]) or sha256_file(rec["ckpt_path"]) != rec["sha256"]:
+            r.append(f"{rec['ckpt_path']} does not re-hash to the admitted {rec['sha256']}")
+    else:
+        raise ValueError(f"rehash={rehash!r}")
+    return r, (rec if not r else None), file_sha
+
+
 # --------------------------------------------------------------------------- #
 # reservation token (handshake dir) and execution-side claim (plan r2 §4.3-5, §4.4)
 # --------------------------------------------------------------------------- #
@@ -1831,6 +1957,9 @@ def main(argv=None):
     av = sub.add_parser("ar-verify"); av.add_argument("--ar-root", required=True)
     av.add_argument("--manifest", required=True); av.add_argument("--out", required=True)
     av.add_argument("--workers", type=int, default=4)
+    ac = sub.add_parser("ar-receipt-check")      # code-r1 M3: the SAME validator as the FULL gate
+    ac.add_argument("--receipt", required=True); ac.add_argument("--manifest", required=True)
+    ac.add_argument("--ar-root", required=True)
     args = ap.parse_args(argv)
     try:
         if args.cmd == "argv":
@@ -1967,6 +2096,12 @@ def main(argv=None):
         if args.cmd == "build-hf-sealed":
             print(build_hf_sealed(args.src_hub, args.dest))
             return 0
+        if args.cmd == "ar-receipt-check":
+            reasons = ar_verify_reasons(args.receipt, read_json(args.manifest), args.ar_root)
+            for r in reasons:
+                print(f"  {r}")
+            print(f"AR RECEIPT {'PASS' if not reasons else 'REFUSED'} {args.receipt}")
+            return 0 if not reasons else 2
         if args.cmd == "ar-verify":
             man = read_json(args.manifest)
             t0 = time.time()
