@@ -23,3 +23,21 @@
 - **Result** — passed: all four canonical record sha256 = `76c1f63419f1038d4ceb22cc788941ef5843ac5699c44603f17caa6181427909` (tiny training steps at 4 (step, rank) cases + real-width offsets for the 8×8 and 2×32 rungs at 8 steps; global RNG untouched).
 - **Analysis** — The tiny model's loss is identical across cases (zero-initialised conditioning paths of the DiT); the metadata/conditioning digests are what bind the transform, and they differ across cases as they must.
 - **Next** — plan r0 → Codex plan review r1.
+
+## 2026-11-07T21:30:00-05:00 — chronology clarification (Codex plan r1 NIT 4)
+
+- The E1 entry above is headed 21:21 but was appended after the 21:28 provenance entry. Actual order: E1 capture 21:20–21:21 → provenance write-up 21:28 → plan r0 + commit `1273a516` 21:28. Nothing was reordered.
+
+## 2026-11-07T21:38:00-05:00 — Codex plan review r1: REVISE (2 BLOCKING / 12 HIGH / 4 NIT)
+
+- **Goal** — Plan review round 1 of at most 3.
+- **Command / Validation** — `codex exec -s read-only -m gpt-5.6-sol -c model_reasoning_effort=xhigh -C ~/codespace/exp-40-yaw-aug-c16 -o <scratch>/plan_r1_review.md "<prompt>" < /dev/null` (started 21:29:17); transcript `yaw_aug_c16_2026-11-07_21-29-17_codex_plan_r1.log.gz`; review verbatim `yaw_aug_c16_codex_plan_r1_review.md`.
+- **Result** — REVISE. Confirmed: the exp_17 provenance correction, D1(a) as the primary, the coupled-quantisation maths, E1's four identical records, the closure classification, the 97-cell arithmetic. Blocking: Slurm submit-exactly-once; every cadence checkpoint on the NAS. High: scoped claim; tool-bound fixture + gradient-level reference; immutable run tree; environment/backend proof; rank-private smoke evidence; FULL idle-only; full-state admission; balanced off-grid coset; E0 receipt + full verification; pinned comparator reuse (exp_36 already holds P1/YAW 135/225/315); figure/table paths; neuronic contract.
+- **Analysis** — All findings accepted; none changes the treatment. The figure arm stays exp_17 (2×32).
+- **Next** — plan r1 (every finding mapped in §12) → Codex plan review r2.
+
+## 2026-11-07T21:58:00-05:00 — plan r1 written (all r1 findings folded in)
+
+- **Change** — `plan_yaw_aug_c16.md` r1 (r0 archived in `plan_history/plan_yaw_aug_c16_r0.md`). New decisions D4 (neuronic cadence pull vs end-only), D5 (balanced off-grid coset vs the brief's set), D6 (paper figure owner). Cell list 97 → 85 (exp_36's 12 G45 comparator cells reused through a pinned registry; FILL = 16 off-grid comparators). Pins gathered for the kit: AR sample digest `a6ec8195…` (16 deterministic train items × wav/depth/metadata), DINOv3 `model.safetensors` `4610ad75…`, dataset config `71f11e80…`, `data/AR/train.json` `aa4e52d6…`, A6000 env versions (python 3.10.20, torch 2.7.0+cu126, CUDA 12.6, cuDNN 90501, NCCL 2.26.2, driver 590.48.01, flash-attn 2.7.4.post1, …).
+- **Note** — the scratchpad is shared with sibling agents (exp_38/exp_39 Codex files appeared in `scratchpad/codex/`); exp_40 scratch moved under `scratchpad/exp40/`.
+- **Next** — Codex plan review r2.
