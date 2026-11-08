@@ -48,6 +48,15 @@ def extra_callbacks(args):
     from src.training.run_evidence import RunEvidenceCallback
     return [RunEvidenceCallback(path)]
 
+def logger_args_dict(args):
+    """``vars(args)`` for the logger. An empty exp_38 ``evidence_json`` is dropped (from ``args`` too,
+    which then reads as the pre-flag namespace), so a run without the flag logs exactly the pre-flag
+    hyperparameters (Codex exp_38 code r1 NIT 1)."""
+    d = vars(args)
+    if not d.get("evidence_json"):
+        d.pop("evidence_json", None)
+    return d
+
 def build_trainer_kwargs(args, strategy, callbacks, logger, checkpoint_dir, val_args):
     """Assemble the pl.Trainer keyword arguments (side-effect free; unit-testable).
 
@@ -192,7 +201,7 @@ def main():
     save_model_config_callback = ModelConfigEmbedderCallback(model_config)
         
     #Combine args and config dicts
-    args_dict = vars(args)
+    args_dict = logger_args_dict(args)
     args_dict.update({"model_config": model_config})
     args_dict.update({"dataset_config": dataset_config})
     args_dict.update({"val_dataset_config": val_dataset_config})

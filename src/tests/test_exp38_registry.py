@@ -200,46 +200,59 @@ def test_checkpoint_names_match_exp14s_dc_van_run_dir():
     assert len(reg.cadence_steps()) == 16
 
 
-def test_resume_boundaries_are_on_the_cadence():
-    reg.check_leg(10000, 40000)
-    for bad in ((0, 41000), (1000, 40000), (40000, 40000), (-2500, 40000)):
-        with pytest.raises(reg.GateError):
-            reg.check_leg(*bad)
-
-
 def _touch(d, names):
     d.mkdir(parents=True, exist_ok=True)
     for n in names:
         (d / n).write_bytes(b"x")
 
 
-def test_run_dir_fresh_and_resume_states(tmp_path):
+def test_run_dir_fresh_and_complete_states_only(tmp_path):
+    """No resume state exists (Codex code r1 HIGH 2): a run dir is fresh (0) or complete (40,000)."""
     run = "de_bf_f025"
     assert reg.check_run_dir(str(tmp_path / "absent"), run, 0)["state"] == "fresh"
     d = tmp_path / "rd"
-    _touch(d, ["at_launch_de_bf_f025_x.txt"])
+    _touch(d, ["at_launch_de_bf_f025_x.json"])
     assert reg.check_run_dir(str(d), run, 0)["state"] == "fresh"
     _touch(d, ["epoch=2-step=2500.ckpt"])
     with pytest.raises(reg.GateError):
         reg.check_run_dir(str(d), run, 0)                       # fresh start refuses a checkpoint
-    _touch(d, [reg.ckpt_name(s, "025") for s in (5000, 7500, 10000)])
-    assert reg.check_run_dir(str(d), run, 10000)["state"] == "resume@10000"
-    _touch(d, [reg.ckpt_name(12500, "025")])
+    for bad in (2500, 10000, 37500, -1):
+        with pytest.raises(reg.GateError):
+            reg.check_run_dir(str(d), run, bad)                 # there is no resume boundary
+    full = tmp_path / "full"
+    _touch(full, [reg.ckpt_name(s, "025") for s in reg.cadence_steps()])
+    assert reg.check_run_dir(str(full), run, 40000)["state"] == "complete"
+    (full / ".exp38_lock").mkdir()
     with pytest.raises(reg.GateError):
-        reg.check_run_dir(str(d), run, 10000)                   # a checkpoint beyond the boundary
+        reg.check_run_dir(str(full), run, 40000)                # a live / crashed run
+    assert reg.check_run_dir(str(full), run, 40000, allow_lock=True)["state"] == "complete"
+    _touch(full, [reg.ckpt_name(42500, "025")])
+    with pytest.raises(reg.GateError):
+        reg.check_run_dir(str(full), run, 40000, allow_lock=True)   # a checkpoint beyond the endpoint
     d2 = tmp_path / "foreign"
     _touch(d2, ["somebody_else.txt"])
     with pytest.raises(reg.GateError):
         reg.check_run_dir(str(d2), run, 0)
-    d3 = tmp_path / "locked"
-    (d3 / ".exp38_lock").mkdir(parents=True)
+    for marker in ("TRAINING_COMPLETE.json", "CHECKPOINTS.sha256"):
+        d3 = tmp_path / f"done_{marker}"
+        _touch(d3, [marker])
+        with pytest.raises(reg.GateError):
+            reg.check_run_dir(str(d3), run, 0)                  # a finished run is never reused
+    d4 = tmp_path / "tmpfile"
+    _touch(d4, [".TRAINING_COMPLETE.json.tmp.123"])
     with pytest.raises(reg.GateError):
-        reg.check_run_dir(str(d3), run, 0)                      # a live or crashed run
-    d4 = tmp_path / "submitted"
-    (d4 / ".exp38_submitted").mkdir(parents=True)
-    with pytest.raises(reg.GateError):
-        reg.check_run_dir(str(d4), run, 0)                      # a second submission
-    assert reg.check_run_dir(str(d4), run, 0, allow_submission_marker=True)["state"] == "fresh"
+        reg.check_run_dir(str(d4), run, 0)                      # a torn write is foreign
+
+
+def test_only_the_registered_matrix_is_launchable():
+    """Codex code r1 HIGH 3: P1 only at f025 / 2x32; the 8x8 rung only for the six primary runs."""
+    assert sorted(reg.REGISTERED_RUNS) == sorted(reg.all_runs("2x32") + reg.required_runs("8x8"))
+    for bad in ("de_p1_f050", "de_p1_f075", "de_p1_f025_r8x8", "de_p1_f050_r8x8", "de_yaw_f100",
+                "de_bf_f025_r4x16", "de_bf_f025 ", "", None):
+        with pytest.raises(reg.GateError):
+            reg.parse_run_id(bad)
+        with pytest.raises(reg.GateError):
+            reg.build_train_argv(bad, "neuronic", allow_nonmatched=True)
 
 
 # ------------------------------------------------------------------ argv
@@ -285,13 +298,16 @@ def test_8x8_argv_needs_the_opt_in_and_uses_cap_8():
     assert _opt(argv, "--model-config") == reg.bf_config_rel(8)
 
 
-def test_resume_argv_is_a_crash_restart_to_the_same_endpoint():
-    argv = reg.build_train_argv("de_bf_f050", "neuronic", resume_step=10000)
-    assert _opt(argv, "--max-steps") == "40000"
-    assert _opt(argv, "--ckpt-path").endswith("/de_bf_f050/epoch=4-step=10000.ckpt")
-    for bad in (1000, 40000, -1):
-        with pytest.raises(reg.GateError):
-            reg.build_train_argv("de_bf_f050", "neuronic", resume_step=bad)
+def test_there_is_no_resume_argv(capsys):
+    """Codex code r1 HIGH 2: no resume parameter, no --ckpt-path, no CLI flag."""
+    import inspect
+    assert "resume" not in "".join(inspect.signature(reg.build_train_argv).parameters)
+    for run in reg.all_runs():
+        assert "--ckpt-path" not in reg.build_train_argv(run, "neuronic")
+    with pytest.raises(SystemExit):
+        reg._cli(["argv", "de_bf_f050", "--platform", "neuronic", "--resume-step", "10000"])
+    with pytest.raises(SystemExit):
+        reg._cli(["run-dir-check", "/x", "--run", "de_bf_f050", "--state", "10000"])
 
 
 def test_smoke_argv_single_rank_and_ddp():
@@ -309,33 +325,47 @@ def test_smoke_argv_single_rank_and_ddp():
         reg.build_smoke_argv("de_bf_f025", 500, "/tmp/x")
 
 
-# ------------------------------------------------------------------ checkpoint audit
-def _fake_ckpt(path, run, step, run_dir=None, **over):
+# ------------------------------------------------------------------ checkpoint audit (exact schemas, Codex code r1 HIGH 1)
+def _ckpt_dict(run, step, run_dir, n_state=None, shapes=None):
+    """A checkpoint with EXACTLY the PL 2.1 schema of the real 40k endpoints (synthetic tensors)."""
     import torch
     arm, tag, rung = reg.parse_run_id(run)
     cfg = json.load(open(os.path.join(REPO, reg.model_config_rel(arm, rung))))
     lr = reg.inverse_lr(step)
-    n = reg.N_OPT_STATE
-    ck = {"global_step": step, "epoch": reg.epoch_of_step(step, tag), "model_config": cfg,
-          "state_dict": {"diffusion_ema.ema_model.w": torch.zeros(2), "diffusion.model.w": torch.zeros(2),
-                         "diffusion_ema.step": torch.tensor([step]), "diffusion_ema.initted": torch.tensor([1.0]),
-                         "diffusion.conditioner.c": torch.zeros(1)},
-          "optimizer_states": [{"state": {i: {"step": torch.tensor(float(step)), "exp_avg": torch.zeros(1),
-                                              "exp_avg_sq": torch.zeros(1)} for i in range(n)},
-                                "param_groups": [{"lr": lr, "betas": (0.9, 0.999), "eps": 1e-08, "weight_decay": 0.001,
-                                                  "initial_lr": 5e-05, "params": list(range(n + 10))}]}],
-          "lr_schedulers": [{"inv_gamma": 1000000, "power": 0.5, "warmup": 0.99, "final_lr": 0.0, "base_lrs": [5e-05],
-                             "last_epoch": step, "_step_count": step + 1, "_last_lr": [lr]}],
-          "loops": {"fit_loop": {"epoch_loop.automatic_optimization.optim_progress":
-                                 {"optimizer": {"step": {"total": {"completed": step}}}},
-                                 "epoch_loop.batch_progress": {"total": {"ready": step, "processed": step}},
-                                 "epoch_progress": {"total": {"processed": reg.epoch_of_step(step, tag)}}}},
-          "callbacks": {reg.MODEL_CHECKPOINT_KEY: {"dirpath": run_dir or os.path.dirname(path)}}}
-    for key, value in over.items():
-        if value is None:
-            ck.pop(key)
-        else:
-            ck[key] = value
+    n = reg.N_OPT_STATE if n_state is None else n_state
+    ep = reg.epoch_of_step(step, tag)
+    prog = {"ready": step, "completed": step, "started": step, "processed": step}
+    shp = (lambda i: shapes[i]) if shapes else (lambda i: (1,))
+    return {
+        "global_step": step, "epoch": ep, "model_config": cfg, "pytorch-lightning_version": "2.1.0",
+        "state_dict": {"diffusion_ema.ema_model.w": torch.zeros(2), "diffusion.model.w": torch.zeros(2),
+                       "diffusion_ema.step": torch.tensor([step]), "diffusion_ema.initted": torch.tensor([1.0]),
+                       "diffusion.conditioner.c": torch.zeros(1),
+                       **{f"diffusion.pretransform.f{i}": torch.zeros(1) for i in range(reg.N_STATE_TENSORS - 5)}},
+        "optimizer_states": [{"state": {i: {"step": torch.tensor(float(step)), "exp_avg": torch.zeros(shp(i)),
+                                            "exp_avg_sq": torch.zeros(shp(i))} for i in range(n)},
+                              "param_groups": [{"lr": lr, "betas": [0.9, 0.999], "eps": 1e-08, "weight_decay": 0.001,
+                                                "amsgrad": False, "maximize": False, "foreach": None,
+                                                "capturable": False, "differentiable": False, "fused": None,
+                                                "decoupled_weight_decay": True, "initial_lr": 5e-05,
+                                                "params": list(range(753))}]}],
+        "lr_schedulers": [{"inv_gamma": 1000000, "power": 0.5, "warmup": 0.99, "final_lr": 0.0, "base_lrs": [5e-05],
+                           "last_epoch": step, "_step_count": step + 1, "_last_lr": [lr],
+                           "_get_lr_called_within_step": False}],
+        "loops": {"fit_loop": {**{k: {} for k in reg.FIT_LOOP_KEYS},
+                               "epoch_loop.automatic_optimization.optim_progress":
+                                   {"optimizer": {"step": {"total": {"completed": step}}}},
+                               "epoch_loop.batch_progress": {"total": prog},
+                               "epoch_progress": {"total": {"processed": ep}}},
+                  "predict_loop": {}, "test_loop": {}, "validate_loop": {}},
+        "callbacks": {reg.MODEL_CHECKPOINT_KEY: {k: None for k in reg.MODEL_CHECKPOINT_STATE_KEYS} | {"dirpath": run_dir}}}
+
+
+def _fake_ckpt(path, run, step, run_dir=None, mutate=None):
+    import torch
+    ck = _ckpt_dict(run, step, run_dir or os.path.dirname(path))
+    if mutate:
+        mutate(ck)
     torch.save(ck, path)
 
 
@@ -343,62 +373,137 @@ def test_inverse_lr_matches_the_recorded_100_percent_value():
     assert abs(reg.inverse_lr(40000) - 4.902903378454601e-05) < 1e-15
 
 
-def test_audit_ckpt_pass_and_each_failure(tmp_path):
+def _set(path, value):
+    def m(ck):
+        d = ck
+        for k in path[:-1]:
+            d = d[k]
+        if value is _DEL:
+            del d[path[-1]]
+        else:
+            d[path[-1]] = value(d[path[-1]]) if callable(value) else value
+    return m
+
+
+_DEL = object()
+_MC = reg.MODEL_CHECKPOINT_KEY
+_OS = ("optimizer_states", 0)
+_G = ("optimizer_states", 0, "param_groups", 0)
+_SC = ("lr_schedulers", 0)
+_FL = ("loops", "fit_loop")
+
+
+def _mutations():
     import torch
+    step = 40000
+    return {
+        "global_step": _set(("global_step",), 37500), "global_step type": _set(("global_step",), 40000.0),
+        "epoch": _set(("epoch",), 33), "pl version": _set(("pytorch-lightning_version",), "2.2.0"),
+        "extra top key": _set(("hyper_parameters",), {}), "missing top key": _set(("loops",), _DEL),
+        "model_config": _set(("model_config",), json.load(open(os.path.join(REPO, reg.ARMS["p1"]["config"])))),
+        "EMA missing": _set(("state_dict", "diffusion_ema.ema_model.w"), _DEL),
+        "EMA shape": _set(("state_dict", "diffusion_ema.ema_model.w"), torch.zeros(3)),
+        "EMA step": _set(("state_dict", "diffusion_ema.step"), torch.tensor([1])),
+        "non-finite": _set(("state_dict", "diffusion.model.w"), torch.tensor([float("nan"), 0.0])),
+        "no optimizer": _set(("optimizer_states",), []),
+        "two optimizers": _set(("optimizer_states",), lambda v: v + v),
+        "opt extra key": _set(_OS + ("extra",), 1),
+        "group extra key": _set(_G + ("extra",), 1), "group missing key": _set(_G + ("fused",), _DEL),
+        "group betas": _set(_G + ("betas",), [0.9, 0.99]), "group wd": _set(_G + ("weight_decay",), 0.01),
+        "group foreach": _set(_G + ("foreach",), True), "group lr": _set(_G + ("lr",), 1e-4),
+        "state count": _set(_OS + ("state",), lambda st: {k: v for k, v in st.items() if k != 0}),
+        "state key": _set(_OS + ("state", 3, "max_exp_avg_sq"), torch.zeros(1)),
+        "state step": _set(_OS + ("state", 5, "step"), torch.tensor(1.0)),
+        "state nan": _set(_OS + ("state", 7, "exp_avg"), torch.tensor([float("inf")])),
+        "sched extra key": _set(_SC + ("extra",), 1), "sched missing key": _set(_SC + ("_get_lr_called_within_step",), _DEL),
+        "sched last lr": _set(_SC + ("_last_lr",), lambda v: [v[0] * 2]),
+        "sched step count": _set(_SC + ("_step_count",), step), "sched base lr": _set(_SC + ("base_lrs",), [1e-4]),
+        "two schedulers": _set(("lr_schedulers",), lambda v: v + v),
+        "loops extra": _set(("loops", "extra_loop"), {}), "fit loop missing key": _set(_FL + ("epoch_progress",), _DEL),
+        "fit loop progress": _set(_FL + ("epoch_loop.batch_progress",), {"total": {"ready": 1, "processed": 1}}),
+        "callbacks empty": _set(("callbacks",), {}),
+        "callback cadence": _set(("callbacks",), lambda v: {_MC.replace("2500", "5000"): v[_MC]}),
+        "callback extra": _set(("callbacks", "EarlyStopping{}"), {}),
+        "callback payload key": _set(("callbacks", _MC, "extra"), 1),
+        "callback monitor": _set(("callbacks", _MC, "monitor"), "val/loss"),
+        "callback dirpath": _set(("callbacks", _MC, "dirpath"), "/elsewhere"),
+    }
+
+
+def test_audit_ckpt_pass_and_every_schema_mutation(tmp_path):
     run, step = "de_yaw_f025", 40000
     good = tmp_path / reg.ckpt_name(step, "025")
     _fake_ckpt(str(good), run, step)
     out = reg.audit_ckpt(str(good), run, step, run_dir=str(tmp_path), inventory=False)
     assert out["global_step"] == step and out["sha256"] == reg.sha256_file(str(good))
-    bad_cfg = json.load(open(os.path.join(REPO, reg.ARMS["p1"]["config"])))
-    lr = reg.inverse_lr(step)
-    sched = {"inv_gamma": 1000000, "power": 0.5, "warmup": 0.99, "final_lr": 0.0, "base_lrs": [5e-05],
-             "last_epoch": step, "_step_count": step + 1, "_last_lr": [lr]}
-    sd_ok = {"diffusion_ema.ema_model.w": torch.zeros(2), "diffusion.model.w": torch.zeros(2),
-             "diffusion_ema.step": torch.tensor([step]), "diffusion_ema.initted": torch.tensor([1.0])}
-    cases = [{"global_step": 37500}, {"epoch": 33}, {"model_config": bad_cfg},
-             {"state_dict": {k: v for k, v in sd_ok.items() if k != "diffusion_ema.ema_model.w"}},
-             {"state_dict": {**sd_ok, "diffusion_ema.ema_model.w": torch.zeros(3)}},
-             {"state_dict": {**sd_ok, "diffusion_ema.step": torch.tensor([1])}},
-             {"state_dict": {**sd_ok, "diffusion.model.w": torch.tensor([float("nan"), 0.0])}},
-             {"optimizer_states": []},
-             {"lr_schedulers": [{**sched, "_last_lr": [lr * 2]}]},
-             {"lr_schedulers": [{**sched, "_step_count": step}]},
-             {"lr_schedulers": [{**sched, "base_lrs": [1e-4]}]},
-             {"loops": {"fit_loop": {}}}, {"callbacks": {}},
-             {"callbacks": {reg.MODEL_CHECKPOINT_KEY.replace("2500", "5000"): {"dirpath": "x"}}}]
-    for i, over in enumerate(cases):
+    assert out["bytes"] == os.path.getsize(str(good))
+    for i, (name, mutate) in enumerate(_mutations().items()):
         d = tmp_path / f"c{i}"
         d.mkdir()
         p = d / reg.ckpt_name(step, "025")
-        _fake_ckpt(str(p), run, step, **over)
+        _fake_ckpt(str(p), run, step, run_dir=str(d), mutate=mutate)
         with pytest.raises(reg.GateError):
             reg.audit_ckpt(str(p), run, step, run_dir=str(d), inventory=False)
-    d = tmp_path / "few_states"
-    d.mkdir()
-    p = d / reg.ckpt_name(step, "025")
-    _fake_ckpt(str(p), run, step)
-    ck = torch.load(str(p), weights_only=False)
-    ck["optimizer_states"][0]["state"].pop(0)
-    torch.save(ck, str(p))
-    with pytest.raises(reg.GateError):
-        reg.audit_ckpt(str(p), run, step, run_dir=str(d), inventory=False)
+            pytest.fail(f"mutation {name!r} was admitted")
     with pytest.raises(reg.GateError):
         reg.audit_ckpt(str(good), run, step, run_dir=str(tmp_path / "elsewhere"), inventory=False)
     with pytest.raises(reg.GateError):
         reg.audit_ckpt(str(good), run, 37500, inventory=False)
+    with pytest.raises(reg.GateError):                          # only the dc_van readback may carry run_contract
+        _fake_ckpt(str(good), run, step, mutate=_set(("run_contract",), {}))
+        reg.audit_ckpt(str(good), run, step, run_dir=str(tmp_path), inventory=False)
+
+
+@pytest.mark.parametrize("arm,rung", [("yaw", "2x32"), ("bf", "2x32"), ("bf", "8x8"), ("p1", "2x32")])
+def test_the_real_inventory_path_for_every_arm_and_rung(arm, rung):
+    """A fresh wrapper's own state_dict + optimizer shapes pass; one dropped key, one reshaped
+    tensor and one wrong optimizer-state shape are refused (the path audit_ckpt runs)."""
+    import torch
+    reg._FRESH.clear()
+    inv, shapes, wrapper = reg.fresh_inventory(arm, rung)
+    sd = wrapper.state_dict()
+    assert len(sd) == reg.N_STATE_TENSORS and len(shapes) == 753
+    assert reg.inventory_problems(sd, arm, rung)[0] == []
+    k0 = sorted(sd)[0]
+    assert reg.inventory_problems({k: v for k, v in sd.items() if k != k0}, arm, rung)[0]
+    k1 = next(k for k in sorted(sd) if sd[k].ndim >= 1 and sd[k].shape[0] > 1)
+    assert reg.inventory_problems({**sd, k1: sd[k1][:1].clone()}, arm, rung)[0]
+    run = reg.run_id(arm, "025", rung)
+    ck = _ckpt_dict(run, 40000, "/rd", shapes=shapes)
+    assert reg.ckpt_schema_problems(ck, 40000, "025", "/rd", shapes) == []
+    ck["optimizer_states"][0]["state"][0]["exp_avg"] = torch.zeros(1, 1, 1, 7)
+    assert reg.ckpt_schema_problems(ck, 40000, "025", "/rd", shapes)
+    reg._FRESH.clear()
 
 
 DC_VAN_F025_40K = "/media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt"
+REAL_100 = {"YAW": "/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/YAW/epoch=8-step=40000.ckpt",
+            "BF": "/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000.ckpt"}
 
 
 @pytest.mark.skipif(not os.path.exists(DC_VAN_F025_40K), reason="NAS not mounted")
 def test_audit_ckpt_admits_exp14s_real_dc_van_f025_endpoint():
-    """Real-data readback: dc_van_f025 was trained with P1's config at our fraction 025."""
-    out = reg.audit_ckpt(DC_VAN_F025_40K, "de_p1_f025", 40000, run_dir=os.path.dirname(DC_VAN_F025_40K))
+    """Real-data readback: dc_van_f025 was trained with P1's config at our fraction 025 (the
+    full exact-schema audit incl. the inventory; dc_van carries exp_14's run_contract key)."""
+    rd = os.path.dirname(DC_VAN_F025_40K)
+    out = reg.audit_ckpt(DC_VAN_F025_40K, "de_p1_f025", 40000, run_dir=rd, extra_top_keys={"run_contract"})
     assert out["sha256"] == "aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c"
-    with pytest.raises(reg.GateError):                          # the full inventory binds the arm
-        reg.audit_ckpt(DC_VAN_F025_40K, "de_p1_f025", 40000, run_dir="/elsewhere")
+    assert out["bytes"] == 723923435
+    with pytest.raises(reg.GateError):                          # without the exp_14 allowance
+        reg.audit_ckpt(DC_VAN_F025_40K, "de_p1_f025", 40000, run_dir=rd)
+    with pytest.raises(reg.GateError):
+        reg.audit_ckpt(DC_VAN_F025_40K, "de_p1_f025", 40000, run_dir="/elsewhere", extra_top_keys={"run_contract"})
+
+
+@pytest.mark.skipif(not all(os.path.exists(p) for p in REAL_100.values()), reason="NAS not mounted")
+@pytest.mark.parametrize("name", sorted(REAL_100))
+def test_the_real_100_percent_endpoints_satisfy_the_exact_schema(name):
+    """YAW / B-F 100 % (train.json, 4,551 steps / epoch): the only schema differences from a
+    fraction run are the epoch counters -- every key set and recipe value is the registered one."""
+    import torch
+    ck = torch.load(REAL_100[name], map_location="cpu", weights_only=False)
+    probs = reg.ckpt_schema_problems(ck, 40000, "025")
+    assert len(probs) == 2 and probs[0] == "epoch 8 != 34" and probs[1].startswith("epoch progress")
 
 
 def test_ckpt_manifest_needs_the_full_cadence(tmp_path):
@@ -473,14 +578,6 @@ def test_parse_losses_is_strict():
     assert good == [0.5] and bad == ["nan", "inf", "abc"]
 
 
-def test_wait_start_gate_returns_on_a_dead_pid(tmp_path):
-    log = tmp_path / "x.log"
-    log.write_text("Seed set to 42\n")
-    probs = reg.wait_start_gate(str(log), "de_yaw_f025", "flash", 2, pid=2 ** 22 + 12345,
-                                timeout_s=5, poll_s=0.01)
-    assert probs == ["the training process exited before its first step"]
-
-
 # ------------------------------------------------------------------ pins and backend
 def test_vit_pin_check_on_a_fake_cache(tmp_path):
     snap = tmp_path / reg.VIT_REPO_DIR / "snapshots" / reg.VIT_REV
@@ -527,8 +624,7 @@ def _fake_audit(root):
     for t in reg.FRACS:
         bound[reg.FRACS[t]["split"]] = None
     bound = {rel: reg.sha256_file(str(root / rel)) for rel in bound}
-    bound["realpath(AcousticRooms)"] = "/x"
-    res = {"verdict": "PASS", "problems": [], "bound": bound,
+    res = {"verdict": "PASS", "problems": [], "bound": bound, "root_fingerprint": "f" * 64,
            "fractions": {t: {"split_sha256": reg.FRACS[t]["split_sha256"]} for t in reg.FRACS}}
     path = root / reg.SUBSET_AUDIT
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -552,20 +648,35 @@ def test_check_subset_audit_binding(tmp_path):
         reg.check_subset_audit(str(tmp_path / "nothing"))
 
 
-def test_snapshot_is_complete_immutable_and_usable(tmp_path, monkeypatch):
-    monkeypatch.setattr(reg, "check_subset_audit", lambda repo=None: {"sha256": "x"})
+def test_snapshot_is_complete_immutable_and_usable(tmp_path):
+    """Codex code r1 HIGH 5: training is launched FROM the snapshot -- the closure (same digest as
+    the tree), the subset-audit sidecar, and the two cwd-relative data links."""
     files = reg.snapshot_files("de_bf_f050")
-    if reg.bf_config_rel(32) not in files or reg.SUBSET_AUDIT not in files:
+    if reg.bf_config_rel(32) not in files or "worklog/worklog_yixun/exp_38_data_efficiency_claude/exp38_supervise.py" not in files:
         pytest.skip("the exp_38 kit is not committed yet (the closure lists tracked files only)")
-    assert "train.py" in files and "src/training/run_evidence.py" in files
+    assert "train.py" in files and "src/training/run_evidence.py" in files and reg.SUBSET_AUDIT in files
     assert not any(f.startswith("src/tests/") for f in files)
     dest = tmp_path / "snap"
-    reg.snapshot_tools("de_bf_f050", str(dest))
-    assert reg.verify_snapshot(str(dest))["verified"]
+    out = reg.snapshot_tools("de_bf_f050", str(dest))
+    assert reg.verify_snapshot(str(dest), out["snapshot_sha256"])["verified"]
+    assert reg.closure_digest(str(dest)) == reg.closure_digest()
+    for rel in reg.SNAPSHOT_LINKS:
+        assert os.path.islink(dest / rel) and os.readlink(dest / rel) == os.path.realpath(os.path.join(REPO, rel))
     reg.check_config("bf", "2x32", repo=str(dest))
     reg.check_subset("050", repo=str(dest))
+    assert reg.check_subset_audit(str(dest))["sha256"]
     with pytest.raises(reg.GateError):
         reg.snapshot_tools("de_bf_f050", str(dest))             # never overwritten
+    with pytest.raises(reg.GateError):
+        reg.verify_snapshot(str(dest), "0" * 64)                # not the launch record's snapshot
+    link = dest / "AcousticRooms"
+    link.unlink()
+    link.symlink_to(tmp_path)
+    with pytest.raises(reg.GateError):
+        reg.verify_snapshot(str(dest))                          # a re-pointed data link
+    link.unlink()
+    link.symlink_to(os.path.realpath(os.path.join(REPO, "AcousticRooms")))
+    reg.verify_snapshot(str(dest))
     cfg = dest / reg.bf_config_rel(32)
     cfg.write_text(cfg.read_text() + " ")
     with pytest.raises(reg.GateError):

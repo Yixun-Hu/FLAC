@@ -137,21 +137,11 @@ def canonical(obj):
     return json.dumps(obj, sort_keys=True, separators=(",", ":"))
 
 
-# ---------------------------------------------------------------- runs
+# ---------------------------------------------------------------- runs (registered matrix only)
 def run_id(arm, tag, rung="2x32"):
     if arm not in ARMS or tag not in FRACS or rung not in RUNGS:
         raise GateError(f"unknown run ({arm!r}, {tag!r}, {rung!r})")
     return f"de_{arm}_f{tag}" + ("" if rung == "2x32" else f"_r{rung}")
-
-
-_RUN_RE = re.compile(r"^de_(yaw|bf|p1)_f(025|050|075)(?:_r(8x8))?$")
-
-
-def parse_run_id(run):
-    m = _RUN_RE.match(run or "")
-    if not m:
-        raise GateError(f"not an exp_38 run id: {run!r}")
-    return m.group(1), m.group(2), m.group(3) or "2x32"
 
 
 def required_runs(rung="2x32"):
@@ -159,7 +149,20 @@ def required_runs(rung="2x32"):
 
 
 def all_runs(rung="2x32"):
-    return required_runs(rung) + [run_id(a, t, rung) for a, t in OPTIONAL_RUNS]
+    return required_runs(rung) + ([run_id(a, t, rung) for a, t in OPTIONAL_RUNS] if rung == "2x32" else [])
+
+
+# the launchable matrix (Codex code r1 HIGH 3): the six primary runs and the P1 bridge at 2x32, and the
+# six primary runs on the opt-in 8x8 sensitivity rung -- nothing else (no P1 f050 / f075, no bridge 8x8)
+REGISTERED_RUNS = frozenset(all_runs("2x32") + required_runs("8x8"))
+_RUN_RE = re.compile(r"^de_(yaw|bf|p1)_f(025|050|075)(?:_r(8x8))?$")
+
+
+def parse_run_id(run):
+    m = _RUN_RE.match(run or "")
+    if not m or run not in REGISTERED_RUNS:
+        raise GateError(f"not a registered exp_38 run id: {run!r}")
+    return m.group(1), m.group(2), m.group(3) or "2x32"
 
 
 def check_rung(platform, rung, allow_nonmatched=False):
@@ -270,11 +273,17 @@ def check_subset(tag, repo=None):
 
 
 SUBSET_AUDIT = f"{EXP_DIR}/data_efficiency_subset_audit.json"
+SUBSET_AUDIT_BOUND = frozenset({"src/configs/dataset_configs/custom_metadata/AR_md.py", "src/data/dataset.py",
+                                "data/AR/train_frac_manifest_s2026.json", "data/AR/train.json",
+                                f"{EXP_DIR}/exp38_subset_audit.py"}
+                               | {FRACS[t][k] for t in FRACS for k in ("split", "dataset_config")})
 
 
 def check_subset_audit(repo=None):
-    """The committed exhaustive subset audit (plan §10 A4) must exist, match its .sha256, say
-    PASS and be bound to the CURRENT AR_md.py / dataset.py / manifest / dataset-config bytes."""
+    """The committed exhaustive subset audit (plan §10 A4) must exist, match its .sha256, say PASS
+    and be bound -- exactly this file set -- to the CURRENT bytes. The dataset ROOT is checked by
+    content (``exp38_subset_audit.py --verify`` recomputes the room-listing fingerprint), never by
+    path, so the same artifact serves both platforms (Codex code r1 HIGH 8)."""
     path = _abs(SUBSET_AUDIT, repo)
     try:
         text = open(path, "rb").read()
@@ -287,14 +296,10 @@ def check_subset_audit(repo=None):
     if res.get("verdict") != "PASS" or res.get("problems"):
         raise GateError(f"subset audit verdict {res.get('verdict')}")
     bound = res.get("bound", {})
-    need = {"src/configs/dataset_configs/custom_metadata/AR_md.py", "src/data/dataset.py",
-            "data/AR/train_frac_manifest_s2026.json", "data/AR/train.json", f"{EXP_DIR}/exp38_subset_audit.py"}
-    need |= {FRACS[t][k] for t in FRACS for k in ("split", "dataset_config")}
-    if not need <= set(bound) or sorted(res.get("fractions", {})) != sorted(FRACS):
-        raise GateError("subset audit artifact is incomplete")
+    if set(bound) != SUBSET_AUDIT_BOUND or sorted(res.get("fractions", {})) != sorted(FRACS) \
+            or not isinstance(res.get("root_fingerprint"), str):
+        raise GateError("subset audit artifact is incomplete / not the registered schema")
     for rel, digest in bound.items():
-        if rel.startswith("realpath("):
-            continue
         if sha256_file(_abs(rel, repo)) != digest:
             raise GateError(f"{rel} changed since the subset audit")
     for tag, f in FRACS.items():
@@ -316,42 +321,35 @@ def cadence_steps(upto=MAX_STEPS):
     return list(range(CADENCE, upto + 1, CADENCE))
 
 
-def check_leg(start, end):
-    for v in (start, end):
-        if isinstance(v, bool) or not isinstance(v, int) or v % CADENCE:
-            raise GateError(f"leg boundary {v!r} is not on the {CADENCE}-step cadence")
-    if not 0 <= start < end <= MAX_STEPS:
-        raise GateError(f"leg [{start}, {end}] outside [0, {MAX_STEPS}]")
-
-
-RUN_DIR_OWN = (".exp38_lock", ".exp38_submitted", ".exp38_tools", "CHECKPOINTS.sha256", "evidence")
+RUN_DIR_OWN = (".exp38_lock", ".exp38_tools", "CHECKPOINTS.sha256", "evidence", "TRAINING_COMPLETE.json",
+               "TRAINING_COMPLETE.json.sha256")
 
 
 def _own_entry(name):
     return (name.endswith(".ckpt") or name.startswith("at_launch_") or name.startswith(".exp38_lock.released_")
-            or name in RUN_DIR_OWN)
+            or name.startswith(".exp38_probe_") or name in RUN_DIR_OWN)
 
 
-def check_run_dir(path, run, leg_start, allow_submission_marker=False):
-    """Fresh (leg_start 0): no checkpoint and nothing foreign. Resume: exactly the cadence set
-    <= leg_start. ``.exp38_lock`` (a live or crashed run) always refuses a new start;
-    ``.exp38_submitted`` is allowed only to the job its submission created."""
+def check_run_dir(path, run, upto, allow_lock=False):
+    """``upto`` 0: a fresh run dir (no checkpoint, nothing foreign, no lock). ``upto`` 40000: a
+    finished run's dir -- exactly the 16 cadence checkpoints. There is no resume state (plan §6)."""
+    if upto not in (0, MAX_STEPS):
+        raise GateError(f"run-dir state {upto}: only 0 (fresh) or {MAX_STEPS} (complete) exist")
     _, tag, _ = parse_run_id(run)
     present = sorted(os.path.basename(p) for p in glob.glob(os.path.join(path, "*.ckpt")))
-    want = sorted(ckpt_name(s, tag) for s in cadence_steps(leg_start)) if leg_start else []
+    want = sorted(ckpt_name(s, tag) for s in cadence_steps(upto)) if upto else []
     if present != want:
-        raise GateError(f"{path}: checkpoints {present} != expected {want} for a start at step {leg_start}")
+        raise GateError(f"{path}: checkpoints {present} != expected {want} for state {upto}")
     if os.path.isdir(path):
         names = os.listdir(path)
         stray = sorted(n for n in names if not _own_entry(n))
         if stray:
             raise GateError(f"{path}: foreign entries {stray}")
-        if ".exp38_lock" in names:
+        if ".exp38_lock" in names and not allow_lock:
             raise GateError(f"{path}: run lock .exp38_lock present (a run is live or crashed; archive first)")
-        if ".exp38_submitted" in names and not allow_submission_marker:
-            raise GateError(f"{path}: .exp38_submitted present (already submitted; archive the run dir first)")
-    return {"run_dir": path, "state": "fresh" if not leg_start else f"resume@{leg_start}",
-            "checkpoints": present}
+        if upto == 0 and any(n in names for n in ("TRAINING_COMPLETE.json", "CHECKPOINTS.sha256")):
+            raise GateError(f"{path}: a completed run's records are present")
+    return {"run_dir": path, "state": "fresh" if not upto else "complete", "checkpoints": present}
 
 
 def inverse_lr(step, base=5e-5, inv_gamma=1e6, power=0.5, warmup=0.99):
@@ -359,11 +357,27 @@ def inverse_lr(step, base=5e-5, inv_gamma=1e6, power=0.5, warmup=0.99):
     return base * (1 - warmup ** (step + 1)) * (1 + step / inv_gamma) ** (-power)
 
 
-# optimizer state entries of a 40k checkpoint of this architecture (dc_van_f025, YAW / B-F 100 %:
-# 449 of the 753 group parameters receive gradients; the rest never get Adam state)
-N_OPT_STATE = 449
+# exact checkpoint schema of a 40k checkpoint of this architecture under PL 2.1.0 (read from the
+# YAW / B-F 100 % checkpoints and dc_van_f025, 2026-11-07; dc_van carries one extra exp_14 key)
+N_OPT_STATE = 449            # of the 753 group parameters, those that receive gradients carry Adam state
+N_STATE_TENSORS = 1279
+CKPT_TOP_KEYS = frozenset({"callbacks", "epoch", "global_step", "loops", "lr_schedulers", "model_config",
+                           "optimizer_states", "pytorch-lightning_version", "state_dict"})
+LOOP_KEYS = frozenset({"fit_loop", "predict_loop", "test_loop", "validate_loop"})
+FIT_LOOP_KEYS = frozenset({
+    "epoch_loop.automatic_optimization.optim_progress", "epoch_loop.automatic_optimization.state_dict",
+    "epoch_loop.batch_progress", "epoch_loop.manual_optimization.optim_step_progress",
+    "epoch_loop.manual_optimization.state_dict", "epoch_loop.scheduler_progress", "epoch_loop.state_dict",
+    "epoch_loop.val_loop.batch_progress", "epoch_loop.val_loop.state_dict", "epoch_progress", "state_dict"})
+OPT_GROUP_KEYS = frozenset({"amsgrad", "betas", "capturable", "decoupled_weight_decay", "differentiable", "eps",
+                            "foreach", "fused", "initial_lr", "lr", "maximize", "params", "weight_decay"})
+OPT_STATE_KEYS = frozenset({"exp_avg", "exp_avg_sq", "step"})
+SCHED_KEYS = frozenset({"_get_lr_called_within_step", "_last_lr", "_step_count", "base_lrs", "final_lr",
+                        "inv_gamma", "last_epoch", "power", "warmup"})
 MODEL_CHECKPOINT_KEY = ("ModelCheckpoint{'monitor': None, 'mode': 'min', 'every_n_train_steps': 2500, "
                         "'every_n_epochs': 0, 'train_time_interval': None}")
+MODEL_CHECKPOINT_STATE_KEYS = frozenset({"best_k_models", "best_model_path", "best_model_score", "current_score",
+                                         "dirpath", "kth_best_model_path", "kth_value", "last_model_path", "monitor"})
 _FRESH = {}
 
 
@@ -388,7 +402,113 @@ def fresh_inventory(arm, rung, repo=None):
     return _FRESH[key]
 
 
-def audit_ckpt(path, run, step, repo=None, run_dir=None, inventory=True):
+def compare_inventory(got, want):
+    """Problems of a state_dict inventory {key: (shape, dtype)} against the reference."""
+    if got == want:
+        return []
+    missing, extra = sorted(set(want) - set(got)), sorted(set(got) - set(want))
+    diff = sorted(k for k in set(got) & set(want) if got[k] != want[k])
+    return [f"state_dict inventory != a fresh wrapper's (missing {missing[:3]}, extra {extra[:3]}, "
+            f"shape/dtype {diff[:3]})"]
+
+
+def inventory_problems(sd, arm, rung, repo=None):
+    """(problems, optimizer param shapes): the state_dict's {key: (shape, dtype)} must equal a fresh
+    CPU wrapper's of the arm config, and the fresh wrapper must strict-load it."""
+    import torch
+    inv, opt_shapes, wrapper = fresh_inventory(arm, rung, repo)
+    got = {k: (tuple(v.shape), str(v.dtype)) for k, v in sd.items() if torch.is_tensor(v)}
+    p = compare_inventory(got, inv)
+    if not p:
+        try:
+            wrapper.load_state_dict(sd, strict=True)
+        except Exception as err:                          # noqa: BLE001 -- any load failure is a refusal
+            p.append(f"strict load failed: {err}")
+    return p, opt_shapes
+
+
+def ckpt_schema_problems(ck, step, tag, run_dir=None, opt_shapes=None, extra_top_keys=frozenset()):
+    """Exact-schema problems of a loaded PL 2.1 checkpoint beyond its state_dict (Codex code r1 HIGH 1)."""
+    import torch
+    p = []
+    if set(ck) != CKPT_TOP_KEYS | set(extra_top_keys):
+        p.append(f"top-level keys {sorted(set(ck) ^ (CKPT_TOP_KEYS | set(extra_top_keys)))} differ")
+    if ck.get("pytorch-lightning_version") != "2.1.0":
+        p.append(f"pytorch-lightning_version {ck.get('pytorch-lightning_version')!r} != '2.1.0'")
+    if type(ck.get("global_step")) is not int or ck.get("global_step") != step:
+        p.append(f"global_step {ck.get('global_step')!r} != {step}")
+    if type(ck.get("epoch")) is not int or ck.get("epoch") != epoch_of_step(step, tag):
+        p.append(f"epoch {ck.get('epoch')!r} != {epoch_of_step(step, tag)}")
+    opts = ck.get("optimizer_states")
+    sch_list = ck.get("lr_schedulers")
+    sch = sch_list[0] if isinstance(sch_list, list) and len(sch_list) == 1 and isinstance(sch_list[0], dict) else {}
+    if not (isinstance(opts, list) and len(opts) == 1 and isinstance(opts[0], dict)
+            and set(opts[0]) == {"state", "param_groups"} and len(opts[0]["param_groups"]) == 1):
+        p.append("expected exactly one optimizer state {state, param_groups} with one group")
+    else:
+        g, st = opts[0]["param_groups"][0], opts[0]["state"]
+        if set(g) != OPT_GROUP_KEYS:
+            p.append(f"param-group keys {sorted(set(g) ^ OPT_GROUP_KEYS)} differ")
+        want_g = {"betas": (0.9, 0.999), "eps": 1e-08, "weight_decay": 0.001, "initial_lr": 5e-05,
+                  "amsgrad": False, "maximize": False, "capturable": False, "differentiable": False,
+                  "decoupled_weight_decay": True, "foreach": None, "fused": None}
+        for k, v in want_g.items():
+            gv = tuple(g.get(k, ())) if k == "betas" else g.get(k)
+            if gv != v:
+                p.append(f"param group {k} {g.get(k)!r} != {v!r}")
+        if g.get("lr") != (sch.get("_last_lr") or [None])[0]:
+            p.append("optimizer lr != scheduler _last_lr")
+        if len(st) != N_OPT_STATE or not all(type(i) is int for i in st):
+            p.append(f"optimizer state for {len(st)} parameters != {N_OPT_STATE}")
+        if opt_shapes is not None and g.get("params") != list(range(len(opt_shapes))):
+            p.append(f"param group lists {len(g.get('params', []))} params != the fresh wrapper's {len(opt_shapes)}")
+        for i, s_ in st.items():
+            if not isinstance(s_, dict) or set(s_) != OPT_STATE_KEYS:
+                p.append(f"optimizer state {i} keys {sorted(s_) if isinstance(s_, dict) else s_!r}")
+                break
+            shp = opt_shapes[i] if opt_shapes is not None and isinstance(i, int) and i < len(opt_shapes) else None
+            if (shp is not None and not (tuple(s_["exp_avg"].shape) == shp == tuple(s_["exp_avg_sq"].shape))) \
+                    or not bool(torch.isfinite(s_["exp_avg"]).all()) or not bool(torch.isfinite(s_["exp_avg_sq"]).all()) \
+                    or float(s_["step"]) != float(step):
+                p.append(f"optimizer state {i} shape / finiteness / step off")
+                break
+    if set(sch) != SCHED_KEYS:
+        p.append(f"scheduler keys {sorted(set(sch) ^ SCHED_KEYS)} differ")
+    elif (sch["inv_gamma"], sch["power"], sch["warmup"], sch["final_lr"], sch["base_lrs"], sch["last_epoch"],
+          sch["_step_count"], sch["_get_lr_called_within_step"]) != (1000000, 0.5, 0.99, 0.0, [5e-05], step, step + 1, False):
+        p.append(f"scheduler {[sch[k] for k in sorted(SCHED_KEYS - {'_last_lr'})]} off-recipe")
+    elif not (isinstance(sch["_last_lr"], list) and len(sch["_last_lr"]) == 1
+              and abs(sch["_last_lr"][0] - inverse_lr(step)) <= 1e-12):
+        p.append(f"scheduler _last_lr {sch['_last_lr']} != InverseLR({step}) {inverse_lr(step)}")
+    loops = ck.get("loops")
+    if not isinstance(loops, dict) or set(loops) != LOOP_KEYS or set(loops.get("fit_loop", {})) != FIT_LOOP_KEYS:
+        p.append("loop state keys differ from PL 2.1's")
+    else:
+        fl = loops["fit_loop"]
+        try:
+            done = fl["epoch_loop.automatic_optimization.optim_progress"]["optimizer"]["step"]["total"]["completed"]
+            bp, ep = fl["epoch_loop.batch_progress"]["total"], fl["epoch_progress"]["total"]
+        except (KeyError, TypeError):
+            done, bp, ep = None, {}, {}
+        if done != step or bp.get("ready") != step or bp.get("processed") != step:
+            p.append(f"fit-loop progress {done} / {bp} != step {step}")
+        if ep.get("processed") not in (epoch_of_step(step, tag), epoch_of_step(step, tag) + 1):
+            p.append(f"epoch progress {ep} inconsistent with epoch {epoch_of_step(step, tag)}")
+    cbs = ck.get("callbacks")
+    if not isinstance(cbs, dict) or list(cbs) != [MODEL_CHECKPOINT_KEY]:
+        p.append(f"callback state keys {list(cbs) if isinstance(cbs, dict) else cbs!r} != [{MODEL_CHECKPOINT_KEY}]")
+    else:
+        mc = cbs[MODEL_CHECKPOINT_KEY]
+        if not isinstance(mc, dict) or set(mc) != MODEL_CHECKPOINT_STATE_KEYS:
+            p.append("ModelCheckpoint state keys differ")
+        elif run_dir is not None and os.path.realpath(str(mc.get("dirpath", ""))) != os.path.realpath(run_dir):
+            p.append(f"ModelCheckpoint dirpath {mc.get('dirpath')} != {run_dir}")
+        elif mc.get("monitor") is not None:
+            p.append("ModelCheckpoint monitors a metric")
+    return p
+
+
+def audit_ckpt(path, run, step, repo=None, run_dir=None, inventory=True, extra_top_keys=frozenset()):
     """One read of the bytes: sha256 + full training-state admission (plan r2 §10 B2)."""
     import io
     import torch
@@ -401,13 +521,11 @@ def audit_ckpt(path, run, step, repo=None, run_dir=None, inventory=True):
     ck = torch.load(io.BytesIO(data), map_location="cpu", weights_only=False)
     want = json.load(open(_abs(model_config_rel(arm, rung), repo)))
     p = []
-    if ck.get("global_step") != step:
-        p.append(f"global_step {ck.get('global_step')} != {step}")
-    if ck.get("epoch") != epoch_of_step(step, tag):
-        p.append(f"epoch {ck.get('epoch')} != {epoch_of_step(step, tag)}")
     if canonical(ck.get("model_config")) != canonical(want):
         p.append("embedded model_config != the arm config")
     sd = ck.get("state_dict", {})
+    if len(sd) != N_STATE_TENSORS or not all(torch.is_tensor(v) for v in sd.values()):
+        p.append(f"state_dict holds {len(sd)} entries (want {N_STATE_TENSORS} tensors)")
     bad = [k for k, v in sd.items() if torch.is_tensor(v) and v.is_floating_point() and not bool(torch.isfinite(v).all())]
     if bad:
         p.append(f"non-finite tensors {bad[:3]}")
@@ -420,98 +538,45 @@ def audit_ckpt(path, run, step, repo=None, run_dir=None, inventory=True):
     est, ein = sd.get("diffusion_ema.step"), sd.get("diffusion_ema.initted")
     if est is None or ein is None or int(est.reshape(-1)[0]) != step or float(ein.reshape(-1)[0]) != 1.0:
         p.append(f"EMA step / initted {est} / {ein} (want {step} / 1)")
+    opt_shapes = None
     if inventory:
-        inv, shapes, wrapper = fresh_inventory(arm, rung, repo)
-        got = {k: (tuple(v.shape), str(v.dtype)) for k, v in sd.items() if torch.is_tensor(v)}
-        if got != inv:
-            p.append(f"state_dict inventory != a fresh wrapper's (missing {sorted(set(inv) - set(got))[:3]}, "
-                     f"extra {sorted(set(got) - set(inv))[:3]})")
-        else:
-            try:
-                wrapper.load_state_dict(sd, strict=True)
-            except Exception as err:                      # noqa: BLE001 -- any load failure is a refusal
-                p.append(f"strict load failed: {err}")
-    opts = ck.get("optimizer_states") or []
-    sch = (ck.get("lr_schedulers") or [{}])[0]
-    if len(opts) != 1 or len(opts[0].get("param_groups", [])) != 1:
-        p.append("expected one optimizer with one param group")
-    else:
-        g, st = opts[0]["param_groups"][0], opts[0].get("state", {})
-        if (tuple(g.get("betas", ())), g.get("eps"), g.get("weight_decay"), g.get("initial_lr")) != ((0.9, 0.999), 1e-08, 0.001, 5e-05):
-            p.append(f"AdamW group {g.get('betas')}/{g.get('eps')}/{g.get('weight_decay')}/{g.get('initial_lr')} off-recipe")
-        if g.get("lr") != (sch.get("_last_lr") or [None])[0]:
-            p.append("optimizer lr != scheduler _last_lr")
-        if len(st) != N_OPT_STATE:
-            p.append(f"optimizer state for {len(st)} parameters != {N_OPT_STATE}")
-        if inventory:
-            if g.get("params") != list(range(len(shapes))):
-                p.append(f"param group lists {len(g.get('params', []))} params != the fresh wrapper's {len(shapes)}")
-            else:
-                for i, s_ in st.items():
-                    ok = (tuple(s_.get("exp_avg", torch.empty(0)).shape) == shapes[i] ==
-                          tuple(s_.get("exp_avg_sq", torch.empty(0)).shape))
-                    fin = all(bool(torch.isfinite(s_[k]).all()) for k in ("exp_avg", "exp_avg_sq") if k in s_)
-                    if not ok or not fin or float(s_.get("step", -1)) != float(step):
-                        p.append(f"optimizer state {i} shape / finiteness / step off")
-                        break
-    if (sch.get("inv_gamma"), sch.get("power"), sch.get("warmup"), sch.get("final_lr"), sch.get("base_lrs"),
-            sch.get("last_epoch"), sch.get("_step_count")) != (1000000, 0.5, 0.99, 0.0, [5e-05], step, step + 1):
-        p.append(f"scheduler {[sch.get(k) for k in ('inv_gamma', 'power', 'warmup', 'final_lr', 'base_lrs', 'last_epoch', '_step_count')]} off-recipe")
-    elif abs((sch.get("_last_lr") or [0])[0] - inverse_lr(step)) > 1e-12:
-        p.append(f"scheduler _last_lr {(sch.get('_last_lr') or [0])[0]} != InverseLR({step}) {inverse_lr(step)}")
-    try:
-        fl = ck["loops"]["fit_loop"]
-        done = fl["epoch_loop.automatic_optimization.optim_progress"]["optimizer"]["step"]["total"]["completed"]
-        bp = fl["epoch_loop.batch_progress"]["total"]
-        ep = fl["epoch_progress"]["total"]
-    except (KeyError, TypeError):
-        done, bp, ep = None, {}, {}
-    if done != step or bp.get("ready") != step or bp.get("processed") != step:
-        p.append(f"fit-loop progress {done} / {bp} != step {step}")
-    if ep.get("processed") != epoch_of_step(step, tag) and ep.get("processed") != epoch_of_step(step, tag) + 1:
-        p.append(f"epoch progress {ep} inconsistent with epoch {epoch_of_step(step, tag)}")
-    cbs = ck.get("callbacks") or {}
-    if list(cbs) != [MODEL_CHECKPOINT_KEY]:
-        p.append(f"callback state keys {list(cbs)} != [{MODEL_CHECKPOINT_KEY}]")
-    elif run_dir is not None and os.path.realpath(cbs[MODEL_CHECKPOINT_KEY].get("dirpath", "")) != os.path.realpath(run_dir):
-        p.append(f"ModelCheckpoint dirpath {cbs[MODEL_CHECKPOINT_KEY].get('dirpath')} != {run_dir}")
+        inv_p, opt_shapes = inventory_problems(sd, arm, rung, repo)
+        p += inv_p
+    p += ckpt_schema_problems(ck, step, tag, run_dir, opt_shapes, extra_top_keys)
     if p:
         raise GateError(f"{path}: " + "; ".join(p))
     return {"ckpt": path, "sha256": digest, "bytes": len(data), "global_step": step}
 
 
-def write_ckpt_manifest(path, run):
+def write_ckpt_manifest(path, run, allow_lock=False):
+    """CHECKPOINTS.sha256 of a complete run dir (the supervisor still holds the run lock then)."""
     _, tag, _ = parse_run_id(run)
-    check_run_dir(path, run, MAX_STEPS, allow_submission_marker=True)
+    check_run_dir(path, run, MAX_STEPS, allow_lock=allow_lock)
     lines = [f"{sha256_file(os.path.join(path, ckpt_name(s, tag)))}  {ckpt_name(s, tag)}"
              for s in cadence_steps()]
     out = os.path.join(path, "CHECKPOINTS.sha256")
     if os.path.exists(out):
         raise GateError(f"{out} already exists")
-    with open(out + ".tmp", "w") as fh:
-        fh.write("\n".join(lines) + "\n")
-    os.replace(out + ".tmp", out)
+    atomic_write_bytes(out, ("\n".join(lines) + "\n").encode())
     return out
 
 
-# ---------------------------------------------------------------- argv
+# ---------------------------------------------------------------- argv (monolithic only, Codex code r1 HIGH 2)
 def save_dir(platform, run, save_root=None):
     return os.path.join(save_root or PLATFORMS[platform]["save_root"], run)
 
 
-def build_train_argv(run, platform, save_root=None, resume_step=0, allow_nonmatched=False):
-    """argv for train.py (the caller prefixes ``python`` or ``torchrun …``). Monolithic 0 -> 40,000;
-    ``resume_step`` > 0 only for a crash restart (the run is then non-primary, plan §6)."""
+def build_train_argv(run, platform, save_root=None, allow_nonmatched=False):
+    """argv for train.py (the caller prefixes ``python`` or ``torchrun …``): one monolithic 0 -> 40,000
+    run. There is no resume argv: a crashed primary run is archived and re-run from step 0 (plan §6)."""
     arm, tag, rung = parse_run_id(run)
     r = check_rung(platform, rung, allow_nonmatched)
-    leg_start, leg_end = resume_step, MAX_STEPS
-    check_leg(leg_start, leg_end)
     sd = save_dir(platform, run, save_root)
     argv = ["train.py",
             "--model-config", model_config_rel(arm, rung),
             "--dataset-config", FRACS[tag]["dataset_config"],
             "--pretransform-ckpt-path", VAE_PATH,
-            "--max-steps", str(leg_end),
+            "--max-steps", str(MAX_STEPS),
             "--batch-size", str(r["micro"]), "--accum-batches", "1", "--num-workers", "6",
             "--seed", str(SEED), "--num-gpus", str(r["ngpu"]), "--num-nodes", "1",
             "--strategy", "ddp_find_unused_parameters_true", "--sync-batchnorm", "true",
@@ -519,17 +584,21 @@ def build_train_argv(run, platform, save_root=None, resume_step=0, allow_nonmatc
             "--logger", "none", "--checkpoint-every", str(CADENCE),
             "--name", run, "--experiment-name", run, "--save-dir", sd,
             "--evidence-json", os.path.join(sd, "evidence", "run_evidence.json")]
-    if leg_start:
-        argv += ["--ckpt-path", os.path.join(sd, ckpt_name(leg_start, tag))]
-    if r["ngpu"] * r["micro"] != EFF_BATCH or any("exp14_" in a for a in argv):
+    if r["ngpu"] * r["micro"] != EFF_BATCH or any("exp14_" in a for a in argv) or "--ckpt-path" in argv:
         raise GateError("argv invariant broken")
     return argv
 
 
+def argv_projection(argv):
+    """The production-relevant part of a train.py argv (drops budget / cadence / names / paths)."""
+    drop_value = ("--max-steps", "--checkpoint-every", "--name", "--experiment-name", "--save-dir", "--evidence-json")
+    return [a for i, a in enumerate(argv) if a not in drop_value and not (i and argv[i - 1] in drop_value)]
+
+
 def build_smoke_argv(run, steps, smoke_dir, ddp=False, platform="a6000"):
     """Storage-light smoke at the real per-rank micro-batch. ``ddp=False``: one rank (no DDP /
-    SyncBN; a preliminary rung only). ``ddp=True``: the production topology of the rung (2 x 32
-    + SyncBN), exactly the FULL argv but for the step budget, cadence and save dir."""
+    SyncBN; a preliminary rung only). ``ddp=True``: the production topology of the rung, exactly
+    the FULL argv but for the step budget, cadence, names and save dir."""
     arm, tag, rung = parse_run_id(run)
     if not 1 <= steps <= 200:
         raise GateError("smoke: 1..200 steps")
@@ -672,125 +741,166 @@ def log_gate(text, run, phase, backend, ngpu, n_items=None, max_steps=MAX_STEPS,
     return problems
 
 
-def wait_start_gate(log_path, run, backend, ngpu, pid, timeout_s, poll_s=10.0):
-    """Poll the log until the first optimizer step (or the pid exits / timeout), then gate it."""
-    deadline = time.time() + timeout_s
-    while True:
-        text = open(log_path, errors="replace").read() if os.path.exists(log_path) else ""
-        if first_step_index(log_lines(text)) is not None:
-            return log_gate(text, run, "start", backend, ngpu)
-        alive = pid is None or os.path.exists(f"/proc/{pid}")
-        if not alive:
-            return ["the training process exited before its first step"]
-        if time.time() > deadline:
-            return [f"no first step within {timeout_s} s"]
-        time.sleep(poll_s)
+# ---------------------------------------------------------------- evaluator weight pins (Codex code r1 BLOCKING 6)
+AGREE_REL = "weights/AGREE/AGREE_fullAR.pt"
+AGREE_SHA256 = "3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787"
+VAE_CKPT_REL = "weights/FLAC/VAE.ckpt"           # the AGREE audio tower's cwd-relative "pretrained"
+VAE_CKPT_SHA256 = "6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf"
 
 
-# ---------------------------------------------------------------- immutable tool snapshot
-def snapshot_files(run, repo=None):
-    """Every campaign-closure file + the receipts the audits read (Codex plan r2 HIGH 7)."""
-    files = set(closure_files(repo))
-    for rel in (SUBSET_AUDIT + ".sha256", f"{EXP_DIR}/data_efficiency_e0_receipt.json",
-                f"{EXP_DIR}/data_efficiency_e0_receipt.json.sha256", env_receipt_rel("a6000")):
-        if os.path.exists(_abs(rel, repo)):
-            files.add(rel)
-    for path in glob.glob(_abs(smoke_receipt_glob(run), repo)):
-        rel = os.path.relpath(path, repo or REPO)
-        files.update({rel, rel + ".sha256"} if os.path.exists(path + ".sha256") else {rel})
-    return sorted(files)
+def eval_pins(repo=None):
+    """AGREE + the AGREE audio tower's VAE.ckpt + the DINOv3 snapshot: checked before and after
+    every evaluation cell and on admission."""
+    out = {}
+    for rel, want, key in ((AGREE_REL, AGREE_SHA256, "agree_sha256"), (VAE_CKPT_REL, VAE_CKPT_SHA256, "vae_ckpt_sha256")):
+        got = sha256_file(_abs(rel, repo))
+        if got != want:
+            raise GateError(f"{rel} sha {got} != pinned {want}")
+        out[key] = got
+    out.update(vit_pin_check())
+    return out
 
 
-def snapshot_tools(run, dest, repo=None):
-    """Copy the files the start / end audits read into ``dest`` (refuses an existing dest) and
-    write ``SNAPSHOT.sha256``; the audits then run ``python <dest>/<registry> --repo <dest> …``."""
-    import shutil
-    if os.path.exists(dest):
-        raise GateError(f"snapshot dir {dest} exists")
-    lines = []
-    for rel in snapshot_files(run, repo):
-        src = _abs(rel, repo)
-        out = os.path.join(dest, rel)
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        shutil.copyfile(src, out)
-        lines.append(f"{sha256_file(out)}  {rel}")
-    os.makedirs(os.path.join(dest, ".git"), exist_ok=True)      # repo marker for _repo_root
-    with open(os.path.join(dest, "SNAPSHOT.sha256"), "w") as fh:
-        fh.write("\n".join(lines) + "\n")
-    return {"snapshot": dest, "files": len(lines)}
+# ---------------------------------------------------------------- atomic, sealed records (NIT 2)
+def _fsync_dir(d):
+    try:
+        fd = os.open(d, os.O_RDONLY | os.O_DIRECTORY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError as err:                       # CIFS may refuse a directory fsync
+        if err.errno not in (22, 95):
+            raise
+    finally:
+        os.close(fd)
 
 
-def verify_snapshot(dest):
-    for line in open(os.path.join(dest, "SNAPSHOT.sha256")).read().strip().split("\n"):
-        digest, rel = line.split("  ", 1)
-        if sha256_file(os.path.join(dest, rel)) != digest:
-            raise GateError(f"snapshot file {rel} changed")
-    return {"snapshot": dest, "verified": True}
+def atomic_write_bytes(path, data):
+    """temp file -> fsync -> os.replace -> directory fsync."""
+    d = os.path.dirname(os.path.abspath(path))
+    tmp = os.path.join(d, f".{os.path.basename(path)}.tmp.{os.getpid()}")
+    with open(tmp, "wb") as fh:
+        fh.write(data)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+    _fsync_dir(d)
 
 
-# ---------------------------------------------------------------- in-process evidence gate
-def evidence_gate(evidence_dir, run, ngpu, backend, max_steps=MAX_STEPS):
-    """Problems (empty = PASS) of the per-rank first-step evidence (plan r2 §10 B3)."""
-    arm, _, rung = parse_run_id(run)
-    micro = RUNGS[rung]["micro"] if ngpu > 1 else 32
-    p, recs = [], []
-    for r in range(ngpu):
-        path = os.path.join(evidence_dir, f"run_evidence.json.rank{r}.json")
-        try:
-            recs.append(json.load(open(path)))
-        except (OSError, ValueError) as err:
-            p.append(f"rank {r} evidence unreadable: {err}")
-    if p:
-        return p
-    for r, e in enumerate(recs):
-        want = {"rank": r, "world_size": ngpu, "num_nodes": 1, "precision": "bf16-mixed",
-                "accumulate_grad_batches": 1, "max_steps": max_steps, "gradient_clip_val": 0.0,
-                "global_step_at_fit_start": 0, "global_step_recorded": 1, "micro_batch": micro,
-                "state_dict_sha256": INIT_STATE_SHA256, "vit_ckpt_wrapped_layers": 12,
-                "flash_attn_func_set": backend == "flash"}
-        for k, v in want.items():
-            if e.get(k) != v:
-                p.append(f"rank {r}: {k} {e.get(k)!r} != {v!r}")
-        sob = e.get("sobol") or {}
-        if (sob.get("state_sha256"), sob.get("num_generated")) != (INIT_SOBOL_SHA256, 0):
-            p.append(f"rank {r}: Sobol state off the registered initial state")
-        if ngpu > 1 and (e.get("syncbn_modules", 0) < 1 or e.get("batchnorm_nonsync_modules") != 0):
-            p.append(f"rank {r}: SyncBN not active ({e.get('syncbn_modules')} sync / {e.get('batchnorm_nonsync_modules')} plain)")
-        ck = e.get("checkpoint_calls") or []
-        if not ck or any(c.get("use_reentrant") is not False for c in ck):
-            p.append(f"rank {r}: checkpoint calls {len(ck)}, not all use_reentrant=False")
-        if backend == "flash" and not (e.get("flash_calls", 0) > 0 and e.get("sdpa_calls") == 0):
-            p.append(f"rank {r}: flash {e.get('flash_calls')} / sdpa {e.get('sdpa_calls')} calls in the DiT")
-        if backend == "sdpa" and not (e.get("flash_calls") == 0 and e.get("sdpa_calls", 0) > 0):
-            p.append(f"rank {r}: flash {e.get('flash_calls')} / sdpa {e.get('sdpa_calls')} calls in the DiT")
-        want_calls = [[micro, None]]
-        if ARMS[arm]["cond_method"] == "fa_invariant":
-            want_calls += [[micro, ["source_vit", "context_poses_vit"]]] * 3
-        if e.get("conditioner_calls") != want_calls:
-            p.append(f"rank {r}: conditioner calls {e.get('conditioner_calls')} != {want_calls}")
-    if len({e.get("rng_at_fit_start", {}).get("torch_cpu") for e in recs}) != 1:
-        p.append("ranks disagree on the torch CPU RNG state at fit start")
-    return p
+def write_sealed(path, rec):
+    """A JSON receipt + its ``.sha256`` sidecar; refuses an existing receipt. The sidecar is written
+    first, the JSON last (the JSON is the commit point: a sidecar alone is never admitted)."""
+    if os.path.exists(path):
+        raise GateError(f"{path} exists (receipts are written once)")
+    text = (json.dumps(rec, indent=1, sort_keys=True) + "\n").encode()
+    atomic_write_bytes(path + ".sha256", f"{hashlib.sha256(text).hexdigest()}  {os.path.basename(path)}\n".encode())
+    atomic_write_bytes(path, text)
+    return hashlib.sha256(text).hexdigest()
 
 
-# ---------------------------------------------------------------- campaign closure, environment, receipts
+def read_sealed(path, keys):
+    """(record, sha256) of a sealed receipt with EXACTLY ``keys``; anything else refuses."""
+    try:
+        text = open(path, "rb").read()
+        side = open(path + ".sha256").read().split()
+    except OSError as err:
+        raise GateError(f"receipt {path} missing / unreadable: {err}")
+    digest = hashlib.sha256(text).hexdigest()
+    if side != [digest, os.path.basename(path)]:
+        raise GateError(f"{path} does not match its .sha256 sidecar")
+    try:
+        rec = json.loads(text)
+    except ValueError as err:
+        raise GateError(f"{path}: not JSON ({err})")
+    if not isinstance(rec, dict) or set(rec) != set(keys):
+        got = set(rec) if isinstance(rec, dict) else set()
+        raise GateError(f"{path}: schema differs (missing {sorted(set(keys) - got)}, extra {sorted(got - set(keys))})")
+    return rec, digest
+
+
+def _is_sha(x):
+    return isinstance(x, str) and re.fullmatch(r"[0-9a-f]{64}", x) is not None
+
+
+# ---------------------------------------------------------------- storage (Codex code r1 BLOCKING 6, HIGH 7)
+# the registered output filesystems: the A6000 NAS is CIFS behind autofs; neuronic's /n/fs is a
+# network filesystem (its exact type is recorded by the first SMOKE; local disks / tmpfs refuse)
+STORAGE_FS = {"a6000": ("cifs",), "neuronic": ("nfs", "nfs4", "lustre", "gpfs", "beegfs", "cifs", "smb3")}
+TRAIN_FREE_GIB = 30           # 16 checkpoints = 11.6 GB per run (plan §11) + margin
+DUMP_CELL_BYTES = 259_600_000  # one scored-waveform cell
+
+
+def mount_fstype(path):
+    """fstype of the filesystem holding ``path`` (the most recent mount on the longest prefix)."""
+    real = os.path.realpath(path)
+    best, fstype = "", None
+    for line in open("/proc/self/mounts"):
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        mnt = parts[1].replace("\\040", " ")
+        if (real == mnt or real.startswith(mnt.rstrip("/") + "/")) and len(mnt) >= len(best):
+            best, fstype = mnt, parts[2]
+    return fstype, best
+
+
+def storage_gate(platform, path, need_bytes, tag="exp38"):
+    """``path`` must exist on a registered filesystem, have ``need_bytes`` free and pass a
+    write / read-back / delete probe. Returns the observed facts."""
+    if not os.path.isdir(path):
+        raise GateError(f"storage root {path} does not exist (it is never created here: a missing "
+                        "mount must not become a local directory)")
+    fstype, mnt = mount_fstype(path)
+    if fstype not in STORAGE_FS[platform]:
+        raise GateError(f"{path} is on {fstype} ({mnt}), not a registered {platform} filesystem {STORAGE_FS[platform]}")
+    st = os.statvfs(path)
+    free = st.f_bavail * st.f_frsize
+    if free < need_bytes:
+        raise GateError(f"{path}: {free / 2**30:.1f} GiB free < {need_bytes / 2**30:.1f} GiB needed")
+    probe = os.path.join(path, f".{tag}_probe_{os.getpid()}_{int(time.time())}")
+    payload = os.urandom(16).hex()
+    try:
+        with open(probe, "x") as fh:
+            fh.write(payload)
+            fh.flush()
+            os.fsync(fh.fileno())
+        ok = open(probe).read() == payload
+    finally:
+        if os.path.exists(probe):
+            os.unlink(probe)
+    if not ok:
+        raise GateError(f"{path}: write probe read back different bytes")
+    return {"path": path, "fstype": fstype, "mountpoint": mnt, "free_bytes": free}
+
+
+# ---------------------------------------------------------------- campaign closure + immutable snapshot
 CLOSURE_ROOTS = ("train.py", "defaults.ini", "eval_FLAC.py", "pyproject.toml", "src", "overlays", "data/AR")
 CLOSURE_EXP_PREFIXES = ("exp38_", "FLAC_AR_BF_cap", "data_efficiency_subset_audit.json")
 
 
-def closure_files(repo=None):
+def _git_out(repo, *args):
     import subprocess
+    return subprocess.run(["git", "-C", repo, *args], capture_output=True, check=True).stdout
+
+
+def closure_files(repo=None):
+    """Tracked code + configs + splits the campaign runs (tests and worklog prose excluded). A
+    snapshot (no git) lists its own SNAPSHOT.sha256 instead."""
     repo = repo or REPO
-    out = subprocess.run(["git", "-C", repo, "ls-files", "-z", "--", *CLOSURE_ROOTS, EXP_DIR, *EXTERNAL_CONFIGS],
-                         capture_output=True, check=True).stdout.decode().split("\0")
-    files = []
-    for rel in out:
-        if not rel or rel.startswith("src/tests/"):
-            continue
-        if rel.startswith(EXP_DIR + "/") and not os.path.basename(rel).startswith(CLOSURE_EXP_PREFIXES):
-            continue
-        files.append(rel)
-    return sorted(set(files))
+    if os.path.isfile(os.path.join(repo, "SNAPSHOT.sha256")):
+        rels = [ln.split("  ", 1)[1] for ln in open(os.path.join(repo, "SNAPSHOT.sha256")).read().strip().split("\n")]
+        return sorted(r for r in rels if _in_closure(r))
+    out = _git_out(repo, "ls-files", "-z", "--", *CLOSURE_ROOTS, EXP_DIR, *EXTERNAL_CONFIGS).decode().split("\0")
+    return sorted({r for r in out if r and _in_closure(r)})
+
+
+def _in_closure(rel):
+    if rel.startswith("src/tests/"):
+        return False
+    if rel.startswith(EXP_DIR + "/"):
+        return os.path.basename(rel).startswith(CLOSURE_EXP_PREFIXES) and "/" not in rel[len(EXP_DIR) + 1:]
+    return rel in EXTERNAL_CONFIGS or any(rel == r or rel.startswith(r + "/") for r in CLOSURE_ROOTS)
 
 
 def closure_digest(repo=None):
@@ -802,65 +912,278 @@ def closure_digest(repo=None):
     return {"closure_sha256": h.hexdigest(), "n_files": len(files)}
 
 
+# the snapshot's own links (train.py runs with the snapshot as its cwd; the dataset config names
+# "AcousticRooms" and the argv names weights/FLAC/VAE.safetensors, both cwd-relative)
+SNAPSHOT_LINKS = ("AcousticRooms", VAE_PATH)
+RECEIPT_FILES = (SUBSET_AUDIT + ".sha256",)
+
+
+def snapshot_files(run, repo=None):
+    return sorted(set(closure_files(repo)) | {r for r in RECEIPT_FILES if os.path.exists(_abs(r, repo))})
+
+
+def snapshot_tools(run, dest, repo=None):
+    """Copy the closure into ``dest`` (refused if it exists), link the two data inputs to the
+    campaign tree's verified targets, and seal SNAPSHOT.sha256 + SNAPSHOT.links. Training is
+    launched FROM the snapshot and every later audit reads it (Codex code r1 HIGH 5)."""
+    import shutil
+    repo = repo or REPO
+    if os.path.lexists(dest):
+        raise GateError(f"snapshot dir {dest} exists")
+    lines = []
+    for rel in snapshot_files(run, repo):
+        out = os.path.join(dest, rel)
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        shutil.copyfile(_abs(rel, repo), out)
+        lines.append(f"{sha256_file(out)}  {rel}")
+    links = []
+    for rel in SNAPSHOT_LINKS:
+        target = os.path.realpath(_abs(rel, repo))
+        if not os.path.exists(target):
+            raise GateError(f"{rel} does not resolve in {repo}")
+        os.makedirs(os.path.dirname(os.path.join(dest, rel)) or dest, exist_ok=True)
+        os.symlink(target, os.path.join(dest, rel))
+        links.append(f"{target}  {rel}")
+    atomic_write_bytes(os.path.join(dest, "SNAPSHOT.sha256"), ("\n".join(lines) + "\n").encode())
+    atomic_write_bytes(os.path.join(dest, "SNAPSHOT.links"), ("\n".join(links) + "\n").encode())
+    return {"snapshot": dest, "files": len(lines), "snapshot_sha256": snapshot_digest(dest)}
+
+
+def snapshot_digest(dest):
+    return hashlib.sha256(open(os.path.join(dest, "SNAPSHOT.sha256"), "rb").read()
+                          + open(os.path.join(dest, "SNAPSHOT.links"), "rb").read()).hexdigest()
+
+
+def verify_snapshot(dest, want_digest=None):
+    p = []
+    for line in open(os.path.join(dest, "SNAPSHOT.sha256")).read().strip().split("\n"):
+        digest, rel = line.split("  ", 1)
+        path = os.path.join(dest, rel)
+        if os.path.islink(path) or not os.path.isfile(path) or sha256_file(path) != digest:
+            p.append(f"snapshot file {rel} changed")
+    for line in open(os.path.join(dest, "SNAPSHOT.links")).read().strip().split("\n"):
+        target, rel = line.split("  ", 1)
+        if not os.path.islink(os.path.join(dest, rel)) or os.readlink(os.path.join(dest, rel)) != target:
+            p.append(f"snapshot link {rel} changed")
+    if VAE_PATH in SNAPSHOT_LINKS and sha256_file(os.path.join(dest, VAE_PATH)) != VAE_SHA256:
+        p.append("snapshot VAE is not the pinned file")
+    if want_digest is not None and snapshot_digest(dest) != want_digest:
+        p.append("snapshot manifests differ from the launch record")
+    if p:
+        raise GateError("; ".join(p))
+    return {"snapshot": dest, "verified": True, "snapshot_sha256": snapshot_digest(dest)}
+
+
+# ---------------------------------------------------------------- in-process evidence gate (Codex code r1 BLOCKING 2)
+EVIDENCE_KEYS = frozenset({
+    "accumulate_grad_batches", "batchnorm_nonsync_modules", "checkpoint_calls", "conditioner_calls",
+    "flash_attn_func_set", "flash_calls", "global_step_at_fit_start", "global_step_recorded",
+    "gradient_clip_val", "local_rank", "max_steps", "micro_batch", "n_state_tensors", "num_nodes", "precision",
+    "rank", "rng_at_fit_start", "sdpa_calls", "sobol", "state_dict_sha256", "strategy", "syncbn_modules",
+    "vit_ckpt_wrapped_layers", "world_size"})
+INIT_SOBOL = {"dimension": 1, "num_generated": 0, "scramble": True, "state_sha256": INIT_SOBOL_SHA256}
+# RNG digests at fit start. One rank (SingleDeviceStrategy): train.py's seed_everything(42) state
+# after the model build drew from torch's CPU generator -- measured by the GPU-0 smokes (YAW, B-F).
+# DDP (local subprocess launcher and torchrun alike): PL 2.1 DDPStrategy.setup_distributed() calls
+# lightning_fabric reset_seed(), re-seeding every rank with PL_GLOBAL_SEED=42 after the build, so the
+# torch CPU state is the FRESH seed-42 state (computed on the CPU; python / numpy are untouched by
+# the build and equal in both). CUDA: seed 42, nothing drawn before fit -> identical in both.
+# The CPU 2-rank ddp_spawn test (test_exp38_ddp_evidence.py) exercises the DDP rule; SMOKE_DDP
+# confirms the full set on the cards before FULL. Every rank must carry exactly these values.
+RNG_PY = "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f"
+RNG_NP = "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6"
+RNG_CUDA = "aefdce03def94ffed42159e55677ec20e91200e1981f25b1f271b6fd99c3c263"
+RNG_AT_FIT_START = {
+    "single": {"python": RNG_PY, "numpy": RNG_NP, "torch_cuda": RNG_CUDA,
+               "torch_cpu": "7461f975015a0a9df867cc0521d9a6bc71fc82a8f2e47da7289e94a0645b15b6"},
+    "ddp": {"python": RNG_PY, "numpy": RNG_NP, "torch_cuda": RNG_CUDA,
+            "torch_cpu": "5feb54a46230d321d888e9b43cf5a57492665f199e4377408d79ee460e36679c"},
+}
+N_BATCHNORM = 20
+DIT_ATTN_CALLS = 48            # DiT attention calls in step 1 (measured: YAW and B-F, flash)
+VIT_CKPT_CALLS = {"vanilla": 120, "fa_invariant": 444}   # measured: YAW 120, B-F 444 (12 layers)
+
+
+def load_evidence(evidence_dir, ngpu):
+    """{rank: record} or raises: exactly ``ngpu`` rank files and nothing else."""
+    names = sorted(os.listdir(evidence_dir)) if os.path.isdir(evidence_dir) else []
+    want = [f"run_evidence.json.rank{r}.json" for r in range(ngpu)]
+    if names != sorted(want):
+        raise GateError(f"{evidence_dir}: evidence files {names} != {sorted(want)}")
+    out = {}
+    for r in range(ngpu):
+        try:
+            out[r] = json.load(open(os.path.join(evidence_dir, want[r])))
+        except (OSError, ValueError) as err:
+            raise GateError(f"rank {r} evidence unreadable: {err}")
+    return out
+
+
+def evidence_problems(recs, run, ngpu, backend, max_steps=MAX_STEPS):
+    """Problems (empty = PASS) of the per-rank first-step records ``{rank: record}``: the exact
+    schema and every recorded value, rank-indexed where they differ and equal where they agree."""
+    arm, _, rung = parse_run_id(run)
+    micro = RUNGS[rung]["micro"] if ngpu > 1 else 32
+    topo = "ddp" if ngpu > 1 else "single"
+    cond = ARMS[arm]["cond_method"]
+    p = []
+    if sorted(recs) != list(range(ngpu)):
+        return [f"evidence ranks {sorted(recs)} != {list(range(ngpu))}"]
+    for r in range(ngpu):
+        e = recs[r]
+        if not isinstance(e, dict) or set(e) != EVIDENCE_KEYS:
+            got = set(e) if isinstance(e, dict) else set()
+            p.append(f"rank {r}: evidence schema (missing {sorted(EVIDENCE_KEYS - got)}, extra {sorted(got - EVIDENCE_KEYS)})")
+            continue
+        want = {"rank": r, "local_rank": r, "world_size": ngpu, "num_nodes": 1, "precision": "bf16-mixed",
+                "accumulate_grad_batches": 1, "max_steps": max_steps, "gradient_clip_val": 0.0,
+                "strategy": "DDPStrategy" if ngpu > 1 else "SingleDeviceStrategy",
+                "global_step_at_fit_start": 0, "global_step_recorded": 1, "micro_batch": micro,
+                "state_dict_sha256": INIT_STATE_SHA256, "n_state_tensors": N_STATE_TENSORS,
+                "vit_ckpt_wrapped_layers": 12, "flash_attn_func_set": backend == "flash",
+                "sobol": INIT_SOBOL, "rng_at_fit_start": RNG_AT_FIT_START[topo],
+                "syncbn_modules": N_BATCHNORM if ngpu > 1 else 0,
+                "batchnorm_nonsync_modules": 0 if ngpu > 1 else N_BATCHNORM,
+                "flash_calls": DIT_ATTN_CALLS if backend == "flash" else 0,
+                "sdpa_calls": 0 if backend == "flash" else DIT_ATTN_CALLS,
+                "checkpoint_calls": [{"use_reentrant": False}] * VIT_CKPT_CALLS[cond],
+                "conditioner_calls": [[micro, None]] + ([[micro, ["source_vit", "context_poses_vit"]]] * 3
+                                                        if cond == "fa_invariant" else [])}
+        for k, v in want.items():
+            if canonical(e[k]) != canonical(v) or type(e[k]) is not type(v):
+                shown = e[k] if k != "checkpoint_calls" else f"{len(e[k])} calls"
+                p.append(f"rank {r}: {k} {shown!r} != {v if k != 'checkpoint_calls' else len(v)!r}")
+    return p
+
+
+def evidence_gate(evidence_dir, run, ngpu, backend, max_steps=MAX_STEPS):
+    try:
+        recs = load_evidence(evidence_dir, ngpu)
+    except GateError as err:
+        return [str(err)]
+    return evidence_problems(recs, run, ngpu, backend, max_steps)
+
+
+# ---------------------------------------------------------------- tree hygiene + environment (Codex code r1 HIGH 9)
+# untracked entries a campaign tree may carry, each validated by CONTENT (not by name)
+TREE_LINKS = {
+    "AcousticRooms": "dir",                      # content: exp38_subset_audit.py --verify (root fingerprint)
+    VAE_PATH: VAE_SHA256,
+    VAE_CKPT_REL: VAE_CKPT_SHA256,
+    "weights/AGREE": "agree_dir",                 # content: AGREE_fullAR.pt sha
+}
+TREE_LINKS_REQUIRED = {"a6000": ("AcousticRooms", VAE_PATH, VAE_CKPT_REL, "weights/AGREE"),
+                       "neuronic": ("AcousticRooms", VAE_PATH)}
+# on this box the links must also name these exact targets
+A6000_LINK_TARGETS = {"AcousticRooms": "/media/diskstation/yixunhu/FLAC/AcousticRooms",
+                      "weights/AGREE": "/home/yixunhu/codespace/FLAC/weights/AGREE",
+                      VAE_PATH: "/home/yixunhu/codespace/FLAC/weights/FLAC/VAE.safetensors",
+                      VAE_CKPT_REL: "/home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt"}
+# variables that change what or how the interpreter / torch runs: must be unset (the numeric /
+# communication ones a site may legitimately set are pinned by the environment receipt instead)
+FORBIDDEN_ENV = ("PYTHONOPTIMIZE", "PYTHONSTARTUP", "PYTHONINSPECT", "PYTHONHOME", "ENABLE_TORCH_COMPILE",
+                 "CUDA_LAUNCH_BLOCKING", "NVIDIA_TF32_OVERRIDE", "LD_PRELOAD")
+ENV_PREFIXES = ("NCCL_", "TORCH", "PYTORCH_", "CUBLAS", "CUDNN", "PL_", "LIGHTNING_", "PYTHONHASHSEED")
+
+
 def check_untracked(platform, repo=None):
-    """Refuse import shadows and unexpected links in the campaign tree (Codex plan r2 HIGH 7)."""
-    import subprocess
+    """Problems (empty = PASS): import shadows, unexpected untracked entries, and every allowed link
+    validated by content (and, on this box, by its registered target)."""
     repo = repo or REPO
     p = []
-    untracked = subprocess.run(["git", "-C", repo, "ls-files", "-z", "--others", "--exclude-standard"],
-                               capture_output=True, check=True).stdout.decode().split("\0")
-    allow = SYMLINK_ALLOWLIST.get(platform)
-    names = set(allow if allow is not None else SYMLINK_ALLOWLIST["a6000"])   # neuronic: names only
+    untracked = _git_out(repo, "ls-files", "-z", "--others", "--exclude-standard").decode().split("\0")
     for rel in filter(None, untracked):
         if rel.startswith(("worklog/", "outputs_FLAC/")) and not rel.endswith(".py"):
             continue
-        if rel in names:
+        if rel in TREE_LINKS or any(rel.startswith(k + "/") for k in TREE_LINKS):
             continue
         p.append(f"unexpected untracked entry {rel}")
-    if allow is not None:
-        for rel, target in allow.items():
-            path = os.path.join(repo, rel)
-            if not os.path.islink(path) or os.readlink(path) != target:
-                p.append(f"{rel} is not the symlink -> {target}")
+    for rel, kind in TREE_LINKS.items():
+        path = os.path.join(repo, rel)
+        if not os.path.lexists(path):
+            if rel in TREE_LINKS_REQUIRED[platform]:
+                p.append(f"required link {rel} is missing")
+            continue
+        if not os.path.islink(path):
+            p.append(f"{rel} must be a symlink")
+            continue
+        if platform == "a6000" and os.readlink(path) != A6000_LINK_TARGETS[rel]:
+            p.append(f"{rel} -> {os.readlink(path)}, not {A6000_LINK_TARGETS[rel]}")
+        try:
+            if kind == "dir" and not os.path.isdir(path):
+                p.append(f"{rel} does not resolve to a directory")
+            elif kind == "agree_dir" and sha256_file(os.path.join(path, "AGREE_fullAR.pt")) != AGREE_SHA256:
+                p.append(f"{rel}/AGREE_fullAR.pt is not the pinned AGREE")
+            elif _is_sha(kind) and sha256_file(path) != kind:
+                p.append(f"{rel} is not the pinned file")
+        except OSError as err:
+            p.append(f"{rel}: {err}")
     for top in ("", "src", "src/models", "src/training", "src/data", "overlays"):
         d = os.path.join(repo, top)
         for name in (os.listdir(d) if os.path.isdir(d) else []):
             if name in SHADOW_NAMES:
                 p.append(f"import shadow {os.path.join(top, name)}")
-    for k in ("ENABLE_TORCH_COMPILE", "PYTHONSTARTUP", "PYTHONINSPECT"):
-        if os.environ.get(k):
-            p.append(f"environment variable {k} is set")
-    if os.environ.get("PYTHONNOUSERSITE") != "1":
-        p.append("PYTHONNOUSERSITE=1 is required")
+    p += env_problems()
     return p
 
 
-def env_snapshot():
+def env_problems(environ=None):
+    """The interpreter flags / variables every launch and evaluation must run under (NIT: PYTHONOPTIMIZE)."""
+    environ = os.environ if environ is None else environ
+    p = [f"environment variable {k} is set" for k in FORBIDDEN_ENV if environ.get(k)]
+    if environ.get("PYTHONNOUSERSITE") != "1":
+        p.append("PYTHONNOUSERSITE=1 is required")
+    if environ is os.environ and (sys.flags.optimize or not sys.flags.no_user_site):
+        p.append(f"interpreter flags optimize={sys.flags.optimize} no_user_site={sys.flags.no_user_site}")
+    return p
+
+
+ENV_RECEIPT_KEYS = frozenset({"schema", "platform", "python", "executable", "torch", "cuda", "cudnn", "nccl",
+                              "driver", "gpu_names", "packages", "packages_sha256", "flags", "env_vars"})
+
+
+def _gpu_rows():
+    import subprocess
+    out = subprocess.run(["nvidia-smi", "--query-gpu=index,uuid,name,driver_version", "--format=csv,noheader"],
+                         capture_output=True, text=True, timeout=60)
+    if out.returncode or not out.stdout.strip():
+        raise GateError(f"nvidia-smi failed (rc {out.returncode}): {out.stderr.strip()}")
+    return [[x.strip() for x in line.split(",")] for line in out.stdout.strip().split("\n")]
+
+
+def env_snapshot(platform):
+    """The environment identity (fails closed on every probe): interpreter, the CUDA stack, the
+    driver, the GPU model, the complete installed-package inventory, flags and numeric env vars."""
     import importlib.metadata as md
     import platform as pf
-    import subprocess
     import torch
-    vers = {"python": pf.python_version(), "torch": torch.__version__, "cuda": torch.version.cuda,
-            "cudnn": torch.backends.cudnn.version()}
     try:
-        vers["nccl"] = ".".join(map(str, torch.cuda.nccl.version()))
-    except Exception:
-        vers["nccl"] = None
-    for dist in ("pytorch_lightning", "lightning_fabric", "transformers", "flash_attn", "torchaudio", "numpy",
-                 "prefigure", "ema_pytorch", "huggingface_hub", "safetensors", "einops"):
-        try:
-            vers[dist] = md.version(dist.replace("_", "-"))
-        except md.PackageNotFoundError:
-            try:
-                vers[dist] = md.version(dist)
-            except md.PackageNotFoundError:
-                vers[dist] = None
-    try:
-        vers["driver"] = subprocess.run(["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
-                                        capture_output=True, text=True, check=True).stdout.split()[0]
-    except Exception:
-        vers["driver"] = None
-    return vers
+        nccl = ".".join(map(str, torch.cuda.nccl.version()))
+    except Exception as err:                      # noqa: BLE001 -- a missing NCCL refuses
+        raise GateError(f"NCCL version probe failed: {err}")
+    rows = _gpu_rows()
+    drivers = sorted({r[3] for r in rows})
+    if len(drivers) != 1:
+        raise GateError(f"driver versions {drivers}")
+    pk = {}
+    for dist in md.distributions():
+        name = re.sub(r"[-_.]+", "-", (dist.metadata["Name"] or "").lower())
+        if name:
+            pk[name] = dist.version
+    rec = {"schema": 1, "platform": platform, "python": pf.python_version(),
+           "executable": os.path.realpath(sys.executable), "torch": torch.__version__, "cuda": torch.version.cuda,
+           "cudnn": torch.backends.cudnn.version(), "nccl": nccl, "driver": drivers[0],
+           "gpu_names": sorted({r[2] for r in rows}), "packages": dict(sorted(pk.items())),
+           "packages_sha256": hashlib.sha256(canonical(dict(sorted(pk.items()))).encode()).hexdigest(),
+           "flags": {"optimize": sys.flags.optimize, "no_user_site": sys.flags.no_user_site,
+                     "ignore_environment": sys.flags.ignore_environment, "isolated": sys.flags.isolated},
+           "env_vars": {k: v for k, v in sorted(os.environ.items())
+                        if k.startswith(ENV_PREFIXES) and k != "CUDA_VISIBLE_DEVICES"}}
+    if None in (rec["cuda"], rec["cudnn"]) or not rec["gpu_names"]:
+        raise GateError("CUDA / cuDNN / GPU probe returned nothing")
+    if platform == "a6000" and pk.get("flash-attn") != FLASH_VERSION:
+        raise GateError(f"flash-attn {pk.get('flash-attn')} != pinned {FLASH_VERSION}")
+    return rec
 
 
 def env_receipt_rel(platform):
@@ -868,104 +1191,239 @@ def env_receipt_rel(platform):
 
 
 def env_receipt(platform, write=False, repo=None):
-    """Write once (``write=True``) or check: the campaign environment must not drift between runs."""
+    """Write once (``write=True``, sealed) or check (exact equality with the live environment)."""
     path = _abs(env_receipt_rel(platform), repo)
-    now = env_snapshot()
-    if platform == "a6000" and now.get("flash_attn") != FLASH_VERSION:
-        raise GateError(f"flash-attn {now.get('flash_attn')} != pinned {FLASH_VERSION}")
+    probs = env_problems()
+    if probs:
+        raise GateError("; ".join(probs))
+    now = env_snapshot(platform)
     if write:
-        if os.path.exists(path):
-            raise GateError(f"{path} exists (the environment receipt is written once)")
-        with open(path, "w") as fh:
-            json.dump(now, fh, indent=1, sort_keys=True)
-            fh.write("\n")
-        return {"env_receipt": path, "sha256": sha256_file(path), "written": True}
-    try:
-        pinned = json.load(open(path))
-    except OSError:
-        raise GateError(f"no environment receipt {path}: write it at campaign start (E0)")
-    if pinned != now:
-        diff = {k: (pinned.get(k), now.get(k)) for k in set(pinned) | set(now) if pinned.get(k) != now.get(k)}
+        digest = write_sealed(path, now)
+        return {"env_receipt": path, "sha256": digest, "written": True}
+    pinned, digest = read_sealed(path, ENV_RECEIPT_KEYS)
+    if canonical(pinned) != canonical(now):
+        diff = sorted(k for k in ENV_RECEIPT_KEYS if canonical(pinned.get(k)) != canonical(now.get(k)))
+        if "packages" in diff:
+            pk0, pk1 = pinned["packages"], now["packages"]
+            diff.append({k: (pk0.get(k), pk1.get(k)) for k in set(pk0) | set(pk1) if pk0.get(k) != pk1.get(k)})
         raise GateError(f"environment drift vs the campaign receipt: {diff}")
-    return {"env_receipt": path, "sha256": sha256_file(path)}
+    return {"env_receipt": path, "sha256": digest}
 
 
-def _receipt(path):
-    text = open(path, "rb").read()
-    side = open(path + ".sha256").read().split()[0]
-    if hashlib.sha256(text).hexdigest() != side:
-        raise GateError(f"{path} does not match its .sha256")
-    return json.loads(text)
+def env_receipt_sha(platform, repo=None):
+    return read_sealed(_abs(env_receipt_rel(platform), repo), ENV_RECEIPT_KEYS)[1]
+
+
+# ---------------------------------------------------------------- E0 (the validator lives with its writer)
+E0_RECEIPT = f"{EXP_DIR}/data_efficiency_e0_receipt.json"
 
 
 def check_e0_receipt(platform, repo=None):
-    path = _abs(f"{EXP_DIR}/data_efficiency_e0_receipt.json", repo)
-    try:
-        rec = _receipt(path)
-    except (OSError, ValueError) as err:
-        raise GateError(f"E0 receipt missing / unreadable: {err}")
-    if rec.get("verdict") != "PASS":
-        raise GateError(f"E0 verdict {rec.get('verdict')}")
-    cur = closure_digest(repo)["closure_sha256"]
-    if rec.get("closure_sha256") != cur:
-        raise GateError("E0 receipt was produced at a different campaign closure")
-    for rel, digest in (rec.get("evaluator_files") or {}).items():
-        if sha256_file(_abs(rel, repo)) != digest:
-            raise GateError(f"{rel} changed since E0")
-    if not rec.get("evaluator_files"):
-        raise GateError("E0 receipt binds no evaluator files")
-    return {"e0_receipt": path, "closure_sha256": cur}
+    """The E0 receipt must be a complete PASS at THIS closure (exp38_eval.validate_e0_receipt)."""
+    sys.path.insert(0, HERE)
+    import exp38_eval
+    return exp38_eval.validate_e0_receipt(repo=repo)
 
 
-def smoke_receipt_glob(run):
-    return f"{EXP_DIR}/data_efficiency_smoke_{run}_*.json"
+# ---------------------------------------------------------------- SMOKE_DDP receipt (Codex code r1 BLOCKING 1)
+SMOKE_STEPS_DDP = 30
+SMOKE_KEYS = frozenset({"schema", "mode", "run", "platform", "backend", "head", "closure_sha256",
+                        "env_receipt_sha256", "subset_audit_sha256", "snapshot_sha256", "argv_projection",
+                        "model_config_sha256", "dataset_config_sha256", "split_sha256", "rc", "checkpoints_written",
+                        "log", "log_sha256", "log_gate", "evidence", "evidence_gate", "gpus", "verdict",
+                        "launched_at", "finished_at"})
 
 
-def check_smoke_receipt(run, platform, repo=None):
-    cur = closure_digest(repo)["closure_sha256"]
-    for path in sorted(glob.glob(_abs(smoke_receipt_glob(run), repo)), reverse=True):
-        try:
-            rec = _receipt(path)
-        except (OSError, ValueError):
-            continue
-        if (rec.get("mode"), rec.get("run"), rec.get("platform"), rec.get("verdict"), rec.get("closure_sha256")) \
-                == ("SMOKE_DDP", run, platform, "PASS", cur):
-            return {"smoke_receipt": path}
-    raise GateError(f"no PASS SMOKE_DDP receipt for {run} on {platform} at closure {cur[:12]}")
+def smoke_receipt_rel(run, platform, ts):
+    return f"{EXP_DIR}/data_efficiency_smoke_{run}_{platform}_{ts}.json"
 
 
-def write_smoke_receipt(out, run, platform, evidence_dir, rc, n_ckpt, log_gate_line, evidence_gate_line,
-                        verdict, head, repo=None):
-    """The SMOKE_DDP receipt FULL validates (plan r2 §10 B6 schema)."""
-    import subprocess
-    if os.path.exists(out):
-        raise GateError(f"{out} exists")
-    full = build_train_argv(run, platform)
-    proj = [a for i, a in enumerate(full)
-            if not (a.startswith("/") or (i and full[i - 1] in ("--max-steps", "--checkpoint-every", "--name",
-                                                                  "--experiment-name", "--save-dir", "--evidence-json")))]
-    ev = {}
-    for path in sorted(glob.glob(os.path.join(evidence_dir, "run_evidence.json.rank*.json"))):
-        ev[os.path.basename(path)] = json.load(open(path))
+def gpu_identity(platform, ngpu, rows=None):
+    """[[uuid, name], ...] the run used: this box's two registered A6000s, or neuronic's allocation."""
+    if platform == "a6000":
+        rows = rows if rows is not None else _gpu_rows()
+        got = sorted([r[1], r[2]] for r in rows)
+        want = sorted([u, "NVIDIA RTX A6000"] for u in A6000_UUIDS)
+        if got != want:
+            raise GateError(f"GPUs {got} != this box's registered A6000s {want}")
+        return got
+    if rows is None:
+        raise GateError("neuronic GPU identity comes from the allocation probe")
+    got = sorted([r[0], r[1]] for r in rows)
+    if len(got) != ngpu or any("L40" not in n for _, n in got):
+        raise GateError(f"allocation GPUs {got} are not {ngpu} x L40")
+    return got
+
+
+A6000_UUIDS = ("GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da")
+
+
+def write_smoke_receipt(run, platform, backend, head, smoke_dir, log_path, rc, gpus, snapshot_sha, launched_at,
+                        ts, repo=None, out_repo=None):
+    """Recomputes every gate from the artifacts (never trusts a caller's verdict) and seals the
+    receipt into ``out_repo`` (the campaign tree); the bindings are computed from ``repo`` (the
+    snapshot the smoke ran from)."""
     arm, tag, rung = parse_run_id(run)
-    gpus = subprocess.run(["nvidia-smi", "--query-gpu=index,uuid,name", "--format=csv,noheader"],
-                          capture_output=True, text=True).stdout.strip().split("\n")
-    rec = {"mode": "SMOKE_DDP", "run": run, "platform": platform, "head": head,
+    ngpu = RUNGS[rung]["ngpu"]
+    text = open(log_path, errors="replace").read()
+    n_ckpt = len(glob.glob(os.path.join(smoke_dir, "**", "*.ckpt"), recursive=True))
+    lg = log_gate(text, run, "end", backend, ngpu, max_steps=SMOKE_STEPS_DDP, min_losses=1)
+    try:
+        recs = load_evidence(os.path.join(smoke_dir, "evidence"), ngpu)
+        eg = evidence_problems(recs, run, ngpu, backend, SMOKE_STEPS_DDP)
+    except GateError as err:
+        recs, eg = {}, [str(err)]
+    verdict = "PASS" if (rc == 0 and n_ckpt == 0 and not lg and not eg) else "FAIL"
+    rec = {"schema": 1, "mode": "SMOKE_DDP", "run": run, "platform": platform, "backend": backend, "head": head,
            "closure_sha256": closure_digest(repo)["closure_sha256"],
-           "env_receipt_sha256": sha256_file(_abs(env_receipt_rel(platform), repo)),
-           "argv_projection": proj, "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung), repo)),
-           "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"],
-           "rc": int(rc), "checkpoints_written": int(n_ckpt), "log_gate": log_gate_line,
-           "evidence_gate": evidence_gate_line, "evidence": ev, "gpus": gpus, "verdict": verdict}
-    if verdict == "PASS" and (rec["rc"] or rec["checkpoints_written"] or log_gate_line != "LOG GATE PASS"
-                              or evidence_gate_line != "EVIDENCE GATE PASS" or len(ev) != RUNGS[rung]["ngpu"]):
-        raise GateError("a PASS smoke receipt needs rc 0, no checkpoint, both gates PASS and every rank's evidence")
-    text = json.dumps(rec, indent=1, sort_keys=True).encode()
-    with open(out, "wb") as fh:
-        fh.write(text)
-    with open(out + ".sha256", "w") as fh:
-        fh.write(f"{hashlib.sha256(text).hexdigest()}  {os.path.basename(out)}\n")
-    return {"smoke_receipt": out, "verdict": verdict}
+           "env_receipt_sha256": env_receipt_sha(platform, repo),
+           "subset_audit_sha256": check_subset_audit(repo)["sha256"], "snapshot_sha256": snapshot_sha,
+           "argv_projection": argv_projection(build_train_argv(run, platform, allow_nonmatched=rung != "2x32")),
+           "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung), repo)),
+           "dataset_config_sha256": sha256_file(_abs(FRACS[tag]["dataset_config"], repo)),
+           "split_sha256": sha256_file(_abs(FRACS[tag]["split"], repo)), "rc": int(rc),
+           "checkpoints_written": n_ckpt, "log": log_path, "log_sha256": hashlib.sha256(text.encode()).hexdigest(),
+           "log_gate": "PASS" if not lg else lg, "evidence": {str(r): v for r, v in sorted(recs.items())},
+           "evidence_gate": "PASS" if not eg else eg, "gpus": gpus, "verdict": verdict,
+           "launched_at": launched_at, "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+    out = _abs(smoke_receipt_rel(run, platform, ts), out_repo or repo)
+    write_sealed(out, rec)
+    return {"smoke_receipt": out, "verdict": verdict, "log_gate": rec["log_gate"], "evidence_gate": rec["evidence_gate"]}
+
+
+def smoke_receipt_problems(rec, run, platform, backend, head, gpus=None, repo=None):
+    """Every field of a sealed SMOKE_DDP receipt against the CURRENT tree / environment / request."""
+    arm, tag, rung = parse_run_id(run)
+    ngpu = RUNGS[rung]["ngpu"]
+    want = {"schema": 1, "mode": "SMOKE_DDP", "run": run, "platform": platform, "backend": backend, "head": head,
+            "closure_sha256": closure_digest(repo)["closure_sha256"],
+            "env_receipt_sha256": env_receipt_sha(platform, repo),
+            "subset_audit_sha256": check_subset_audit(repo)["sha256"],
+            "argv_projection": argv_projection(build_train_argv(run, platform, allow_nonmatched=rung != "2x32")),
+            "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung), repo)),
+            "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"],
+            "rc": 0, "checkpoints_written": 0, "log_gate": "PASS", "evidence_gate": "PASS", "verdict": "PASS"}
+    p = [f"{k} {rec.get(k)!r} != {v!r}" for k, v in want.items() if canonical(rec.get(k)) != canonical(v)]
+    if not (_is_sha(rec.get("snapshot_sha256")) and _is_sha(rec.get("log_sha256"))
+            and isinstance(rec.get("log"), str) and isinstance(rec.get("launched_at"), str)
+            and isinstance(rec.get("finished_at"), str)):
+        p.append("snapshot / log / time fields malformed")
+    if gpus is not None and canonical(rec.get("gpus")) != canonical(gpus):
+        p.append(f"GPUs {rec.get('gpus')} != this launch's {gpus}")
+    g = rec.get("gpus")
+    if platform == "a6000" and canonical(g) != canonical(sorted([u, "NVIDIA RTX A6000"] for u in A6000_UUIDS)):
+        p.append("smoke GPUs are not this box's registered A6000s")
+    if platform == "neuronic" and not (isinstance(g, list) and len(g) == ngpu
+                                       and all(isinstance(x, list) and len(x) == 2 and "L40" in str(x[1]) for x in g)):
+        p.append(f"smoke GPUs {g} are not {ngpu} x L40")
+    ev = rec.get("evidence")
+    if not isinstance(ev, dict) or sorted(ev) != [str(r) for r in range(ngpu)]:
+        p.append("smoke evidence ranks")
+    else:
+        p += evidence_problems({int(r): v for r, v in ev.items()}, run, ngpu, backend, SMOKE_STEPS_DDP)
+    return p
+
+
+def check_smoke_receipt(run, platform, backend, head, gpus=None, repo=None):
+    """The newest sealed SMOKE_DDP receipt for (run, platform) must pass every field check; an
+    older PASS cannot stand in for a newer FAIL (the newest receipt decides)."""
+    paths = sorted(glob.glob(_abs(f"{EXP_DIR}/data_efficiency_smoke_{run}_{platform}_*.json", repo)))
+    if not paths:
+        raise GateError(f"no SMOKE_DDP receipt for {run} on {platform}")
+    rec, digest = read_sealed(paths[-1], SMOKE_KEYS)
+    p = smoke_receipt_problems(rec, run, platform, backend, head, gpus, repo)
+    if p:
+        raise GateError(f"{paths[-1]}: " + "; ".join(p))
+    return {"smoke_receipt": paths[-1], "sha256": digest}
+
+
+# ---------------------------------------------------------------- terminal training receipt (Codex code r1 BLOCKING 4)
+TRAINING_RECEIPT = "TRAINING_COMPLETE.json"
+FULL_MIN_LOSSES = 50          # the end gate of a 40k run: at least 50 finite progress-bar losses
+TRAINING_KEYS = frozenset({"schema", "run", "platform", "backend", "head", "closure_sha256", "snapshot_sha256",
+                           "env_receipt_sha256", "e0_receipt_sha256", "smoke_receipt", "smoke_receipt_sha256",
+                           "model_config_sha256", "dataset_config_sha256", "split_sha256", "argv", "rc", "log",
+                           "log_sha256", "log_gate", "evidence_sha256", "evidence_gate", "checkpoints_sha256",
+                           "final_ckpt", "final_ckpt_sha256", "final_ckpt_bytes", "gpus", "launched_at",
+                           "finished_at"})
+
+
+def evidence_digest(evidence_dir):
+    h = hashlib.sha256()
+    for name in sorted(os.listdir(evidence_dir)):
+        h.update(f"{name}\0{sha256_file(os.path.join(evidence_dir, name))}\n".encode())
+    return h.hexdigest()
+
+
+def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snapshot_sha, e0_sha, smoke, gpus,
+                           launched_at, repo=None):
+    """Published only after every end audit passes (re-run here, from the snapshot ``repo``)."""
+    arm, tag, rung = parse_run_id(run)
+    ngpu = RUNGS[rung]["ngpu"]
+    if rc != 0:
+        raise GateError(f"train exit status {rc}")
+    text = open(log_path, errors="replace").read()
+    lg = log_gate(text, run, "end", backend, ngpu, min_losses=FULL_MIN_LOSSES)
+    eg = evidence_gate(os.path.join(rd, "evidence"), run, ngpu, backend)
+    if lg or eg:
+        raise GateError("end gates: " + "; ".join(lg + eg))
+    check_run_dir(rd, run, MAX_STEPS, allow_lock=True)
+    final = ckpt_name(MAX_STEPS, tag)
+    audit = audit_ckpt(os.path.join(rd, final), run, MAX_STEPS, repo=repo, run_dir=rd)
+    manifest = write_ckpt_manifest(rd, run, allow_lock=True)
+    lines = dict(reversed(ln.split("  ", 1)) for ln in open(manifest).read().strip().split("\n"))
+    if lines.get(final) != audit["sha256"]:
+        raise GateError("final checkpoint changed between the audit and the manifest")
+    rec = {"schema": 1, "run": run, "platform": platform, "backend": backend, "head": head,
+           "closure_sha256": closure_digest(repo)["closure_sha256"], "snapshot_sha256": snapshot_sha,
+           "env_receipt_sha256": env_receipt_sha(platform, repo), "e0_receipt_sha256": e0_sha,
+           "smoke_receipt": smoke["smoke_receipt"], "smoke_receipt_sha256": smoke["sha256"],
+           "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung), repo)),
+           "dataset_config_sha256": sha256_file(_abs(FRACS[tag]["dataset_config"], repo)),
+           "split_sha256": sha256_file(_abs(FRACS[tag]["split"], repo)),
+           "argv": build_train_argv(run, platform, allow_nonmatched=rung != "2x32"), "rc": 0, "log": log_path,
+           "log_sha256": hashlib.sha256(text.encode()).hexdigest(), "log_gate": "PASS",
+           "evidence_sha256": evidence_digest(os.path.join(rd, "evidence")), "evidence_gate": "PASS",
+           "checkpoints_sha256": sha256_file(manifest), "final_ckpt": final, "final_ckpt_sha256": audit["sha256"],
+           "final_ckpt_bytes": audit["bytes"], "gpus": gpus, "launched_at": launched_at,
+           "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+    write_sealed(os.path.join(rd, TRAINING_RECEIPT), rec)
+    return rec
+
+
+def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes=True):
+    """The sealed terminal receipt of a run (in ``receipt_dir`` or the run dir), bound to the run, the
+    campaign ``closure``, the checkpoint manifest and -- with ``verify_bytes`` -- the final
+    checkpoint's current sha256 and byte count. Returns (receipt, receipt sha256)."""
+    arm, tag, rung = parse_run_id(run)
+    src = receipt_dir or rd
+    rec, digest = read_sealed(os.path.join(src, TRAINING_RECEIPT), TRAINING_KEYS)
+    final = ckpt_name(MAX_STEPS, tag)
+    p = []
+    want = {"schema": 1, "run": run, "rc": 0, "log_gate": "PASS", "evidence_gate": "PASS", "final_ckpt": final,
+            "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung))),
+            "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"]}
+    p += [f"{k} {rec.get(k)!r} != {v!r}" for k, v in want.items() if rec.get(k) != v]
+    if closure is not None and rec.get("closure_sha256") != closure:
+        p.append(f"trained at closure {str(rec.get('closure_sha256'))[:12]}, not the campaign's {closure[:12]}")
+    if not (type(rec.get("final_ckpt_bytes")) is int and _is_sha(rec.get("final_ckpt_sha256"))):
+        p.append("final checkpoint sha / bytes malformed")
+    try:
+        manifest = os.path.join(src, "CHECKPOINTS.sha256")
+        if sha256_file(manifest) != rec.get("checkpoints_sha256"):
+            p.append("CHECKPOINTS.sha256 != the receipt's")
+        lines = dict(reversed(ln.split("  ", 1)) for ln in open(manifest).read().strip().split("\n"))
+        if sorted(lines) != sorted(ckpt_name(s, tag) for s in cadence_steps()) or lines[final] != rec.get("final_ckpt_sha256"):
+            p.append("checkpoint manifest set / final line")
+        if verify_bytes:
+            path = os.path.join(rd, final)
+            if os.path.getsize(path) != rec.get("final_ckpt_bytes") or sha256_file(path) != rec.get("final_ckpt_sha256"):
+                p.append(f"{path} sha / bytes != the training receipt")
+    except (OSError, ValueError) as err:
+        p.append(f"checkpoint manifest: {err}")
+    if p:
+        raise GateError(f"{run} training receipt: " + "; ".join(p))
+    return rec, digest
 
 
 # ---------------------------------------------------------------- dry run
@@ -985,51 +1443,45 @@ def describe_run(run, platform, save_root=None, allow_nonmatched=False, repo=Non
             "run_dir_state": state, "final_ckpt": ckpt_name(MAX_STEPS, tag), "argv": argv}
 
 
-# ---------------------------------------------------------------- CLI
+# ---------------------------------------------------------------- CLI (no resume, no receipt writers: the supervisor writes them)
 def _cli(argv=None):
     global REPO
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--repo", help="file-lookup root (an immutable tool snapshot)")
     sub = p.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("list"); s.add_argument("--rung", default="2x32")
+    s = sub.add_parser("list"); s.add_argument("--rung", default="2x32", choices=sorted(RUNGS))
     for name in ("check", "argv"):
         s = sub.add_parser(name)
         s.add_argument("run"); s.add_argument("--platform", required=True, choices=sorted(PLATFORMS))
-        s.add_argument("--save-root"); s.add_argument("--resume-step", type=int, default=0)
-        s.add_argument("--allow-nonmatched-rung", action="store_true")
+        s.add_argument("--save-root"); s.add_argument("--allow-nonmatched-rung", action="store_true")
     s = sub.add_parser("smoke-argv"); s.add_argument("run"); s.add_argument("--steps", type=int, required=True)
     s.add_argument("--save-dir", required=True); s.add_argument("--ddp", action="store_true")
     s.add_argument("--platform", default="a6000", choices=sorted(PLATFORMS))
     s = sub.add_parser("run-dir-check"); s.add_argument("dir"); s.add_argument("--run", required=True)
-    s.add_argument("--leg-start", type=int, default=0); s.add_argument("--allow-submission-marker", action="store_true")
+    s.add_argument("--state", type=int, default=0, choices=(0, MAX_STEPS))
     s = sub.add_parser("audit-ckpt"); s.add_argument("path"); s.add_argument("--run", required=True)
     s.add_argument("--step", type=int, required=True); s.add_argument("--run-dir")
-    s = sub.add_parser("ckpt-manifest"); s.add_argument("dir"); s.add_argument("--run", required=True)
     s = sub.add_parser("pins"); s.add_argument("--backend", required=True, choices=("flash", "sdpa"))
+    sub.add_parser("eval-pins")
     s = sub.add_parser("log-gate"); s.add_argument("log"); s.add_argument("--run", required=True)
     s.add_argument("--phase", required=True, choices=("start", "end"))
     s.add_argument("--backend", required=True, choices=("flash", "sdpa"))
     s.add_argument("--ngpu", type=int, required=True); s.add_argument("--max-steps", type=int, default=MAX_STEPS)
     s.add_argument("--min-losses", type=int, default=50)
-    s.add_argument("--wait", type=float, default=0.0); s.add_argument("--pid", type=int)
-    s = sub.add_parser("snapshot"); s.add_argument("run"); s.add_argument("--dest", required=True)
     s = sub.add_parser("verify-snapshot"); s.add_argument("dest")
     s = sub.add_parser("evidence-gate"); s.add_argument("dir"); s.add_argument("--run", required=True)
     s.add_argument("--ngpu", type=int, required=True); s.add_argument("--backend", required=True, choices=("flash", "sdpa"))
     s.add_argument("--max-steps", type=int, default=MAX_STEPS)
-    s = sub.add_parser("closure")
-    s = sub.add_parser("smoke-receipt"); s.add_argument("out"); s.add_argument("--run", required=True)
-    s.add_argument("--platform", required=True, choices=sorted(PLATFORMS)); s.add_argument("--evidence", required=True)
-    s.add_argument("--rc", type=int, required=True); s.add_argument("--checkpoints", type=int, required=True)
-    s.add_argument("--log-gate", required=True); s.add_argument("--evidence-gate", required=True)
-    s.add_argument("--verdict", required=True, choices=("PASS", "FAIL")); s.add_argument("--head", required=True)
+    sub.add_parser("closure")
     s = sub.add_parser("untracked"); s.add_argument("--platform", required=True, choices=sorted(PLATFORMS))
     s = sub.add_parser("env-receipt"); s.add_argument("--platform", required=True, choices=sorted(PLATFORMS))
     s.add_argument("--write", action="store_true")
     s = sub.add_parser("e0-check"); s.add_argument("--platform", required=True, choices=sorted(PLATFORMS))
     s = sub.add_parser("smoke-check"); s.add_argument("run"); s.add_argument("--platform", required=True, choices=sorted(PLATFORMS))
+    s.add_argument("--backend", required=True, choices=("flash", "sdpa")); s.add_argument("--head", required=True)
+    s = sub.add_parser("training-check"); s.add_argument("run"); s.add_argument("--run-dir", required=True)
     s = sub.add_parser("dry-run"); s.add_argument("--platform", required=True, choices=sorted(PLATFORMS))
-    s.add_argument("--rung", default="2x32"); s.add_argument("--save-root")
+    s.add_argument("--rung", default="2x32", choices=sorted(RUNGS)); s.add_argument("--save-root")
     s.add_argument("--allow-nonmatched-rung", action="store_true"); s.add_argument("--include-optional", action="store_true")
     a = p.parse_args(argv)
     if a.repo:
@@ -1045,30 +1497,24 @@ def _cli(argv=None):
         elif a.cmd == "argv":
             arm, tag, rung = parse_run_id(a.run)
             check_config(arm, rung); check_subset(tag)
-            print("\n".join(build_train_argv(a.run, a.platform, a.save_root, a.resume_step,
-                                             a.allow_nonmatched_rung)))
+            print("\n".join(build_train_argv(a.run, a.platform, a.save_root, a.allow_nonmatched_rung)))
         elif a.cmd == "smoke-argv":
             arm, tag, rung = parse_run_id(a.run)
             check_config(arm, rung); check_subset(tag)
             print("\n".join(build_smoke_argv(a.run, a.steps, a.save_dir, a.ddp, a.platform)))
         elif a.cmd == "run-dir-check":
-            print(json.dumps(check_run_dir(a.dir, a.run, a.leg_start, a.allow_submission_marker)))
+            print(json.dumps(check_run_dir(a.dir, a.run, a.state)))
         elif a.cmd == "audit-ckpt":
             print(json.dumps(audit_ckpt(a.path, a.run, a.step, run_dir=a.run_dir)))
-        elif a.cmd == "ckpt-manifest":
-            print(write_ckpt_manifest(a.dir, a.run))
         elif a.cmd == "pins":
             print(json.dumps({**vae_check(), **vit_pin_check(), **backend_probe(a.backend)}))
+        elif a.cmd == "eval-pins":
+            print(json.dumps(eval_pins()))
         elif a.cmd == "log-gate":
-            if a.wait:
-                problems = wait_start_gate(a.log, a.run, a.backend, a.ngpu, a.pid, a.wait)
-            else:
-                problems = log_gate(open(a.log, errors="replace").read(), a.run, a.phase, a.backend,
-                                    a.ngpu, max_steps=a.max_steps, min_losses=a.min_losses)
+            problems = log_gate(open(a.log, errors="replace").read(), a.run, a.phase, a.backend,
+                                a.ngpu, max_steps=a.max_steps, min_losses=a.min_losses)
             print("LOG GATE " + ("PASS" if not problems else "FAIL: " + " | ".join(problems)))
             return 0 if not problems else 1
-        elif a.cmd == "snapshot":
-            print(json.dumps(snapshot_tools(a.run, a.dest)))
         elif a.cmd == "verify-snapshot":
             print(json.dumps(verify_snapshot(a.dest)))
         elif a.cmd == "evidence-gate":
@@ -1077,9 +1523,6 @@ def _cli(argv=None):
             return 0 if not problems else 1
         elif a.cmd == "closure":
             print(json.dumps(closure_digest()))
-        elif a.cmd == "smoke-receipt":
-            print(json.dumps(write_smoke_receipt(a.out, a.run, a.platform, a.evidence, a.rc, a.checkpoints,
-                                                 a.log_gate, a.evidence_gate, a.verdict, a.head)))
         elif a.cmd == "untracked":
             problems = check_untracked(a.platform)
             print("UNTRACKED " + ("PASS" if not problems else "FAIL: " + " | ".join(problems)))
@@ -1089,7 +1532,9 @@ def _cli(argv=None):
         elif a.cmd == "e0-check":
             print(json.dumps(check_e0_receipt(a.platform)))
         elif a.cmd == "smoke-check":
-            print(json.dumps(check_smoke_receipt(a.run, a.platform)))
+            print(json.dumps(check_smoke_receipt(a.run, a.platform, a.backend, a.head)))
+        elif a.cmd == "training-check":
+            print(json.dumps(check_training_receipt(a.run, a.run_dir)[0], indent=1))
         elif a.cmd == "dry-run":
             runs = all_runs(a.rung) if a.include_optional else required_runs(a.rung)
             for run in runs:
