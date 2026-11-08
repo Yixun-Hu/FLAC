@@ -1,0 +1,141 @@
+{
+ "check": {
+  "argv": [
+   "--model-config",
+   "worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/FLAC_AR_YAWAUG_C16.json",
+   "--dataset-config",
+   "src/configs/dataset_configs/AR/train/acousticroom_train.json",
+   "--pretransform-ckpt-path",
+   "weights/FLAC/VAE.safetensors",
+   "--max-steps",
+   "20",
+   "--batch-size",
+   "32",
+   "--accum-batches",
+   "1",
+   "--num-workers",
+   "6",
+   "--seed",
+   "42",
+   "--num-gpus",
+   "1",
+   "--num-nodes",
+   "1",
+   "--strategy",
+   "auto",
+   "--precision",
+   "bf16-mixed",
+   "--val-every",
+   "-1",
+   "--val-dataset-config",
+   "",
+   "--gradient-clip-val",
+   "0.0",
+   "--logger",
+   "wandb",
+   "--checkpoint-every",
+   "2500",
+   "--name",
+   "FLAC_exp40_C16",
+   "--experiment-name",
+   "exp40_C16_a6000_2x32_smoke_2026-11-07_22-26-54",
+   "--save-dir",
+   "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_smoke"
+  ],
+  "env_digest": "1abf8e1ff006ad86d719ec1422172350fba99484f62346c583fadb9d73a23b99",
+  "environment": {
+   "cuda_runtime": "12.6",
+   "cudnn": 90501,
+   "dists": {
+    "einops": "0.8.2",
+    "ema-pytorch": "0.2.3",
+    "flash-attn": "2.7.4.post1",
+    "huggingface-hub": "0.35.3",
+    "numpy": "1.23.5",
+    "prefigure": "0.0.9",
+    "pytorch-lightning": "2.1.0",
+    "safetensors": "0.7.0",
+    "torch": "2.7.0",
+    "torchaudio": "2.7.0",
+    "torchvision": "0.22.0",
+    "transformers": "4.57.0",
+    "wandb": "0.15.4"
+   },
+   "executable": "/home/yixunhu/miniconda3/envs/flac/bin/python3.10",
+   "flash_attn_func_is_none": false,
+   "nccl": [
+    2,
+    26,
+    2
+   ],
+   "origins": {
+    "ema_pytorch": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/ema_pytorch/__init__.py",
+    "flash_attn": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/flash_attn/__init__.py",
+    "numpy": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/numpy/__init__.py",
+    "prefigure": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/prefigure/__init__.py",
+    "pytorch_lightning": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py",
+    "safetensors": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/safetensors/__init__.py",
+    "torch": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/__init__.py",
+    "transformers": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/transformers/__init__.py"
+   },
+   "prefix": "/home/yixunhu/miniconda3/envs/flac",
+   "python": "3.10.20",
+   "transformer_module": "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_smoke_2026-11-07_22-26-54__85638bf335c5/src/models/transformer.py"
+  },
+  "reasons": [],
+  "sha": "85638bf335c5a122331a0a0982cbde2acdecd657",
+  "tree_digest": "06ab8d5cef9deea445d3dfc38d775a0c0745be4c1fefc4ac995a541f54f1676b",
+  "verdict": "PASS"
+ },
+ "gpu_locks": [
+  "/home/yixunhu/codespace/claude_gpu_yield/GPU_LOCK_GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e"
+ ],
+ "gpu_policy": "idle",
+ "gpu_yield_handshake_sha256": {
+  "/home/yixunhu/codespace/claude_gpu_yield/A_STATUS_holding.txt": "4993a26eb3a023db2487aafe2e0a79c41faf585682aee6cfc2846acf7e098429",
+  "/home/yixunhu/codespace/claude_gpu_yield/FLAC_STATUS.txt": "4a705c0061fb7e4ef2a9f7b490dd4c6becf256a1b99e0d7be558c7a667ef3085",
+  "/home/yixunhu/codespace/claude_gpu_yield/GPU_LOCK_GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e": "5d93c42a4f80ba579612e3449b00619a89b6ecda1a8fe661e89fac0f13bb3840",
+  "/home/yixunhu/codespace/claude_gpu_yield/PAUSED": "d6f12805be7d1d5f84b73361d1a09143a70fd1e64f3e79e851d2296e6113e01e",
+  "/home/yixunhu/codespace/claude_gpu_yield/REQUEST": "84f6077b0249ce060e354e45b11b4bdd17889c1791c85129c3089ed82194d6e1"
+ },
+ "gpus": {
+  "compute_apps": [
+   {
+    "pid": 3809604,
+    "used": "3804",
+    "uuid": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da"
+   },
+   {
+    "pid": 3839661,
+    "used": "3228",
+    "uuid": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da"
+   }
+  ],
+  "gpus": [
+   {
+    "free_mib": 48530,
+    "index": 0,
+    "name": "NVIDIA RTX A6000",
+    "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e"
+   },
+   {
+    "free_mib": 41322,
+    "index": 1,
+    "name": "NVIDIA RTX A6000",
+    "uuid": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da"
+   }
+  ],
+  "lanes": [
+   0
+  ],
+  "policy": "idle",
+  "reasons": [],
+  "t": 1794108435.375806,
+  "verdict": "PASS"
+ },
+ "host": "mae-cab-lab-server",
+ "lanes": "0",
+ "namespace": "exp40_C16_a6000_2x32_smoke_2026-11-07_22-26-54",
+ "runtree": "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_smoke_2026-11-07_22-26-54__85638bf335c5",
+ "t": 1794108435.4126089
+}

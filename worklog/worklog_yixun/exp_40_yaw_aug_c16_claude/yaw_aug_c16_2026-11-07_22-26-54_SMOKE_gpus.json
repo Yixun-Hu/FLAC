@@ -1,0 +1,35 @@
+{
+ "compute_apps": [
+  {
+   "pid": 3809604,
+   "used": "3804",
+   "uuid": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da"
+  },
+  {
+   "pid": 3839661,
+   "used": "3228",
+   "uuid": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da"
+  }
+ ],
+ "gpus": [
+  {
+   "free_mib": 48530,
+   "index": 0,
+   "name": "NVIDIA RTX A6000",
+   "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e"
+  },
+  {
+   "free_mib": 41322,
+   "index": 1,
+   "name": "NVIDIA RTX A6000",
+   "uuid": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da"
+  }
+ ],
+ "lanes": [
+  0
+ ],
+ "policy": "idle",
+ "reasons": [],
+ "t": 1794108435.0435796,
+ "verdict": "PASS"
+}
