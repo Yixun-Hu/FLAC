@@ -1,8 +1,11 @@
+import functools
 import os
 import numpy as np
 import json
 import torch 
 import torchaudio
+
+from src.data.dataset import DatasetContractError
 
 
 def get_custom_metadata(info, audio): 
@@ -39,10 +42,13 @@ def get_custom_metadata(info, audio):
     # Load Acoustic Context
     if acoustic_context_config.get('load', False):
         max_len_cond = acoustic_context_config.get('max_len', 9600)
-        all_ref_irs, all_ref_src_pos = get_ir_and_location_for_other_sources(full_audio_path, num_ref_sources=acoustic_context_config.get('max_context', 8), metadata_path=metadata_path, max_len=max_len_cond)
+        allowed_basenames = None
+        if acoustic_context_config.get('restrict_to_split', False):
+            allowed_basenames = get_allowed_basenames(info.get('json_file_path', None), scene_name, scene_id)
+        all_ref_irs, all_ref_src_pos = get_ir_and_location_for_other_sources(full_audio_path, num_ref_sources=acoustic_context_config.get('max_context', 8), metadata_path=metadata_path, max_len=max_len_cond, allowed_basenames=allowed_basenames)
         md['context_poses'] = all_ref_src_pos # [N, 3]  
         md['context_poses_vit'] = all_ref_src_pos
-        md['context_audio'] = all_ref_irs # [N, max_len_cond]
+        md['context_audio'] = all_ref_irs # [N, 1, max_len_cond]
 
     # Load Depth
     if depth_config.get('load', False):
@@ -55,6 +61,50 @@ def get_custom_metadata(info, audio):
 
 
 ############# UTILS #############
+def _load_split_room_index(json_path_canonical):
+    """Parse a split JSON (scene -> room -> [basenames]) into {(scene, room): frozenset}.
+
+    Fail-closed: a split we cannot read, or cannot trust, must terminate the run, so every
+    failure becomes a DatasetContractError. A raw OSError / JSONDecodeError / AttributeError
+    / TypeError would be caught by SampleDataset.__getitem__ and silently resampled away.
+    """
+    try:
+        with open(json_path_canonical, "r") as fin:
+            split_dict = json.load(fin)
+    except OSError as err:
+        raise DatasetContractError(f"split {json_path_canonical} cannot be read: {err}") from None
+    except (json.JSONDecodeError, UnicodeDecodeError) as err:
+        raise DatasetContractError(f"split {json_path_canonical} is not valid JSON: {err}") from None
+    if not isinstance(split_dict, dict):
+        raise DatasetContractError(f"split {json_path_canonical} is not a scene/room split: root is {type(split_dict).__name__}")
+    index = {}
+    for scene, rooms in split_dict.items():
+        if not isinstance(rooms, dict):
+            raise DatasetContractError(f"split {json_path_canonical} is not a scene/room split: scene {scene} is {type(rooms).__name__}")
+        for room, files in rooms.items():
+            if not isinstance(files, list):
+                raise DatasetContractError(f"split {json_path_canonical} room {scene}/{room} is not a list of filenames: {type(files).__name__}")
+            for fn in files:
+                if not isinstance(fn, str):
+                    raise DatasetContractError(f"split {json_path_canonical} room {scene}/{room} lists a non-string filename: {fn!r}")
+            index[(scene, room)] = frozenset(os.path.basename(fn) for fn in files)
+    return index
+
+@functools.lru_cache(maxsize=8)
+def _split_room_index(json_path_canonical):
+    """Cached {(scene, room): frozenset(basenames)} index of one split file (per process)."""
+    return _load_split_room_index(json_path_canonical)
+
+def get_allowed_basenames(json_file_path, scene_name, scene_id):
+    """In-split basenames of one room; every failure is fatal, never a resampled sample."""
+    if not json_file_path:
+        raise DatasetContractError("restrict_to_split is set but the dataset config has no json_file_path")
+    canonical = os.path.realpath(json_file_path)
+    try:
+        return _split_room_index(canonical)[(scene_name, scene_id)]
+    except KeyError:
+        raise DatasetContractError(f"split {canonical} does not list room {scene_name}/{scene_id}") from None
+
 def convert_equirect_to_camera_coord(depth_map, img_h, img_w): # 3D point cloud per pixel
     phi, theta = torch.meshgrid(torch.arange(img_h), torch.arange(img_w), indexing='ij')
     theta_map = (theta + 0.5) * 2.0 * np.pi / img_w - np.pi
@@ -87,7 +137,13 @@ def get_receiver_source_location(ir_file_path, metadata_path):
     rec_loc = meta_info["rec_loc"]
     return src_loc, rec_loc
 
-def get_ir_and_location_for_other_sources(ir_file_path, num_ref_sources, metadata_path, max_len=9600):
+def get_ir_and_location_for_other_sources(ir_file_path, num_ref_sources, metadata_path, max_len=9600, allowed_basenames=None):
+    """Draw ``num_ref_sources`` reference IRs from the other sources at this receiver.
+
+    ``allowed_basenames`` (exp_14): when None the candidate list and the draws are the
+    pinned upstream ones; when a set/frozenset of split basenames, candidates outside the
+    training split are removed first, and an empty pool is a fatal contract violation.
+    """
     dir_name = os.path.dirname(ir_file_path)
     ir_file_name = ir_file_path.split("/")[-1]
     src_node, rec_node = int(ir_file_name.split("_")[0][1:]), int(ir_file_name.split("_")[1][1:])
@@ -100,6 +156,11 @@ def get_ir_and_location_for_other_sources(ir_file_path, num_ref_sources, metadat
         other_src_ir_path = os.path.join(dir_name, f"{src_n}_{rec_n}_hybrid_IR.wav")
         if os.path.exists(other_src_ir_path):
             valid_other_src_ir_paths.append(other_src_ir_path)
+    if allowed_basenames is not None:
+        valid_other_src_ir_paths = [p for p in valid_other_src_ir_paths
+                                    if os.path.basename(p) in allowed_basenames]
+        if len(valid_other_src_ir_paths) == 0:
+            raise DatasetContractError(f"no in-split context for {ir_file_path}")
     try:
         select_other_src_ir_paths = np.random.choice(valid_other_src_ir_paths, num_ref_sources, replace=False)
     except Exception as e:
