@@ -317,7 +317,8 @@ def expected_ckpt(cell, campaign, offline=False):
     rd = os.path.join(reg.PLATFORMS["a6000"]["save_root"], cell["run"])
     farm = os.path.dirname(_abs(cell["ckpt_link"]))
     rec, digest = reg.check_training_receipt(cell["run"], rd, closure=campaign["closure_sha256"],
-                                             receipt_dir=farm if offline else None, verify_bytes=False)
+                                             receipt_dir=farm if offline else None, verify_bytes=False,
+                                             e0_sha=campaign["sha256"])
     return rec["final_ckpt_sha256"], rec["final_ckpt_bytes"], digest
 
 
@@ -467,7 +468,8 @@ def prepare(run):
     arm, tag, rung = reg.parse_run_id(run)
     campaign = validate_e0_receipt()
     rd = os.path.join(reg.PLATFORMS["a6000"]["save_root"], run)
-    rec, digest = reg.check_training_receipt(run, rd, closure=campaign["closure_sha256"], verify_bytes=True)
+    rec, digest = reg.check_training_receipt(run, rd, closure=campaign["closure_sha256"], verify_bytes=True,
+                                             e0_sha=campaign["sha256"])
     name = reg.ckpt_name(reg.MAX_STEPS, tag)
     # the checkpoint's ModelCheckpoint dirpath is the dir it was TRAINED in (neuronic runs are published
     # to the NAS afterwards): the receipt's own argv names it

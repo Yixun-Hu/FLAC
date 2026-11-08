@@ -207,7 +207,8 @@ def _cell(world, run="de_bf_f025", K=8, seed=43, dump=True):
     cell["dump_dir"] = str(tmp / "dumps" / cell["stem"])
     rd = tmp / "nas" / run
     if not (rd / ev.reg.TRAINING_RECEIPT).exists():
-        tr, digest = fx.make_training_receipt(ev, run, str(rd), world["campaign"]["closure_sha256"])
+        tr, digest = fx.make_training_receipt(ev, run, str(rd), world["campaign"]["closure_sha256"],
+                                              e0_sha=world["campaign"]["sha256"])
         for f in ("CHECKPOINTS.sha256", ev.reg.TRAINING_RECEIPT, ev.reg.TRAINING_RECEIPT + ".sha256"):
             open(farm / f, "wb").write(open(rd / f, "rb").read())
     tr, digest = ev.reg.read_sealed(str(rd / ev.reg.TRAINING_RECEIPT), ev.reg.TRAINING_KEYS)
@@ -381,9 +382,13 @@ def test_prepare_requires_the_training_receipt(world, monkeypatch):
     monkeypatch.setattr(ev, "FARM", str(world["tmp"] / "farm2"))
     with pytest.raises(ev.reg.GateError):
         ev.prepare("de_yaw_f025")                                # no TRAINING_COMPLETE
-    fx.make_training_receipt(ev, "de_yaw_f025", str(rd), "0" * 64)
+    fx.make_training_receipt(ev, "de_yaw_f025", str(rd), "0" * 64, e0_sha=world["campaign"]["sha256"])
     with pytest.raises(ev.reg.GateError):
         ev.prepare("de_yaw_f025")                                # trained at another closure
+    rd2 = world["tmp"] / "nas" / "de_yaw_f050"
+    fx.make_training_receipt(ev, "de_yaw_f050", str(rd2), fx.CAMPAIGN["closure_sha256"], e0_sha="0" * 64)
+    with pytest.raises(ev.reg.GateError, match="another E0"):
+        ev.prepare("de_yaw_f050")                                # trained under another E0 receipt
 
 
 # ------------------------------------------------------------------ collector

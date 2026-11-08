@@ -15,7 +15,7 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint bytes"):
+def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint bytes", e0_sha="e" * 64):
     """(record, sha256) of a sealed receipt + a 16-line CHECKPOINTS.sha256 + the checkpoint files."""
     reg = ev.reg
     arm, tag, rung = reg.parse_run_id(run)
@@ -31,7 +31,7 @@ def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint b
     open(manifest, "w").write("\n".join(lines) + "\n")
     rec = {"schema": 1, "run": run, "platform": "a6000", "backend": "flash", "head": CAMPAIGN["head"],
            "closure_sha256": closure, "snapshot_sha256": "5" * 64, "env_receipt_sha256": CAMPAIGN["env_receipt_sha256"],
-           "e0_receipt_sha256": "e" * 64, "smoke_receipt": "x.json", "smoke_receipt_sha256": "6" * 64,
+           "e0_receipt_sha256": e0_sha, "smoke_receipt": "x.json", "smoke_receipt_sha256": "6" * 64,
            "model_config_sha256": reg.sha256_file(reg._abs(reg.model_config_rel(arm, rung))),
            "dataset_config_sha256": reg.FRACS[tag]["dataset_config_sha256"], "split_sha256": reg.FRACS[tag]["split_sha256"],
            "argv": reg.build_train_argv(run, "a6000"), "rc": 0, "log": "x.log", "log_sha256": "7" * 64,

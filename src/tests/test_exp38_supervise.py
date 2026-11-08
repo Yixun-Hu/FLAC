@@ -286,7 +286,7 @@ FAKE_TRAIN = textwrap.dedent("""
 """)
 
 
-def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True):
+def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_head="f" * 40):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import test_exp38_receipts as tr
     reg = sv.reg
@@ -302,10 +302,11 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True):
     monkeypatch.setattr(sv, "lock_cards", lambda cards, lockdir: [])
     monkeypatch.setattr(sv, "a6000_gpu_gate", lambda *x: gpus)
     monkeypatch.setattr(sv, "backend_gate", lambda *x: {})
-    monkeypatch.setattr(reg, "check_e0_receipt", lambda p: {"sha256": "e" * 64})
+    monkeypatch.setattr(reg, "check_e0_receipt", lambda p: {"sha256": "e" * 64, "head": e0_head})
     monkeypatch.setattr(reg, "check_smoke_receipt", lambda *x, **k: {"smoke_receipt": "s.json", "sha256": "6" * 64})
     monkeypatch.setattr(reg, "storage_gate", lambda *x, **k: {"fstype": "cifs"})
     monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": "c" * 64})
+    monkeypatch.setattr(reg, "_gpu_rows", lambda: [["0", reg.A6000_UUIDS[0], "NVIDIA RTX A6000", "570.86"]])
     rd = tmp_path / "nas" / run
     ev = {f"run_evidence.json.rank{r}.json": e for r, e in tr.records(run, max_steps=40000).items()}
     log = tr.smoke_log(run, steps=40000, losses=2, end=False)
@@ -320,20 +321,36 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True):
     monkeypatch.setattr(reg, "snapshot_tools", fake_snapshot)
     monkeypatch.setattr(reg, "verify_snapshot", lambda dest, want=None: {"verified": True})
     monkeypatch.setattr(reg, "build_train_argv", lambda *x, **k: ["train.py"])
+    monkeypatch.setattr(reg, "build_smoke_argv", lambda *x, **k: ["train.py"])
     calls = []
 
+    import inspect
+    real_sig = inspect.signature(reg.write_training_receipt)
+
     def fake_receipt(*args, **kw):
+        real_sig.bind(*args, **kw)                               # the supervisor calls the real signature
+        assert args[-1] == "d" * 64 and kw == {"repo": kw["repo"], "tree": str(tmp_path)}
         calls.append(args)
         if not audit_ok:
             raise reg.GateError("end gates: synthetic failure")
         return {"final_ckpt_sha256": "9" * 64}
     monkeypatch.setattr(reg, "write_training_receipt", fake_receipt)
-    a = sv.parse(["--platform", "a6000", "--mode", "FULL", "--run", run, "--expect-sha", "f" * 40, "--grace", "2"])
+    smoke_sig = inspect.signature(reg.write_smoke_receipt)
+
+    def fake_smoke(*args, **kw):
+        smoke_sig.bind(*args, **kw)
+        assert args[11] == "d" * 64 and kw["out_repo"] == str(tmp_path)
+        calls.append(args)
+        return {"verdict": "PASS" if audit_ok else "FAIL"}
+    monkeypatch.setattr(reg, "write_smoke_receipt", fake_smoke)
+    a = sv.parse(["--platform", "a6000", "--mode", smode, "--run", run, "--expect-sha", "f" * 40, "--grace", "2"])
     code = sv.mode_campaign(a, "a6000")
-    recs = [json.load(open(os.path.join(rd, f))) for f in os.listdir(rd) if f.startswith("at_launch_")]
     copies = [f for f in os.listdir(tmp_path / reg.EXP_DIR) if f.startswith("at_launch_")]
-    assert len(recs) == 1 and len(copies) == 1
-    return code, recs[0], rd, calls
+    assert len(copies) == 1
+    rec = json.load(open(tmp_path / reg.EXP_DIR / copies[0]))
+    rd = __import__("pathlib").Path(rec["run_dir"])
+    assert json.load(open(rd / copies[0])) == rec               # the run-dir copy is identical
+    return code, rec, rd, calls
 
 
 def test_a_full_run_launches_from_the_snapshot_gates_and_publishes(tmp_path, monkeypatch):
@@ -352,3 +369,15 @@ def test_a_failed_full_run_keeps_its_crash_marker(tmp_path, monkeypatch, mode, a
     assert rec["status"] != "COMPLETE" and len(calls) == (1 if mode == "ok" else 0)
     with pytest.raises(sv.reg.GateError):
         sv.reg.check_run_dir(str(rd), "de_bf_f025", 0)          # never relaunched into: archive first
+
+
+@pytest.mark.parametrize("audit_ok,want", [(True, 0), (False, sv.EXIT_END)])
+def test_a_smoke_ddp_seals_its_receipt_from_the_snapshot(tmp_path, monkeypatch, audit_ok, want):
+    code, rec, rd, calls = _campaign(tmp_path, monkeypatch, audit_ok=audit_ok, smode="SMOKE_DDP")
+    assert code == want and len(calls) == 1 and str(rd).startswith(str(tmp_path / "outputs_FLAC" / "exp38_smoke"))
+    assert "start_gate" not in rec and rec["mode"] == "SMOKE_DDP"
+
+
+def test_a_full_run_refuses_an_e0_receipt_of_another_head(tmp_path, monkeypatch):
+    with pytest.raises(sv.Refused, match="E0 campaign"):
+        _campaign(tmp_path, monkeypatch, e0_head="a" * 40)

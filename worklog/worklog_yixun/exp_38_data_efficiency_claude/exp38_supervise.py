@@ -484,6 +484,8 @@ def mode_campaign(a, platform):
         cuda = None
     if full:
         e0 = reg.check_e0_receipt(platform)
+        if platform == "a6000" and e0["head"] != head:      # one frozen campaign tree on this box
+            raise Refused(f"HEAD {head} != the E0 campaign's {e0['head']}")
         smoke = reg.check_smoke_receipt(a.run, platform, a.backend, head, gpus if platform == "a6000" else None)
     # ---- run dir + storage
     if full:
@@ -529,6 +531,7 @@ def mode_campaign(a, platform):
                  launched_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"), host=os.uname().nodename, head=head,
                  closure_sha256=closure, env_receipt_sha256=env_sha, python=exe, pins=pins, describe=
                  {k: v for k, v in d.items() if k != "argv"}, e0=e0, smoke=smoke, owner=owner, gpus=gpus,
+                 driver=sorted({r[3] for r in reg._gpu_rows()}),
                  gpu_policy=a.gpu_policy, storage=storage, run_dir=rd, snapshot=snapshot, cwd=snap, cmd=cmd,
                  cuda_visible_devices=env.get("CUDA_VISIBLE_DEVICES"), slurm={k: v for k, v in os.environ.items()
                                                                               if k.startswith("SLURM_")},
@@ -565,12 +568,13 @@ def mode_campaign(a, platform):
             reg.verify_snapshot(snap, snapshot["snapshot_sha256"])
             if full:
                 out = reg.write_training_receipt(a.run, platform, a.backend, head, rd, log, rc, snapshot["snapshot_sha256"],
-                                                 e0["sha256"], smoke, gpus, rec.data["launched_at"], repo=snap)
+                                                 e0["sha256"], smoke, gpus, rec.data["launched_at"], env_sha,
+                                                 repo=snap, tree=reg.REPO)
                 verdict = "COMPLETE"
                 rec.update(training_receipt=os.path.join(rd, reg.TRAINING_RECEIPT), final_ckpt_sha256=out["final_ckpt_sha256"])
             else:
                 out = reg.write_smoke_receipt(a.run, platform, a.backend, head, rd, log, rc, gpus, snapshot["snapshot_sha256"],
-                                              rec.data["launched_at"], ts, repo=snap, out_repo=reg.REPO)
+                                              rec.data["launched_at"], ts, env_sha, repo=snap, out_repo=reg.REPO)
                 verdict = out["verdict"]
                 rec.update(smoke_receipt=out)
         except (reg.GateError, OSError, ValueError, KeyError) as err:

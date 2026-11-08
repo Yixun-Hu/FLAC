@@ -210,7 +210,7 @@ def _smoke(tree, run="de_bf_f025", ts="2026-11-08_04-00-00", rc=0, ckpt=False, r
     lp = tree / f"smoke_{ts}.log"
     lp.write_text(log if log is not None else smoke_log(run, backend=backend))
     return reg.write_smoke_receipt(run, platform, backend, HEAD, str(sd), str(lp), rc, gpus or A6000_GPUS, "5" * 64,
-                                   "2026-11-08T04:00:00-0500", ts, repo=str(tree), out_repo=str(tree))
+                                   "2026-11-08T04:00:00-0500", ts, ENV_SHA, repo=str(tree), out_repo=str(tree))
 
 
 def test_the_smoke_writer_recomputes_every_gate(tree):
@@ -225,6 +225,12 @@ def test_the_smoke_writer_recomputes_every_gate(tree):
     assert out["verdict"] == "FAIL" and out["log_gate"] != "PASS"
     out = _smoke(tree, ts="t5", recs={0: records("de_bf_f025")[0]})
     assert out["verdict"] == "FAIL"                               # a missing rank's evidence
+
+
+def test_the_writers_refuse_an_environment_receipt_changed_during_the_run(tree, monkeypatch):
+    monkeypatch.setattr(reg, "env_receipt_sha", lambda platform, repo=None: "9" * 64)
+    with pytest.raises(reg.GateError, match="environment receipt changed"):
+        _smoke(tree)
 
 
 def test_the_smoke_consumer_accepts_the_newest_matching_pass(tree):
@@ -314,7 +320,7 @@ def _full_run(tree, monkeypatch, run="de_yaw_f050", losses=60, rc=0, drop=None):
 def _write_tr(rd, log, run="de_yaw_f050", rc=0):
     return reg.write_training_receipt(run, "a6000", "flash", HEAD, str(rd), str(log), rc, "5" * 64, "e" * 64,
                                       {"smoke_receipt": "s.json", "sha256": "6" * 64}, A6000_GPUS,
-                                      "2026-11-08T04:00:00-0500", repo=str(rd.parent))
+                                      "2026-11-08T04:00:00-0500", ENV_SHA, repo=str(rd.parent), tree=str(rd.parent))
 
 
 def test_the_training_receipt_is_published_only_after_every_end_audit(tree, monkeypatch):

@@ -70,7 +70,7 @@ def _write_run(root, ev, run, K, seeds=(42, 43, 44, 45, 46)):
     campaign = ev.validate_e0_receipt(offline=True)
     farm = os.path.dirname(ev._abs(ev.run_cells(run)[0]["ckpt_link"]))
     if not os.path.exists(os.path.join(farm, ev.reg.TRAINING_RECEIPT)):
-        tr, digest = fx.make_training_receipt(ev, run, farm, campaign["closure_sha256"])
+        tr, digest = fx.make_training_receipt(ev, run, farm, campaign["closure_sha256"], e0_sha=campaign["sha256"])
     tr, digest = ev.reg.read_sealed(os.path.join(farm, ev.reg.TRAINING_RECEIPT), ev.reg.TRAINING_KEYS)
     files = []
     for c in ev.run_cells(run):

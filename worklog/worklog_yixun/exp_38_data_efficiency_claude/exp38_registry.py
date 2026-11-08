@@ -26,12 +26,13 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 
 
 def _repo_root(start):
+    """The checkout (``.git``) or the closure snapshot (``SNAPSHOT.sha256``) this file lives in."""
     d = start
     while d != os.path.dirname(d):
-        if os.path.exists(os.path.join(d, ".git")):
+        if os.path.exists(os.path.join(d, ".git")) or os.path.isfile(os.path.join(d, "SNAPSHOT.sha256")):
             return d
         d = os.path.dirname(d)
-    raise RuntimeError(f"no .git above {start}")
+    raise RuntimeError(f"no .git / SNAPSHOT.sha256 above {start}")
 
 
 REPO = _repo_root(HERE)
@@ -1172,7 +1173,10 @@ def env_snapshot(platform):
             pk[name] = dist.version
     rec = {"schema": 1, "platform": platform, "python": pf.python_version(),
            "executable": os.path.realpath(sys.executable), "torch": torch.__version__, "cuda": torch.version.cuda,
-           "cudnn": torch.backends.cudnn.version(), "nccl": nccl, "driver": drivers[0],
+           "cudnn": torch.backends.cudnn.version(), "nccl": nccl,
+           # one box here; neuronic nodes may differ in driver -> probed (fail-closed) and recorded per job
+           # in the launch record, not pinned across nodes
+           "driver": drivers[0] if platform == "a6000" else "per-job (launch record)",
            "gpu_names": sorted({r[2] for r in rows}), "packages": dict(sorted(pk.items())),
            "packages_sha256": hashlib.sha256(canonical(dict(sorted(pk.items()))).encode()).hexdigest(),
            "flags": {"optimize": sys.flags.optimize, "no_user_site": sys.flags.no_user_site,
@@ -1219,10 +1223,12 @@ E0_RECEIPT = f"{EXP_DIR}/data_efficiency_e0_receipt.json"
 
 
 def check_e0_receipt(platform, repo=None):
-    """The E0 receipt must be a complete PASS at THIS closure (exp38_eval.validate_e0_receipt)."""
-    sys.path.insert(0, HERE)
+    """The E0 receipt must be a complete PASS at THIS closure (exp38_eval.validate_e0_receipt; the
+    environment-receipt binding applies on the A6000 box, where E0 ran)."""
+    if HERE not in sys.path:
+        sys.path.insert(0, HERE)
     import exp38_eval
-    return exp38_eval.validate_e0_receipt(repo=repo)
+    return exp38_eval.validate_e0_receipt(repo=repo, platform=platform)
 
 
 # ---------------------------------------------------------------- SMOKE_DDP receipt (Codex code r1 BLOCKING 1)
@@ -1258,11 +1264,19 @@ def gpu_identity(platform, ngpu, rows=None):
 A6000_UUIDS = ("GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da")
 
 
+def _same_env(platform, env_sha, tree):
+    """The campaign tree's sealed environment receipt is still the one checked at launch."""
+    if env_receipt_sha(platform, tree) != env_sha:
+        raise GateError("the environment receipt changed during the run")
+    return env_sha
+
+
 def write_smoke_receipt(run, platform, backend, head, smoke_dir, log_path, rc, gpus, snapshot_sha, launched_at,
-                        ts, repo=None, out_repo=None):
+                        ts, env_sha, repo=None, out_repo=None):
     """Recomputes every gate from the artifacts (never trusts a caller's verdict) and seals the
-    receipt into ``out_repo`` (the campaign tree); the bindings are computed from ``repo`` (the
-    snapshot the smoke ran from)."""
+    receipt into ``out_repo`` (the campaign tree); the code bindings are computed from ``repo``
+    (the snapshot the smoke ran from), the environment binding from the tree's receipt (``env_sha``
+    = the sha checked at launch, re-checked here)."""
     arm, tag, rung = parse_run_id(run)
     ngpu = RUNGS[rung]["ngpu"]
     text = open(log_path, errors="replace").read()
@@ -1276,7 +1290,7 @@ def write_smoke_receipt(run, platform, backend, head, smoke_dir, log_path, rc, g
     verdict = "PASS" if (rc == 0 and n_ckpt == 0 and not lg and not eg) else "FAIL"
     rec = {"schema": 1, "mode": "SMOKE_DDP", "run": run, "platform": platform, "backend": backend, "head": head,
            "closure_sha256": closure_digest(repo)["closure_sha256"],
-           "env_receipt_sha256": env_receipt_sha(platform, repo),
+           "env_receipt_sha256": _same_env(platform, env_sha, out_repo or repo),
            "subset_audit_sha256": check_subset_audit(repo)["sha256"], "snapshot_sha256": snapshot_sha,
            "argv_projection": argv_projection(build_train_argv(run, platform, allow_nonmatched=rung != "2x32")),
            "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung), repo)),
@@ -1356,8 +1370,9 @@ def evidence_digest(evidence_dir):
 
 
 def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snapshot_sha, e0_sha, smoke, gpus,
-                           launched_at, repo=None):
-    """Published only after every end audit passes (re-run here, from the snapshot ``repo``)."""
+                           launched_at, env_sha, repo=None, tree=None):
+    """Published only after every end audit passes (re-run here, from the snapshot ``repo``; the
+    environment receipt is the campaign ``tree``'s, re-checked against the launch-time ``env_sha``)."""
     arm, tag, rung = parse_run_id(run)
     ngpu = RUNGS[rung]["ngpu"]
     if rc != 0:
@@ -1376,7 +1391,7 @@ def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snaps
         raise GateError("final checkpoint changed between the audit and the manifest")
     rec = {"schema": 1, "run": run, "platform": platform, "backend": backend, "head": head,
            "closure_sha256": closure_digest(repo)["closure_sha256"], "snapshot_sha256": snapshot_sha,
-           "env_receipt_sha256": env_receipt_sha(platform, repo), "e0_receipt_sha256": e0_sha,
+           "env_receipt_sha256": _same_env(platform, env_sha, tree), "e0_receipt_sha256": e0_sha,
            "smoke_receipt": smoke["smoke_receipt"], "smoke_receipt_sha256": smoke["sha256"],
            "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung), repo)),
            "dataset_config_sha256": sha256_file(_abs(FRACS[tag]["dataset_config"], repo)),
@@ -1391,7 +1406,7 @@ def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snaps
     return rec
 
 
-def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes=True):
+def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes=True, e0_sha=None):
     """The sealed terminal receipt of a run (in ``receipt_dir`` or the run dir), bound to the run, the
     campaign ``closure``, the checkpoint manifest and -- with ``verify_bytes`` -- the final
     checkpoint's current sha256 and byte count. Returns (receipt, receipt sha256)."""
@@ -1406,6 +1421,8 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
     p += [f"{k} {rec.get(k)!r} != {v!r}" for k, v in want.items() if rec.get(k) != v]
     if closure is not None and rec.get("closure_sha256") != closure:
         p.append(f"trained at closure {str(rec.get('closure_sha256'))[:12]}, not the campaign's {closure[:12]}")
+    if e0_sha is not None and rec.get("e0_receipt_sha256") != e0_sha:
+        p.append("trained under another E0 receipt than the campaign's")
     if not (type(rec.get("final_ckpt_bytes")) is int and _is_sha(rec.get("final_ckpt_sha256"))):
         p.append("final checkpoint sha / bytes malformed")
     try:
