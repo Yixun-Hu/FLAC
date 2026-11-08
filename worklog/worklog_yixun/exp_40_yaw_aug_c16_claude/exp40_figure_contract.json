@@ -1,0 +1,546 @@
+{
+ "Ks": [
+  1,
+  8
+ ],
+ "angles": [
+  0.0,
+  11.25,
+  45.0,
+  90.0,
+  101.25,
+  135.0,
+  180.0,
+  191.25,
+  225.0,
+  270.0,
+  281.25,
+  315.0
+ ],
+ "arms": [
+  "C16",
+  "YAW",
+  "P1"
+ ],
+ "cells": [
+  {
+   "K": 1,
+   "arm": "C16",
+   "rotate_deg": 0.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "C16",
+   "rotate_deg": 11.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "C16",
+   "rotate_deg": 45.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "C16",
+   "rotate_deg": 90.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "C16",
+   "rotate_deg": 101.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "C16",
+   "rotate_deg": 135.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "C16",
+   "rotate_deg": 180.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "C16",
+   "rotate_deg": 191.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "C16",
+   "rotate_deg": 225.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "C16",
+   "rotate_deg": 270.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "C16",
+   "rotate_deg": 281.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "C16",
+   "rotate_deg": 315.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "C16",
+   "rotate_deg": 0.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "C16",
+   "rotate_deg": 11.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "C16",
+   "rotate_deg": 45.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "C16",
+   "rotate_deg": 90.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "C16",
+   "rotate_deg": 101.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "C16",
+   "rotate_deg": 135.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "C16",
+   "rotate_deg": 180.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "C16",
+   "rotate_deg": 191.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "C16",
+   "rotate_deg": 225.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "C16",
+   "rotate_deg": 270.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "C16",
+   "rotate_deg": 281.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "C16",
+   "rotate_deg": 315.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "YAW",
+   "rotate_deg": 0.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "YAW",
+   "rotate_deg": 11.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "YAW",
+   "rotate_deg": 45.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "YAW",
+   "rotate_deg": 90.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "YAW",
+   "rotate_deg": 101.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "YAW",
+   "rotate_deg": 135.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "YAW",
+   "rotate_deg": 180.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "YAW",
+   "rotate_deg": 191.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "YAW",
+   "rotate_deg": 225.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "YAW",
+   "rotate_deg": 270.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "YAW",
+   "rotate_deg": 281.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "YAW",
+   "rotate_deg": 315.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "YAW",
+   "rotate_deg": 0.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "YAW",
+   "rotate_deg": 11.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "YAW",
+   "rotate_deg": 45.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "YAW",
+   "rotate_deg": 90.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "YAW",
+   "rotate_deg": 101.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "YAW",
+   "rotate_deg": 135.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "YAW",
+   "rotate_deg": 180.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "YAW",
+   "rotate_deg": 191.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "YAW",
+   "rotate_deg": 225.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "YAW",
+   "rotate_deg": 270.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "YAW",
+   "rotate_deg": 281.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "YAW",
+   "rotate_deg": 315.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "P1",
+   "rotate_deg": 0.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "P1",
+   "rotate_deg": 11.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "P1",
+   "rotate_deg": 45.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "P1",
+   "rotate_deg": 90.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "P1",
+   "rotate_deg": 101.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "P1",
+   "rotate_deg": 135.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "P1",
+   "rotate_deg": 180.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "P1",
+   "rotate_deg": 191.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "P1",
+   "rotate_deg": 225.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "P1",
+   "rotate_deg": 270.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "P1",
+   "rotate_deg": 281.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 1,
+   "arm": "P1",
+   "rotate_deg": 315.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "P1",
+   "rotate_deg": 0.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "P1",
+   "rotate_deg": 11.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "P1",
+   "rotate_deg": 45.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "P1",
+   "rotate_deg": 90.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "P1",
+   "rotate_deg": 101.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "P1",
+   "rotate_deg": 135.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "P1",
+   "rotate_deg": 180.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "P1",
+   "rotate_deg": 191.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "P1",
+   "rotate_deg": 225.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "P1",
+   "rotate_deg": 270.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "P1",
+   "rotate_deg": 281.25,
+   "rotate_mode": "fixed",
+   "seed": 42
+  },
+  {
+   "K": 8,
+   "arm": "P1",
+   "rotate_deg": 315.0,
+   "rotate_mode": "fixed",
+   "seed": 42
+  }
+ ],
+ "generator": "exp40_eval.py figure --repo <main worktree> --tree <eval worktree>",
+ "metrics": [
+  "T60",
+  "C50",
+  "EDT",
+  "RIR_to_GT_RIR_R@1"
+ ],
+ "outputs": [
+  "yaw_aug_c16_figure.png",
+  "yaw_aug_c16_figure.pdf",
+  "yaw_aug_c16_figure_manifest.json"
+ ],
+ "plan": "plan_yaw_aug_c16.md \u00a75.4 / \u00a714 H8",
+ "schema_version": 1,
+ "seed_rule": "seed 42 for every plotted angle; the theta=0 / C4 / R five-seed tables live in yaw_aug_c16_results_tables.md"
+}

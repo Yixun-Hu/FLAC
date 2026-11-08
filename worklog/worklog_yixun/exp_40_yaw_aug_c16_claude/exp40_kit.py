@@ -1464,7 +1464,8 @@ def full_evidence_reasons(path, run_id):
     return reasons, sha256_file(path)
 
 
-def audit(ckpt_dir, tree, nas_dir=None, strict_load=True, evidence=None, run_id=None):
+def audit(ckpt_dir, tree, nas_dir=None, strict_load=True, evidence=None, run_id=None,
+          expected_dirpath=None):
     names = sorted(os.listdir(ckpt_dir))
     reasons = []
     ev_sha = None
@@ -1492,7 +1493,7 @@ def audit(ckpt_dir, tree, nas_dir=None, strict_load=True, evidence=None, run_id=
         with open(os.path.join(tree, ARM_CONFIG)) as f:
             arm_cfg = json.load(f)
         wrapper = build_wrapper_cpu(tree, arm_cfg) if strict_load else None
-        reasons += checkpoint_state_reasons(ck, arm_cfg, ckpt_dir, wrapper)
+        reasons += checkpoint_state_reasons(ck, arm_cfg, expected_dirpath or ckpt_dir, wrapper)
         if nas_dir is not None:
             on_nas = read_manifest(os.path.join(nas_dir, "MANIFEST.sha256"))
             if on_nas != shas:
@@ -1804,6 +1805,8 @@ def main(argv=None):
     u = sub.add_parser("audit"); u.add_argument("--ckpt-dir", required=True)
     u.add_argument("--nas-dir"); u.add_argument("--out", required=True)
     u.add_argument("--evidence", required=True); u.add_argument("--run-id", required=True)
+    u.add_argument("--expected-dirpath", help="the ModelCheckpoint dirpath recorded at training time "
+                                              "(neuronic pull: the neuronic path)")
     d = sub.add_parser("admit"); d.add_argument("--nas-run-dir", required=True)
     d.add_argument("--expected-dirpath", required=True); d.add_argument("--meta-json", required=True)
     d.add_argument("--evidence", required=True); d.add_argument("--audit", required=True)
@@ -1933,7 +1936,7 @@ def main(argv=None):
             return 0
         if args.cmd == "audit":
             v = audit(args.ckpt_dir, ROOT, nas_dir=args.nas_dir, evidence=args.evidence,
-                      run_id=args.run_id)
+                      run_id=args.run_id, expected_dirpath=args.expected_dirpath)
             atomic_write_json(args.out, v)
             print(f"AUDIT {v['verdict']} -> {args.out}")
             for r in v["reasons"]:

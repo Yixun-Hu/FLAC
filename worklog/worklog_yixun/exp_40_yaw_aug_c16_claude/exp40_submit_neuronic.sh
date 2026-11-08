@@ -5,7 +5,7 @@
 # checkout of branch exp-40-yaw-aug-c16 at EXPECT_SHA (pushed).
 #
 #   MODE=PILOT|FULL RUNG=2x32|8x8 RUN_ID=exp40_C16_neuronic_<rung>[_r<n>] EXPECT_SHA=<40-hex>
-#   [DRY_RUN=1] [NEW_INTENT=1] [EXP40_NAS_RELAXATION=post-run-publish  (FULL only; plan D4)]
+#   [DRY_RUN=1] [EXP40_NAS_RELAXATION=post-run-publish  (FULL only; plan D4)]
 #   bash worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/exp40_submit_neuronic.sh
 #
 # Gates at submission: HEAD == EXPECT_SHA, reachable from origin/exp-40-yaw-aug-c16, clean
@@ -22,11 +22,11 @@ REPO="$(git -C "$SELF_DIR" rev-parse --show-toplevel)" || die "not inside a git 
 EXPREL="worklog/worklog_yixun/exp_40_yaw_aug_c16_claude"
 PY="/n/fs/gatrdp/envs/flac/bin/python"
 MODE="${MODE:-}"; RUNG="${RUNG:-}"; RUN_ID="${RUN_ID:-}"; EXPECT_SHA="${EXPECT_SHA:-}"
-DRY_RUN="${DRY_RUN:-0}"; NEW_INTENT="${NEW_INTENT:-0}"; PARTITION="${PARTITION:-all}"
+DRY_RUN="${DRY_RUN:-0}"; PARTITION="${PARTITION:-all}"
 case "$MODE" in PILOT|FULL) ;; *) die "MODE must be PILOT or FULL" ;; esac
 case "$RUNG" in 2x32) NGPU=2; CPUS=22; MEM=64G ;; 8x8) NGPU=8; CPUS=64; MEM=108G ;; *) die "RUNG must be 2x32 or 8x8" ;; esac
 [[ "$EXPECT_SHA" =~ ^[0-9a-f]{40}$ ]] || die "EXPECT_SHA must be the full 40-hex commit"
-case "$DRY_RUN$NEW_INTENT" in 00|01|10|11) ;; *) die "DRY_RUN / NEW_INTENT must be 0 or 1" ;; esac
+case "$DRY_RUN" in 0|1) ;; *) die "DRY_RUN must be 0 or 1" ;; esac
 [ -x "$PY" ] || die "pinned interpreter $PY missing"
 cd "$REPO" || die "cd $REPO"
 
@@ -40,17 +40,19 @@ SAVE_ROOT="$REPO/outputs_FLAC/exp40_yaw_aug_c16"; RECEIPTS="$REPO/$EXPREL/receip
 mkdir -p "$SAVE_ROOT/runtrees" "$RECEIPTS" || die "dirs"
 exec 9>"$SAVE_ROOT/.submit.lock" || die "lock"; flock -n 9 || die "another submission holds $SAVE_ROOT/.submit.lock"
 
-# --- this cluster's dataset must reproduce the committed full AR manifest -------------- #
-ARRCPT="$RECEIPTS/ar_manifest_neuronic.json"
-[ -f "$ARRCPT" ] || die "no $ARRCPT: first run (CPU, ~hours): $PY $EXPREL/exp40_kit.py ar-manifest --ar-root \$(readlink -f AcousticRooms) --split data/AR/train.json --split data/AR/unseen_eval.json --out $ARRCPT"
-"$PY" - "$ARRCPT" "$EXPREL/exp40_ar_manifest.json" <<'PYEOF' || die "the neuronic AR manifest differs from the committed one"
-import json, sys
-a, b = (json.load(open(p)) for p in sys.argv[1:])
-sys.exit(0 if a["rooms"] == b["rooms"] and a["digest"] == b["digest"] else 1)
-PYEOF
+# --- this cluster's dataset must reproduce the committed full AR manifest (plan §14 H2) ---- #
+ARRCPT="$RECEIPTS/ar_verify_neuronic.json"
+[ -f "$ARRCPT" ] || die "no $ARRCPT: first run (CPU node, ~1 h): $PY $EXPREL/exp40_kit.py ar-verify --ar-root \$(readlink -f AcousticRooms) --manifest $EXPREL/exp40_ar_manifest.json --out $ARRCPT"
+"$PY" -c "import json,sys; r=json.load(open(sys.argv[1])); m=json.load(open(sys.argv[2])); sys.exit(0 if r['verdict']=='PASS' and r['got_digest']==m['digest'] else 1)" \
+  "$ARRCPT" "$EXPREL/exp40_ar_manifest.json" || die "$ARRCPT is not a PASS of the committed manifest"
+
+# --- the sealed HF hub (plan §14 H3), built once from this cluster's cache ------------------ #
+[ -d "$SAVE_ROOT/hf_sealed" ] || "$PY" "$EXPREL/exp40_kit.py" build-hf-sealed --src-hub /n/fs/gatrdp/hf_cache/hub \
+  --dest "$SAVE_ROOT/hf_sealed" || die "sealed HF hub (the pinned DINOv3 snapshot must be in /n/fs/gatrdp/hf_cache/hub)"
 
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
-NS="$RUN_ID"; [ "$MODE" = PILOT ] && NS="${RUN_ID}_pilot_${TS}"
+EXEC_ID="$RUN_ID"; [ "$MODE" = PILOT ] && EXEC_ID="${RUN_ID}_pilot_${TS}"
+NS="$EXEC_ID"
 RUNTREE="$SAVE_ROOT/runtrees/${NS}__${EXPECT_SHA:0:12}"
 AR_REAL="$(readlink -f AcousticRooms)" || die "AcousticRooms link missing"
 VAE_REAL="$(readlink -f weights/FLAC/VAE.safetensors)" || die "VAE missing"
@@ -74,6 +76,7 @@ SPEC="$("$PY" - "$PARTITION" "$NGPU" "$CPUS" "$MEM" "$TMIN" "$REPO" "$EXPREL" "$
 import json, sys
 part, ngpu, cpus, mem, tmin, repo, exprel, tree, mode, rung, run_id, sha, save, ts = sys.argv[1:]
 exports = {"EXP40_RUNTREE": tree, "EXP40_REPO": repo, "EXP40_MODE": mode, "EXP40_RUNG": rung,
+           "EXP40_EXECUTION_ID": (run_id if mode == "FULL" else f"{run_id}_pilot_{ts}"),
            "EXP40_RUN_ID": run_id, "EXP40_EXPECT_SHA": sha, "EXP40_SAVE_ROOT": save, "EXP40_STAMP": ts}
 print(json.dumps({"script": f"{tree}/{exprel}/exp40_train.sbatch",
                   "options": [f"--partition={part}", "--nodes=1", "--ntasks=1",
@@ -82,8 +85,8 @@ print(json.dumps({"script": f"{tree}/{exprel}/exp40_train.sbatch",
                               "--export=ALL," + ",".join(f"{k}={v}" for k, v in exports.items())]}))
 PYEOF
 )" || die "sbatch spec"
-EXTRA=(); [ "$DRY_RUN" = 1 ] && EXTRA+=(--dry-run); [ "$NEW_INTENT" = 1 ] && EXTRA+=(--new-intent)
-STATE="$RECEIPTS/neuronic_${RUN_ID}_${MODE}.state.json"
-"$PY" "$EXPREL/exp40_kit.py" neuronic-submit --state "$STATE" --run-id "$RUN_ID" --mode "$MODE" \
+EXTRA=(); [ "$DRY_RUN" = 1 ] && EXTRA+=(--dry-run)
+"$PY" "$EXPREL/exp40_kit.py" neuronic-submit --states-dir "$RECEIPTS/neuronic_states" --run-id "$RUN_ID" \
+  --mode "$MODE" --execution-id "$EXEC_ID" --probe-receipt "$RECEIPTS/claim_probe_neuronic.json" \
   --sbatch-json "$SPEC" "${EXTRA[@]}" | tee -a "$REPO/$EXPREL/yaw_aug_c16_neuronic_submissions.log"
 exit "${PIPESTATUS[0]}"

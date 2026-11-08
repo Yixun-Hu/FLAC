@@ -226,7 +226,10 @@ def test_every_pre_exp25_row_renders_byte_identically(tmp_path, monkeypatch):
     # exp_14 round P appended its own additive block after exp_25's: the twelve data-curve rows
     data_curve = [ln for ln in cur if ln.startswith("| data-curve ")]
     assert len(data_curve) == 12
-    rest = [ln for ln in cur if ln not in exp25 and ln not in data_curve]
+    # exp_40 appended its own additive block (the two C16 theta=0 rows, contract exp40)
+    exp40 = [ln for ln in cur if ln.startswith(f"| {G.EXP40_LABEL} |")]
+    assert len(exp40) == 2
+    rest = [ln for ln in cur if ln not in exp25 and ln not in data_curve and ln not in exp40]
     digest = lambda lines: hashlib.sha256("\n".join(lines).encode()).hexdigest()  # noqa: E731
     assert digest(rest) == digest(base) and rest == base
     rows = [ln for ln in base if ln.startswith("| ") and not ln.startswith("| Model")]

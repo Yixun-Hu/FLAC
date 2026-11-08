@@ -16,6 +16,7 @@ KEYS = [("T60", "T60"), ("C50", "C50"), ("EDT", "EDT"),
         ("R@1", "RIR_to_GT_RIR_R@1"), ("R@5", "RIR_to_GT_RIR_R@5"), ("R@10", "RIR_to_GT_RIR_R@10")]
 MIN_SEEDS = 5
 # exp_25 depth_canon row labels (plan v9 §5): the comparators are RE-MEASURED at the exp_25 pin
+EXP40_LABEL = "yaw-aug C16 vanilla @40k (exp_40)"
 EXP25_LABELS = {"CANON": "depth-canon CANON @40k (exp_25)",
                 "P1": "P1 vanilla @40k — re-measured at the exp_25 pin (P1-pin)",
                 "YAW": "yaw-aug A6000 YAW @40k (exp_17 ckpt) — re-measured at the exp_25 pin (YAW-pin)"}
@@ -165,6 +166,14 @@ ROWS = [
   [f"outputs_FLAC/exp25_depth_canon/{arm}/*_metrics_1_1.0_exp25_{arm}_T_S40000_K{k}_s4[2-6]"
    + ("_canon" if arm == "CANON" else "") + ".json"], "exp25")
  for arm in ("CANON", "P1", "YAW") for k in (1, 8)
+] + [
+ # --- exp_40 yaw_aug_c16 (plan_yaw_aug_c16.md §5.4, announcement 04) -------------
+ # ADDITIVE. The C16-discrete Yaw-Aug arm's theta=0 block (eval seeds 42-46) at the exp_40
+ # evaluator pin; contract="exp40" sends every file through exp40_eval.validate_row (its
+ # committed receipt must re-verify the metrics bytes) and publishes as a two-K pair.
+ (EXP40_LABEL, "vanilla eval (exp_40 pin)", k,
+  [f"outputs_FLAC/exp40_yaw_aug_c16/farm/C16/*_metrics_1_1.0_exp40_C16_T_S40000_K{k}_s4[2-6].json"], "exp40")
+ for k in (1, 8)
 ] + [
  # --- exp_14 data_curve (cyl-dinov3 numbering; Yixun 2026-11-02: published as-is under the generator's existing label, default table contract, no header disclosure) ---
  ("data-curve cyl f=25% @40k (exp_14 data-curve, CylDINO)", "fa eval", 1, ["outputs_FLAC/data_curve_import/dc_cyl_f025/*_K1_s4[2-6]*.json"]),
@@ -502,6 +511,24 @@ def validate_exp15_cell(files, repo_root=None, expected_k=None):
 
 
 EXP25_DIR = ("worklog", "worklog_yixun", "exp_25_depth_canon_claude")
+EXP40_DIR = ("worklog", "worklog_yixun", "exp_40_yaw_aug_c16_claude")
+
+
+def validate_exp40_cell(files, repo_root=None):
+    """``(ok, problems)`` for one exp_40 row: every file a registered C16 theta=0 cell whose
+    committed exp_40 receipt binds its exact bytes (exp40_eval.validate_row, offline)."""
+    if not files:
+        return True, []
+    import importlib.util
+    root = repo_paths(repo_root)["root"]
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "exp40_eval_gen", os.path.join(root, *EXP40_DIR, "exp40_eval.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.validate_row(sorted(files), root, root)
+    except Exception as exc:                       # the gate must not fail open
+        return False, [f"cannot run the exp_40 validator ({exc})"]
 EXP25_FARM = "outputs_FLAC/exp25_depth_canon"
 
 
@@ -865,6 +892,12 @@ def render_row(label, proto, K, files, repo_root=None, validator_path=None, cont
             detail = problems[0] if problems else "unspecified"
             return (f"| {label} | {proto} | {K} | {len(files)} | "
                     f"**BLOCKED — row validation failed:** {detail} | | | | | |"), True
+    if contract == "exp40":
+        ok, problems = validate_exp40_cell(files, repo_root=repo_root)
+        if not ok:
+            detail = problems[0] if problems else "unspecified"
+            return (f"| {label} | {proto} | {K} | {len(files)} | "
+                    f"**BLOCKED — row validation failed:** {detail} | | | | | |"), True
     if contract == "exp15":
         ok, problems = validate_exp15_cell(files, repo_root=repo_root, expected_k=K)
         if not ok:
@@ -1089,6 +1122,7 @@ def main(argv=None):
     rendered, blocked_rows, exp11_status, q9_cells = [], [], {}, {}
     exp14_cells, exp14_status = {}, {}
     exp25_cells = {}
+    exp40_cells = {}
     for spec in ROWS:
         label, proto, K, pats = spec[:4]
         contract = spec[4] if len(spec) > 4 else "table"
@@ -1109,6 +1143,8 @@ def main(argv=None):
             exp14_status[(label, K)] = bool(files) and not blocked
         if contract == "exp25":
             exp25_cells[(label, K)] = files
+        if contract == "exp40":
+            exp40_cells[(label, K)] = files
         if blocked:
             blocked_rows.append(f"{label} (K={K})")
         if is_exp11_row(pats) and files:
@@ -1162,6 +1198,15 @@ def main(argv=None):
                                          "the exp_15 YAWAUG row publishes only as a "
                                          "complete K=1 + K=8 pair")
         lines_tail += ["", "**exp_15 YAWAUG rows WITHHELD:** " + "; ".join(exp15_problems)]
+    exp40_started = {label for (label, _k), f in exp40_cells.items() if f}
+    for label in sorted(exp40_started):
+        mine = {r["K"]: r["line"] for r in rendered if r.get("contract") == "exp40" and r["label"] == label}
+        if any(k not in mine or "BLOCKED" in mine[k] or "*pending" in mine[k] for k in (1, 8)):
+            for r in rendered:
+                if r.get("contract") == "exp40" and r["label"] == label:
+                    r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
+                                             "the exp_40 C16 row publishes only as a complete K=1 + K=8 pair")
+            lines_tail += ["", f"**exp_40 rows WITHHELD:** {label}: K=1 + K=8 not both ready"]
     exp25_withheld, exp25_problems = check_exp25_round(rendered, exp25_cells)
     if exp25_problems:
         print("exp_25 rows not publishable:", file=sys.stderr)

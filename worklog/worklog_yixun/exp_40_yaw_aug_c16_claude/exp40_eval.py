@@ -7,9 +7,9 @@ a content-addressed checkpoint cache and the exp_36 replay semantics, without to
 exp_25/35/36 file. Subcommands:
 
   plan [--write|--check]     the deterministic 85-cell list -> exp40_cells.json
-  build-evaltree             the immutable evaluation tree (git archive + 3 allowlisted links)
-  run --lanes 0[,1] [--only] E0 first (writes the E0 receipt), then every other cell; refuses
-                             any non-E0 cell without an EQUAL E0 receipt for this closure
+  run --lanes 0[,1] [--only] from the detached eval worktree at EVAL_SHA (plan §14 H7): E0
+                             first (writes the E0 receipt), then every other cell; refuses any
+                             non-E0 cell without an EQUAL E0 receipt for EVAL_SHA + closure
   verify                     re-verify every receipt
   register-comparators       pin the reused exp_25 / exp_36 cells (exp40_comparators.json)
   collect | figure           validated CSV + tables + off-grid readout | the exp_40 figure
@@ -193,53 +193,83 @@ def render(manifest):
 # --------------------------------------------------------------------------- #
 # evaluation tree + closure digest (plan r2 §5.1)
 # --------------------------------------------------------------------------- #
-def closure_digest(tree):
-    """The evaluator closure: the carried blob manifest MINUS the exp_40 records, the cell
-    receipts and the admission file -- so committing the admission after E0 does not stale
-    it, while any evaluator / config / overlay / driver change does (plan r2 NIT 2)."""
-    man = kit.read_json(os.path.join(tree, kit.RUNTREE_MANIFEST))
-    keep = {p: b for p, b in man["blobs"].items()
-            if not p.startswith(EXPREL + "/") or p.endswith((".py", "exp40_cells.json",
-                                                              "exp40_figure_contract.json",
-                                                              "FLAC_AR_YAWAUG_C16.json"))}
-    return kit.digest_obj({"blobs": keep, "links": man["links"]})
+EVAL_UNTRACKED = {"AcousticRooms": "/media/diskstation/yixunhu/FLAC/AcousticRooms",
+                  "weights/AGREE": None, "weights/FLAC/VAE.ckpt": None}     # allowlist (plan §14 N2)
 
 
-def evaltree_reasons(repo, sha, tree, links):
-    reasons = kit.verify_runtree(repo, sha, tree, links, paths=EVAL_PATHS, allowed_links=EVAL_LINK_NAMES)
+def closure_digest(repo, eval_sha):
+    """EVAL_SHA's evaluator closure (``git ls-tree`` of EVAL_PATHS) + the pinned assets: E0 is
+    bound to it, so a later record-only commit elsewhere cannot stale E0 (plan §14 H8)."""
+    blobs = kit.tracked_blobs(repo, eval_sha, EVAL_PATHS)
+    return kit.digest_obj({"eval_sha": eval_sha, "blobs": blobs, "pins": EVAL_PINS})
+
+
+def eval_worktree_reasons(wt, eval_sha, hf_sealed):
+    """The detached eval worktree at EVAL_SHA, checked before EVERY spawn (plan §14 H7)."""
+    reasons = []
+    head = kit.git(wt, "rev-parse", "HEAD").strip()
+    if head != eval_sha:
+        reasons.append(f"eval worktree HEAD {head} != EVAL_SHA {eval_sha}")
+    if kit.git(wt, "rev-parse", "--abbrev-ref", "HEAD").strip() != "HEAD":
+        reasons.append("the eval worktree must be detached")
+    status = kit.git(wt, "status", "--porcelain", "--untracked-files=all").splitlines()
+    for line in status:
+        code, path = line[:2], line[3:].rstrip("/")
+        if code != "??" or not any(path == u or path.startswith(u + "/") for u in EVAL_UNTRACKED):
+            reasons.append(f"eval worktree not clean: {line!r}")
+    for rel, target in EVAL_UNTRACKED.items():
+        p = os.path.join(wt, rel)
+        if not os.path.lexists(p):
+            reasons.append(f"allowlisted asset {rel} missing")
+        elif target is not None and os.path.realpath(p) != os.path.realpath(target):
+            reasons.append(f"{rel} resolves to {os.path.realpath(p)}, not {target}")
     for rel, want in EVAL_PINS.items():
-        p = os.path.join(tree, rel)
+        p = os.path.join(wt, rel)
         if not os.path.isfile(p) or kit.sha256_file(p) != want:
             reasons.append(f"{rel} is not the pinned {want}")
     for arm, a in ARMS.items():
-        p = os.path.join(tree, a["config"])
+        p = os.path.join(wt, a["config"])
         if not os.path.isfile(p) or kit.sha256_file(p) != a["config_sha256"]:
             reasons.append(f"{a['config']} is not the pinned {a['config_sha256']}")
-    man_path = os.path.join(tree, kit.AR_MANIFEST)
+    reasons += kit.hf_sealed_reasons(hf_sealed)
+    man_path = os.path.join(wt, kit.AR_MANIFEST)
     if not os.path.isfile(man_path):
-        reasons.append(f"{kit.AR_MANIFEST} missing from the evaluation tree")
+        reasons.append(f"{kit.AR_MANIFEST} missing from EVAL_SHA")
     else:
         man = kit.read_json(man_path)
-        reasons += kit.ar_listing_reasons(os.path.join(tree, "AcousticRooms"),
-                                          kit.split_rooms(os.path.join(tree, "data/AR/unseen_eval.json")),
-                                          man["rooms"])
+        reasons += kit.ar_counts_reasons(os.path.join(wt, "AcousticRooms"),
+                                         kit.split_rooms(os.path.join(wt, "data/AR/unseen_eval.json")),
+                                         man["rooms"])
     return reasons
+
+
+def runtime_inputs(path):
+    """The hash-pinned post-freeze inputs (plan §14 H7): ``{name: {path, sha256}}``."""
+    spec = kit.read_json(path)
+    out = {}
+    for name, ent in spec.items():
+        if kit.sha256_file(ent["path"]) != ent["sha256"]:
+            raise Refused(f"runtime input {name} ({ent['path']}) does not hash to {ent['sha256']}")
+        out[name] = ent
+    return out, kit.sha256_file(path)
 
 
 # --------------------------------------------------------------------------- #
 # checkpoints: one read, embedded config type-strict equal to the arm's (plan r2 §5.1)
 # --------------------------------------------------------------------------- #
-def arm_checkpoint(arm, tree):
+def arm_checkpoint(arm, tree, inputs=None):
     if arm == "C16":
-        adm = kit.read_json(os.path.join(tree, ADMISSION))
+        if not inputs or "admission" not in inputs:
+            raise Refused("the C16 arm needs the admission record in --runtime-inputs")
+        adm = kit.read_json(inputs["admission"]["path"])
         if adm.get("admitted") is not True or adm.get("arm") != "C16":
             raise Refused(f"{ADMISSION} is not an admission of the C16 arm")
         return adm["ckpt_path"], adm["sha256"]
     return ARMS[arm]["ckpt"], ARMS[arm]["ckpt_sha256"]
 
 
-def cache_checkpoint(arm, tree, farm):
-    src, sha = arm_checkpoint(arm, tree)
+def cache_checkpoint(arm, tree, farm, inputs=None):
+    src, sha = arm_checkpoint(arm, tree, inputs)
     cache_dir = os.path.join(farm, ".ckpt_cache")
     os.makedirs(cache_dir, exist_ok=True)
     cached = os.path.join(cache_dir, f"{sha}.ckpt")
@@ -425,10 +455,11 @@ def lane_free(lane):
     return not [a for a in apps if a["uuid"] == g["uuid"]] and g["free_mib"] >= MIN_GPU_FREE_MIB
 
 
-def spawn_cell(cell, tree, link, lane, log_path, py):
-    env = {k: v for k, v in os.environ.items() if not k.startswith("PYTHON")}
-    env.update(CUDA_VISIBLE_DEVICES=str(lane), HF_HUB_OFFLINE="1", PYTHONDONTWRITEBYTECODE="1",
-               PYTHONNOUSERSITE="1", PYTHONPATH=os.path.join(tree, "overlays/no_flash"))
+def spawn_cell(cell, tree, link, lane, log_path, py, hf_sealed):
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith(("PYTHON", "HF_", "TRANSFORMERS_", "HUGGINGFACE_"))}
+    env.update(CUDA_VISIBLE_DEVICES=str(lane), PYTHONDONTWRITEBYTECODE="1", PYTHONNOUSERSITE="1",
+               PYTHONPATH=os.path.join(tree, "overlays/no_flash"), **kit.hf_env(hf_sealed))
     argv = [py, os.path.join(tree, "overlays/no_flash/exp35_no_flash_launch.py"),
             os.path.join(tree, "eval_FLAC.py"), *cell["eval_args"], "--ckpt-path", link,
             "--dump-scored-waveforms", DUMP_ROOT]
@@ -440,7 +471,8 @@ def receipt_path(farm, cell, stem):
     return os.path.join(farm, cell["arm"], stem + ".exp40_receipt.json")
 
 
-def run_cells(cells, tree, head, lanes, farm, py, e0_receipt_path, closure, logdir, poll_s=60):
+def run_cells(cells, tree, head, lanes, farm, py, e0_receipt_path, closure, logdir, hf_sealed,
+              inputs=None, inputs_sha=None, poll_s=60):
     hashes = expected_hashes()
     work = queue.Queue()
     for c in cells:
@@ -455,7 +487,7 @@ def run_cells(cells, tree, head, lanes, farm, py, e0_receipt_path, closure, logd
                 return
             stem = stem_of(cell, tree)
             rpath = receipt_path(farm, cell, stem)
-            link, sha, nbytes = cache_checkpoint(cell["arm"], tree, farm)
+            link, sha, nbytes = cache_checkpoint(cell["arm"], tree, farm, inputs)
             if os.path.exists(rpath):
                 rec = kit.read_json(rpath)
                 r, _ = verify_cell(cell, farm, tree, rec.get("head"), sha, nbytes, rec.get("log"), hashes)
@@ -471,9 +503,14 @@ def run_cells(cells, tree, head, lanes, farm, py, e0_receipt_path, closure, logd
                 continue
             while not lane_free(lane):
                 time.sleep(poll_s)
+            r = eval_worktree_reasons(tree, head, hf_sealed)        # re-checked before EVERY spawn
+            if r:
+                with lock:
+                    failures.append((cell["cell"], ["eval worktree drifted"] + r))
+                return
             log_path = os.path.join(logdir, f"yaw_aug_c16_{time.strftime('%Y-%m-%d_%H-%M-%S')}_{cell['cell']}_eval.log")
             t0 = time.time()
-            rc = spawn_cell(cell, tree, link, lane, log_path, py)
+            rc = spawn_cell(cell, tree, link, lane, log_path, py, hf_sealed)
             r, digests = verify_cell(cell, farm, tree, head, sha, nbytes, log_path, hashes) if rc == 0 else (
                 [f"eval rc {rc}"], None)
             if not r and cell["block"] == "E0":
@@ -484,6 +521,7 @@ def run_cells(cells, tree, head, lanes, farm, py, e0_receipt_path, closure, logd
                 print(f"FAIL {cell['cell']}: {r[:3]}", flush=True)
                 continue
             kit.atomic_write_json(rpath, {"cell": cell, "head": head, "closure": closure,
+                                          "runtime_inputs_sha256": inputs_sha,
                                           "lane": lane, "log": log_path, "seconds": time.time() - t0,
                                           "ckpt_sha256": sha, "ckpt_bytes": nbytes, **digests})
             print(f"DONE {cell['cell']} ({time.time() - t0:.0f} s)", flush=True)
@@ -539,12 +577,17 @@ def register_comparators(exp25_farm, exp36_farm):
             for d in C4:
                 want.append(("exp36", "YAW", f"exp25_YAW_C4_S40000_K{k}_s{s}_th{d}", k, s, float(d), "fixed"))
     pins = {"exp25": "d6ca307a85b9b0a75ec9d47f4d237e63a3db527e"}
+    index = {}
+    for src, root in (("exp25", exp25_farm), ("exp36", exp36_farm)):
+        for arm in ("YAW", "P1"):
+            d = os.path.join(root, arm)
+            for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+                if f.endswith(".cell.json"):
+                    index.setdefault((src, arm, kit.read_json(os.path.join(d, f)).get("cell")), []).append(f)
     out = []
     for src, arm, name, k, s, deg, mode in want:
         farm = os.path.join(exp25_farm if src == "exp25" else exp36_farm, arm)
-        rec = [f for f in os.listdir(farm) if f.endswith(".cell.json") and f"_{name}_" in f"_{f}"]
-        cands = [f for f in os.listdir(farm) if f.endswith(".cell.json")
-                 and kit.read_json(os.path.join(farm, f)).get("cell") == name]
+        cands = index.get((src, arm, name), [])
         if len(cands) != 1:
             raise Refused(f"{src} {arm} {name}: {len(cands)} receipts in {farm}")
         receipt = kit.read_json(os.path.join(farm, cands[0]))
@@ -742,20 +785,30 @@ def validate_row(files, repo, tree):
     return (not problems), problems
 
 
+def e0_gate_reasons(e0_path, eval_sha, closure):
+    try:
+        e0 = kit.read_json(e0_path)
+    except (OSError, ValueError):
+        return [f"no E0 receipt {e0_path}: run --blocks E0 first"]
+    reasons = []
+    if e0.get("verdict") != "EQUAL" or e0.get("eval_sha") != eval_sha or e0.get("closure") != closure \
+            or sorted(e0.get("cells", [])) != sorted(E0):
+        reasons.append(f"{e0_path} is not an EQUAL E0 over all three replays for EVAL_SHA {eval_sha[:12]}"
+                       f" / closure {closure[:12]}")
+    return reasons
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("plan"); p.add_argument("--write", action="store_true"); p.add_argument("--check", action="store_true")
-    b = sub.add_parser("build-evaltree"); b.add_argument("--repo", required=True); b.add_argument("--sha", required=True)
-    b.add_argument("--dest", required=True); b.add_argument("--link", action="append")
-    r = sub.add_parser("run"); r.add_argument("--repo", required=True); r.add_argument("--sha", required=True)
-    r.add_argument("--tree", required=True); r.add_argument("--link", action="append")
-    r.add_argument("--lanes", required=True); r.add_argument("--only"); r.add_argument("--blocks")
-    r.add_argument("--dry-run", action="store_true")
-    v = sub.add_parser("verify"); v.add_argument("--repo", required=True); v.add_argument("--sha", required=True)
-    v.add_argument("--tree", required=True); v.add_argument("--link", action="append")
-    v.add_argument("--lanes", default="0"); v.add_argument("--only"); v.add_argument("--blocks")
-    v.add_argument("--dry-run", action="store_true", default=True)
+    for name in ("run", "verify"):
+        r = sub.add_parser(name)
+        r.add_argument("--repo", required=True, help="the main exp_40 worktree (farm, receipts)")
+        r.add_argument("--eval-worktree", required=True); r.add_argument("--eval-sha", required=True)
+        r.add_argument("--hf-sealed", required=True); r.add_argument("--runtime-inputs")
+        r.add_argument("--lanes", default="0"); r.add_argument("--only"); r.add_argument("--blocks")
+        r.add_argument("--dry-run", action="store_true")
     g = sub.add_parser("register-comparators"); g.add_argument("--exp25-farm", required=True)
     g.add_argument("--exp36-farm", required=True)
     for name in ("collect", "figure"):
@@ -779,13 +832,6 @@ def main(argv=None):
                     f.write(text)
             print(f"{man['count']} cells {man['block_counts']}")
             return 0
-        if args.cmd == "build-evaltree":
-            links = dict(x.partition("=")[::2] for x in args.link or [])
-            print(kit.build_runtree(args.repo, args.sha, args.dest, links, paths=EVAL_PATHS,
-                                    allowed_links=EVAL_LINK_NAMES))
-            return 0
-        if args.cmd in ("run", "verify", "collect", "figure", "register-comparators", "validate-row"):
-            links = dict(x.partition("=")[::2] for x in (args.link or []))
         if args.cmd == "register-comparators":
             reg = register_comparators(args.exp25_farm, args.exp36_farm)
             out = os.path.join(ROOT, COMPARATORS_FILE)
@@ -809,7 +855,7 @@ def main(argv=None):
                                   {"contract_sha256": kit.sha256_file(os.path.join(args.tree, FIGURE_CONTRACT)),
                                    "figures": {pth: kit.sha256_file(pth) for pth in paths},
                                    "cells": sorted((r["arm"], r["K"], r["seed"], r["rotate_mode"],
-                                                    r["rotate_deg"], r["metrics_sha256"]) for r in rows)})
+                                                    str(r["rotate_deg"]), r["metrics_sha256"]) for r in rows)})
             print("\n".join(paths))
             return 0
         if args.cmd == "validate-row":
@@ -817,57 +863,63 @@ def main(argv=None):
             for pr in problems:
                 print(pr)
             return 0 if ok else 1
-        if args.cmd in ("run", "verify"):
-            head = kit.git(args.repo, "rev-parse", "HEAD").strip()
-            if head != args.sha:
-                raise Refused(f"HEAD {head} != --sha {args.sha}")
-            reasons = evaltree_reasons(args.repo, args.sha, args.tree, links)
-            if reasons:
-                raise Refused("; ".join(reasons[:8]))
-            closure = closure_digest(args.tree)
-            man = kit.read_json(os.path.join(args.tree, CELLS_FILE))
-            cells = man["cells"]
-            if args.blocks:
-                cells = [c for c in cells if c["block"] in args.blocks.split(",")]
-            if args.only:
-                cells = [c for c in cells if c["cell"] in args.only.split(",")]
-            if not cells:
-                raise Refused("no cells selected")
-            farm = os.path.join(args.repo, FARM)
-            receipts = os.path.join(args.repo, EXPREL, "receipts")
-            os.makedirs(receipts, exist_ok=True)
-            e0_path = os.path.join(receipts, f"e0_{closure}.json")
-            e0_cells = [c for c in cells if c["block"] == "E0"]
-            rest = [c for c in cells if c["block"] != "E0"]
-            if args.dry_run:
-                for c in cells:
-                    print(c["cell"], "eval_FLAC.py", " ".join(c["eval_args"]))
-                return 0
-            py = kit.PLATFORMS["a6000"]["python"]
-            lanes = [int(x) for x in args.lanes.split(",")]
-            fails = []
-            if e0_cells:
-                f0 = run_cells(e0_cells, args.tree, head, lanes, farm, py, e0_path, closure,
-                               os.path.join(args.repo, EXPREL))
-                kit.atomic_write_json(e0_path, {"verdict": "EQUAL" if not f0 else "MISMATCH",
-                                                "closure": closure, "head": head,
-                                                "cells": [c["cell"] for c in e0_cells], "failures": f0,
-                                                "eval_pins": EVAL_PINS})
-                fails += f0
-            if rest:
-                e0 = kit.read_json(e0_path) if os.path.exists(e0_path) else {}
-                if e0.get("verdict") != "EQUAL" or e0.get("closure") != closure \
-                        or sorted(e0.get("cells", [])) != sorted(E0):
-                    raise Refused(f"no EQUAL E0 receipt over all three replays for closure {closure[:12]}")
-                fails += run_cells(rest, args.tree, head, lanes, farm, py, e0_path, closure,
-                                   os.path.join(args.repo, EXPREL))
-            for name, rs in fails:
-                print(f"FAILED {name}: {rs}")
-            return 0 if not fails else 1
+        # run / verify ------------------------------------------------------------------ #
+        wt, eval_sha = args.eval_worktree, args.eval_sha
+        reasons = eval_worktree_reasons(wt, eval_sha, args.hf_sealed)
+        if reasons:
+            raise Refused("; ".join(reasons[:8]))
+        closure = closure_digest(wt, eval_sha)
+        inputs, inputs_sha = runtime_inputs(args.runtime_inputs) if args.runtime_inputs else (None, None)
+        man = kit.read_json(os.path.join(wt, CELLS_FILE))
+        cells = man["cells"]
+        if args.blocks:
+            cells = [c for c in cells if c["block"] in args.blocks.split(",")]
+        if args.only:
+            cells = [c for c in cells if c["cell"] in args.only.split(",")]
+        if not cells:
+            raise Refused("no cells selected")
+        farm = os.path.join(args.repo, FARM)
+        receipts = os.path.join(args.repo, EXPREL, "receipts")
+        os.makedirs(receipts, exist_ok=True)
+        e0_path = os.path.join(receipts, f"e0_{eval_sha}_{closure}.json")
+        e0_cells = [c for c in cells if c["block"] == "E0"]
+        rest = [c for c in cells if c["block"] != "E0"]
+        if rest:
+            gate = [] if e0_cells and sorted(c["cell"] for c in e0_cells) == sorted(E0) else \
+                e0_gate_reasons(e0_path, eval_sha, closure)
+            if gate and not args.dry_run:
+                raise Refused("; ".join(gate))
+        if args.cmd == "verify" or args.dry_run:
+            for c in cells:
+                print(c["cell"], "eval_FLAC.py", " ".join(c["eval_args"]))
+            print(f"EVAL_SHA {eval_sha} closure {closure} E0 gate: "
+                  f"{'OK' if not rest or not e0_gate_reasons(e0_path, eval_sha, closure) else 'NOT YET'}")
+            return 0
+        py = kit.PLATFORMS["a6000"]["python"]
+        lanes = [int(x) for x in args.lanes.split(",")]
+        logdir = os.path.join(args.repo, EXPREL)
+        fails = []
+        if e0_cells:
+            f0 = run_cells(e0_cells, wt, eval_sha, lanes, farm, py, e0_path, closure, logdir,
+                           args.hf_sealed, inputs, inputs_sha)
+            kit.atomic_write_json(e0_path, {"verdict": "EQUAL" if not f0 and sorted(c["cell"] for c in e0_cells) == sorted(E0)
+                                            else ("MISMATCH" if f0 else "PARTIAL"),
+                                            "eval_sha": eval_sha, "closure": closure,
+                                            "cells": [c["cell"] for c in e0_cells], "failures": f0,
+                                            "eval_pins": EVAL_PINS})
+            fails += f0
+        if rest:
+            gate = e0_gate_reasons(e0_path, eval_sha, closure)
+            if gate:
+                raise Refused("; ".join(gate))
+            fails += run_cells(rest, wt, eval_sha, lanes, farm, py, e0_path, closure, logdir,
+                               args.hf_sealed, inputs, inputs_sha)
+        for name, rs in fails:
+            print(f"FAILED {name}: {rs}")
+        return 0 if not fails else 1
     except Refused as err:
         print(f"REFUSED: {err}")
         return 2
-    return 2
 
 
 if __name__ == "__main__":
