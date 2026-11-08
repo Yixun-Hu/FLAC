@@ -1,6 +1,6 @@
 # exp_38 data_efficiency — commands (every launch is appended here AT LAUNCH TIME; failed / superseded runs stay, marked)
 
-Conventions: dev worktree `~/codespace/exp-38-data-efficiency` (branch `exp-38-data-efficiency`); **campaign tree** `~/codespace/exp-38-campaign` (a detached worktree at the pushed campaign pin — since Yixun's decisions of 2026-11-08 `10063946` (closure `40445808…`), before them `bfc4ea4b` — never committed in while anything runs); conda env `flac`; `E=worklog/worklog_yixun/exp_38_data_efficiency_claude`. Only the sections marked Done have been run.
+Conventions: dev worktree `~/codespace/exp-38-data-efficiency` (branch `exp-38-data-efficiency`); **campaign tree** `~/codespace/exp-38-campaign` (a detached worktree at the pushed campaign pin — since Yixun's decisions of 2026-11-08 `df849937` (closure `31142c79…`; `10063946` was superseded before use by the widened D6), before them `bfc4ea4b` — never committed in while anything runs); conda env `flac`; `E=worklog/worklog_yixun/exp_38_data_efficiency_claude`. Only the sections marked Done have been run.
 
 ## Done (Coder, 2026-11-07, validation ladder)
 ```bash
@@ -46,7 +46,7 @@ type-strictly exact. AGREE samples encoder noise at evaluation, so a re-run whos
 from the pinned ones FAILS closed (the E0 stops; ask Yixun).
 ```bash
 # 0. move the campaign tree to the new pin (no exp_38 job may be running in it)
-PIN=1006394601542d2e08afe6e4efd66e3d5a9a8bbe   # closure 404458083f4c7531…
+PIN=df84993724666bc4d972a8c177b5e9ada7bfbecd   # closure 31142c792b76e29d…
 git -C ~/codespace/exp-38-campaign fetch origin exp-38-data-efficiency   # shared object store; harmless if present
 git -C ~/codespace/exp-38-campaign checkout --detach $PIN
 cd ~/codespace/exp-38-campaign
