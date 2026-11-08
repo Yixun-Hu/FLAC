@@ -1,0 +1,88 @@
+UNTRACKED PASS
+EXP38 GATE REFUSED: E0 receipt missing / unreadable: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_e0_receipt.json'
+receipt gate: no E0 receipt for this campaign closure (E0 runs on the A6000 box)
+pins: {"vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9", "vit_rev": "114c1379950215c8b35dfcd4e90a5c251dde0d32", "hub_cache": "/home/yixunhu/.cache/huggingface/hub", "attention_backend": "flash", "flash_attn": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/flash_attn/__init__.py"}
+closure: {"closure_sha256": "3fd1c3592e415a78963822274f46539f8a973f3db335971cc37f62e3b860edf9", "n_files": 134}
+DRYRUN SMOKE de_bf_f025 ngpu 2: torchrun --standalone --nnodes=1 --nproc_per_node=2 train.py --model-config worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap32.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 30 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --gradient-clip-val 0.0 --logger none --checkpoint-every 1000000 --name smoke_de_bf_f025 --experiment-name smoke_de_bf_f025 --save-dir /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_bf_f025_smoke_00000000 --evidence-json /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_bf_f025_smoke_00000000/evidence/run_evidence.json
+DRYRUN receipt gates: WOULD REFUSE (E0 / SMOKE receipts are produced at campaign time)
+rc(de_bf_f025 SMOKE)=0
+UNTRACKED PASS
+EXP38 GATE REFUSED: E0 receipt missing / unreadable: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_e0_receipt.json'
+receipt gate: no E0 receipt for this campaign closure (E0 runs on the A6000 box)
+EXP38 GATE REFUSED: no environment receipt /home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_env_receipt_neuronic.json: write it at campaign start (E0)
+receipt gate: environment drift vs this platform's receipt (or no SMOKE yet)
+EXP38 GATE REFUSED: no PASS SMOKE_DDP receipt for de_bf_f025 on neuronic at closure 3fd1c3592e41
+receipt gate: no PASS SMOKE receipt for de_bf_f025 on neuronic at this closure
+pins: {"vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9", "vit_rev": "114c1379950215c8b35dfcd4e90a5c251dde0d32", "hub_cache": "/home/yixunhu/.cache/huggingface/hub", "attention_backend": "flash", "flash_attn": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/flash_attn/__init__.py"}
+closure: {"closure_sha256": "3fd1c3592e415a78963822274f46539f8a973f3db335971cc37f62e3b860edf9", "n_files": 134}
+DRYRUN FULL de_bf_f025 ngpu 2: torchrun --standalone --nnodes=1 --nproc_per_node=2 train.py --model-config worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap32.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --gradient-clip-val 0.0 --logger none --checkpoint-every 2500 --name de_bf_f025 --experiment-name de_bf_f025 --save-dir /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_bf_f025 --evidence-json /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_bf_f025/evidence/run_evidence.json
+DRYRUN receipt gates: WOULD REFUSE (E0 / SMOKE receipts are produced at campaign time)
+rc(de_bf_f025 FULL)=0
+UNTRACKED PASS
+EXP38 GATE REFUSED: E0 receipt missing / unreadable: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_e0_receipt.json'
+receipt gate: no E0 receipt for this campaign closure (E0 runs on the A6000 box)
+pins: {"vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9", "vit_rev": "114c1379950215c8b35dfcd4e90a5c251dde0d32", "hub_cache": "/home/yixunhu/.cache/huggingface/hub", "attention_backend": "flash", "flash_attn": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/flash_attn/__init__.py"}
+closure: {"closure_sha256": "3fd1c3592e415a78963822274f46539f8a973f3db335971cc37f62e3b860edf9", "n_files": 134}
+DRYRUN SMOKE de_yaw_f025 ngpu 2: torchrun --standalone --nnodes=1 --nproc_per_node=2 train.py --model-config worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 30 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --gradient-clip-val 0.0 --logger none --checkpoint-every 1000000 --name smoke_de_yaw_f025 --experiment-name smoke_de_yaw_f025 --save-dir /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f025_smoke_00000000 --evidence-json /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f025_smoke_00000000/evidence/run_evidence.json
+DRYRUN receipt gates: WOULD REFUSE (E0 / SMOKE receipts are produced at campaign time)
+rc(de_yaw_f025 SMOKE)=0
+UNTRACKED PASS
+EXP38 GATE REFUSED: E0 receipt missing / unreadable: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_e0_receipt.json'
+receipt gate: no E0 receipt for this campaign closure (E0 runs on the A6000 box)
+EXP38 GATE REFUSED: no environment receipt /home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_env_receipt_neuronic.json: write it at campaign start (E0)
+receipt gate: environment drift vs this platform's receipt (or no SMOKE yet)
+EXP38 GATE REFUSED: no PASS SMOKE_DDP receipt for de_yaw_f025 on neuronic at closure 3fd1c3592e41
+receipt gate: no PASS SMOKE receipt for de_yaw_f025 on neuronic at this closure
+pins: {"vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9", "vit_rev": "114c1379950215c8b35dfcd4e90a5c251dde0d32", "hub_cache": "/home/yixunhu/.cache/huggingface/hub", "attention_backend": "flash", "flash_attn": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/flash_attn/__init__.py"}
+closure: {"closure_sha256": "3fd1c3592e415a78963822274f46539f8a973f3db335971cc37f62e3b860edf9", "n_files": 134}
+DRYRUN FULL de_yaw_f025 ngpu 2: torchrun --standalone --nnodes=1 --nproc_per_node=2 train.py --model-config worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --gradient-clip-val 0.0 --logger none --checkpoint-every 2500 --name de_yaw_f025 --experiment-name de_yaw_f025 --save-dir /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f025 --evidence-json /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f025/evidence/run_evidence.json
+DRYRUN receipt gates: WOULD REFUSE (E0 / SMOKE receipts are produced at campaign time)
+rc(de_yaw_f025 FULL)=0
+UNTRACKED PASS
+EXP38 GATE REFUSED: E0 receipt missing / unreadable: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_e0_receipt.json'
+receipt gate: no E0 receipt for this campaign closure (E0 runs on the A6000 box)
+pins: {"vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9", "vit_rev": "114c1379950215c8b35dfcd4e90a5c251dde0d32", "hub_cache": "/home/yixunhu/.cache/huggingface/hub", "attention_backend": "flash", "flash_attn": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/flash_attn/__init__.py"}
+closure: {"closure_sha256": "3fd1c3592e415a78963822274f46539f8a973f3db335971cc37f62e3b860edf9", "n_files": 134}
+DRYRUN SMOKE de_bf_f050 ngpu 2: torchrun --standalone --nnodes=1 --nproc_per_node=2 train.py --model-config worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap32.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 30 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --gradient-clip-val 0.0 --logger none --checkpoint-every 1000000 --name smoke_de_bf_f050 --experiment-name smoke_de_bf_f050 --save-dir /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_bf_f050_smoke_00000000 --evidence-json /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_bf_f050_smoke_00000000/evidence/run_evidence.json
+DRYRUN receipt gates: WOULD REFUSE (E0 / SMOKE receipts are produced at campaign time)
+rc(de_bf_f050 SMOKE)=0
+UNTRACKED PASS
+EXP38 GATE REFUSED: E0 receipt missing / unreadable: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_e0_receipt.json'
+receipt gate: no E0 receipt for this campaign closure (E0 runs on the A6000 box)
+EXP38 GATE REFUSED: no environment receipt /home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_env_receipt_neuronic.json: write it at campaign start (E0)
+receipt gate: environment drift vs this platform's receipt (or no SMOKE yet)
+EXP38 GATE REFUSED: no PASS SMOKE_DDP receipt for de_bf_f050 on neuronic at closure 3fd1c3592e41
+receipt gate: no PASS SMOKE receipt for de_bf_f050 on neuronic at this closure
+pins: {"vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9", "vit_rev": "114c1379950215c8b35dfcd4e90a5c251dde0d32", "hub_cache": "/home/yixunhu/.cache/huggingface/hub", "attention_backend": "flash", "flash_attn": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/flash_attn/__init__.py"}
+closure: {"closure_sha256": "3fd1c3592e415a78963822274f46539f8a973f3db335971cc37f62e3b860edf9", "n_files": 134}
+DRYRUN FULL de_bf_f050 ngpu 2: torchrun --standalone --nnodes=1 --nproc_per_node=2 train.py --model-config worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap32.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --gradient-clip-val 0.0 --logger none --checkpoint-every 2500 --name de_bf_f050 --experiment-name de_bf_f050 --save-dir /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_bf_f050 --evidence-json /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_bf_f050/evidence/run_evidence.json
+DRYRUN receipt gates: WOULD REFUSE (E0 / SMOKE receipts are produced at campaign time)
+rc(de_bf_f050 FULL)=0
+UNTRACKED PASS
+EXP38 GATE REFUSED: E0 receipt missing / unreadable: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_e0_receipt.json'
+receipt gate: no E0 receipt for this campaign closure (E0 runs on the A6000 box)
+pins: {"vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9", "vit_rev": "114c1379950215c8b35dfcd4e90a5c251dde0d32", "hub_cache": "/home/yixunhu/.cache/huggingface/hub", "attention_backend": "flash", "flash_attn": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/flash_attn/__init__.py"}
+closure: {"closure_sha256": "3fd1c3592e415a78963822274f46539f8a973f3db335971cc37f62e3b860edf9", "n_files": 134}
+DRYRUN SMOKE de_yaw_f050 ngpu 2: torchrun --standalone --nnodes=1 --nproc_per_node=2 train.py --model-config worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 30 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --gradient-clip-val 0.0 --logger none --checkpoint-every 1000000 --name smoke_de_yaw_f050 --experiment-name smoke_de_yaw_f050 --save-dir /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f050_smoke_00000000 --evidence-json /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f050_smoke_00000000/evidence/run_evidence.json
+DRYRUN receipt gates: WOULD REFUSE (E0 / SMOKE receipts are produced at campaign time)
+rc(de_yaw_f050 SMOKE)=0
+UNTRACKED PASS
+EXP38 GATE REFUSED: E0 receipt missing / unreadable: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_e0_receipt.json'
+receipt gate: no E0 receipt for this campaign closure (E0 runs on the A6000 box)
+EXP38 GATE REFUSED: no environment receipt /home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_env_receipt_neuronic.json: write it at campaign start (E0)
+receipt gate: environment drift vs this platform's receipt (or no SMOKE yet)
+EXP38 GATE REFUSED: no PASS SMOKE_DDP receipt for de_yaw_f050 on neuronic at closure 6a602a9f9785
+receipt gate: no PASS SMOKE receipt for de_yaw_f050 on neuronic at this closure
+pins: {"vae_sha256": "8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9", "vit_rev": "114c1379950215c8b35dfcd4e90a5c251dde0d32", "hub_cache": "/home/yixunhu/.cache/huggingface/hub", "attention_backend": "flash", "flash_attn": "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/flash_attn/__init__.py"}
+closure: {"closure_sha256": "6a602a9f978517b8b98a5784b6bd7e0af7cb509dab26f8cb1e7b8c978f819236", "n_files": 134}
+DRYRUN FULL de_yaw_f050 ngpu 2: torchrun --standalone --nnodes=1 --nproc_per_node=2 train.py --model-config worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --gradient-clip-val 0.0 --logger none --checkpoint-every 2500 --name de_yaw_f050 --experiment-name de_yaw_f050 --save-dir /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f050 --evidence-json /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f050/evidence/run_evidence.json
+DRYRUN receipt gates: WOULD REFUSE (E0 / SMOKE receipts are produced at campaign time)
+rc(de_yaw_f050 FULL)=0
+EXP38 JOB REFUSED: tracked tree is not clean
+rc(de_bf_f075 SMOKE)=2
+EXP38 JOB REFUSED: tracked tree is not clean
+rc(de_bf_f075 FULL)=2
+EXP38 JOB REFUSED: tracked tree is not clean
+rc(de_yaw_f075 SMOKE)=2
+EXP38 JOB REFUSED: tracked tree is not clean
+rc(de_yaw_f075 FULL)=2

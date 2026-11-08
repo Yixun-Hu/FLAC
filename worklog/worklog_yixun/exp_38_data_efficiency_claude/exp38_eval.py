@@ -32,7 +32,7 @@ EXP = reg.EXP_DIR
 FARM = "outputs_FLAC/exp38_data_efficiency/eval"
 DUMP_ROOT = "/media/diskstation/yixunhu/FLAC/exp38_pred_waveforms"
 NAS_CKPT_ROOT = "/media/diskstation/yixunhu/FLAC/checkpoints"
-LOCKFILE = "/home/yixunhu/codespace/.exp38_cards.lock"
+LOCKDIR = "/home/yixunhu/codespace"          # .exp38_card<i>.lock, shared with exp38_train_local.sh
 SEEDS = (42, 43, 44, 45, 46)
 EVAL_CONFIGS = {8: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
                 1: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json"}
@@ -367,11 +367,13 @@ def cmd_run(gpu, names, shared=False):
         raise EvalError("campaign tree: " + "; ".join(shadows))
     reg.env_receipt("a6000")
     closure = reg.closure_digest()["closure_sha256"]
-    lock = open(LOCKFILE, "a")
+    lockfile = os.path.join(LOCKDIR, f".exp38_card{gpu}.lock")
+    lock = open(lockfile, "a")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
-        raise EvalError(f"another exp_38 training / evaluation holds {LOCKFILE}")
+        lock.close()
+        raise EvalError(f"another exp_38 training / evaluation holds card {gpu} ({lockfile})")
     try:
         for n in names:
             foreign = gpu_foreign(gpu)

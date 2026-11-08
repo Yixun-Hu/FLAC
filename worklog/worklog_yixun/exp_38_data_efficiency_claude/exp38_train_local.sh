@@ -32,11 +32,11 @@ main() {
   local TS; TS="$(date '+%Y-%m-%d_%H-%M-%S')"
   local SAVE_ROOT="/media/diskstation/yixunhu/FLAC/checkpoints/exp38_data_efficiency"
   local CAMPAIGN="/home/yixunhu/codespace/exp-38-campaign"
-  local LOCKFILE="${EXP38_LOCKFILE:-/home/yixunhu/codespace/.exp38_cards.lock}"
+  local LOCKDIR="${EXP38_LOCKDIR:-/home/yixunhu/codespace}"   # .exp38_card<i>.lock, shared with exp38_eval.py
   # DRY_RUN-only test hook (a real run always uses the registered NAS root)
   if [ "$MODE" = "DRY_RUN" ]; then SAVE_ROOT="${EXP38_DRY_SAVE_ROOT:-$SAVE_ROOT}"; fi
-  if [ "$MODE" != "DRY_RUN" ] && [ -n "${EXP38_LOCKFILE:-}" ]; then
-    echo "EXP38 LAUNCH REFUSED: EXP38_LOCKFILE is a DRY_RUN test hook" >&2; exit 2
+  if [ "$MODE" != "DRY_RUN" ] && [ -n "${EXP38_LOCKDIR:-}" ]; then
+    echo "EXP38 LAUNCH REFUSED: EXP38_LOCKDIR is a DRY_RUN test hook" >&2; exit 2
   fi
 
   die() { echo "EXP38 LAUNCH REFUSED: $1" >&2; exit "${2:-2}"; }
@@ -105,9 +105,12 @@ main() {
     exit 0
   fi
 
-  # ---- the exp_38 card lock (shared with exp38_eval.py; held until this script exits) -------
-  exec 9>> "$LOCKFILE" || die "cannot open ${LOCKFILE}" 3
-  flock -n 9 || die "another exp_38 training / evaluation holds ${LOCKFILE}"
+  # ---- the exp_38 per-card locks (shared with exp38_eval.py; held until this script exits) ----
+  lock_card() {   # $1 = card, $2 = fd
+    eval "exec $2>> \"\$LOCKDIR/.exp38_card$1.lock\"" || die "cannot open the card-$1 lock" 3
+    flock -n "$2" || die "another exp_38 training / evaluation holds card $1 (${LOCKDIR}/.exp38_card$1.lock)"
+  }
+  if [ "$MODE" = "SMOKE" ]; then lock_card "$SMOKE_GPU" 8; else lock_card 0 8; lock_card 1 9; fi
 
   # ---- SMOKE (single rank, preliminary) --------------------------------------------------
   if [ "$MODE" = "SMOKE" ]; then

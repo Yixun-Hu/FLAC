@@ -62,7 +62,7 @@ def test_dry_run_prints_the_registered_argv_and_spawns_nothing(run, tmp_path):
     ({"MODE": "DRY_RUN", "RUN": "de_yaw_f025_r8x8"}, "RUN must be a 2x32"),
     ({"MODE": "DRY_RUN", "RUN": "dc_van_f025"}, "RUN must be a 2x32"),
     ({"MODE": "FULL", "RUN": "de_yaw_f025", "RESUME_STEP": "2500"}, "there is no resume"),
-    ({"MODE": "SMOKE", "RUN": "de_yaw_f025", "EXP38_LOCKFILE": "/tmp/x"}, "DRY_RUN test hook"),
+    ({"MODE": "SMOKE", "RUN": "de_yaw_f025", "EXP38_LOCKDIR": "/tmp/x"}, "DRY_RUN test hook"),
     ({"MODE": "DRY_RUN", "RUN": "de_yaw_f025", "GPU_POLICY": "maybe"}, "GPU_POLICY"),
     ({"MODE": "DRY_RUN", "RUN": "de_yaw_f025", "ATTN_BACKEND": "xformers"}, "ATTN_BACKEND"),
 ])
