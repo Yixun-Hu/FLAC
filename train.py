@@ -39,6 +39,15 @@ def _as_bool(value):
         raise ValueError(f"cannot interpret sync_batchnorm={value!r} as a boolean")
     raise TypeError(f"sync_batchnorm must be bool or str, got {type(value).__name__}")
 
+def extra_callbacks(args):
+    """Opt-in callbacks. ``--evidence-json`` (exp_38, default '') adds the observe-only
+    RunEvidenceCallback; absent/empty -> [] so every existing recipe's callback list is unchanged."""
+    path = getattr(args, "evidence_json", "") or ""
+    if not path:
+        return []
+    from src.training.run_evidence import RunEvidenceCallback
+    return [RunEvidenceCallback(path)]
+
 def build_trainer_kwargs(args, strategy, callbacks, logger, checkpoint_dir, val_args):
     """Assemble the pl.Trainer keyword arguments (side-effect free; unit-testable).
 
@@ -221,7 +230,7 @@ def main():
     trainer = construct_trainer(
         args,
         strategy=strategy,
-        callbacks=[ckpt_callback, exc_callback, save_model_config_callback],
+        callbacks=[ckpt_callback, exc_callback, save_model_config_callback] + extra_callbacks(args),
         logger=logger,
         checkpoint_dir=checkpoint_dir,
         val_args=val_args,

@@ -1,0 +1,52 @@
+......F..........................................                        [100%]
+=================================== FAILURES ===================================
+_______________ test_evidence_records_the_first_step_and_unwraps _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6849/test_evidence_records_the_firs0')
+
+    def test_evidence_records_the_first_step_and_unwraps(tmp_path):
+        path = str(tmp_path / "ev" / "run_evidence.json")
+        cb = rev.RunEvidenceCallback(path)
+        w = _Wrapper(sync=True)
+        orig_flash, orig_ckpt, orig_F = T.flash_attn_func, torch.utils.checkpoint.checkpoint, T.F
+        tr = _trainer()
+        cb.on_fit_start(tr, w)
+        w.diffusion.conditioner([1] * 32, "cpu")
+        for _ in range(3):
+            w.diffusion.conditioner([1] * 32, "cpu", only_ids=["source_vit", "context_poses_vit"])
+        T.F.scaled_dot_product_attention(torch.zeros(1, 1, 2, 4), torch.zeros(1, 1, 2, 4), torch.zeros(1, 1, 2, 4))
+        w.layer.train()
+        x = torch.ones(1, 2, requires_grad=True)
+        w.layer(x).sum().backward()                                   # one non-reentrant checkpoint call
+        cb.on_train_batch_end(_trainer(step=0), w, None, (torch.zeros(32, 1, 8), []), 0)   # before step 1: no write
+        assert not os.path.exists(path + ".rank0.json")
+        cb.on_train_batch_end(_trainer(step=1), w, None, (torch.zeros(32, 1, 8), []), 0)
+        ev = json.load(open(path + ".rank0.json"))
+        assert ev["rank"] == 0 and ev["world_size"] == 2 and ev["micro_batch"] == 32
+        assert ev["syncbn_modules"] == 1 and ev["batchnorm_nonsync_modules"] == 0
+>       assert ev["vit_ckpt_wrapped_layers"] == 1
+E       assert 0 == 1
+
+src/tests/test_run_evidence.py:104: AssertionError
+----------------------------- Captured stdout call -----------------------------
+EXP38 RUN EVIDENCE rank 0 written: /tmp/pytest-of-yixunhu/pytest-6849/test_evidence_records_the_firs0/ev/run_evidence.json.rank0.json
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_run_evidence.py::test_evidence_records_the_first_step_and_unwraps
+1 failed, 48 passed, 4 warnings in 6.68s
