@@ -265,6 +265,9 @@ def test_child_env_is_exact(monkeypatch, tmp_path):
 
 @pytest.mark.parametrize("var", sorted(LAUNCHER_ENV) + ["SLURM_PROCID"])
 def test_inherited_launcher_variables_refuse_the_launch(monkeypatch, var):
+    for k in list(os.environ):                     # e.g. PL_GLOBAL_SEED left by an earlier seed_everything
+        if k in sv.reg.LAUNCHER_VARS or k.startswith(sv.reg.LAUNCHER_PREFIXES) or k.startswith("SLURM_"):
+            monkeypatch.delenv(k)
     monkeypatch.setenv("PYTHONNOUSERSITE", "1")
     monkeypatch.setenv(var, "1")
     with pytest.raises(sv.Refused, match="launcher variables"):

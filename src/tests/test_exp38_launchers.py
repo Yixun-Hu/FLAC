@@ -37,7 +37,8 @@ pytestmark = pytest.mark.skipif(not os.path.exists(os.path.join(EXP, "data_effic
 
 
 def _env(**kw):
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("EXP38_", "MODE", "RUN", "RESUME"))}
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("EXP38_", "MODE", "RUN", "RESUME", "SLURM_")
+                                                                       + reg.LAUNCHER_PREFIXES) and k not in reg.LAUNCHER_VARS}
     env["PATH"] = os.path.join(ENV_PREFIX, "bin") + os.pathsep + env.get("PATH", "")
     env.update({k: str(v) for k, v in kw.items()})
     return env
