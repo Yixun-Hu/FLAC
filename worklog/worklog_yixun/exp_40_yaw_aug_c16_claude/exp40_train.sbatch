@@ -155,6 +155,8 @@ else
     --save-root "$SAVE_ROOT" --stamp "$TS" --evidence-dir "$EVDIR" --log "$TRAIN_LOG" \
     --check-json "$CHECK_JSON" --receipts "$RECEIPTS" --train-rc "$TRAIN_RC" \
     --watcher-rc "$WATCH_RC" --out "${LOGBASE}_evidence.json" || FINAL=1
+  # the stable copy of the PILOT's check record: the FULL time request re-derives its env digest
+  cp "$CHECK_JSON" "$RECEIPTS/pilot_check_neuronic_${RUNG}_${SHA}.json" || FINAL=1
   [ "$(find "$SAVE_ROOT/FLAC_exp40_C16/$NS" -name '*.ckpt' 2>/dev/null | wc -l)" = 0 ] || FINAL=1
   [ "$TRAIN_RC" = 0 ] && [ "$WATCH_RC" = 0 ] || FINAL=1
   echo "=== exp_40 C16 neuronic PILOT finished $(date '+%F %T'): $([ $FINAL = 0 ] && echo PASS || echo FAIL) ==="

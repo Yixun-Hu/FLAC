@@ -607,6 +607,81 @@ print(json.dumps(out, sort_keys=True))
 """
 
 
+_ENV_LIGHT_SNIPPET = r"""
+import importlib.metadata as md, json, os, sys
+d = {}
+for n in json.loads(sys.argv[1]):
+    try:
+        d[n] = md.version(n)
+    except Exception:
+        d[n] = None
+print(json.dumps({"python": sys.version.split()[0], "executable": os.path.realpath(sys.executable), "dists": d}))
+"""
+ENV_LIGHT_DISTS = ("torch", "torchaudio", "pytorch-lightning", "transformers", "flash-attn", "numpy",
+                   "ema-pytorch", "prefigure", "safetensors", "huggingface-hub", "einops", "wandb", "torchvision")
+
+
+def measure_environment_light(python):
+    """Interpreter + distribution versions WITHOUT importing torch / CUDA (a Slurm login node
+    may have no GPU driver): the host-independent part of the environment digest."""
+    rc, out, err = run([python, "-I", "-c", _ENV_LIGHT_SNIPPET, json.dumps(list(ENV_LIGHT_DISTS))])
+    if rc != 0:
+        raise Refused(f"light environment probe failed: {err.strip()[-300:]}")
+    return json.loads(out.strip().splitlines()[-1])
+
+
+def neuronic_time_reasons(receipt_path, pilot_check_path, expect_sha, rung, run_id, tree, links, repo=None,
+                          python=None):
+    """code-r3 H3: the PILOT receipt used for the FULL time request is validated against
+    INDEPENDENTLY supplied identity -- the selected rung and RUN_ID, the prospective FULL run
+    tree (verified, its digest recomputed from git + links), the PILOT's own bound check record
+    (its environment digest re-derived) and the interpreter / distribution versions measured
+    now -- before anything is submitted. Returns (reasons, record)."""
+    repo = repo or ROOT
+    try:
+        rec = read_json(receipt_path)
+        chk = read_json(pilot_check_path)
+    except (OSError, ValueError) as err:
+        return [f"PILOT receipt / check record unreadable ({err})"], None
+    r = []
+    if not isinstance(rec, dict) or not isinstance(chk, dict):
+        return ["PILOT receipt / check record are not objects"], None
+    if rec.get("rung") != rung:
+        r.append(f"the PILOT ran rung {rec.get('rung')!r}, the FULL selects {rung!r}")
+    pid = rec.get("run_id")
+    if not (isinstance(pid, str) and (run_id == pid or re.fullmatch(re.escape(pid) + r"_r[1-9][0-9]?", run_id))):
+        r.append(f"the FULL RUN_ID {run_id!r} is not the PILOT's {pid!r} (or its _r<n> rerun)")
+    if RUN_ID_RE.match(run_id or "") is None or not run_id.startswith(f"exp40_C16_neuronic_{rung}"):
+        r.append(f"RUN_ID {run_id!r} is not a neuronic {rung} RUN_ID")
+    try:
+        vr = verify_runtree(repo, expect_sha, tree, links)
+    except Refused as err:
+        vr = [str(err)]
+    r += [f"prospective FULL run tree: {x}" for x in vr]
+    tree_dig = tree_digest(repo, expect_sha, links) if not vr else None
+    if sha256_file(pilot_check_path) != rec.get("check_sha256"):
+        r.append("the PILOT check record is not the one the receipt is bound to")
+    if chk.get("sha") != expect_sha or chk.get("verdict") != "PASS":
+        r.append("the PILOT check record is not a PASS at EXPECT_SHA")
+    if tree_dig is not None and chk.get("tree_digest") != tree_dig:
+        r.append("the prospective FULL run tree's digest differs from the PILOT's")
+    envm = chk.get("environment")
+    if not isinstance(envm, dict) or environment_digest(envm, chk.get("driver_version")) != chk.get("env_digest"):
+        r.append("the PILOT check record's environment does not re-derive its env digest")
+    else:
+        now = measure_environment_light(python or PLATFORMS["neuronic"]["python"])
+        for key in ("python", "executable"):
+            if now[key] != envm.get(key):
+                r.append(f"environment {key} now {now[key]!r} != the PILOT's {envm.get(key)!r}")
+        for dname, v in now["dists"].items():
+            if (envm.get("dists") or {}).get(dname) != v:
+                r.append(f"distribution {dname} now {v!r} != the PILOT's {(envm.get('dists') or {}).get(dname)!r}")
+    if not r:
+        r += receipt_reasons(rec, "pilot", "neuronic", rung, expect_sha, tree_dig, chk.get("env_digest"),
+                             recipe_projection(train_argv("neuronic", rung, "FULL", run_id, "/save-root")))
+    return r, (rec if not r else None)
+
+
 def measure_environment(tree, python, env):
     rc, out, err = run([python, "-c", _ENV_SNIPPET], cwd=tree, env=env)
     if rc != 0:
@@ -755,6 +830,22 @@ def hf_env(sealed):
             "TRANSFORMERS_OFFLINE": "1"}
 
 
+def sealed_env(sealed, base):
+    """``base`` with every competing HF / transformers cache variable removed and the sealed
+    hub + offline flags set (code-r3 B1)."""
+    e = {k: v for k, v in base.items() if not k.startswith(("HF_", "TRANSFORMERS_", "HUGGINGFACE_"))}
+    e.update(hf_env(sealed))
+    e["PYTHONDONTWRITEBYTECODE"] = "1"
+    e.pop("PYTHONPATH", None)
+    return e
+
+
+def dino_resolved_paths():
+    """Where THIS process's huggingface_hub resolves the pinned DINOv3 files."""
+    from huggingface_hub import try_to_load_from_cache as t
+    return [t(DINO_REPO_ID, "model.safetensors"), t(DINO_REPO_ID, "config.json")]
+
+
 _HF_RESOLVE = ("import os,json;from huggingface_hub import try_to_load_from_cache as t;"
                f"print(json.dumps([t({DINO_REPO_ID!r},'model.safetensors'),t({DINO_REPO_ID!r},'config.json')]))")
 
@@ -833,6 +924,7 @@ NUMERICS_KEYS = frozenset(("matmul_allow_tf32", "cudnn_allow_tf32", "cudnn_bench
 SUMMARY_KEYS = frozenset((
     "rank", "counts", "offset_digest", "all_losses_finite", "offset_histogram", "n_offsets", "n_steps",
     "steps_contiguous_from_0", "sampled_offsets", "sampled_losses", "global_step", "pid"))
+RNG_KEYS = frozenset(("python", "numpy", "torch_cpu", "torch_cuda", "sobol"))     # the GPU producer's set
 COUNT_KEYS = frozenset(("flash_calls", "ckpt_dinov3", "ckpt_dit", "ckpt_unclassified", "ckpt_reentrant",
                         "ckpt_default", "apply_yaw_aug", "training_step", "checkpoints_published"))
 
@@ -868,7 +960,9 @@ def nested_evidence_reasons(fits, sums, platform, rung, mode):
                             ("global_step", _int(f["global_step"]) and f["global_step"] == 0),
                             ("state_signature", _is_sha(f["state_signature"])),
                             ("param_signature", _is_sha(f["param_signature"])),
-                            ("rng_signature", isinstance(f["rng_signature"], dict) and bool(f["rng_signature"])),
+                            ("rng_signature", isinstance(f["rng_signature"], dict)
+                             and set(f["rng_signature"]) == RNG_KEYS
+                             and all(_is_sha(v) for v in f["rng_signature"].values())),
                             ("numerics", isinstance(f["numerics"], dict) and set(f["numerics"]) == NUMERICS_KEYS
                              and all(type(f["numerics"][x]) is bool for x in NUMERICS_KEYS - {"float32_matmul_precision"})
                              and isinstance(f["numerics"]["float32_matmul_precision"], str))):
@@ -900,7 +994,7 @@ def nested_evidence_reasons(fits, sums, platform, rung, mode):
             r.append(f"rank {k}: not {steps} contiguous steps")
         h = s_["offset_histogram"]
         if not (_int(s_["n_offsets"]) and s_["n_offsets"] == steps * micro and isinstance(h, list)
-                and len(h) == 16 and all(_int(x) for x in h) and sum(h) == s_["n_offsets"]):
+                and len(h) == 16 and all(_int(x) and x >= 0 for x in h) and sum(h) == s_["n_offsets"]):
             r.append(f"rank {k}: offset count / 16-bin histogram inconsistent ({s_['n_offsets']!r})")
         if not _is_sha(s_["offset_digest"]):
             r.append(f"rank {k}: offset_digest is not a sha256")
@@ -934,7 +1028,7 @@ def receipt_reasons(rec, kind, platform, rung, sha, tree_dig, env_dig, full_proj
     mode = {"ddp_smoke": "DDP_SMOKE", "pilot": "PILOT"}.get(kind)
     if mode is None:
         return [f"receipt kind {kind!r} is not ddp_smoke / pilot"]
-    want_keys = EVIDENCE_KEYS | ({"sec_per_step"} if kind == "pilot" else set())
+    want_keys = EVIDENCE_KEYS | ({"sec_per_step", "pilot_window"} if kind == "pilot" else set())
     if not isinstance(rec, dict) or set(rec) != want_keys:
         got = sorted(rec) if isinstance(rec, dict) else type(rec).__name__
         return [f"{kind} receipt keys {got} != the exact schema"]
@@ -965,10 +1059,34 @@ def receipt_reasons(rec, kind, platform, rung, sha, tree_dig, env_dig, full_proj
     reasons += [f"{kind} receipt: {x}" for x in nested_evidence_reasons(rec["fit_start"], rec["summaries"],
                                                                        platform, rung, mode)]
     if kind == "pilot":
-        v = rec["sec_per_step"]
+        v, w = rec["sec_per_step"], rec["pilot_window"]
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
             reasons.append(f"pilot receipt sec_per_step {v!r} is not a finite positive rate")
+        elif not (isinstance(w, dict) and set(w) == {"rank", "steps", "t"} and w["rank"] == 0
+                  and w["steps"] == [PILOT_WINDOW[0], PILOT_WINDOW[1] - 1] and isinstance(w["t"], list)
+                  and len(w["t"]) == 2 and all(isinstance(x, (int, float)) and not isinstance(x, bool)
+                                               and math.isfinite(x) for x in w["t"]) and w["t"][1] > w["t"][0]):
+            reasons.append(f"pilot receipt timing window {w!r} is not rank 0's steps "
+                           f"{PILOT_WINDOW[0]}..{PILOT_WINDOW[1] - 1} wall times")
+        else:
+            derived = (w["t"][1] - w["t"][0]) / (w["steps"][1] - w["steps"][0])
+            if abs(derived - v) > 1e-9 * max(1.0, abs(derived)):
+                reasons.append(f"pilot receipt sec_per_step {v!r} != {derived!r} derived from its timing window")
     return reasons
+
+
+def receipt_stream_reasons(rec, tree, mode, rung):
+    """code-r3 H1: a DDP_SMOKE / PILOT receipt's per-rank offset digest, histogram, count and
+    sampled offsets must equal the counter-based C16 stream recomputed in ``tree``."""
+    world, micro = world_of(mode, rung), RUNGS[rung][1]
+    expected = expected_stream(tree, SMOKE_STEPS[mode], range(world), micro, verbatim=False)
+    r = []
+    for k in range(world):
+        s_, e = (rec.get("summaries") or {}).get(str(k)) or {}, expected[k]
+        if s_.get("offset_digest") != e["digest"] or s_.get("offset_histogram") != e["hist"] \
+                or s_.get("n_offsets") != e["n"] or s_.get("sampled_offsets") != e["sampled"]:
+            r.append(f"{mode} receipt rank {k}: the offset stream != the counter-based C16 recomputation")
+    return r
 
 
 # --------------------------------------------------------------------------- #
@@ -1030,6 +1148,7 @@ def check(platform, rung, mode, run_id, sha, repo, tree, links, save_root, stamp
     reasons += environment_reasons(platform, measured, tree, env)
     reasons += driver_reasons(platform, env.get("EXP40_DRIVER_VERSION"))
     info["env_digest"] = environment_digest(measured, env.get("EXP40_DRIVER_VERSION"))
+    info["driver_version"] = env.get("EXP40_DRIVER_VERSION")        # code-r3 H3: re-derivable digest
     reasons += config_contract_reasons(tree, PLATFORMS[platform]["python"])
     argv = train_argv(platform, rung, mode, run_id, save_root, stamp)
     info["argv"] = argv
@@ -1053,8 +1172,11 @@ def check(platform, rung, mode, run_id, sha, repo, tree, links, save_root, stamp
         except (OSError, ValueError) as err:
             reasons.append(f"no readable {kind} receipt {path} ({err})")
         else:
-            reasons += receipt_reasons(rec, kind, platform, rung, sha, info["tree_digest"],
-                                       info["env_digest"], recipe_projection(argv))
+            rr_ = receipt_reasons(rec, kind, platform, rung, sha, info["tree_digest"],
+                                  info["env_digest"], recipe_projection(argv))
+            reasons += rr_
+            if not rr_:
+                reasons += receipt_stream_reasons(rec, tree, "DDP_SMOKE" if kind == "ddp_smoke" else "PILOT", rung)
             info["receipt_sha256"] = sha256_file(path)
     return reasons, info
 
@@ -1959,8 +2081,11 @@ def full_evidence_reasons(path, run_id, check_path=None, reference_path=None, re
         else:
             if ref_sha != rec["reference_sha256"]:
                 r.append("the reference receipt is not the one this evidence is bound to")
-            r += receipt_reasons(ref, kind, platform, rung, rec["sha"], rec["tree_digest"],
-                                 rec["env_digest"], rec["recipe_projection"])
+            rref = receipt_reasons(ref, kind, platform, rung, rec["sha"], rec["tree_digest"],
+                                   rec["env_digest"], rec["recipe_projection"])
+            r += rref
+            if recompute and not rref:
+                r += receipt_stream_reasons(ref, tree or ROOT, "DDP_SMOKE" if kind == "ddp_smoke" else "PILOT", rung)
             ref_fits = ref.get("fit_start") if isinstance(ref, dict) and isinstance(ref.get("fit_start"), dict) else {}
             for k in ranks:
                 mine = fits[k] if isinstance(fits[k], dict) else {}
@@ -2072,6 +2197,43 @@ def resolve_run_result(path, receipts_dir):
     return rr, out
 
 
+CURRENT_ASSET_KEYS = frozenset(("acousticrooms_manifest_digest", "dinov3_revision", "dinov3_config_sha256",
+                                "dinov3_weights_sha256", "vae_sha256", "hf_sealed_hub", "dinov3_resolved"))
+
+
+def current_assets(hf_sealed, resolved, tree=None):
+    """The admission's asset identities (code-r3 B1/M2): the committed AR manifest, the pinned
+    DINOv3 / VAE bytes, and the sealed hub the strict load actually resolved DINOv3 from."""
+    man = read_json(os.path.join(tree or ROOT, AR_MANIFEST))
+    return {"acousticrooms_manifest_digest": man["digest"], "dinov3_revision": DINO_REVISION,
+            "dinov3_config_sha256": DINO_CONFIG_SHA256, "dinov3_weights_sha256": DINO_SHA256,
+            "vae_sha256": PINS[VAE], "hf_sealed_hub": os.path.realpath(hf_sealed),
+            "dinov3_resolved": [os.path.realpath(x) for x in resolved]}
+
+
+def current_assets_reasons(ca):
+    if not isinstance(ca, dict) or set(ca) != CURRENT_ASSET_KEYS:
+        return [f"current_assets keys {sorted(ca) if isinstance(ca, dict) else ca!r} != {sorted(CURRENT_ASSET_KEYS)}"]
+    r = []
+    try:
+        man_digest = read_json(os.path.join(ROOT, AR_MANIFEST))["digest"]
+    except (OSError, ValueError, KeyError):
+        man_digest = None
+    for key, want in (("acousticrooms_manifest_digest", man_digest), ("dinov3_revision", DINO_REVISION),
+                      ("dinov3_config_sha256", DINO_CONFIG_SHA256), ("dinov3_weights_sha256", DINO_SHA256),
+                      ("vae_sha256", PINS[VAE])):
+        if want is None or ca[key] != want:
+            r.append(f"current_assets {key} = {ca[key]!r}, not the pinned {want!r}")
+    hub = ca["hf_sealed_hub"]
+    if not (isinstance(hub, str) and os.path.isabs(hub)):
+        r.append(f"current_assets hf_sealed_hub {hub!r} is not an absolute path")
+    elif not (isinstance(ca["dinov3_resolved"], list) and len(ca["dinov3_resolved"]) == 2 and all(
+            isinstance(x, str) and x.startswith(os.path.join(hub, "hub", DINO_REPO_DIR, "snapshots", DINO_REVISION) + os.sep)
+            for x in ca["dinov3_resolved"])):
+        r.append(f"current_assets dinov3_resolved {ca['dinov3_resolved']!r} is not the pinned snapshot in {hub}")
+    return r
+
+
 def build_admission_tree(repo, sha, check_rec, ev, dest_parent):
     """code-r2 H2: an IMMUTABLE tree at the training commit for admission. The commit's archive
     plus the TRAINING-time links (from the bound check record) must reproduce the evidence's
@@ -2092,10 +2254,38 @@ def build_admission_tree(repo, sha, check_rec, ev, dest_parent):
     return dest
 
 
-def admission_state(ckpt_path, expected_dirpath, tree=None, strict_load=True):
+def admission_state(ckpt_path, expected_dirpath, tree=None, strict_load=True, hf_sealed=None):
     """The 40k checkpoint's full state interpreted by THIS kit's tree (run inside the
-    admission tree by admission_state_subprocess)."""
+    admission tree by admission_state_subprocess), with DINOv3 resolved ONLY from the sealed
+    hub (code-r3 B1): the process environment must name exactly that hub, offline."""
     tree = tree or ROOT
+    pre = []
+    if hf_sealed is None:
+        pre.append("admission-state needs the sealed HF hub")
+    else:
+        for k, v in hf_env(hf_sealed).items():
+            if os.environ.get(k) != v:
+                pre.append(f"{k} is {os.environ.get(k)!r}, not {v!r} (the sealed hub)")
+        stray = sorted(k for k in os.environ if k.startswith(("HF_", "TRANSFORMERS_", "HUGGINGFACE_"))
+                       and k not in hf_env(hf_sealed))
+        if stray:
+            pre.append(f"competing HF variables are set: {stray}")
+    hub = os.path.realpath(os.path.join(hf_sealed, "hub")) + os.sep if hf_sealed else None
+    resolved = dino_resolved_paths() if hub else []
+    if hub and not all(isinstance(x, str) and os.path.realpath(x).startswith(hub) for x in resolved):
+        pre.append(f"DINOv3 resolves to {resolved}, outside the sealed hub {hub}")
+    if pre:
+        return {"sha256": None, "bytes": None, "reasons": pre, "global_step": None,
+                "embedded_config_sha256": None, "ema_inventory_sha256": None, "strict_load": strict_load,
+                "tree": os.path.realpath(tree), "hf_sealed": hf_sealed, "dino_resolved": resolved}
+    st = checkpoint_admission_state(ckpt_path, expected_dirpath, tree, strict_load)
+    st.update(hf_sealed=os.path.realpath(hf_sealed), dino_resolved=[os.path.realpath(x) for x in resolved])
+    return st
+
+
+def checkpoint_admission_state(ckpt_path, expected_dirpath, tree, strict_load=True):
+    """One read of the checkpoint; its full state against ``tree``'s arm config and (strict)
+    a wrapper built from ``tree``'s own source."""
     sha, nbytes, ck = load_checkpoint_once(ckpt_path)
     with open(os.path.join(tree, ARM_CONFIG)) as f:
         arm_cfg = json.load(f)
@@ -2108,14 +2298,17 @@ def admission_state(ckpt_path, expected_dirpath, tree=None, strict_load=True):
             "strict_load": strict_load, "tree": os.path.realpath(tree)}
 
 
-def admission_state_subprocess(tree, ckpt_path, expected_dirpath, strict_load=True, python=None):
+def admission_state_subprocess(tree, ckpt_path, expected_dirpath, strict_load=True, python=None,
+                               hf_sealed=None):
     """Run ``admission-state`` with the admission tree's OWN kit, cwd = that tree, no bytecode:
     the arm config and the strict-load wrapper come from the training commit, never from the
     live checkout (code-r2 H2)."""
+    if hf_sealed is None:
+        raise Refused("admission-state needs the sealed HF hub")
     cmd = [python or sys.executable, "-B", os.path.join(tree, EXPREL, "exp40_kit.py"), "admission-state",
-           "--ckpt", ckpt_path, "--expected-dirpath", expected_dirpath] + ([] if strict_load else ["--no-strict"])
-    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
-    env.pop("PYTHONPATH", None)
+           "--ckpt", ckpt_path, "--expected-dirpath", expected_dirpath, "--hf-sealed", hf_sealed] \
+        + ([] if strict_load else ["--no-strict"])
+    env = sealed_env(hf_sealed, os.environ)                    # code-r3 B1: ONLY the sealed hub
     rc, out, err = run(cmd, cwd=tree, env=env)
     if rc != 0:
         raise Refused(f"admission-state in {tree} failed (rc {rc}): {(err or out).strip()[-600:]}")
@@ -2132,7 +2325,8 @@ HISTORICAL = {"exp17_acousticrooms_snapshot": "unknown", "exp17_dinov3_revision_
 
 
 def admit(run_result_path, receipts_dir, repo, note="", strict_load=True, nas_root=NAS_ROOT,
-          tree_parent=None, tree_builder=build_admission_tree, state_fn=admission_state_subprocess):
+          tree_parent=None, tree_builder=build_admission_tree, state_fn=admission_state_subprocess,
+          hf_sealed=None):
     """Admission (plan §4.6; code-r1 B6, code-r2 H2): every identity field is DERIVED from
     validated records -- the run result, the strict FULL evidence (bound to its check record
     and its DDP_SMOKE / PILOT reference), the audit bound to that evidence; all 16 NAS
@@ -2141,6 +2335,11 @@ def admit(run_result_path, receipts_dir, repo, note="", strict_load=True, nas_ro
     evidence's run-tree digest. The only caller input is a free-text note."""
     if not isinstance(note, str):
         raise Refused("the admission note must be a string")
+    if not hf_sealed:                                        # code-r3 B1
+        raise Refused("admission needs --hf-sealed (the verified read-only DINOv3 hub)")
+    hf_r = hf_sealed_reasons(hf_sealed) + hf_resolution_reasons(hf_sealed, sys.executable, dict(os.environ))
+    if hf_r:
+        raise Refused("sealed HF hub: " + "; ".join(hf_r))
     rr, files = resolve_run_result(run_result_path, receipts_dir)
     run_id = rr["run_id"]
     r, ev_sha, ev = full_evidence_reasons(files["evidence"], run_id, files["check"], files["reference"])
@@ -2165,15 +2364,18 @@ def admit(run_result_path, receipts_dir, repo, note="", strict_load=True, nas_ro
     if reasons:
         raise Refused("; ".join(reasons))
     final = ckpt_name(ENDPOINT)
-    st = state_fn(tree, os.path.join(nas_dir, final), rr["expected_dirpath"], strict_load=strict_load)
+    st = state_fn(tree, os.path.join(nas_dir, final), rr["expected_dirpath"], strict_load=strict_load,
+                  hf_sealed=hf_sealed)
+    if st["reasons"]:
+        raise Refused("; ".join(st["reasons"]))
     if st["sha256"] != shas[final]:
         raise Refused(f"{final} sha256 {st['sha256']} != the audited one")
     if st["reasons"]:
         raise Refused("; ".join(st["reasons"]))
-    man = os.path.join(tree, AR_MANIFEST)
-    current = {"acousticrooms_manifest_digest": read_json(man)["digest"] if os.path.exists(man) else None,
-               "dinov3_revision": DINO_REVISION, "dinov3_config_sha256": DINO_CONFIG_SHA256,
-               "dinov3_weights_sha256": DINO_SHA256, "vae_sha256": PINS[VAE]}
+    current = current_assets(hf_sealed, st["dino_resolved"], tree)
+    ca_r = current_assets_reasons(current)
+    if ca_r:
+        raise Refused("admission assets: " + "; ".join(ca_r))
     return {"kind": "exp40_admission", "admitted": True, "arm": "C16", "run_id": run_id,
             "platform": rr["platform"], "rung": rr["rung"], "train_sha": ev["sha"],
             "runtree_digest": ev["tree_digest"], "env_digest": ev["env_digest"], "nas_dir": nas_dir,
@@ -2196,6 +2398,7 @@ def ckpt_name(step):
 EXPECTED_CKPTS = tuple(ckpt_name(s) for s in CKPT_STEPS)
 _HEX64 = re.compile(r"[0-9a-f]{64}")
 _HEX40 = re.compile(r"[0-9a-f]{40}")
+CLOCK_SKEW_S = 300
 ADMISSION_KEYS = frozenset((
     "kind", "admitted", "arm", "run_id", "platform", "rung", "train_sha", "runtree_digest",
     "env_digest", "nas_dir", "checkpoints", "manifest_sha256", "ckpt_path", "sha256", "bytes",
@@ -2247,10 +2450,11 @@ def admission_reasons(path, nas_root=NAS_ROOT, rehash="final"):
          "model_config is not the pinned C16 arm config")
     need(rec["strict_load"] is True, "admission without a strict load")
     need(rec["trajectory_equivalence_claim_allowed"] is False, "trajectory claim must be False")
-    need(isinstance(rec["historical"], dict) and isinstance(rec["current_assets"], dict),
-         "historical/current_assets must be objects")
+    need(rec["historical"] == HISTORICAL, "historical is not the fixed exp_17 provenance record")
+    r += current_assets_reasons(rec["current_assets"])
     need(isinstance(rec["note"], str), "note must be a string")
-    need(isinstance(rec["t"], (int, float)) and not isinstance(rec["t"], bool), "t must be a number")
+    need(isinstance(rec["t"], (int, float)) and not isinstance(rec["t"], bool) and math.isfinite(rec["t"])
+         and 0 < rec["t"] <= time.time() + CLOCK_SKEW_S, "admission time t is not a finite, non-future time")
     if r or rehash is None:
         return r, (rec if not r else None), file_sha
     if rehash == "all":
@@ -2536,6 +2740,29 @@ def probe_task(d, rank, host, rounds=PROBE_ROUNDS, world=2, timeout_s=120.0):
     return rec
 
 
+def probe_preflight_reasons(repo, sha, tree, script_self, script_sha256):
+    """code-r3 H2: the probe job runs from an IMMUTABLE tree at EXPECT_SHA, and the script Slurm
+    actually executes (its spooled copy) is byte-identical to that tree's committed probe script
+    and to the digest recorded at submission -- so queued checkout drift cannot change what the
+    receipt claims to have run."""
+    if not _is_sha(sha, 40):
+        return [f"EXPECT_SHA {sha!r} is not a 40-hex commit"]
+    try:
+        links = read_json(os.path.join(tree, RUNTREE_MANIFEST))["links"]
+    except (OSError, ValueError, KeyError, TypeError) as err:
+        return [f"the probe tree {tree} carries no readable run-tree manifest ({err})"]
+    try:
+        r = [f"probe tree: {x}" for x in verify_runtree(repo, sha, tree, links)]
+    except Refused as err:
+        r = [f"probe tree: {err}"]
+    committed = os.path.join(tree, EXPREL, "exp40_claim_probe.sbatch")
+    got = sha256_file(script_self) if os.path.isfile(script_self) else None
+    if got is None or got != script_sha256 or not os.path.isfile(committed) or sha256_file(committed) != got:
+        r.append(f"the executed probe script {script_self} ({got}) is not the tree's committed one "
+                 f"recorded at submission ({script_sha256})")
+    return r
+
+
 def probe_verdict(d, control_dir, job_id, script, source_sha, srun_rc):
     reasons = []
     try:
@@ -2779,7 +3006,8 @@ def main(argv=None):
     e.add_argument("--reference"); e.add_argument("--publisher-rc", type=int, default=0)
     t = sub.add_parser("neuronic-time"); t.add_argument("--receipt")
     t.add_argument("--maxtime-raw", required=True); t.add_argument("--mode", required=True)
-    t.add_argument("--expect-sha")
+    t.add_argument("--expect-sha"); t.add_argument("--rung"); t.add_argument("--run-id")
+    t.add_argument("--tree"); t.add_argument("--link", action="append"); t.add_argument("--pilot-check")
     ps = sub.add_parser("publish-saved"); ps.add_argument("--path", required=True)
     ps.add_argument("--run-id", required=True); ps.add_argument("--dest-root", required=True)
     np_ = sub.add_parser("nas-probe"); np_.add_argument("--dest-root", default=NAS_ROOT)
@@ -2801,8 +3029,10 @@ def main(argv=None):
     rr_.add_argument("--runtree", required=True); rr_.add_argument("--out", required=True)
     st_ = sub.add_parser("admission-state"); st_.add_argument("--ckpt", required=True)
     st_.add_argument("--expected-dirpath", required=True); st_.add_argument("--no-strict", action="store_true")
+    st_.add_argument("--hf-sealed", required=True)
     d = sub.add_parser("admit"); d.add_argument("--run-result", required=True)
     d.add_argument("--receipts-dir", required=True); d.add_argument("--note", default="")
+    d.add_argument("--hf-sealed", required=True)
     d.add_argument("--out", required=True)
     m = sub.add_parser("ar-manifest"); m.add_argument("--ar-root", required=True)
     m.add_argument("--split", action="append", required=True); m.add_argument("--out", required=True)
@@ -2824,6 +3054,9 @@ def main(argv=None):
     pt = sub.add_parser("probe-task"); pt.add_argument("--dir", required=True)
     pv = sub.add_parser("probe-verdict"); pv.add_argument("--dir", required=True)
     pv.add_argument("--job-id", required=True)
+    pp = sub.add_parser("probe-preflight"); pp.add_argument("--repo", required=True)
+    pp.add_argument("--sha", required=True); pp.add_argument("--tree", required=True)
+    pp.add_argument("--script-self", required=True); pp.add_argument("--script-sha256", required=True)
     pv.add_argument("--script", required=True); pv.add_argument("--source-sha", required=True)
     pv.add_argument("--srun-rc", type=int, required=True)
     hs = sub.add_parser("build-hf-sealed"); hs.add_argument("--src-hub", required=True)
@@ -2924,6 +3157,9 @@ def main(argv=None):
                    "summaries": summaries}
             if args.mode == "PILOT" and not reasons:
                 rec["sec_per_step"] = pilot_rate(recs)
+                t = {x["step"]: x["t"] for x in recs.get(0, []) if x.get("kind") in ("offsets", "tick") and "t" in x}
+                a, b = PILOT_WINDOW[0], PILOT_WINDOW[1] - 1
+                rec["pilot_window"] = {"rank": 0, "steps": [a, b], "t": [t[a], t[b]]}     # code-r3 H1
             atomic_write_json(args.out, rec)
             if rec["verdict"] == "PASS" and args.mode in ("DDP_SMOKE", "PILOT"):
                 os.makedirs(args.receipts, exist_ok=True)
@@ -2949,14 +3185,9 @@ def main(argv=None):
                     raise Refused(f"the PILOT needs {PILOT_TIME_MIN} min > MaxTime {maxtime} min")
                 print(PILOT_TIME_MIN)
                 return 0
-            rec = read_json(args.receipt)
-            rung = rec.get("rung") if isinstance(rec, dict) else None
-            if rung not in RUNGS or not isinstance(rec.get("run_id"), str) or not RUN_ID_RE.match(rec["run_id"]):
-                raise Refused(f"{args.receipt} is not an exp_40 PILOT receipt")
-            r = receipt_reasons(rec, "pilot", "neuronic", rung, args.expect_sha, rec.get("tree_digest"),
-                                rec.get("env_digest"),
-                                recipe_projection(train_argv("neuronic", rung, "FULL", rec["run_id"], "/save-root")))
-            if r:                                    # code-r2 B3: the exact receipt before timing use
+            r, rec = neuronic_time_reasons(args.receipt, args.pilot_check, args.expect_sha, args.rung,
+                                           args.run_id, args.tree, _links_from(args))
+            if r:                                    # code-r3 H3: independent identity, pre-submission
                 raise Refused(f"{args.receipt}: " + "; ".join(r))
             print(full_time_request(float(rec["sec_per_step"]), maxtime))
             return 0
@@ -2999,13 +3230,13 @@ def main(argv=None):
             print(f"RUN RESULT {rec['verdict']} -> {args.out}")
             return 0
         if args.cmd == "admission-state":
-            print(json.dumps(admission_state(args.ckpt, args.expected_dirpath, strict_load=not args.no_strict),
-                             sort_keys=True))
+            print(json.dumps(admission_state(args.ckpt, args.expected_dirpath, strict_load=not args.no_strict,
+                                             hf_sealed=args.hf_sealed), sort_keys=True))
             return 0
         if args.cmd == "admit":
             if os.path.lexists(args.out):
                 raise Refused(f"{args.out} exists; an admission record is written once")
-            rec = admit(args.run_result, args.receipts_dir, ROOT, note=args.note)
+            rec = admit(args.run_result, args.receipts_dir, ROOT, note=args.note, hf_sealed=args.hf_sealed)
             tmp = f"{args.out}.candidate-{os.getpid()}"
             atomic_write_json(tmp, rec)
             reasons, _, _ = admission_reasons(tmp, rehash="all")
@@ -3037,6 +3268,12 @@ def main(argv=None):
             rec = probe_task(args.dir, int(os.environ["SLURM_PROCID"]), os.uname().nodename)
             print(json.dumps(rec, sort_keys=True))
             return 0 if rec["barrier_ok"] else 1
+        if args.cmd == "probe-preflight":
+            r = probe_preflight_reasons(args.repo, args.sha, args.tree, args.script_self, args.script_sha256)
+            for x in r:
+                print(f"REFUSED: {x}")
+            print(f"PROBE PREFLIGHT {'PASS' if not r else 'REFUSED'}")
+            return 0 if not r else 2
         if args.cmd == "probe-verdict":
             rec = probe_verdict(args.dir, ALLOWED_CONTROL, args.job_id, args.script, args.source_sha,
                                 args.srun_rc)

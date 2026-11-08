@@ -8,30 +8,31 @@
 #SBATCH --time=00:15:00
 #SBATCH --job-name=exp40-claim-probe
 # ============================================================================
-# exp40_claim_probe.sbatch -- plan §14 B1 / code-r1 B3: two tasks on two DIFFERENT nodes race
-# an O_CREAT|O_EXCL create of the same claim path inside the ONE neuronic control directory's
-# claims/ (the directory the training jobs claim in), 20 rounds, each round fenced by a file
-# barrier before and after the race. Each task records its own view of the mount (findmnt
-# SOURCE/FSTYPE + st_dev). The verdict is written atomically (fsync'd) by exp40_kit.py
-# probe-verdict to <control>/receipts/claim_probe.json and holds the hosts, the 20 per-round
-# winners, the job id, the sha256 of THIS committed script, the source commit, the tested
-# directory and the time; the submitter validates every field (probe_receipt_reasons) and
-# its age (<= 14 d) before any FULL; it is bound to the source commit it ran from, so run it
-# from the clean checkout at the FULL's EXPECT_SHA. CPU only. Submit from that checkout:
-#   sbatch --output=<repo>/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/slurm_claim_probe_%j.out \
-#          worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/exp40_claim_probe.sbatch
-# Written by the exp_40 Coder seat (Claude Opus 5.5) per plan §14 B1 and code review 1 B3.
+# exp40_claim_probe.sbatch -- plan §14 B1 / code-r1 B3 / code-r2 B2 / code-r3 H2: two tasks on two
+# DIFFERENT nodes race an O_CREAT|O_EXCL create of the same claim path inside THE neuronic control
+# directory's claims/ (where the training jobs claim), 20 rounds, each fenced by a file barrier
+# before and after the race; each task records its own view of the mount. Submitted ONLY by
+# exp40_submit_claim_probe.sh, which builds an IMMUTABLE run tree at EXPECT_SHA and records the
+# sha256 of this script: the job refuses unless the script Slurm actually runs (its spooled
+# copy, "$0") is byte-identical to the tree's committed one and the tree verifies against git, and
+# it runs the TREE's kit -- so a checkout that moves while the job is queued cannot change what
+# the receipt claims. The verdict (atomic, fsync'd) goes to <control>/receipts/claim_probe.json.
+# Written by the exp_40 Coder seat (Claude Opus 5.5) per plan §14 B1 and code reviews 1-3.
 # ============================================================================
 set -uo pipefail
-REPO="${SLURM_SUBMIT_DIR:?}"
+die() { echo "REFUSED: $*"; exit 2; }
+for v in EXP40_PROBE_TREE EXP40_EXPECT_SHA EXP40_PROBE_SCRIPT_SHA256 EXP40_REPO; do
+  [ -n "${!v:-}" ] || die "$v must be exported by exp40_submit_claim_probe.sh"
+done
 EXPREL="worklog/worklog_yixun/exp_40_yaw_aug_c16_claude"
 PY="/n/fs/gatrdp/envs/flac/bin/python"
 CONTROL="/n/fs/gatrdp/exp40_control"            # THE control directory (fixed; code-r2 B1)
-KIT="$REPO/$EXPREL/exp40_kit.py"
-SCRIPT="$REPO/$EXPREL/exp40_claim_probe.sbatch"      # the committed copy (Slurm runs a spooled one)
+TREE="$EXP40_PROBE_TREE"; KIT="$TREE/$EXPREL/exp40_kit.py"
+"$PY" -B "$KIT" probe-preflight --repo "$EXP40_REPO" --sha "$EXP40_EXPECT_SHA" --tree "$TREE" \
+  --script-self "$0" --script-sha256 "$EXP40_PROBE_SCRIPT_SHA256" || die "probe preflight refused"
 DIR="$CONTROL/claims/probe_${SLURM_JOB_ID}"
-mkdir -p "$DIR" "$CONTROL/receipts" || { echo "REFUSED: cannot create $DIR"; exit 2; }
-srun --ntasks=2 --ntasks-per-node=1 --kill-on-bad-exit=1 "$PY" "$KIT" probe-task --dir "$DIR"
+mkdir -p "$DIR" "$CONTROL/receipts" || die "cannot create $DIR"
+srun --ntasks=2 --ntasks-per-node=1 --kill-on-bad-exit=1 "$PY" -B "$KIT" probe-task --dir "$DIR"
 SRUN_RC=$?
-"$PY" "$KIT" probe-verdict --dir "$DIR" --job-id "$SLURM_JOB_ID" \
-  --script "$SCRIPT" --source-sha "$(git -C "$REPO" rev-parse HEAD)" --srun-rc "$SRUN_RC"
+"$PY" -B "$KIT" probe-verdict --dir "$DIR" --job-id "$SLURM_JOB_ID" \
+  --script "$0" --source-sha "$EXP40_EXPECT_SHA" --srun-rc "$SRUN_RC"

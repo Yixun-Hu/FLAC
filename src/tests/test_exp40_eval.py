@@ -627,6 +627,12 @@ def _ckpt(tmp_path, arm="C16"):
     return str(p), kit.sha256_file(str(p)), os.path.getsize(p)
 
 
+def _assets():
+    """A valid current_assets record (code-r3 M2): the pins + a sealed hub path."""
+    snap = os.path.join("/sealed", "hub", kit.DINO_REPO_DIR, "snapshots", kit.DINO_REVISION)
+    return kit.current_assets("/sealed", [os.path.join(snap, "model.safetensors"), os.path.join(snap, "config.json")])
+
+
 def _admission_file(tmp_path, ckpt_sha, nbytes, nas_root=None, where=None, **over):
     run_id = "exp40_C16_a6000_2x32"
     nas = os.path.join(nas_root or kit.NAS_ROOT, run_id)
@@ -639,7 +645,8 @@ def _admission_file(tmp_path, ckpt_sha, nbytes, nas_root=None, where=None, **ove
            "global_step": 40000, "model_config": kit.ARM_CONFIG, "model_config_sha256": kit.PINS[kit.ARM_CONFIG],
            "embedded_config_sha256": "4" * 64, "ema_inventory_sha256": "5" * 64, "strict_load": True,
            "full_evidence_sha256": "6" * 64, "check_sha256": "7" * 64, "audit_sha256": "8" * 64,
-           "historical": {}, "current_assets": {}, "trajectory_equivalence_claim_allowed": False, "note": "", "t": 1.0}
+           "historical": dict(kit.HISTORICAL), "current_assets": _assets(),
+           "trajectory_equivalence_claim_allowed": False, "note": "", "t": 1.0}
     rec.update(over)
     path = Path(where or tmp_path) / "admission.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -958,6 +965,12 @@ def test_receipt_runtime_identity_is_proven_not_just_well_formed(run_env, manife
     early = t_ar - 600                                                         # the cell ran BEFORE the AR re-hash
     _named({**rec, "t_start": early, "t": early + rec["seconds"]}, cell, ident, "AR receipt at the cell's start")
     _named({**rec, "t_start": rec["t"] + 10}, cell, ident, "start / end / duration")
+    # code-r3 M1: no cell runs in the future; no negative duration
+    fut = time.time() + 3600
+    _named({**rec, "t_start": fut, "t": fut + rec["seconds"]}, cell, ident, "lies in the future")
+    _named({**rec, "t": time.time() + 3600, "seconds": time.time() + 3600 - rec["t_start"]}, cell, ident,
+           "end time lies in the future")
+    _named({**rec, "seconds": -1.0}, cell, ident, "start / end / duration")
     adm, adm_sha = ident["admission"]
     _named(rec, cell, {**ident, "admission": ({**adm, "t": rec["t_start"] + 1}, adm_sha)}, "postdates the cell's start")
     _named(rec, cell, {**ident, "inputs_sha": "3" * 64, "run_t0": rec["t_start"] - 1}, "this run's runtime-input manifest")

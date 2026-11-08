@@ -67,21 +67,29 @@ NS="$EXEC_ID"
 RUNTREE="$SAVE_ROOT/runtrees/${NS}__${EXPECT_SHA:0:12}"
 AR_REAL="$(readlink -f AcousticRooms)" || die "AcousticRooms link missing"
 VAE_REAL="$(readlink -f weights/FLAC/VAE.safetensors)" || die "VAE missing"
-MAXTIME_RAW="$(sinfo -h -p "$PARTITION" -o %l)" || die "sinfo failed"      # every line (code-r1 M4)
-[ -n "$MAXTIME_RAW" ] || die "sinfo returned no MaxTime for partition $PARTITION"
-if [ "$MODE" = FULL ]; then
-  PILOT_RCPT="$RECEIPTS/pilot_neuronic_${RUNG}_${EXPECT_SHA}.json"
-  [ -f "$PILOT_RCPT" ] || die "no PASS PILOT receipt $PILOT_RCPT (run MODE=PILOT first)"
-  TMIN="$("$PY" "$EXPREL/exp40_kit.py" neuronic-time --mode FULL --receipt "$PILOT_RCPT" --expect-sha "$EXPECT_SHA" --maxtime-raw "$MAXTIME_RAW")" || die "time request refused"
-else
-  TMIN="$("$PY" "$EXPREL/exp40_kit.py" neuronic-time --mode PILOT --maxtime-raw "$MAXTIME_RAW")" || die "time request refused"
-fi
-echo "partition $PARTITION MaxTime lines [$(echo $MAXTIME_RAW)]; requesting ${TMIN} min"
 if [ "$DRY_RUN" = 1 ]; then RUNTREE="${RUNTREE}__dryrun_${TS}"; fi
 [ -e "$RUNTREE" ] || "$PY" "$EXPREL/exp40_kit.py" build-runtree --repo "$REPO" --sha "$EXPECT_SHA" \
   --dest "$RUNTREE" --link "AcousticRooms=$AR_REAL" --link "weights/FLAC/VAE.safetensors=$VAE_REAL" || die "run tree"
 "$PY" "$EXPREL/exp40_kit.py" verify-runtree --repo "$REPO" --sha "$EXPECT_SHA" --tree "$RUNTREE" \
   --link "AcousticRooms=$AR_REAL" --link "weights/FLAC/VAE.safetensors=$VAE_REAL" || die "run tree verification"
+
+# --- the --time request, AFTER the prospective run tree exists (code-r3 H3): the PILOT receipt
+#     is validated against the SELECTED rung / RUN_ID, this tree's recomputed digest, the PILOT's
+#     bound check record and the interpreter / distributions measured now -- before any claim
+MAXTIME_RAW="$(sinfo -h -p "$PARTITION" -o %l)" || die "sinfo failed"      # every line (code-r1 M4)
+[ -n "$MAXTIME_RAW" ] || die "sinfo returned no MaxTime for partition $PARTITION"
+if [ "$MODE" = FULL ]; then
+  PILOT_RCPT="$RECEIPTS/pilot_neuronic_${RUNG}_${EXPECT_SHA}.json"
+  PILOT_CHECK="$RECEIPTS/pilot_check_neuronic_${RUNG}_${EXPECT_SHA}.json"
+  [ -f "$PILOT_RCPT" ] && [ -f "$PILOT_CHECK" ] || die "no PASS PILOT receipt + check record for $RUNG at $EXPECT_SHA (run MODE=PILOT first)"
+  TMIN="$("$PY" "$EXPREL/exp40_kit.py" neuronic-time --mode FULL --receipt "$PILOT_RCPT" --pilot-check "$PILOT_CHECK" \
+    --expect-sha "$EXPECT_SHA" --rung "$RUNG" --run-id "$RUN_ID" --tree "$RUNTREE" \
+    --link "AcousticRooms=$AR_REAL" --link "weights/FLAC/VAE.safetensors=$VAE_REAL" \
+    --maxtime-raw "$MAXTIME_RAW")" || die "time request refused"
+else
+  TMIN="$("$PY" "$EXPREL/exp40_kit.py" neuronic-time --mode PILOT --maxtime-raw "$MAXTIME_RAW")" || die "time request refused"
+fi
+echo "partition $PARTITION MaxTime lines [$(echo $MAXTIME_RAW)]; requesting ${TMIN} min"
 
 SPEC="$("$PY" - "$PARTITION" "$NGPU" "$CPUS" "$MEM" "$TMIN" "$REPO" "$EXPREL" "$RUNTREE" "$MODE" "$RUNG" "$RUN_ID" "$EXPECT_SHA" "$SAVE_ROOT" "$TS" "$CONTROL" <<'PYEOF'
 import json, sys

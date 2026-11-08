@@ -47,8 +47,11 @@ GPU_RESERVATION_OK=1 MODE=FULL PLATFORM=a6000 RUNG=2x32 RUN_ID=exp40_C16_a6000_2
 #    Admission (CPU, ~2 min) derives every identity field from those validated records,
 #    recomputes both ranks' 40k-step offset streams and re-hashes all 16 NAS checkpoints; the only
 #    caller input is a free-text note. It refuses to overwrite an existing admission.
+#    The strict load resolves DINOv3 ONLY from the verified sealed hub the launcher built
+#    (the admission refuses without it), inside an immutable tree at the training commit.
 /home/yixunhu/miniconda3/envs/flac/bin/python $K/exp40_kit.py admit \
   --run-result $K/receipts/run_result_exp40_C16_a6000_2x32.json --receipts-dir $K/receipts \
+  --hf-sealed $PWD/outputs_FLAC/exp40_yaw_aug_c16/hf_sealed \
   --note "exp_40 C16 FULL, A6000 2x32" --out $K/exp40_C16_admission.json
 ```
 
@@ -86,7 +89,9 @@ $PY $K/exp40_kit.py ar-verify --ar-root "$(readlink -f AcousticRooms)" --manifes
 # /n/fs/gatrdp/exp40_control/claims; the verdict is written atomically to
 # /n/fs/gatrdp/exp40_control/receipts/claim_probe.json; the submitter also requires the control
 # directory's current mount to be the probed one
-sbatch --output=$PWD/$K/slurm_claim_probe_%j.out $K/exp40_claim_probe.sbatch
+#   (submitted from an immutable run tree at EXPECT_SHA; the job checks that the script Slurm
+#   spooled is that tree's committed one, so a checkout moving while it is queued cannot matter)
+EXPECT_SHA=<sha> bash $K/exp40_submit_claim_probe.sh
 ```
 
 The sealed HF hub is built by the submitter from `/n/fs/gatrdp/hf_cache/hub` — the pinned DINOv3 snapshot
@@ -101,7 +106,10 @@ EXP40_NAS_RELAXATION=post-run-publish MODE=FULL RUNG=2x32 RUN_ID=exp40_C16_neuro
   bash $K/exp40_submit_neuronic.sh
 ```
 
-The submitter derives `--time` from the PILOT's measured rate (×1.15 + 45 min) and refuses above the
+The submitter builds and verifies the prospective FULL run tree first, then derives `--time` from the
+PILOT's rate — re-derived from the receipt's recorded timing window — after validating the exact PILOT
+receipt and its bound check record against the SELECTED rung / RUN_ID, the tree's recomputed digest
+and the interpreter / distribution versions measured now (×1.15 + 45 min) and refuses above the
 most conservative partition MaxTime line (every `sinfo` line is parsed and recorded in the submission
 state). Under one flock in the control directory it reconciles every earlier execution of the same
 RUN_ID against squeue + sacct and the durable claim owner (a duplicate job refused by the claim is
@@ -130,8 +138,10 @@ $PY $K/exp40_kit.py publish-cadence --src $S/checkpoints --run-id $R \
   --pulled-manifest $S/CHECKPOINTS.partial.sha256 --nas-receipt $K/receipts/nas_capability_a6000.json
 # admission re-hashes all 16 NAS files and checks the 40k state against the training-time (neuronic)
 # dirpath recorded in the run result -- no path to type
+SEALED=$PWD/outputs_FLAC/exp40_yaw_aug_c16/hf_sealed        # this box's verified read-only DINOv3 hub
+[ -d "$SEALED" ] || $PY $K/exp40_kit.py build-hf-sealed --src-hub ~/.cache/huggingface/hub --dest "$SEALED"
 $PY $K/exp40_kit.py admit --run-result $S/receipts/run_result_$R.json --receipts-dir $S/receipts \
-  --note "exp_40 C16 FULL, neuronic $R" --out $K/exp40_C16_admission.json
+  --hf-sealed "$SEALED" --note "exp_40 C16 FULL, neuronic $R" --out $K/exp40_C16_admission.json
 ```
 
 ---

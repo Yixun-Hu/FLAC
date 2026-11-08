@@ -193,6 +193,9 @@ def _hex64(x):
     return isinstance(x, str) and _HEX64.fullmatch(x) is not None
 
 
+CLOCK_SKEW_S = 300           # code-r3 M1: tolerated clock skew for "not in the future"
+
+
 def _num(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
 
@@ -580,6 +583,8 @@ def runtime_identity_reasons(ri, ri_sha, cell, tree, t_start, admission=None, re
         r.append("runtime_inputs_sha256 != the canonical digest of the recorded runtime inputs")
     if not _num(t_start):
         return r + ["the cell start time is malformed"]
+    if t_start > time.time() + CLOCK_SKEW_S:
+        r.append("the cell start time lies in the future")
     local = {}
     for name in sorted(ri):
         ent = ri[name]
@@ -1029,7 +1034,11 @@ def receipt_reasons(rec, cell, ident, offline=False, resolve=None):
     need(isinstance(ri, dict) and isinstance(ri.get("ar_verify"), dict)
          and rec["ar_receipt_sha256"] == ri["ar_verify"].get("sha256"), "receipt AR receipt sha != its runtime input")
     need(_num(rec["t_start"]) and _num(rec["t"]) and _num(rec["seconds"]) and rec["t_start"] <= rec["t"]
-         and abs(rec["t"] - rec["t_start"] - rec["seconds"]) <= 5.0, "receipt start / end / duration inconsistent")
+         and rec["seconds"] >= 0 and abs(rec["t"] - rec["t_start"] - rec["seconds"]) <= 5.0,
+         "receipt start / end / duration inconsistent")
+    # code-r3 M1: a cell cannot have run in the future (a future t_start would make an old AR
+    # receipt look fresh and any admission predate the cell)
+    need(_num(rec["t"]) and rec["t"] <= time.time() + CLOCK_SKEW_S, "receipt end time lies in the future")
     adm = ident["admission"] if cell["arm"] == "C16" else None
     r += runtime_identity_reasons(ri, rec["runtime_inputs_sha256"], cell, ident["tree"], rec["t_start"],
                                   admission=adm, resolve=resolve)

@@ -952,6 +952,11 @@ def test_driver_pin_is_enforced_on_a6000_and_recorded_on_neuronic():
     assert kit.driver_reasons("neuronic", "")
 
 
+def _assets(hub="/sealed"):
+    snap = os.path.join(hub, "hub", kit.DINO_REPO_DIR, "snapshots", kit.DINO_REVISION)
+    return kit.current_assets(hub, [os.path.join(snap, "model.safetensors"), os.path.join(snap, "config.json")])
+
+
 def _admission(tmp_path, **over):
     run_id = "exp40_C16_a6000_2x32"
     nas = tmp_path / "nas" / run_id
@@ -970,7 +975,7 @@ def _admission(tmp_path, **over):
            "model_config": kit.ARM_CONFIG, "model_config_sha256": kit.PINS[kit.ARM_CONFIG],
            "embedded_config_sha256": "3" * 64, "ema_inventory_sha256": "4" * 64,
            "strict_load": True, "full_evidence_sha256": "5" * 64, "check_sha256": "6" * 64,
-           "audit_sha256": "7" * 64, "historical": {}, "current_assets": {},
+           "audit_sha256": "7" * 64, "historical": dict(kit.HISTORICAL), "current_assets": _assets(),
            "trajectory_equivalence_claim_allowed": False, "note": "", "t": 1.0}
     rec.update(over)
     path = tmp_path / "admission.json"
@@ -1315,7 +1320,8 @@ def _fit(r, world=2):
             "gpu_name": "NVIDIA RTX A6000", "gpu_uuid": [U0, U1][r][4:], "syncbn_modules": 20,
             "batchnorm_modules": 20, "yaw_aug": dict(kit.YAW_BLOCK), "flash_attn_func_is_none": False,
             "state_signature": sig, "param_signature": hashlib.sha256(b"param").hexdigest(),
-            "rng_signature": {"python": "r", "torch_cpu": "c"}, "global_step": 0,
+            "rng_signature": {k: hashlib.sha256(k.encode()).hexdigest() for k in sorted(kit.RNG_KEYS)},
+            "global_step": 0,
             "numerics": {"matmul_allow_tf32": True, "cudnn_allow_tf32": True, "cudnn_benchmark": False,
                          "cudnn_deterministic": False, "float32_matmul_precision": "medium"}}
 
@@ -1331,9 +1337,23 @@ def _summary(r, e, steps, published):
             "steps_contiguous_from_0": True, "all_losses_finite": True, "pid": 1000 + r}
 
 
+_SMOKE = {}
+
+
+def _real_smoke_stream():
+    if "s" not in _SMOKE:
+        _SMOKE["s"] = kit.expected_stream(kit.ROOT, kit.SMOKE_STEPS["DDP_SMOKE"], range(2), 32, verbatim=False)
+    return _SMOKE["s"]
+
+
 @pytest.fixture(scope="module")
 def smoke_stream():
-    return kit.expected_stream(kit.ROOT, kit.SMOKE_STEPS["DDP_SMOKE"], range(2), 32, verbatim=False)
+    return _real_smoke_stream()
+
+
+def _streams(full_stream):
+    """expected_stream stand-in: the real 40k stream for FULL, the real 30-step one otherwise."""
+    return lambda tree, steps, *a, **k: full_stream if steps == kit.ENDPOINT else _real_smoke_stream()
 
 
 def _full_records(tmp_path, stream, run_id="exp40_C16_a6000_2x32", smoke=None):
@@ -1349,9 +1369,7 @@ def _full_records(tmp_path, stream, run_id="exp40_C16_a6000_2x32", smoke=None):
     rec_dir = tmp_path / "receipts"
     rec_dir.mkdir(exist_ok=True)
     kit.atomic_write_json(str(rec_dir / "check.json"), check)
-    kst = smoke if smoke is not None else {r: dict(stream[r], n=30 * 32, hist=[60] * 16,
-                                                   sampled={k: stream[r]["sampled"][k] for k in ("0", "1", "2", "3")})
-                                           for r in range(2)}
+    kst = smoke if smoke is not None else _real_smoke_stream()
     ref = {"verdict": "PASS", "kind": "ddp_smoke", "platform": "a6000", "rung": "2x32", "mode": "DDP_SMOKE",
            "run_id": run_id, "stamp": "2026-11-08_00-00-00", "sha": sha, "tree_digest": "1" * 64,
            "env_digest": "2" * 64, "recipe_projection": kit.recipe_projection(sargv), "argv": sargv,
@@ -1417,7 +1435,7 @@ def test_the_reference_receipt_validator_is_exact(tmp_path, full_stream, smoke_s
 
 
 def test_full_evidence_validator_accepts_the_bound_record(tmp_path, full_stream, monkeypatch):
-    monkeypatch.setattr(kit, "expected_stream", lambda *a, **k: full_stream)
+    monkeypatch.setattr(kit, "expected_stream", _streams(full_stream))
     d, ev = _full_records(tmp_path, full_stream)
     r, sha, rec = kit.full_evidence_reasons(str(d / "ev.json"), ev["run_id"], str(d / "check.json"),
                                             str(d / "ref.json"), recompute=True)
@@ -1457,7 +1475,7 @@ def test_full_evidence_validator_accepts_the_bound_record(tmp_path, full_stream,
 ])
 def test_full_evidence_validator_rejects_every_critical_mutation(tmp_path, full_stream, monkeypatch, mutate, needle):
     import copy
-    monkeypatch.setattr(kit, "expected_stream", lambda *a, **k: full_stream)
+    monkeypatch.setattr(kit, "expected_stream", _streams(full_stream))
     d, ev = _full_records(tmp_path, full_stream)
     bad = copy.deepcopy(ev)
     mutate(bad)
@@ -1479,17 +1497,30 @@ def test_full_evidence_binding_to_check_and_reference(tmp_path, full_stream):
     assert kit.full_evidence_reasons(str(d / "ev.json"), "exp40_C16_a6000_2x32_r1")[0]
 
 
-def _inject(tree, w):
+@pytest.fixture(scope="module")
+def sealed_hub(tmp_path_factory):
+    """A real sealed hub built from this box's HF cache (code-r3 B1 tests)."""
+    src = os.path.expanduser("~/.cache/huggingface/hub")
+    if not os.path.isdir(os.path.join(src, kit.DINO_REPO_DIR, "snapshots", kit.DINO_REVISION)):
+        pytest.skip("the pinned DINOv3 snapshot is not in this box's HF cache")
+    return kit.build_hf_sealed(src, str(tmp_path_factory.mktemp("sealed") / "hf_sealed"))
+
+
+def _inject(tree, w, sealed):
     """In-process stand-ins for the admission tree and its subprocess (the real ones are tested
-    separately): the tiny wrapper, interpreted from ``tree``."""
+    separately): the tiny wrapper, interpreted from ``tree``; DINOv3 'resolved' in ``sealed``."""
     def builder(repo, sha, check_rec, ev, parent):
         assert check_rec["links"] and sha == ev["sha"]
         return str(tree)
 
-    def state(t, ckpt, dirpath, strict_load=True):
-        assert t == str(tree)
-        return kit.admission_state(ckpt, dirpath, tree=t, strict_load=strict_load)
-    return {"tree_builder": builder, "state_fn": state}
+    def state(t, ckpt, dirpath, strict_load=True, hf_sealed=None):
+        assert t == str(tree) and hf_sealed == sealed
+        st = kit.checkpoint_admission_state(ckpt, dirpath, t, strict_load=strict_load)
+        snap = os.path.join(os.path.realpath(sealed), "hub", kit.DINO_REPO_DIR, "snapshots", kit.DINO_REVISION)
+        st.update(hf_sealed=os.path.realpath(sealed),
+                  dino_resolved=[os.path.join(snap, "model.safetensors"), os.path.join(snap, "config.json")])
+        return st
+    return {"tree_builder": builder, "state_fn": state, "hf_sealed": sealed}
 
 
 def _tiny_full_run(tmp_path, tiny_ckpt, monkeypatch, full_stream):
@@ -1499,8 +1530,9 @@ def _tiny_full_run(tmp_path, tiny_ckpt, monkeypatch, full_stream):
     tree = tmp_path / "tree"
     (tree / kit.EXPREL).mkdir(parents=True)
     (tree / kit.ARM_CONFIG).write_text(json.dumps(cfg))
+    (tree / kit.AR_MANIFEST).write_bytes((_REPO / kit.AR_MANIFEST).read_bytes())
     monkeypatch.setattr(kit, "build_wrapper_cpu", lambda t, c: w)
-    monkeypatch.setattr(kit, "expected_stream", lambda *a, **k: full_stream)
+    monkeypatch.setattr(kit, "expected_stream", _streams(full_stream))
     run_id = "exp40_C16_a6000_2x32"
     ckdir = tmp_path / "ck"
     ckdir.mkdir()
@@ -1517,7 +1549,7 @@ def _tiny_full_run(tmp_path, tiny_ckpt, monkeypatch, full_stream):
     return tree, ckdir, nas_root, d, ev
 
 
-def test_full_audit_and_derived_admission_end_to_end(tmp_path, tiny_ckpt, monkeypatch, full_stream):
+def test_full_audit_and_derived_admission_end_to_end(tmp_path, tiny_ckpt, monkeypatch, full_stream, sealed_hub):
     tree, ckdir, nas_root, d, ev = _tiny_full_run(tmp_path, tiny_ckpt, monkeypatch, full_stream)
     nas = os.path.join(nas_root, ev["run_id"])
     v = kit.audit(str(ckdir), str(tree), nas_dir=nas, evidence=str(d / "ev.json"), run_id=ev["run_id"],
@@ -1529,7 +1561,7 @@ def test_full_audit_and_derived_admission_end_to_end(tmp_path, tiny_ckpt, monkey
                         "/ck", str(ckdir), str(tree), nas_root=nas_root)
     kit.atomic_write_json(str(d / "run_result.json"), rr)
     rec = kit.admit(str(d / "run_result.json"), str(d), str(_REPO), note="test", nas_root=nas_root,
-                    **_inject(tree, tiny_ckpt[2]))
+                    **_inject(tree, tiny_ckpt[2], sealed_hub))
     assert set(rec) == kit.ADMISSION_KEYS
     assert (rec["train_sha"], rec["runtree_digest"], rec["env_digest"]) == (ev["sha"], "1" * 64, "2" * 64)
     kit.atomic_write_json(str(tmp_path / "admission.json"), rec)
@@ -1541,14 +1573,14 @@ def test_full_audit_and_derived_admission_end_to_end(tmp_path, tiny_ckpt, monkey
         old = open(p, "rb").read()
         open(p, "wb").write(old + b"!")
         with pytest.raises(kit.Refused):
-            kit.admit(str(d / "run_result.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2]))
+            kit.admit(str(d / "run_result.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2], sealed_hub))
         open(p, "wb").write(old)
     open(os.path.join(nas, ".epoch=8-step=40000.ckpt.partial-1"), "wb").write(b"")
     with pytest.raises(kit.Refused, match="beyond"):
-        kit.admit(str(d / "run_result.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2]))
+        kit.admit(str(d / "run_result.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2], sealed_hub))
 
 
-def test_admission_refuses_unbound_or_altered_records(tmp_path, tiny_ckpt, monkeypatch, full_stream):
+def test_admission_refuses_unbound_or_altered_records(tmp_path, tiny_ckpt, monkeypatch, full_stream, sealed_hub):
     tree, ckdir, nas_root, d, ev = _tiny_full_run(tmp_path, tiny_ckpt, monkeypatch, full_stream)
     nas = os.path.join(nas_root, ev["run_id"])
     v = kit.audit(str(ckdir), str(tree), nas_dir=nas, evidence=str(d / "ev.json"), run_id=ev["run_id"],
@@ -1561,16 +1593,16 @@ def test_admission_refuses_unbound_or_altered_records(tmp_path, tiny_ckpt, monke
     kit.atomic_write_json(str(d / "rr.json"), rr)
     kit.atomic_write_json(str(d / "audit.json"), {**v, "full_evidence_sha256": "0" * 64})
     with pytest.raises(kit.Refused, match="not the recorded bytes"):           # run result binds the audit
-        kit.admit(str(d / "rr.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2]))
+        kit.admit(str(d / "rr.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2], sealed_hub))
     kit.atomic_write_json(str(d / "rr.json"), {**rr, "verdict": "FAIL"})
     with pytest.raises(kit.Refused, match="verdict"):
-        kit.admit(str(d / "rr.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2]))
+        kit.admit(str(d / "rr.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2], sealed_hub))
     kit.atomic_write_json(str(d / "rr.json"), {**rr, "platform": "neuronic"})
     with pytest.raises(kit.Refused):
-        kit.admit(str(d / "rr.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2]))
+        kit.admit(str(d / "rr.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2], sealed_hub))
     with pytest.raises(kit.Refused, match="note"):
         kit.admit(str(d / "rr.json"), str(d), str(_REPO), note={"admitted": False}, nas_root=nas_root,
-                  **_inject(tree, tiny_ckpt[2]))
+                  **_inject(tree, tiny_ckpt[2], sealed_hub))
 
 
 def test_audit_refuses_wrong_names_markers_and_strays(tmp_path):
@@ -1610,17 +1642,23 @@ def test_admission_tree_reproduces_the_training_tree_digest_or_refuses(tmp_path)
         kit.build_admission_tree(str(_REPO), sha, {}, ev, str(tmp_path))
 
 
-def test_admission_state_runs_in_the_admission_trees_own_kit(tmp_path, tiny_ckpt):
+def _require_head_kit(sha):
+    """The admission tree runs HEAD's COMMITTED kit: these tests need it to be this revision."""
+    if b"def dino_resolved_paths" not in subprocess.run(["git", "show", f"{sha}:{kit.EXPREL}/exp40_kit.py"],
+                                                         cwd=_REPO, capture_output=True, check=True).stdout:
+        pytest.skip("HEAD's committed kit predates the sealed-hub admission-state (run after committing)")
+
+
+def test_admission_state_runs_in_the_admission_trees_own_kit(tmp_path, tiny_ckpt, sealed_hub):
     sha = _head()
-    if b"admission-state" not in subprocess.run(["git", "show", f"{sha}:{kit.EXPREL}/exp40_kit.py"], cwd=_REPO,
-                                                capture_output=True, check=True).stdout:
-        pytest.skip("HEAD predates the admission-state command (run after committing)")
+    _require_head_kit(sha)
     links = {r: os.path.realpath(os.path.join(_REPO, r)) for r in kit.LINKS}
     ev = {"tree_digest": kit.tree_digest(str(_REPO), sha, links), "run_id": "exp40_C16_a6000_2x32", "sha": sha}
     tree = kit.build_admission_tree(str(_REPO), sha, {"links": links}, ev, str(tmp_path))
     ck, cfg, w = tiny_ckpt
     torch.save(ck, str(tmp_path / "tiny.ckpt"))
-    st = kit.admission_state_subprocess(tree, str(tmp_path / "tiny.ckpt"), "/ck", strict_load=False)
+    st = kit.admission_state_subprocess(tree, str(tmp_path / "tiny.ckpt"), "/ck", strict_load=False,
+                                        hf_sealed=sealed_hub)
     assert st["tree"] == os.path.realpath(tree) and st["sha256"] == kit.sha256_file(str(tmp_path / "tiny.ckpt"))
     assert any("model_config" in r for r in st["reasons"])     # the tiny config is not the C16 arm config
 
@@ -1647,21 +1685,199 @@ def _pilot(tmp_path, full_stream, sec=2.0):
         e = full_stream[int(r)]
         ref["summaries"][r] = _summary(int(r), dict(e, n=300 * 32, hist=[600] * 16), 300, 0)
     ref.update(kind="pilot", mode="PILOT", platform="neuronic", run_id=run_id, argv=argv,
-               recipe_projection=kit.recipe_projection(argv), sec_per_step=sec)
+               recipe_projection=kit.recipe_projection(argv), sec_per_step=sec,
+               pilot_window={"rank": 0, "steps": [100, 299], "t": [1000.0, 1000.0 + 199 * sec]})
     path = str(tmp_path / "pilot.json")
     kit.atomic_write_json(path, ref)
     return path, ref
 
 
-def test_neuronic_time_request_requires_the_exact_pilot_receipt_of_expect_sha(tmp_path, full_stream, capsys):
+def _time_setup(tmp_path, full_stream):
+    """A prospective FULL run tree at HEAD, the PILOT's bound check record (environment =
+    what this interpreter measures now) and an exact PILOT receipt of HEAD."""
+    sha = _head()
+    links = {r: os.path.realpath(os.path.join(_REPO, r)) for r in kit.LINKS}
+    tree = str(tmp_path / "fulltree")
+    kit.build_runtree(str(_REPO), sha, tree, links)
+    light = kit.measure_environment_light(sys.executable)
+    env = {**light, "cuda_runtime": "12.4", "cudnn": 90100, "nccl": [2, 21, 5], "origins": {}}
+    chk = {"verdict": "PASS", "reasons": [], "sha": sha, "tree_digest": kit.tree_digest(str(_REPO), sha, links),
+           "environment": env, "driver_version": "550.54.15", "env_digest": kit.environment_digest(env, "550.54.15")}
+    chk_path = str(tmp_path / "pilot_check.json")
+    kit.atomic_write_json(chk_path, chk)
     path, ref = _pilot(tmp_path, full_stream)
-    assert kit.main(["neuronic-time", "--mode", "FULL", "--receipt", path, "--expect-sha", "b" * 40,
-                     "--maxtime-raw", "7-00:00:00\n"]) == 0
-    assert capsys.readouterr().out.strip() == str(kit.full_time_request(2.0, 7 * 1440))
-    assert kit.main(["neuronic-time", "--mode", "FULL", "--receipt", path, "--expect-sha", "c" * 40,
-                     "--maxtime-raw", "7-00:00:00\n"]) == 2                                  # another commit
-    for bad in ({"sec_per_step": float("inf")}, {"sec_per_step": -1}, {"train_rc": 1}):
-        kit.atomic_write_json(path, {**ref, **bad})
-        assert kit.main(["neuronic-time", "--mode", "FULL", "--receipt", path, "--expect-sha", "b" * 40,
-                         "--maxtime-raw", "7-00:00:00\n"]) == 2, bad
+    ref.update(sha=sha, tree_digest=chk["tree_digest"], env_digest=chk["env_digest"],
+               check_sha256=kit.sha256_file(chk_path))
+    kit.atomic_write_json(path, ref)
+    return sha, links, tree, chk_path, chk, path, ref
+
+
+def _time(path, chk_path, sha, rung, run_id, tree, links, maxtime="7-00:00:00\n"):
+    return kit.main(["neuronic-time", "--mode", "FULL", "--receipt", path, "--pilot-check", chk_path,
+                     "--expect-sha", sha, "--rung", rung, "--run-id", run_id, "--tree", tree,
+                     *sum((["--link", f"{k}={v}"] for k, v in links.items()), []), "--maxtime-raw", maxtime])
+
+
+def test_neuronic_time_request_binds_independent_identity(tmp_path, full_stream, capsys, monkeypatch):
+    """code-r3 H3: rung, RUN_ID, the prospective tree, the PILOT check record's environment and
+    the interpreter measured now are supplied independently of the receipt."""
+    monkeypatch.setitem(kit.PLATFORMS["neuronic"], "python", sys.executable)
+    sha, links, tree, chk_path, chk, path, ref = _time_setup(tmp_path, full_stream)
+    R = "exp40_C16_neuronic_2x32"
+    assert kit.neuronic_time_reasons(path, chk_path, sha, "2x32", R, tree, links, python=sys.executable)[0] == []
+    assert _time(path, chk_path, sha, "2x32", R, tree, links) == 0
+    assert capsys.readouterr().out.strip().splitlines()[-1] == str(kit.full_time_request(2.0, 7 * 1440))
+    assert kit.neuronic_time_reasons(path, chk_path, sha, "2x32", R + "_r1", tree, links, python=sys.executable)[0] == []
+
+    def refused(needle, **kw):
+        args = dict(receipt=path, check=chk_path, sha=sha, rung="2x32", run_id=R, tree=tree, links=links)
+        args.update(kw)
+        got, _ = kit.neuronic_time_reasons(args["receipt"], args["check"], args["sha"], args["rung"], args["run_id"],
+                                           args["tree"], args["links"], python=sys.executable)
+        assert any(needle in x for x in got), (needle, got)
+    refused("selects '8x8'", rung="8x8")
+    refused("is not the PILOT's", run_id="exp40_C16_neuronic_2x32_x")
+    refused("prospective FULL run tree", links={**links, "AcousticRooms": "/elsewhere"})
+    other = str(tmp_path / "othertree")
+    kit.build_runtree(str(_REPO), sha, other, {**links, "AcousticRooms": os.path.realpath(str(tmp_path))})
+    refused("digest differs", tree=other, links={**links, "AcousticRooms": os.path.realpath(str(tmp_path))})
+    kit.atomic_write_json(chk_path, {**chk, "env_digest": "0" * 64})
+    refused("bound to")                                                     # the check record changed
+    bad_env = {**chk["environment"], "dists": {**chk["environment"]["dists"], "torch": "2.6.0"}}
+    kit.atomic_write_json(chk_path, {**chk, "environment": bad_env, "env_digest": kit.environment_digest(bad_env, "550.54.15")})
+    kit.atomic_write_json(path, {**ref, "check_sha256": kit.sha256_file(chk_path),
+                                 "env_digest": kit.environment_digest(bad_env, "550.54.15")})
+    refused("distribution torch now")
+    kit.atomic_write_json(chk_path, chk)
+    kit.atomic_write_json(path, {**ref, "sec_per_step": 1.0})
+    refused("derived from its timing window")                               # a rate its timestamps contradict
+    kit.atomic_write_json(path, {**ref, "pilot_window": {**ref["pilot_window"], "steps": [0, 299]}})
+    refused("timing window")
+    kit.atomic_write_json(path, ref)
+    refused("not a PASS at EXPECT_SHA", sha="c" * 40)
     assert kit.main(["neuronic-time", "--mode", "PILOT", "--maxtime-raw", "1:00:00\n"]) == 2  # 120 > 60 min
+
+
+# --------------------------------------------------------------------------- #
+# code review 3: RNG schema, balanced histogram corruption, recomputed smoke stream (H1)
+# --------------------------------------------------------------------------- #
+def test_reference_receipt_rng_schema_bins_and_recomputed_stream(tmp_path, full_stream, smoke_stream):
+    import copy
+    d, ev = _full_records(tmp_path, full_stream, smoke=smoke_stream)
+    ref = kit.read_json(str(d / "ref.json"))
+    args = ("ddp_smoke", "a6000", "2x32", "b" * 40, "1" * 64, "2" * 64, ev["recipe_projection"])
+    assert kit.receipt_reasons(ref, *args) == [] and kit.receipt_stream_reasons(ref, kit.ROOT, "DDP_SMOKE", "2x32") == []
+    for mutate in (lambda f: f.pop("sobol"), lambda f: f.update(extra="0" * 64), lambda f: f.update(numpy="x")):
+        bad = copy.deepcopy(ref)
+        mutate(bad["fit_start"]["0"]["rng_signature"])
+        assert any("rng_signature" in x for x in kit.receipt_reasons(bad, *args))
+    bad = copy.deepcopy(ref)
+    h = bad["summaries"]["0"]["offset_histogram"]
+    h[0], h[1] = -1, h[1] + h[0] + 1                                         # balanced: the sum is unchanged
+    assert any("histogram" in x for x in kit.receipt_reasons(bad, *args))
+    bad = copy.deepcopy(ref)                                                  # a different VALID stream: rank 1's
+    bad["summaries"]["0"] = dict(bad["summaries"]["1"], rank=0)
+    assert kit.receipt_reasons(bad, *args) == []
+    assert any("recomputation" in x for x in kit.receipt_stream_reasons(bad, kit.ROOT, "DDP_SMOKE", "2x32"))
+    bad = copy.deepcopy(ref)
+    bad["summaries"]["1"]["sampled_offsets"]["2"] = list(reversed(bad["summaries"]["1"]["sampled_offsets"]["2"]))
+    assert any("recomputation" in x for x in kit.receipt_stream_reasons(bad, kit.ROOT, "DDP_SMOKE", "2x32"))
+    # and the FULL validator recomputes the reference's stream when asked to
+    kit.atomic_write_json(str(d / "ref.json"), bad)
+    ev2 = kit.read_json(str(d / "ev.json"))
+    kit.atomic_write_json(str(d / "ev.json"), {**ev2, "reference_sha256": kit.sha256_file(str(d / "ref.json"))})
+    r, _, _ = kit.full_evidence_reasons(str(d / "ev.json"), ev["run_id"], str(d / "check.json"), str(d / "ref.json"),
+                                        recompute=True, tree=kit.ROOT)
+    assert any("DDP_SMOKE receipt rank 1" in x for x in r), r
+
+
+# --------------------------------------------------------------------------- #
+# code review 3: the probe runs the spooled script from an immutable tree (H2)
+# --------------------------------------------------------------------------- #
+def test_probe_preflight_refuses_queued_checkout_drift(tmp_path):
+    sha = _head()
+    links = {r: os.path.realpath(os.path.join(_REPO, r)) for r in kit.LINKS}
+    tree = str(tmp_path / "probetree")
+    kit.build_runtree(str(_REPO), sha, tree, links)
+    committed = os.path.join(tree, kit.EXPREL, "exp40_claim_probe.sbatch")
+    spooled = tmp_path / "slurm_script"
+    spooled.write_bytes(open(committed, "rb").read())
+    digest = kit.sha256_file(str(spooled))
+    assert kit.probe_preflight_reasons(str(_REPO), sha, tree, str(spooled), digest) == []
+    drifted = tmp_path / "slurm_script_drifted"                               # the checkout moved meanwhile
+    drifted.write_bytes(open(committed, "rb").read() + b"\n# a later revision\n")
+    got = kit.probe_preflight_reasons(str(_REPO), sha, tree, str(drifted), kit.sha256_file(str(drifted)))
+    assert any("executed probe script" in x for x in got), got
+    got = kit.probe_preflight_reasons(str(_REPO), sha, tree, str(spooled), "0" * 64)
+    assert any("recorded at submission" in x for x in got), got
+    parent = subprocess.run(["git", "rev-parse", "HEAD~1"], cwd=_REPO, capture_output=True, text=True,
+                            check=True).stdout.strip()
+    assert any("probe tree" in x for x in kit.probe_preflight_reasons(str(_REPO), parent, tree, str(spooled), digest))
+    text = (_EXP / "exp40_claim_probe.sbatch").read_text()
+    assert 'probe-preflight' in text and '--script-self "$0"' in text and '--script "$0"' in text
+    assert '"$TREE/$EXPREL/exp40_kit.py"' in text.replace("KIT=", "") or 'KIT="$TREE/$EXPREL/exp40_kit.py"' in text
+
+
+# --------------------------------------------------------------------------- #
+# code review 3: admission resolves DINOv3 ONLY from the sealed hub (B1); provenance (M2)
+# --------------------------------------------------------------------------- #
+def test_sealed_env_removes_every_competing_hf_variable():
+    base = {"HF_HOME": "/home/x/.cache/hf", "HF_HUB_CACHE": "/c", "HUGGINGFACE_HUB_CACHE": "/d",
+            "TRANSFORMERS_CACHE": "/e", "HF_DATASETS_CACHE": "/f", "PYTHONPATH": "/p", "PATH": "/bin"}
+    e = kit.sealed_env("/sealed", base)
+    assert e["HF_HOME"] == "/sealed" and e["HF_HUB_CACHE"] == "/sealed/hub" and e["HF_HUB_OFFLINE"] == "1"
+    assert e["TRANSFORMERS_OFFLINE"] == "1" and e["PATH"] == "/bin" and "PYTHONPATH" not in e
+    assert not {"HUGGINGFACE_HUB_CACHE", "TRANSFORMERS_CACHE", "HF_DATASETS_CACHE"} & set(e)
+
+
+def test_admission_state_resolves_dinov3_only_under_the_sealed_hub(tmp_path, tiny_ckpt, sealed_hub, monkeypatch):
+    sha = _head()
+    _require_head_kit(sha)
+    links = {r: os.path.realpath(os.path.join(_REPO, r)) for r in kit.LINKS}
+    ev = {"tree_digest": kit.tree_digest(str(_REPO), sha, links), "run_id": "exp40_C16_a6000_2x32", "sha": sha}
+    tree = kit.build_admission_tree(str(_REPO), sha, {"links": links}, ev, str(tmp_path))
+    ck, cfg, w = tiny_ckpt
+    torch.save(ck, str(tmp_path / "tiny.ckpt"))
+    decoy = tmp_path / "decoy_hf"                                              # a competing ordinary cache
+    decoy.mkdir()
+    monkeypatch.setenv("HF_HOME", str(decoy))
+    monkeypatch.setenv("HF_HUB_CACHE", str(decoy / "hub"))
+    monkeypatch.setenv("HUGGINGFACE_HUB_CACHE", str(decoy / "hub"))
+    st = kit.admission_state_subprocess(tree, str(tmp_path / "tiny.ckpt"), "/ck", strict_load=False, hf_sealed=sealed_hub)
+    hub = os.path.join(os.path.realpath(sealed_hub), "hub") + os.sep
+    assert len(st["dino_resolved"]) == 2 and all(p.startswith(hub) for p in st["dino_resolved"]), st
+    assert st["hf_sealed"] == os.path.realpath(sealed_hub) and st["sha256"] == kit.sha256_file(str(tmp_path / "tiny.ckpt"))
+    assert kit.current_assets_reasons(kit.current_assets(sealed_hub, st["dino_resolved"])) == []
+    # in a process whose environment is NOT the sealed hub, admission-state refuses before loading
+    got = kit.admission_state(str(tmp_path / "tiny.ckpt"), "/ck", tree=tree, strict_load=False, hf_sealed=sealed_hub)
+    assert got["sha256"] is None and any("sealed hub" in x or "competing" in x for x in got["reasons"]), got
+    with pytest.raises(kit.Refused, match="sealed HF hub"):
+        kit.admission_state_subprocess(tree, str(tmp_path / "tiny.ckpt"), "/ck", strict_load=False)
+
+
+def test_admit_requires_a_valid_sealed_hub(tmp_path):
+    with pytest.raises(kit.Refused, match="--hf-sealed"):
+        kit.admit("rr.json", str(tmp_path), str(_REPO), hf_sealed=None)
+    (tmp_path / "not_sealed" / "hub").mkdir(parents=True)
+    with pytest.raises(kit.Refused, match="sealed HF hub"):
+        kit.admit("rr.json", str(tmp_path), str(_REPO), hf_sealed=str(tmp_path / "not_sealed"))
+    with pytest.raises(SystemExit):
+        kit.main(["admit", "--run-result", "x", "--receipts-dir", "y", "--out", "z"])     # flag is mandatory
+
+
+@pytest.mark.parametrize("key,val,needle", [
+    ("historical", {}, "historical"), ("historical", {**kit.HISTORICAL, "exp17_launch_commit": "41aa31dc"}, "historical"),
+    ("current_assets", {}, "current_assets keys"),
+    ("dinov3_revision", "0" * 40, "dinov3_revision"), ("dinov3_config_sha256", "0" * 64, "dinov3_config_sha256"),
+    ("dinov3_weights_sha256", "0" * 64, "dinov3_weights_sha256"), ("vae_sha256", "0" * 64, "vae_sha256"),
+    ("acousticrooms_manifest_digest", "0" * 64, "acousticrooms_manifest_digest"),
+    ("hf_sealed_hub", "relative/hub", "hf_sealed_hub"), ("dinov3_resolved", ["/elsewhere/model.safetensors"], "dinov3_resolved"),
+    ("t", time.time() + 3600, "non-future"), ("t", float("nan"), "non-future"), ("t", 0, "non-future"),
+])
+def test_admission_validator_checks_provenance_fields(tmp_path, key, val, needle):
+    if key in kit.CURRENT_ASSET_KEYS:
+        path, rec, nas = _admission(tmp_path, current_assets={**_assets(), key: val})
+    else:
+        path, rec, nas = _admission(tmp_path, **{key: val})
+    reasons, got, _ = kit.admission_reasons(path, nas_root=str(tmp_path / "nas"), rehash=None)
+    assert got is None and any(needle in x for x in reasons), (needle, reasons)
