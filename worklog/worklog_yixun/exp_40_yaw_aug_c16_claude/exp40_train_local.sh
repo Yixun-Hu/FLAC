@@ -15,8 +15,11 @@
 # [DRY_RUN stops] -> per-card locks -> GPU re-check -> launch record -> setsid evidence
 # driver (cwd = run tree; FULL publishes + NAS-acknowledges every checkpoint right after
 # its save, inside the training) -> start watcher -> wait -> evidence (+ FULL audit).
-# Never signals a process it did not start; the watcher terminates only the training's
-# own session. Exit: 0 PASS | 1 a verdict FAILED | 2 a gate refused | 8/9/10 watcher.
+# Never signals a process it did not start; the watcher and the EXIT/INT/TERM cleanup trap
+# terminate only the training's own session (SIGTERM, bounded wait, SIGKILL of that group).
+# FULL ends with a stable run-result manifest (receipts/run_result_<RUN_ID>.json) from which
+# `exp40_kit.py admit` derives the admission. Exit: 0 PASS | 1 a verdict FAILED | 2 a gate
+# refused | 8/9/10/11 watcher | 12 cleanup failed | 130 interrupted.
 # Written by the exp_40 Coder seat (Claude Opus 5.5) per plan_yaw_aug_c16.md §4 / §14.
 # ============================================================================
 set -uo pipefail
@@ -66,12 +69,14 @@ RT="$SAVE_ROOT/runtime/$NS"
 TMPDIR="$(mktemp -d /tmp/exp40.XXXXXX)" || die "mktemp failed"
 export WANDB_MODE=offline WANDB_DIR="$RT/wandb" TMPDIR XDG_CACHE_HOME="$RT/xdg" \
   TORCH_HOME="$RT/torch" TRITON_CACHE_DIR="$RT/triton" MPLCONFIGDIR="$RT/mpl"
-EXP40_DRIVER_VERSION="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)"
+EXP40_DRIVER_VERSION="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | sort -u)"
+[ "$(printf '%s\n' "$EXP40_DRIVER_VERSION" | wc -l)" = 1 ] || die "not exactly one NVIDIA driver version: $EXP40_DRIVER_VERSION"
 export EXP40_DRIVER_VERSION
 
 # --- one exp_40 user of the cards at a time (training and evaluation share it) --------- #
-exec 8>"$BASE/.cards.lock" || die "cannot open the card lock"
-flock -n 8 || die "another exp_40 training/evaluation holds $BASE/.cards.lock"
+CARDS_LOCK="$HOME/.exp40_cards.lock"          # checkout-independent; the eval driver takes it too
+exec 8>"$CARDS_LOCK" || die "cannot open the card lock"
+flock -n 8 || die "another exp_40 training/evaluation holds $CARDS_LOCK"
 
 # --- sealed HF hub (built once), immutable run tree -------------------------------------- #
 [ -d "$HF_SEALED" ] || "$PY" "$REPO/$EXPREL/exp40_kit.py" build-hf-sealed \
@@ -109,16 +114,54 @@ fi
   || die "DDP_SMOKE / FULL need GPU_RESERVATION_OK=1 after sequencing the cards via ~/codespace/claude_gpu_yield/"
 UUIDS="$("$PY" -c "import json,sys; g=json.load(open(sys.argv[1])); l=set(g['lanes']); print(','.join(x['uuid'] for x in g['gpus'] if x['index'] in l))" "$GPUS_JSON")"
 LOCK_JSON="${LOGBASE}_gpu_locks.json"
+
+# --- signal-safe cleanup (code-r1 B4), installed BEFORE any resource is taken ------------- #
+# Tracks what this launcher owns; on EXIT / INT / TERM it stops the watcher, terminates ONLY
+# the training's own process group (SIGTERM, bounded wait, SIGKILL of that group), reaps both
+# children and releases ONLY the locks recorded in LOCK_JSON. Any cleanup failure makes the
+# launcher fail.
+TRAIN_PID=""; WATCH_PID=""; CLEANED=0; INTERRUPTED=""
+cleanup() {
+  local rc=$? bad=0
+  [ "$CLEANED" = 1 ] && return
+  CLEANED=1
+  trap - EXIT INT TERM
+  if [ -n "$WATCH_PID" ] && kill -0 "$WATCH_PID" 2>/dev/null; then
+    kill -TERM "$WATCH_PID" 2>/dev/null; wait "$WATCH_PID" 2>/dev/null
+  fi
+  if [ -n "$TRAIN_PID" ]; then
+    "$PY" "$KIT" stop-group --pgid "$TRAIN_PID" --grace 120 || { echo "CLEANUP: training group $TRAIN_PID survived"; bad=1; }
+    wait "$TRAIN_PID" 2>/dev/null
+  fi
+  if [ -f "$LOCK_JSON" ]; then
+    if "$PY" "$KIT" gpu-unlock --lock-json "$LOCK_JSON"; then
+      mv "$LOCK_JSON" "${LOCK_JSON%.json}_released.json" || bad=1
+    else
+      echo "CLEANUP: could not release the per-card locks in $LOCK_JSON"; bad=1
+    fi
+  fi
+  [ -n "$TMPDIR" ] && [ -d "$TMPDIR" ] && rm -rf -- "$TMPDIR"
+  if [ -n "$INTERRUPTED" ]; then
+    echo "=== exp_40 C16 ${MODE} INTERRUPTED by SIG${INTERRUPTED} $(date '+%Y-%m-%d %H:%M:%S'): FAIL ==="
+    exit 130
+  fi
+  [ "$bad" = 0 ] || { echo "=== cleanup FAILED: exit 12 ==="; exit 12; }
+  exit "$rc"
+}
+on_signal() { INTERRUPTED="$1"; exit 130; }
+trap cleanup EXIT
+trap 'on_signal INT' INT
+trap 'on_signal TERM' TERM
+
 "$PY" "$KIT" gpu-lock --uuids "$UUIDS" --out "$LOCK_JSON" \
   --payload-json "{\"experiment\": \"exp_40\", \"namespace\": \"$NS\", \"host\": \"$(hostname)\", \"pid\": $$}" \
   || die "per-card locks refused"
-unlock() { [ -f "$LOCK_JSON" ] || return 0; "$PY" "$KIT" gpu-unlock --lock-json "$LOCK_JSON" && mv "$LOCK_JSON" "${LOCK_JSON%.json}_released.json"; }
 "$PY" "$KIT" gpus --platform "$PLATFORM" --rung "$RUNG" --mode "$MODE" --lanes "$LANES" \
   --policy "$GPU_POLICY" --expect-total 2 --out "${LOGBASE}_gpus_prespawn.json" \
-  || { unlock; die "GPU re-check after taking the locks refused"; }
+  || die "GPU re-check after taking the locks refused"
 
 # --- launch record, written before the fork ---------------------------------------------- #
-"$PY" - "${LOGBASE}_launch.json" "$CHECK_JSON" "${LOGBASE}_gpus_prespawn.json" "$LOCK_JSON" "$RUNTREE" "$NS" "$LANES" "$GPU_POLICY" <<'PYEOF' || { unlock; die "launch record failed"; }
+"$PY" - "${LOGBASE}_launch.json" "$CHECK_JSON" "${LOGBASE}_gpus_prespawn.json" "$LOCK_JSON" "$RUNTREE" "$NS" "$LANES" "$GPU_POLICY" <<'PYEOF' || die "launch record failed"
 import glob, hashlib, json, os, socket, sys, time
 out, check, gpus, locks, tree, ns, lanes, policy = sys.argv[1:]
 hs = {p: hashlib.sha256(open(p, "rb").read()).hexdigest()
@@ -130,34 +173,47 @@ json.dump({"host": socket.gethostname(), "t": time.time(), "runtree": tree, "nam
 PYEOF
 
 # --- spawn: own session, cwd = run tree, the evidence driver runs train.py ------------ #
-mkdir -p "$EVDIR" || { unlock; die "cannot create $EVDIR"; }
+mkdir -p "$EVDIR" || die "cannot create $EVDIR"
 TRAIN_LOG="${LOGBASE}_train.log"
 EVMODE=verbatim; [ "$MODE" = FULL ] && EVMODE=digest
 ( cd "$RUNTREE" && CUDA_VISIBLE_DEVICES="$LANES" EXP40_EVIDENCE_DIR="$EVDIR" EXP40_EVIDENCE_MODE="$EVMODE" \
     EXP40_PUBLISH="$PUBLISH" EXP40_RUN_ID="$RUN_ID" exec setsid "$PY" "$DRIVER" "${ARGV[@]}" ) > "$TRAIN_LOG" 2>&1 &
 TRAIN_PID=$!
 sleep 2
-if [ "$(ps -o pgid= -p "$TRAIN_PID" | tr -d ' ')" != "$TRAIN_PID" ]; then
-  kill "$TRAIN_PID" 2>/dev/null; unlock; die "setsid did not give the training its own process group"
-fi
+[ "$(ps -o pgid= -p "$TRAIN_PID" | tr -d ' ')" = "$TRAIN_PID" ] \
+  || die "setsid did not give the training its own process group"
 echo "spawned pid/pgid $TRAIN_PID; log $TRAIN_LOG"
 "$PY" "$KIT" watch --log "$TRAIN_LOG" --members "$MEMBERS" --pid "$TRAIN_PID" --pgid "$TRAIN_PID" \
   --timeout 3600 &
 WATCH_PID=$!
 wait "$TRAIN_PID"; TRAIN_RC=$?
 wait "$WATCH_PID"; WATCH_RC=$?
+WATCH_PID=""
+# stragglers of the training's own group (e.g. an orphaned DDP rank) are terminated too
+"$PY" "$KIT" stop-group --pgid "$TRAIN_PID" --grace 120 || die "training group $TRAIN_PID survived"
+TRAIN_PID=""
 echo "train rc=${TRAIN_RC} watcher rc=${WATCH_RC}"
 
 # --- verdicts ------------------------------------------------------------------------------ #
 FINAL=0
 if [ "$MODE" = FULL ]; then
   EVOUT="$RECEIPTS/full_evidence_${RUN_ID}.json"
+  REF="$RECEIPTS/ddp_smoke_${PLATFORM}_${RUNG}_${EXPECT_SHA}.json"
+  AUDIT="$RECEIPTS/audit_${RUN_ID}.json"
   "$PY" "$KIT" evidence --platform "$PLATFORM" --rung "$RUNG" --mode FULL --run-id "$RUN_ID" \
     --save-root "$SAVE_ROOT" --stamp "$TS" --evidence-dir "$EVDIR" --log "$TRAIN_LOG" \
     --check-json "$CHECK_JSON" --receipts "$RECEIPTS" --train-rc "$TRAIN_RC" --watcher-rc "$WATCH_RC" \
-    --reference "$RECEIPTS/ddp_smoke_${PLATFORM}_${RUNG}_${EXPECT_SHA}.json" --out "$EVOUT" || FINAL=1
+    --reference "$REF" --out "$EVOUT" || FINAL=1
   "$PY" "$KIT" audit --ckpt-dir "$CKPT_DIR" --nas-dir "$NAS_DIR" --evidence "$EVOUT" --run-id "$RUN_ID" \
-    --out "${LOGBASE}_audit.json" || FINAL=1
+    --check "$CHECK_JSON" --reference "$REF" --out "$AUDIT" || FINAL=1
+  # the stable run-result manifest (code-r1 M6): admission resolves every record from it
+  cp "$CHECK_JSON" "$RECEIPTS/check_${RUN_ID}.json" || FINAL=1
+  VERDICT=PASS; [ "$FINAL" = 0 ] && [ "$TRAIN_RC" = 0 ] && [ "$WATCH_RC" = 0 ] || VERDICT=FAIL
+  "$PY" "$KIT" run-result --run-id "$RUN_ID" --sha "$EXPECT_SHA" --verdict "$VERDICT" \
+    --check "$RECEIPTS/check_${RUN_ID}.json" --reference "$REF" --evidence "$EVOUT" --audit "$AUDIT" \
+    --expected-dirpath "$CKPT_DIR" --ckpt-dir "$CKPT_DIR" --runtree "$RUNTREE" \
+    --out "$RECEIPTS/run_result_${RUN_ID}.json" || FINAL=1
+  echo "next (admission): $PY $REPO/$EXPREL/exp40_kit.py admit --run-result $RECEIPTS/run_result_${RUN_ID}.json --receipts-dir $RECEIPTS --out $REPO/$EXPREL/exp40_C16_admission.json"
 else
   "$PY" "$KIT" evidence --platform "$PLATFORM" --rung "$RUNG" --mode "$MODE" --run-id "$RUN_ID" \
     --save-root "$SAVE_ROOT" --stamp "$TS" --evidence-dir "$EVDIR" --log "$TRAIN_LOG" \
@@ -167,7 +223,6 @@ else
   [ "$n_ckpt" = 0 ] || { echo "a smoke wrote ${n_ckpt} checkpoint(s)"; FINAL=1; }
 fi
 [ "$TRAIN_RC" = 0 ] && [ "$WATCH_RC" = 0 ] || FINAL=1
-unlock || echo "WARNING: could not release the per-card locks in $LOCK_JSON"
-echo "=== exp_40 C16 ${MODE} finished $(date '+%Y-%m-%d %H:%M:%S'): $([ $FINAL = 0 ] && echo PASS || echo FAIL) ==="
+echo "=== exp_40 C16 ${MODE} training finished $(date '+%Y-%m-%d %H:%M:%S'): $([ $FINAL = 0 ] && echo PASS || echo FAIL) (locks released at exit) ==="
 [ "$WATCH_RC" -ge 8 ] && exit "$WATCH_RC"
 exit "$FINAL"

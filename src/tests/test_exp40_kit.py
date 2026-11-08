@@ -281,19 +281,40 @@ def _argv(name, intent):
     return ["sbatch", "--parsable", "--job-name", name, "--comment", intent, "script"]
 
 
-def _submit(states, sched, exec_id, mode="PILOT", **kw):
+def _control(tmp_path):
+    return os.path.realpath(str(tmp_path / "control"))
+
+
+def _submit(tmp_path, sched, exec_id, mode="PILOT", **kw):
     kw.setdefault("relaxation", "post-run-publish")
     kw.setdefault("probe_ok", True)
-    return kit.neuronic_submit(str(states), "exp40_C16_neuronic_2x32", mode, exec_id, _argv, sched,
+    return kit.neuronic_submit(_control(tmp_path), "exp40_C16_neuronic_2x32", mode, exec_id, _argv, sched,
                                grace_s=0, sleep=lambda s: None, **kw)
+
+
+def _state(tmp_path, exec_id, mode="PILOT"):
+    return kit.read_json(os.path.join(_control(tmp_path), "states", f"{exec_id}__{mode}.state.json"))
+
+
+def _job_claims(tmp_path, exec_id, jid, mode="PILOT"):
+    """What the job's first step does: the O_EXCL claim in the control dir."""
+    return kit.claim(os.path.join(_control(tmp_path), "claims"), exec_id, mode, jid, "intent")
 
 
 def test_submit_records_the_attempt_boundary(tmp_path):
     sched = Sched()
     action, st = _submit(tmp_path, sched, "e1")
     assert action == "submitted" and st["job_ids"] == ["1001"]
-    rec = kit.read_json(tmp_path / "e1__PILOT.state.json")
+    rec = _state(tmp_path, "e1")
     assert rec["status"] == "submitted" and rec["sbatch"][3] == "exp40-e1-PILOT"
+    assert rec["control_dir"] == _control(tmp_path)
+
+
+def test_control_dir_must_be_canonical_absolute(tmp_path):
+    with pytest.raises(kit.Refused, match="canonical"):
+        kit.neuronic_submit("relative/control", "exp40_C16_neuronic_2x32", "PILOT", "e", _argv, Sched())
+    with pytest.raises(kit.Refused, match="canonical"):
+        kit.neuronic_submit(str(tmp_path) + "/a/../control", "exp40_C16_neuronic_2x32", "PILOT", "e", _argv, Sched())
 
 
 def test_live_or_ambiguous_execution_blocks_any_new_one(tmp_path):
@@ -301,6 +322,7 @@ def test_live_or_ambiguous_execution_blocks_any_new_one(tmp_path):
     _submit(tmp_path, sched, "e1")                                             # PENDING
     with pytest.raises(kit.Refused, match="live"):
         _submit(tmp_path, sched, "e2")
+    assert _state(tmp_path, "e1")["status"] == "live"                          # durable transition
     sched.jobs["exp40-e1-PILOT"] = []                                          # vanished: ambiguous
     with pytest.raises(kit.Refused, match="ambiguous"):
         _submit(tmp_path, sched, "e2")
@@ -308,25 +330,147 @@ def test_live_or_ambiguous_execution_blocks_any_new_one(tmp_path):
 
 def test_post_sbatch_crash_is_adopted_not_resubmitted(tmp_path):
     sched = Sched()
-    kit.atomic_write_json(tmp_path / "e1__PILOT.state.json",
+    os.makedirs(os.path.join(_control(tmp_path), "states"))
+    kit.atomic_write_json(os.path.join(_control(tmp_path), "states", "e1__PILOT.state.json"),
                           {"run_id": "exp40_C16_neuronic_2x32", "mode": "PILOT", "execution_id": "e1",
                            "status": "sbatch_attempted", "intent": "x", "job_ids": []})
     sched.jobs["exp40-e1-PILOT"] = [("777", "RUNNING")]                        # sbatch DID happen
     with pytest.raises(kit.Refused, match="live"):
         _submit(tmp_path, sched, "e2")
     assert not [c for c in sched.calls if c[0] == "sbatch"]
+    assert _state(tmp_path, "e1")["job_ids"] == ["777"]
 
 
-def test_delayed_accounting_then_completed(tmp_path):
+def test_delayed_accounting_then_completed_owner(tmp_path):
     sched = Sched()
     _submit(tmp_path, sched, "e1")
+    _job_claims(tmp_path, "e1", "1001")
     sched.jobs["exp40-e1-PILOT"] = [("1001", "COMPLETED")]
     sched.hidden.add("exp40-e1-PILOT")
     action, _ = _submit(tmp_path, sched, "e2")                                 # grace re-query finds it
     assert action == "submitted"
+    st = _state(tmp_path, "e1")
+    assert st["status"] == "terminal" and st["outcome"] == "completed" and st["owner_job"] == "1001"
     with pytest.raises(kit.Refused, match="fresh execution identity"):
         sched.jobs["exp40-e2-PILOT"] = [("1002", "FAILED")]
         _submit(tmp_path, sched, "e2")
+
+
+def test_claim_owner_completed_with_a_refused_duplicate_is_completed(tmp_path):
+    """H6: an accidental duplicate job that exits 3 on the claim is a recorded duplicate,
+    not a failure of the execution."""
+    sched = Sched()
+    _submit(tmp_path, sched, "R", mode="FULL")
+    _job_claims(tmp_path, "R", "1001", mode="FULL")
+    sched.jobs["exp40-R-FULL"] = [("1001", "COMPLETED"), ("1005", "FAILED")]
+    with pytest.raises(kit.Refused, match="already COMPLETED"):
+        _submit(tmp_path, sched, "R_r1", mode="FULL")
+    st = _state(tmp_path, "R", "FULL")
+    assert st["outcome"] == "completed" and st["duplicates"] == ["1005"] and st["job_ids"] == ["1001", "1005"]
+
+
+def test_owner_unknown_to_the_scheduler_or_completed_without_claim_is_ambiguous(tmp_path):
+    sched = Sched()
+    _submit(tmp_path, sched, "e1")
+    _job_claims(tmp_path, "e1", "4242")
+    sched.jobs["exp40-e1-PILOT"] = [("1001", "FAILED")]
+    with pytest.raises(kit.Refused, match="ambiguous"):
+        _submit(tmp_path, sched, "e2")
+    tmp2 = tmp_path / "b"
+    tmp2.mkdir()
+    sched2 = Sched()
+    _submit(tmp2, sched2, "e1")
+    sched2.jobs["exp40-e1-PILOT"] = [("1001", "COMPLETED")]                    # no claim at all
+    with pytest.raises(kit.Refused, match="ambiguous"):
+        _submit(tmp2, sched2, "e2")
+
+
+def test_failed_before_claiming_is_terminal_failed(tmp_path):
+    sched = Sched()
+    _submit(tmp_path, sched, "e1")
+    sched.jobs["exp40-e1-PILOT"] = [("1001", "FAILED")]
+    action, _ = _submit(tmp_path, sched, "e2")
+    assert action == "submitted" and _state(tmp_path, "e1")["outcome"] == "failed"
+
+
+@pytest.mark.parametrize("payload", ["{trunc", "[]", '{"run_id": "exp40_C16_neuronic_2x32"}',
+                                     '{"run_id": "x", "mode": "PILOT", "execution_id": "e", "status": "weird", '
+                                     '"intent": "i", "job_ids": []}'])
+def test_malformed_or_truncated_state_is_an_explicit_ambiguous_refusal(tmp_path, payload):
+    os.makedirs(os.path.join(_control(tmp_path), "states"))
+    with open(os.path.join(_control(tmp_path), "states", "bad__PILOT.state.json"), "w") as f:
+        f.write(payload)
+    with pytest.raises(kit.Refused, match="ambiguous"):
+        _submit(tmp_path, Sched(), "e2")
+
+
+class FileSched:
+    """A picklable stub Slurm whose jobs live in a JSON file (shared across processes)."""
+
+    def __init__(self, path):
+        self.path = path
+
+    def __call__(self, cmd):
+        import fcntl
+        with open(self.path + ".lock", "a") as lk:
+            fcntl.flock(lk, fcntl.LOCK_EX)
+            jobs = json.load(open(self.path)) if os.path.exists(self.path) else {}
+            if cmd[0] == "sbatch":
+                time.sleep(0.5)                          # widen the race window
+                name = cmd[cmd.index("--job-name") + 1]
+                jid = str(2000 + sum(len(v) for v in jobs.values()))
+                jobs.setdefault(name, []).append([jid, "PENDING"])
+                json.dump(jobs, open(self.path, "w"))
+                return 0, jid + "\n", ""
+            key = "-n" if cmd[0] == "squeue" else "--name"
+            name = cmd[cmd.index(key) + 1]
+            return 0, "".join(f"{j}|{st}\n" for j, st in jobs.get(name, [])), ""
+
+
+def _race_submit(args):
+    control, sched_path, exec_id, barrier = args
+    barrier.wait()
+    try:
+        action, _ = kit.neuronic_submit(control, "exp40_C16_neuronic_2x32", "FULL", exec_id, _argv,
+                                        FileSched(sched_path), grace_s=0, sleep=lambda s: None,
+                                        relaxation="post-run-publish", probe_ok=True)
+        return action
+    except kit.Refused as err:
+        return f"REFUSED {err}"
+
+
+def test_concurrent_submitters_from_two_checkouts_share_one_control_dir(tmp_path):
+    """B2: two submitters (as from two checkouts: separate processes, nothing shared but the
+    control directory) race the same RUN_ID: exactly one sbatch happens."""
+    import multiprocessing as mp
+    ctx = mp.get_context("fork")
+    control, sched_path = _control(tmp_path), str(tmp_path / "sched.json")
+    barrier = ctx.Manager().Barrier(2)
+    with ctx.Pool(2) as pool:
+        got = pool.map(_race_submit, [(control, sched_path, "exp40_C16_neuronic_2x32", barrier)] * 2)
+    assert sorted(g.split()[0] for g in got) == ["REFUSED", "submitted"], got
+    assert sum(len(v) for v in json.load(open(sched_path)).values()) == 1
+    later = _race_submit((control, sched_path, "exp40_C16_neuronic_2x32_r1", types.SimpleNamespace(wait=lambda: None)))
+    assert later.startswith("REFUSED") and "live" in later
+
+
+def _race_claim(args):
+    claims, i, barrier = args
+    barrier.wait()
+    try:
+        kit.claim(claims, "exp40_C16_neuronic_2x32", "FULL", str(100 + i), f"intent{i}")
+        return True
+    except kit.Refused:
+        return False
+
+
+def test_claim_is_exclusive_under_true_concurrency(tmp_path):
+    import multiprocessing as mp
+    ctx = mp.get_context("fork")
+    barrier = ctx.Manager().Barrier(8)
+    with ctx.Pool(8) as pool:
+        got = pool.map(_race_claim, [(str(tmp_path / "claims"), i, barrier) for i in range(8)])
+    assert sum(got) == 1
 
 
 @pytest.mark.parametrize("raw,want", [("OUT_OF_ME+", "OUT_OF_MEMORY"), ("COMPLETED", "COMPLETED"),
@@ -345,7 +489,7 @@ def test_query_failure_is_fatal(tmp_path):
     sched = Sched()
     _submit(tmp_path, sched, "e1")
     with pytest.raises(kit.Refused, match="sacct failed"):
-        _submit(tmp_path, Sched.__new__(Sched) if False else _failing(sched, "sacct"), "e2")
+        _submit(tmp_path, _failing(sched, "sacct"), "e2")
 
 
 def _failing(sched, which):
@@ -370,6 +514,13 @@ def test_full_gates_relaxation_probe_and_completion(tmp_path):
 
 def test_time_request_and_partition_limit():
     assert kit.parse_slurm_time("1-00:00:00") == 1440 and kit.parse_slurm_time("infinite") is None
+    # M4: every sinfo line, the most conservative finite one; empty refused
+    assert kit.parse_maxtime_lines("7-00:00:00\n1-00:00:00\ninfinite\n") == 1440
+    assert kit.parse_maxtime_lines("infinite\nUNLIMITED\n") is None
+    with pytest.raises(kit.Refused):
+        kit.parse_maxtime_lines("\n")
+    with pytest.raises(kit.Refused):
+        kit.parse_maxtime_lines("1-00:00:00\nbogus")
     need = kit.full_time_request(2.0, None)
     assert need == int(-(-(40000 * 2.0 * 1.15 / 60 + 45) // 1))
     with pytest.raises(kit.Refused, match="MaxTime"):
@@ -699,21 +850,6 @@ def test_checkpoint_state_failures(tiny_ckpt, mutate, needle):
     assert any(needle in x for x in kit.checkpoint_state_reasons(ck, cfg, "/ck", w))
 
 
-def test_cadence_and_save_markers(tmp_path):
-    for s in kit.CKPT_STEPS:
-        (tmp_path / f"epoch=0-step={s}.ckpt").write_bytes(b"x")
-        (tmp_path / f"epoch=0-step={s}.ckpt.saved").write_text("{}")
-    v = kit.audit(str(tmp_path), str(_REPO), strict_load=False) if False else None
-    names = sorted(os.listdir(tmp_path))
-    steps = kit.ckpt_steps(n for n in names if kit._CKPT_RE.match(n))
-    assert sorted(steps) == list(kit.CKPT_STEPS)
-    (tmp_path / "epoch=0-step=2500.ckpt.saved").unlink()
-    (tmp_path / "stray.txt").write_text("x")
-    v = kit.audit(str(tmp_path), str(_REPO), strict_load=False)
-    assert v["verdict"] == "FAIL"
-    assert any("save marker" in r for r in v["reasons"]) or any("unexpected" in r for r in v["reasons"])
-
-
 # --------------------------------------------------------------------------- #
 # sealed HF hub and the AR gates
 # --------------------------------------------------------------------------- #
@@ -861,3 +997,436 @@ def test_admission_validator_rejects_schema_and_nas_mutations(tmp_path):
     (nas / "epoch=8-step=40000.ckpt.partial").unlink()
     (tmp_path / "admission.json").write_text("{trunc")
     assert kit.admission_reasons(path, nas_root=root)[0]
+
+
+# --------------------------------------------------------------------------- #
+# code review 1: neuronic allocated-GPU gate (H5), claim probe (B3)
+# --------------------------------------------------------------------------- #
+L40 = [{"index": i, "uuid": f"GPU-0000000{i}-0000-0000-0000-000000000000", "name": "NVIDIA L40",
+        "free_mib": 46000} for i in range(4)]
+
+
+def test_slurm_gate_inspects_only_the_allocated_devices_by_uuid():
+    alloc = [L40[3]["uuid"], L40[1]["uuid"]]                  # Slurm gave physical 3 and 1
+    busy0 = [{"uuid": L40[0]["uuid"], "pid": 7, "used": "100"}]  # someone on an UNallocated card
+    assert kit.slurm_gpu_reasons(alloc, 2, L40, busy0) == []
+    busy3 = [{"uuid": L40[3]["uuid"], "pid": 9, "used": "100"}]
+    assert any("local rank 0" in r and "9" in r for r in kit.slurm_gpu_reasons(alloc, 2, L40, busy3))
+    assert kit.slurm_gpu_reasons(alloc[:1], 2, L40, [])
+    assert kit.slurm_gpu_reasons([alloc[0], alloc[0]], 2, L40, [])
+    assert kit.slurm_gpu_reasons(["GPU-ffffffff-0000-0000-0000-000000000000", alloc[1]], 2, L40, [])
+    a6 = [dict(g, name="NVIDIA RTX A6000") for g in L40]
+    assert kit.slurm_gpu_reasons(alloc, 2, a6, [])
+
+
+def _race_probe(args):
+    d, rank = args
+    return kit.probe_task(d, rank, f"host{rank}", rounds=kit.PROBE_ROUNDS, timeout_s=30)
+
+
+def _probe(tmp_path):
+    control = os.path.realpath(str(tmp_path / "control"))
+    d = os.path.join(control, "claims", "probe_123")
+    os.makedirs(d)
+    import multiprocessing as mp
+    with mp.get_context("fork").Pool(2) as pool:
+        ranks = pool.map(_race_probe, [(d, 0), (d, 1)])
+    script = tmp_path / "exp40_claim_probe.sbatch"
+    script.write_text("#!/bin/bash\n")
+    return control, d, ranks, str(script)
+
+
+def test_claim_probe_barrier_rounds_and_receipt_validation(tmp_path):
+    control, d, ranks, script = _probe(tmp_path)
+    assert all(r["barrier_ok"] for r in ranks)
+    assert all(a != b for a, b in zip(ranks[0]["won"], ranks[1]["won"]))      # one winner per round
+    rec = kit.probe_verdict(d, control, "123", script, "a" * 40, 0)
+    assert rec["verdict"] == "PASS", rec["reasons"]
+    out = kit.control_paths(control)["probe"]
+    os.makedirs(os.path.dirname(out))
+    kit.atomic_write_json(out, rec)
+    assert kit.probe_receipt_reasons(out, control, script) == []
+    for key, val in [("verdict", "FAIL"), ("hosts", ["h", "h"]), ("rounds", 19), ("winners", [0] * 19),
+                     ("control_dir", "/elsewhere"), ("dir", "/elsewhere/claims/probe_1"),
+                     ("mounts", {"0": {"source": "a", "fstype": "nfs"}, "1": {"source": "b", "fstype": "nfs"}}),
+                     ("job_id", ""), ("source_sha", "x"), ("script_sha256", "0" * 64),
+                     ("t", time.time() - 15 * 86400), ("t", time.time() + 3600), ("reasons", ["x"])]:
+        kit.atomic_write_json(out, {**rec, key: val})
+        assert kit.probe_receipt_reasons(out, control, script), key
+    kit.atomic_write_json(out, {**rec, "extra": 1})
+    assert kit.probe_receipt_reasons(out, control, script)
+    kit.atomic_write_json(out, rec)
+    other = tmp_path / "other.json"
+    kit.atomic_write_json(str(other), rec)
+    assert kit.probe_receipt_reasons(str(other), control, script)              # not the control's receipt
+    script_text = open(script).read()
+    open(script, "w").write(script_text + "# edited\n")
+    assert kit.probe_receipt_reasons(out, control, script)
+
+
+def test_claim_probe_verdict_fails_on_one_host_two_winners_or_outside_dir(tmp_path):
+    control, d, ranks, script = _probe(tmp_path)
+    r1 = kit.read_json(os.path.join(d, "rank1.json"))
+    kit.atomic_write_json(os.path.join(d, "rank1.json"), {**r1, "host": "host0"})
+    assert any("not a two-node" in r for r in kit.probe_verdict(d, control, "1", script, "a" * 40, 0)["reasons"])
+    r0 = kit.read_json(os.path.join(d, "rank0.json"))
+    for rec, name in ((r0, "rank0.json"), (r1, "rank1.json")):           # both claim every round
+        kit.atomic_write_json(os.path.join(d, name), {**rec, "won": [True] * kit.PROBE_ROUNDS})
+    assert any("2 winners" in r for r in kit.probe_verdict(d, control, "1", script, "a" * 40, 0)["reasons"])
+    kit.atomic_write_json(os.path.join(d, "rank0.json"), r0)
+    flipped = [not w for w in r1["won"]]                                   # rank files vs claim files
+    kit.atomic_write_json(os.path.join(d, "rank1.json"), {**r1, "won": flipped})
+    kit.atomic_write_json(os.path.join(d, "rank0.json"), {**r0, "won": [not w for w in r0["won"]]})
+    assert any("claim file names" in r for r in kit.probe_verdict(d, control, "1", script, "a" * 40, 0)["reasons"])
+    kit.atomic_write_json(os.path.join(d, "rank0.json"), r0)
+    kit.atomic_write_json(os.path.join(d, "rank1.json"), r1)
+    assert kit.probe_verdict(d, control, "1", script, "a" * 40, 1)["verdict"] == "FAIL"     # srun rc
+    elsewhere = os.path.realpath(str(tmp_path / "other_control"))
+    assert kit.probe_verdict(d, elsewhere, "1", script, "a" * 40, 0)["verdict"] == "FAIL"
+
+
+# --------------------------------------------------------------------------- #
+# code review 1: bounded group termination (B4), lock-record failure (H3)
+# --------------------------------------------------------------------------- #
+def test_terminate_group_escalates_to_sigkill_for_a_term_ignoring_group():
+    proc = subprocess.Popen(["bash", "-c", "trap '' TERM; sleep 60 & wait"], start_new_session=True)
+    try:
+        time.sleep(0.3)
+        assert kit.group_alive(proc.pid)
+        assert kit.terminate_group(proc.pid, grace_s=0.5, kill_wait_s=5, poll_s=0.05) is True
+        assert not kit.group_alive(proc.pid)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait()
+    with pytest.raises(kit.Refused):
+        kit.terminate_group(os.getpgrp())
+
+
+def test_gpu_lock_record_failure_releases_the_locks(tmp_path, capsys):
+    hs = tmp_path / "hs"
+    hs.mkdir()
+    rc = kit.main(["gpu-lock", "--uuids", U0, "--handshake-dir", str(hs), "--payload-json", "{}",
+                   "--out", str(tmp_path / "missing_dir" / "locks.json")])
+    assert rc == 2 and "released" in capsys.readouterr().out
+    assert not (hs / f"GPU_LOCK_{U0}").exists()                                # nothing leaked
+    assert kit.main(["gpu-lock", "--uuids", U0, "--handshake-dir", str(hs), "--payload-json", "{}",
+                     "--out", str(tmp_path / "locks.json")]) == 0
+    assert (hs / f"GPU_LOCK_{U0}").exists()
+    assert kit.main(["gpu-unlock", "--lock-json", str(tmp_path / "locks.json")]) == 0
+
+
+def test_launchers_install_signal_safe_cleanup_before_taking_locks():
+    for name in ("exp40_train_local.sh", "exp40_train.sbatch"):
+        text = (_EXP / name).read_text()
+        trap = text.index("trap cleanup EXIT")
+        assert "trap 'on_signal INT' INT" in text and "trap 'on_signal TERM' TERM" in text
+        assert "stop-group --pgid \"$TRAIN_PID\"" in text
+        if name == "exp40_train_local.sh":
+            assert trap < text.index('"$PY" "$KIT" gpu-lock'), "the trap must precede lock acquisition"
+            assert "gpu-unlock" in text[text.index("cleanup() {"):trap]
+            assert 'bad=1' in text and "exit 12" in text
+        assert trap < text.index("exec setsid")
+
+
+def test_local_launcher_interrupt_releases_locks_and_kills_only_its_group(tmp_path):
+    """B4 end-to-end on a stub: the launcher's cleanup block, extracted verbatim, run under a
+    fake kit; SIGTERM while waiting -> the owned group is terminated and the lock released."""
+    text = (_EXP / "exp40_train_local.sh").read_text()
+    block = text[text.index("TRAIN_PID=\"\"; WATCH_PID=\"\""):text.index('"$PY" "$KIT" gpu-lock')]
+    fake = tmp_path / "fakekit.py"
+    fake.write_text(
+        "import sys, os, json\n"
+        "sys.path.insert(0, %r)\n" % str(_EXP) +
+        "import importlib.util\n"
+        "spec = importlib.util.spec_from_file_location('k', %r)\n" % str(_EXP / "exp40_kit.py") +
+        "k = importlib.util.module_from_spec(spec); spec.loader.exec_module(k)\n"
+        "sys.exit(k.main(sys.argv[1:]))\n")
+    hs = tmp_path / "hs"
+    hs.mkdir()
+    script = tmp_path / "launcher.sh"
+    script.write_text(
+        "set -uo pipefail\n"
+        f"PY={sys.executable}; KIT={fake}; MODE=FULL; TMPDIR={tmp_path / 'tmpdir'}; mkdir -p $TMPDIR\n"
+        f"LOCK_JSON={tmp_path / 'locks.json'}\n"
+        "die() { echo \"REFUSED: $*\"; exit 2; }\n" + block +
+        f"\"$PY\" \"$KIT\" gpu-lock --uuids {U0} --handshake-dir {hs} --payload-json '{{}}' --out \"$LOCK_JSON\" || die lock\n"
+        "( exec setsid sleep 300 ) &\nTRAIN_PID=$!\n"
+        f"echo $TRAIN_PID > {tmp_path / 'pid'}\n"
+        "wait \"$TRAIN_PID\"\n")
+    proc = subprocess.Popen(["bash", str(script)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    for _ in range(100):
+        if (tmp_path / "pid").exists() and (hs / f"GPU_LOCK_{U0}").exists():
+            break
+        time.sleep(0.1)
+    pid = int((tmp_path / "pid").read_text())
+    time.sleep(0.3)
+    proc.send_signal(signal.SIGTERM)
+    out, _ = proc.communicate(timeout=60)
+    assert proc.returncode == 130, out
+    assert "INTERRUPTED by SIGTERM" in out
+    assert not kit.group_alive(pid)
+    assert not (hs / f"GPU_LOCK_{U0}").exists() and (tmp_path / "locks_released.json").exists()
+    assert not (tmp_path / "tmpdir").exists()
+
+
+# --------------------------------------------------------------------------- #
+# code review 1 H2: re-hash manifested destinations, orphan adoption, killable copy, NAS probe
+# --------------------------------------------------------------------------- #
+def test_an_already_manifested_but_mutated_nas_file_is_not_acknowledged(tmp_path):
+    src, nas = tmp_path / "ckpts", tmp_path / "nas"
+    src.mkdir()
+    p = _ckpt(src, 2500)
+    kit.mark_saved(str(p))
+    kit.publish_saved(str(p), RID, timeout_s=60, dest_root=str(nas))
+    (nas / RID / p.name).write_bytes(b"rotted" * 50)
+    with pytest.raises(kit.Refused, match="re-hash"):
+        kit.publish_saved(str(p), RID, timeout_s=60, dest_root=str(nas))
+
+
+def test_orphan_adoption_rehashes_the_source(tmp_path, monkeypatch):
+    src, nas = tmp_path / "ckpts", tmp_path / "nas"
+    src.mkdir()
+    (nas / RID).mkdir(parents=True)
+    p = _ckpt(src, 5000)
+    (nas / RID / p.name).write_bytes(p.read_bytes())
+    real, calls = kit.sha256_file, []
+
+    def flaky(path, *a):
+        calls.append(path)
+        return "0" * 64 if (path == str(p) and len(calls) > 2) else real(path, *a)
+    monkeypatch.setattr(kit, "sha256_file", flaky)
+    with pytest.raises(kit.Refused, match="orphan was adopted"):
+        kit.publish_one(str(src), p.name, str(nas / RID))
+
+
+def test_publication_timeout_kills_the_copy_process_group(tmp_path, monkeypatch):
+    src, nas = tmp_path / "ckpts", tmp_path / "nas"
+    src.mkdir()
+    p = _ckpt(src, 2500)
+    kit.mark_saved(str(p))
+    slow = tmp_path / "slowpy"
+    slow.write_text(f"#!/bin/bash\necho $$ > {tmp_path / 'copy.pid'}\nsleep 120\n")
+    slow.chmod(0o755)
+    t0 = time.time()
+    with pytest.raises(kit.Refused, match="exceeded"):
+        kit.publish_saved(str(p), RID, timeout_s=1.0, dest_root=str(nas), python=str(slow))
+    assert time.time() - t0 < 60
+    pid = int((tmp_path / "copy.pid").read_text())
+    assert not kit.group_alive(pid), "the timed-out publication must not keep writing"
+
+
+def test_nas_capability_probe_and_receipt_validation(tmp_path):
+    root = os.path.realpath(str(tmp_path))
+    rec = kit.nas_capability_probe(root, size=1 << 16)
+    assert rec["verdict"] == "PASS" and len(rec["checks"]) == 5, rec
+    path = str(tmp_path / "nas_capability_a6000.json")
+    kit.atomic_write_json(path, rec)
+    assert kit.nas_receipt_reasons(path, dest_root=root) == []
+    for key, val in [("verdict", "FAIL"), ("dest_root", "/x"), ("t", time.time() - 49 * 3600),
+                     ("t", time.time() + 600), ("checks", {**rec["checks"], "o_excl_create": "FAILED"})]:
+        kit.atomic_write_json(path, {**rec, key: val})
+        assert kit.nas_receipt_reasons(path, dest_root=root), key
+    kit.atomic_write_json(path, {**rec, "more": 1})
+    assert kit.nas_receipt_reasons(path, dest_root=root)
+
+
+def test_mount_identity_takes_the_innermost_mount_of_an_autofs_path(monkeypatch, tmp_path):
+    monkeypatch.setattr(kit, "run", lambda cmd, **k: (0, "/etc/auto.nas autofs\n//10.0.0.1/share cifs\n", ""))
+    m = kit.mount_identity(str(tmp_path))
+    assert (m["source"], m["fstype"]) == ("//10.0.0.1/share", "cifs")
+
+
+def test_atomic_write_json_leaves_no_temp_on_failure(tmp_path):
+    with pytest.raises(TypeError):
+        kit.atomic_write_json(str(tmp_path / "x.json"), {"bad": object()})
+    assert os.listdir(tmp_path) == []
+
+
+# --------------------------------------------------------------------------- #
+# code review 1 B5 / B6 / M6: strict FULL evidence, audit, run result, derived admission
+# --------------------------------------------------------------------------- #
+@pytest.fixture(scope="module")
+def full_stream():
+    return kit.expected_stream(kit.ROOT, kit.ENDPOINT, range(2), 32, verbatim=False)
+
+
+def _full_records(tmp_path, stream, run_id="exp40_C16_a6000_2x32"):
+    sha = "b" * 40
+    argv = kit.train_argv("a6000", "2x32", "FULL", run_id, "/save")
+    fit = {"kind": "fit_start", "world_size": 2, "yaw_aug": kit.YAW_BLOCK, "global_step": 0,
+           "flash_attn_func_is_none": False, "state_signature": "s", "param_signature": "p",
+           "rng_signature": {"python": "r"}, "numerics": {"x": 1}, "syncbn_modules": 4}
+    fits = {str(r): dict(fit, rank=r) for r in range(2)}
+    sums = {}
+    for r in range(2):
+        e = stream[r]
+        sums[str(r)] = {"rank": r, "counts": {"apply_yaw_aug": 40000, "training_step": 40000, "ckpt_reentrant": 0,
+                                              "ckpt_default": 0, "ckpt_unclassified": 0, "flash_calls": 9,
+                                              "ckpt_dinov3": 9, "ckpt_dit": 9,
+                                              "checkpoints_published": 16 if r == 0 else 0},
+                        "offset_digest": e["digest"], "offset_histogram": e["hist"], "n_offsets": e["n"],
+                        "sampled_offsets": e["sampled"], "n_steps": 40000, "global_step": 40000,
+                        "steps_contiguous_from_0": True, "all_losses_finite": True}
+    check = {"verdict": "PASS", "reasons": [], "sha": sha, "tree_digest": "1" * 64, "env_digest": "2" * 64,
+             "argv": argv}
+    ref = {"verdict": "PASS", "kind": "ddp_smoke", "platform": "a6000", "rung": "2x32", "sha": sha,
+           "tree_digest": "1" * 64, "env_digest": "2" * 64,
+           "recipe_projection": kit.recipe_projection(argv), "evidence": {"verdict": "PASS", "reasons": []},
+           "train_rc": 0, "watcher_rc": 0, "fit_start": fits}
+    rec_dir = tmp_path / "receipts"
+    rec_dir.mkdir(exist_ok=True)
+    kit.atomic_write_json(str(rec_dir / "check.json"), check)
+    kit.atomic_write_json(str(rec_dir / "ref.json"), ref)
+    ev = {"verdict": "PASS", "kind": "full_evidence", "platform": "a6000", "rung": "2x32", "mode": "FULL",
+          "run_id": run_id, "stamp": "", "sha": sha, "tree_digest": "1" * 64, "env_digest": "2" * 64,
+          "recipe_projection": kit.recipe_projection(argv), "argv": argv, "train_rc": 0, "watcher_rc": 0,
+          "publisher_rc": 0, "reference_sha256": kit.sha256_file(str(rec_dir / "ref.json")),
+          "evidence": {"verdict": "PASS", "reasons": []}, "fit_start": fits, "summaries": sums,
+          "check_sha256": kit.sha256_file(str(rec_dir / "check.json"))}
+    kit.atomic_write_json(str(rec_dir / "ev.json"), ev)
+    return rec_dir, ev
+
+
+def test_full_evidence_validator_accepts_the_bound_record(tmp_path, full_stream, monkeypatch):
+    monkeypatch.setattr(kit, "expected_stream", lambda *a, **k: full_stream)
+    d, ev = _full_records(tmp_path, full_stream)
+    r, sha, rec = kit.full_evidence_reasons(str(d / "ev.json"), ev["run_id"], str(d / "check.json"),
+                                            str(d / "ref.json"), recompute=True)
+    assert r == [] and rec == ev and sha == kit.sha256_file(str(d / "ev.json"))
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda e: e.update(verdict="FAIL"), lambda e: e.update(kind="ddp_smoke"), lambda e: e.update(mode="PILOT"),
+    lambda e: e.update(platform="neuronic"), lambda e: e.update(rung="8x8"), lambda e: e.update(sha="z"),
+    lambda e: e.update(tree_digest="x"), lambda e: e.update(train_rc=1), lambda e: e.update(watcher_rc=False),
+    lambda e: e.update(publisher_rc=3), lambda e: e.update(evidence={"verdict": "PASS", "reasons": ["x"]}),
+    lambda e: e["argv"].__setitem__(e["argv"].index("--seed") + 1, "43"),
+    lambda e: e["summaries"]["0"]["counts"].update(checkpoints_published=15),
+    lambda e: e["summaries"]["1"]["counts"].update(checkpoints_published=1),
+    lambda e: e["summaries"]["1"]["counts"].update(ckpt_reentrant=1),
+    lambda e: e["summaries"]["0"]["counts"].update(flash_calls=0),
+    lambda e: e["summaries"]["0"]["counts"].update(apply_yaw_aug=39999),
+    lambda e: e["summaries"]["1"].update(all_losses_finite=None),
+    lambda e: e["summaries"]["0"].update(steps_contiguous_from_0=False),
+    lambda e: e["summaries"]["1"].update(offset_digest="0" * 64),
+    lambda e: e["summaries"].pop("1"),
+    lambda e: e["fit_start"]["0"].update(yaw_aug={"enabled": True}),
+    lambda e: e["fit_start"]["1"].update(rng_signature={"python": "other"}),
+    lambda e: e.update(reference_sha256="0" * 64), lambda e: e.update(check_sha256="0" * 64),
+    lambda e: e.update(extra=1), lambda e: e.pop("stamp"),
+])
+def test_full_evidence_validator_rejects_every_critical_mutation(tmp_path, full_stream, monkeypatch, mutate):
+    import copy
+    monkeypatch.setattr(kit, "expected_stream", lambda *a, **k: full_stream)
+    d, ev = _full_records(tmp_path, full_stream)
+    bad = copy.deepcopy(ev)
+    mutate(bad)
+    kit.atomic_write_json(str(d / "ev.json"), bad)
+    r, _, rec = kit.full_evidence_reasons(str(d / "ev.json"), ev["run_id"], str(d / "check.json"),
+                                          str(d / "ref.json"), recompute=True)
+    assert r and rec is None
+
+
+def test_full_evidence_binding_to_check_and_reference(tmp_path, full_stream):
+    d, ev = _full_records(tmp_path, full_stream)
+    chk = kit.read_json(str(d / "check.json"))
+    kit.atomic_write_json(str(d / "check.json"), {**chk, "env_digest": "9" * 64})
+    assert kit.full_evidence_reasons(str(d / "ev.json"), ev["run_id"], str(d / "check.json"))[0]
+    kit.atomic_write_json(str(d / "check.json"), chk)
+    ref = kit.read_json(str(d / "ref.json"))
+    kit.atomic_write_json(str(d / "ref.json"), {**ref, "tree_digest": "9" * 64})
+    assert kit.full_evidence_reasons(str(d / "ev.json"), ev["run_id"], None, str(d / "ref.json"))[0]
+    assert kit.full_evidence_reasons(str(d / "ev.json"), "exp40_C16_a6000_2x32_r1")[0]
+
+
+def _tiny_full_run(tmp_path, tiny_ckpt, monkeypatch, full_stream):
+    """16 cadence checkpoints (the 40k one a real tiny full-state checkpoint), save markers,
+    NAS publication through the real protocol, and the bound evidence records."""
+    ck, cfg, w = tiny_ckpt
+    tree = tmp_path / "tree"
+    (tree / kit.EXPREL).mkdir(parents=True)
+    (tree / kit.ARM_CONFIG).write_text(json.dumps(cfg))
+    monkeypatch.setattr(kit, "build_wrapper_cpu", lambda t, c: w)
+    monkeypatch.setattr(kit, "expected_stream", lambda *a, **k: full_stream)
+    run_id = "exp40_C16_a6000_2x32"
+    ckdir = tmp_path / "ck"
+    ckdir.mkdir()
+    for n in kit.EXPECTED_CKPTS:
+        if n == kit.ckpt_name(kit.ENDPOINT):
+            torch.save(ck, str(ckdir / n))
+        else:
+            (ckdir / n).write_bytes(n.encode() * 10)
+        kit.mark_saved(str(ckdir / n))
+    nas_root = os.path.realpath(str(tmp_path / "nas"))
+    for n in kit.EXPECTED_CKPTS:
+        kit.publish_pass(str(ckdir), run_id, dest_root=nas_root, only=[n])
+    d, ev = _full_records(tmp_path, full_stream, run_id)
+    return tree, ckdir, nas_root, d, ev
+
+
+def test_full_audit_and_derived_admission_end_to_end(tmp_path, tiny_ckpt, monkeypatch, full_stream):
+    tree, ckdir, nas_root, d, ev = _tiny_full_run(tmp_path, tiny_ckpt, monkeypatch, full_stream)
+    nas = os.path.join(nas_root, ev["run_id"])
+    v = kit.audit(str(ckdir), str(tree), nas_dir=nas, evidence=str(d / "ev.json"), run_id=ev["run_id"],
+                  expected_dirpath="/ck", check_path=str(d / "check.json"), reference_path=str(d / "ref.json"))
+    assert v["verdict"] == "PASS", v["reasons"]
+    kit.atomic_write_json(str(d / "audit.json"), v)
+    rr = kit.run_result(ev["run_id"], ev["sha"], "PASS", {"check": str(d / "check.json"), "reference": str(d / "ref.json"),
+                                                         "evidence": str(d / "ev.json"), "audit": str(d / "audit.json")},
+                        "/ck", str(ckdir), str(tree), nas_root=nas_root)
+    kit.atomic_write_json(str(d / "run_result.json"), rr)
+    rec = kit.admit(str(d / "run_result.json"), str(d), str(tree), note="test", nas_root=nas_root)
+    assert set(rec) == kit.ADMISSION_KEYS
+    assert (rec["train_sha"], rec["runtree_digest"], rec["env_digest"]) == (ev["sha"], "1" * 64, "2" * 64)
+    kit.atomic_write_json(str(tmp_path / "admission.json"), rec)
+    assert kit.admission_reasons(str(tmp_path / "admission.json"), nas_root=nas_root, rehash="all")[0] == []
+    # every NAS checkpoint, mutated one at a time, blocks admission
+    for n in kit.EXPECTED_CKPTS:
+        p = os.path.join(nas, n)
+        os.chmod(p, 0o644)
+        old = open(p, "rb").read()
+        open(p, "wb").write(old + b"!")
+        with pytest.raises(kit.Refused):
+            kit.admit(str(d / "run_result.json"), str(d), str(tree), nas_root=nas_root)
+        open(p, "wb").write(old)
+    open(os.path.join(nas, ".epoch=8-step=40000.ckpt.partial-1"), "wb").write(b"")
+    with pytest.raises(kit.Refused, match="beyond"):
+        kit.admit(str(d / "run_result.json"), str(d), str(tree), nas_root=nas_root)
+
+
+def test_admission_refuses_unbound_or_altered_records(tmp_path, tiny_ckpt, monkeypatch, full_stream):
+    tree, ckdir, nas_root, d, ev = _tiny_full_run(tmp_path, tiny_ckpt, monkeypatch, full_stream)
+    nas = os.path.join(nas_root, ev["run_id"])
+    v = kit.audit(str(ckdir), str(tree), nas_dir=nas, evidence=str(d / "ev.json"), run_id=ev["run_id"],
+                  expected_dirpath="/ck", check_path=str(d / "check.json"), reference_path=str(d / "ref.json"))
+    kit.atomic_write_json(str(d / "audit.json"), v)
+    files = {"check": str(d / "check.json"), "reference": str(d / "ref.json"), "evidence": str(d / "ev.json"),
+             "audit": str(d / "audit.json")}
+    rr = kit.run_result(ev["run_id"], ev["sha"], "PASS", files, "/ck", str(ckdir), str(tree), nas_root=nas_root)
+    kit.atomic_write_json(str(d / "rr.json"), rr)
+    kit.atomic_write_json(str(d / "audit.json"), {**v, "full_evidence_sha256": "0" * 64})
+    with pytest.raises(kit.Refused, match="not the recorded bytes"):           # run result binds the audit
+        kit.admit(str(d / "rr.json"), str(d), str(tree), nas_root=nas_root)
+    kit.atomic_write_json(str(d / "rr.json"), {**rr, "verdict": "FAIL"})
+    with pytest.raises(kit.Refused, match="verdict"):
+        kit.admit(str(d / "rr.json"), str(d), str(tree), nas_root=nas_root)
+    kit.atomic_write_json(str(d / "rr.json"), {**rr, "platform": "neuronic"})
+    with pytest.raises(kit.Refused):
+        kit.admit(str(d / "rr.json"), str(d), str(tree), nas_root=nas_root)
+    with pytest.raises(kit.Refused, match="note"):
+        kit.admit(str(d / "rr.json"), str(d), str(tree), note={"admitted": False}, nas_root=nas_root)
+
+
+def test_audit_refuses_wrong_names_markers_and_strays(tmp_path):
+    for s in kit.CKPT_STEPS:
+        (tmp_path / kit.ckpt_name(s)).write_bytes(b"x")
+        kit.mark_saved(str(tmp_path / kit.ckpt_name(s)))
+    (tmp_path / "epoch=0-step=2500.ckpt.saved").unlink()
+    (tmp_path / "stray.txt").write_text("x")
+    v = kit.audit(str(tmp_path), str(_REPO), strict_load=False)
+    assert v["verdict"] == "FAIL"
+    assert any("save marker" in r for r in v["reasons"]) and any("unexpected" in r for r in v["reasons"])
+    os.rename(tmp_path / kit.ckpt_name(5000), tmp_path / "epoch=0-step=5000.ckpt")   # wrong epoch
+    v = kit.audit(str(tmp_path), str(_REPO), strict_load=False)
+    assert any("missing" in r for r in v["reasons"])

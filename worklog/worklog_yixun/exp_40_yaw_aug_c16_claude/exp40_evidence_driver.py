@@ -20,12 +20,16 @@ calls the original with the original arguments and returns its result unchanged:
   conversion + DDP broadcast done) -- rank, world size, GPU identity, SyncBatchNorm count,
   the wrapper's yaw_aug state, and the initial-state signature (full ``state_dict`` digest,
   python / NumPy / torch CPU / CUDA RNG digests, Sobol engine state);
-* ``on_train_end`` -- the counters, written atomically as ``rank<r>.summary.json``.
+* ``on_train_end`` -- the counters, written atomically as ``rank<r>.summary.json``;
+* ``ModelCheckpoint._save_checkpoint`` (FULL) -- right after each synchronous save: the
+  ``.saved`` marker, then (A6000) the bounded, killable NAS publication + acknowledgement or
+  (neuronic, D4) the local ``CHECKPOINTS.partial.sha256`` entry; the outcome is broadcast so
+  every rank raises on a failure (plan §14 B2).
 
 Evidence is RANK-PRIVATE: rank r appends only to ``<dir>/rank<r>.jsonl``. Nothing here
 draws randomness, moves a tensor the step uses, or changes a return value.
 
-Written by the exp_40 Coder seat (Claude Opus 5.5) per plan_yaw_aug_c16.md §4.7.
+Written by the exp_40 Coder seat (Claude Opus 5.5) per plan_yaw_aug_c16.md §4.7 / §14 (binding).
 """
 import hashlib
 import json
@@ -47,9 +51,11 @@ SAMPLED_STEPS = (0, 1, 2, 3, 1000, 2499, 2500, 39997, 39998, 39999)
 
 
 class Evidence:
-    """Per-process evidence. ``verbatim`` (smokes): every step's offsets and loss as records.
-    Both modes keep the streaming digests the FULL receipt is judged on: sha256 over
-    ``"<step>:<d0>,<d1>,...\n"`` (offsets) and ``"<step>:<float.hex(loss)>\n"`` (losses)."""
+    """Per-process evidence. ``verbatim`` (smokes): every step's offsets as records. Both
+    modes keep the streaming offset digest the FULL receipt is judged on (sha256 over
+    ``"<step>:<d0>,<d1>,...\n"``), the offset histogram, the sampled steps' offsets and
+    losses, and a device-side all-losses-finite flag (plan §14 H4: no per-step loss digest,
+    no per-step host sync)."""
 
     def __init__(self, directory, verbatim):
         self.dir = directory
