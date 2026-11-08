@@ -70,7 +70,7 @@ def reference_rows(campaign):
 
 
 def run_block(run, campaign, validate=None):
-    """(rows for the run's two K, problems, admitted-artifact manifest)."""
+    """(rows for the run's two K, problems, {path: sha256} of every artifact the admission consumed)."""
     validate = validate or (lambda c: ev.validate_cell(c, campaign))
     arm, tag, _ = reg.parse_run_id(run)
     cells = ev.run_cells(run)
@@ -80,10 +80,9 @@ def run_block(run, campaign, validate=None):
     model = "p1_bridge" if arm == "p1" else arm
     farm = os.path.dirname(ev._abs(cells[0]["ckpt_link"]))
     platform = json.load(open(os.path.join(farm, reg.TRAINING_RECEIPT)))["platform"]
-    rows, manifest = {}, {}
+    rows, manifest = {}, ev.run_artifacts(run)
     for c in cells:
-        manifest[c["name"]] = {k: reg.sha256_file(ev._abs(c[k])) for k in ("metrics", "stream", "receipt")}
-        manifest[c["name"]]["dump_manifest"] = reg.sha256_file(ev.dump_manifest_copy(c))
+        manifest.update(ev.cell_artifacts(c))
     for K in (8, 1):
         recs = {c["seed"]: json.load(open(ev._abs(c["metrics"])))["metrics"] for c in cells if c["K"] == K}
         rows[(model, tag, K)] = {"stats": aggregate(recs), "source": f"exp_38 {run}, trained on {platform} "
@@ -134,18 +133,18 @@ def publish(rows, pending, manifest, repo=None):
 def collect(bridge=False):
     campaign = ev.validate_e0_receipt()
     rows, used = reference_rows(campaign)
-    manifest = {"e0_receipt": {"path": os.path.relpath(campaign["e0_receipt"], reg.REPO), "sha256": campaign["sha256"]},
-                "campaign": {k: campaign[k] for k in ("head", "closure_sha256", "env_receipt_sha256")},
-                "references": used, "cells": {}, "training_receipts": {}}
+    manifest = {"campaign": {k: campaign[k] for k in ("head", "closure_sha256", "env_receipt_sha256",
+                                                      "eval_snapshot_sha256", "sha256")},
+                "artifacts": ev.campaign_artifacts(campaign), "runs": {}}
     pending = []
     for run in reg.required_runs() + (["de_p1_f025"] if bridge else []):
-        r, probs, cells = run_block(run, campaign)
+        r, probs, arts = run_block(run, campaign)
         rows.update(r)
         pending += probs
-        manifest["cells"].update(cells)
-        if cells:
-            farm = os.path.dirname(ev._abs(ev.run_cells(run)[0]["ckpt_link"]))
-            manifest["training_receipts"][run] = reg.sha256_file(os.path.join(farm, reg.TRAINING_RECEIPT))
+        if arts:
+            manifest["runs"][run] = arts
+    assert set(used) <= {os.path.relpath(k, os.path.join(reg.REPO, reg.EXP_DIR, "ref_cells"))
+                         for k in manifest["artifacts"]}
     return rows, pending, manifest
 
 

@@ -122,9 +122,14 @@ def test_reference_set_is_exact(tmp_path, monkeypatch):
 @pytest.fixture
 def e0(tmp_path, monkeypatch):
     monkeypatch.setattr(ev, "E0_RECEIPT", str(tmp_path / "e0_receipt.json"))
+    monkeypatch.setattr(ev, "FARM", str(tmp_path / "farm"))           # every cell path lands in tmp
     monkeypatch.setattr(ev.reg, "closure_digest", lambda repo=None: {"closure_sha256": fx.CAMPAIGN["closure_sha256"]})
     monkeypatch.setattr(ev.reg, "env_receipt_sha", lambda platform, repo=None: fx.CAMPAIGN["env_receipt_sha256"])
-    campaign, rec = fx.make_e0_receipt(ev)
+    monkeypatch.setattr(ev, "eval_snapshot", lambda closure, create=False: (str(tmp_path / "snap"),
+                                                                           fx.CAMPAIGN["eval_snapshot_sha256"]))
+    monkeypatch.setattr(ev, "live_eval_pins", lambda: {"agree_sha256": ev.reg.AGREE_SHA256,
+                                                       "vae_ckpt_sha256": ev.reg.VAE_CKPT_SHA256, "vit_rev": ev.reg.VIT_REV})
+    campaign, rec = fx.make_e0_receipt(ev, log_dir=str(tmp_path / "logs"))
     return campaign, rec
 
 
@@ -160,6 +165,11 @@ E0_MUTATIONS = {
     "evaluator file": lambda r: r["evaluator_files"].update({"eval_FLAC.py": "0" * 64}),
     "head": lambda r: r.update(head="short"), "extra key": lambda r: r.update(extra=1),
     "missing key": lambda r: r.pop("written_at"),
+    # valid-looking but wrong cell bindings (Codex code r2 HIGH 3): re-hashed, not syntax-checked
+    "cell metrics sha": lambda r: r["cells"]["de_E0b_K8_s42"].update(metrics_sha256="a" * 64),
+    "cell receipt sha": lambda r: r["cells"]["de_E0c_K1_s42"].update(receipt_sha256="b" * 64),
+    "snapshot": lambda r: r.update(eval_snapshot_sha256="6" * 64),
+    "head (other campaign)": lambda r: r.update(head="e" * 40),
 }
 
 
@@ -169,7 +179,7 @@ def test_e0_receipt_refuses_each_mutation(e0, name):
     rec = json.loads(json.dumps(rec))
     E0_MUTATIONS[name](rec)
     _reseal(ev.E0_RECEIPT, rec)
-    offline_ok = name in ("closure", "env", "evaluator file")     # bindings to THIS tree are online-only
+    offline_ok = name == "evaluator file"       # the evaluator-file VALUES bind THIS tree: online-only
     with pytest.raises(ev.reg.GateError):
         ev.validate_e0_receipt()
     if offline_ok:
@@ -177,6 +187,19 @@ def test_e0_receipt_refuses_each_mutation(e0, name):
     else:
         with pytest.raises(ev.reg.GateError):
             ev.validate_e0_receipt(offline=True)
+
+
+def test_e0_cells_are_re_admitted_and_re_compared(e0):
+    """The E0 cells themselves (not just the receipt): a changed metric or a changed cell receipt
+    refuses even though the sealed E0 receipt is untouched."""
+    c = [c for c in ev.e0_cells() if c["name"] == "de_E0d_K8_s42"][0]
+    rec = json.load(open(ev._abs(c["metrics"])))
+    rec["metrics"]["T60"] += 1e-9
+    json.dump(rec, open(ev._abs(c["metrics"]), "w"))
+    for offline in (False, True):
+        with pytest.raises(ev.reg.GateError):
+            ev.validate_e0_receipt(offline=offline)
+    ev.validate_e0_receipt(readmit=False)                  # the neuronic launch gate (cells absent there)
 
 
 def test_e0_receipt_sidecar_is_binding(e0):
@@ -200,17 +223,12 @@ def world(tmp_path, monkeypatch, e0):
 def _cell(world, run="de_bf_f025", K=8, seed=43, dump=True):
     tmp = world["tmp"]
     cell = [c for c in ev.run_cells(run) if c["K"] == K and c["seed"] == seed][0]
-    farm = tmp / "farm" / run
-    farm.mkdir(parents=True, exist_ok=True)
-    for k in ("ckpt_link", "metrics", "stream", "receipt"):
-        cell[k] = str(farm / os.path.basename(cell[k]))
-    cell["dump_dir"] = str(tmp / "dumps" / cell["stem"])
+    farm = os.path.dirname(cell["ckpt_link"])
     rd = tmp / "nas" / run
     if not (rd / ev.reg.TRAINING_RECEIPT).exists():
-        tr, digest = fx.make_training_receipt(ev, run, str(rd), world["campaign"]["closure_sha256"],
-                                              e0_sha=world["campaign"]["sha256"])
-        for f in ("CHECKPOINTS.sha256", ev.reg.TRAINING_RECEIPT, ev.reg.TRAINING_RECEIPT + ".sha256"):
-            open(farm / f, "wb").write(open(rd / f, "rb").read())
+        fx.make_training_receipt(ev, run, str(rd), world["campaign"]["closure_sha256"],
+                                 e0_sha=world["campaign"]["sha256"], e0_path=world["campaign"]["e0_receipt"])
+        fx.copy_to_farm(ev, str(rd), farm)
     tr, digest = ev.reg.read_sealed(str(rd / ev.reg.TRAINING_RECEIPT), ev.reg.TRAINING_KEYS)
     return fx.make_cell(ev, cell, world["campaign"], (tr["final_ckpt_sha256"], tr["final_ckpt_bytes"], digest),
                         str(tmp / "logs"), dump=dump)
@@ -277,6 +295,7 @@ def _receipt_mutations():
         "gpu name": lambda r: r.update(gpu_name="NVIDIA L40"), "gpu uuid": lambda r: r.update(gpu_uuid=ev.reg.A6000_UUIDS[0]),
         "gpu index": lambda r: r.update(gpu=2), "gpu bool": lambda r: r.update(gpu=True),
         "log sha": lambda r: r.update(log_sha256="0" * 64), "log gone": lambda r: r.update(log="/nonexistent.log"),
+        "eval snapshot": lambda r: r.update(eval_snapshot_sha256="6" * 64),
         "time": lambda r: r.update(started_at=None)})
     return out
 
@@ -286,6 +305,79 @@ def test_validate_cell_refuses_each_receipt_mutation(world, name):
     cell = _cell(world)
     _mut(cell["receipt"], _receipt_mutations()[name])
     assert ev.validate_cell(cell) != []
+
+
+def test_admission_checks_the_current_evaluator_weights(world, monkeypatch):
+    cell = _cell(world)
+    assert ev.validate_cell(cell) == []
+    for k in ("agree_sha256", "vae_ckpt_sha256", "vit_rev"):
+        live = {"agree_sha256": ev.reg.AGREE_SHA256, "vae_ckpt_sha256": ev.reg.VAE_CKPT_SHA256, "vit_rev": ev.reg.VIT_REV}
+        live[k] = "0" * 64
+        monkeypatch.setattr(ev, "live_eval_pins", lambda live=live: dict(live))
+        assert ev.validate_cell(cell) != [], k
+        assert ev.validate_cell(cell, offline=True) == []        # offline: the receipt's own pins only
+
+
+def test_a_cell_is_claimed_exactly_once(world):
+    cell = _cell(world, seed=46)
+    ev.claim_cell(cell)
+    with pytest.raises(ev.EvalError, match="claimed"):
+        ev.claim_cell(cell)                                       # a concurrent / crashed run
+    import multiprocessing as mp
+    other = [c for c in ev.run_cells("de_bf_f025") if c["seed"] == 44 and c["K"] == 1][0]
+    ctx = mp.get_context("fork")
+    with ctx.Pool(4) as pool:
+        got = pool.map(_try_claim, [other] * 4)
+    assert sorted(got) == [False, False, False, True]
+
+
+def _try_claim(cell):
+    try:
+        ev.claim_cell(cell)
+        return True
+    except ev.EvalError:
+        return False
+
+
+def test_run_one_executes_from_the_snapshot_while_the_tree_changes(world, monkeypatch, tmp_path):
+    """A fake evaluator mutates the campaign checkout DURING the cell: the cell ran the snapshot's
+    bytes, the snapshot verifies after the cell, and the claim is released only on admission."""
+    run = "de_bf_f025"
+    cell = [c for c in ev.run_cells(run) if c["K"] == 8 and c["seed"] == 45][0]
+    _cell(world, seed=43)                                        # the training receipt + farm copies
+    for p in (cell["metrics"], cell["stream"], cell["receipt"]):
+        assert not os.path.exists(p)
+    snap = tmp_path / "evalsnap"
+    snap.mkdir()
+    (snap / "eval_FLAC.py").write_text("ORIGINAL\n")
+    tree_file = tmp_path / "tree_eval_FLAC.py"
+    tree_file.write_text("ORIGINAL\n")
+    calls = {}
+    monkeypatch.setattr(ev, "eval_snapshot", lambda closure, create=False: (str(snap), fx.CAMPAIGN["eval_snapshot_sha256"]))
+    monkeypatch.setattr(ev.reg, "verify_snapshot", lambda d, want=None: {"snapshot_sha256": fx.CAMPAIGN["eval_snapshot_sha256"],
+                                                                          "verified": (snap / "eval_FLAC.py").read_text() == "ORIGINAL\n"})
+    monkeypatch.setattr(ev.reg, "eval_pins", lambda repo=None: {"agree_sha256": ev.reg.AGREE_SHA256,
+                                                                "vae_ckpt_sha256": ev.reg.VAE_CKPT_SHA256, "vit_rev": ev.reg.VIT_REV})
+    monkeypatch.setattr(ev, "gpu_row", lambda gpu: (ev.reg.A6000_UUIDS[gpu], ev.GPU_NAME))
+    monkeypatch.setattr(ev, "EVAL_LOG_DIR", str(tmp_path / "eval_logs"))
+    monkeypatch.setattr(ev, "eval_env", lambda gpu: {"GIT_DIR": "/x"})
+    tr, digest = ev.reg.read_sealed(str(world["tmp"] / "nas" / run / ev.reg.TRAINING_RECEIPT), ev.reg.TRAINING_KEYS)
+
+    def fake_run(cmd, cwd=None, env=None, stdout=None, **kw):
+        calls["cwd"], calls["ran"] = cwd, open(os.path.join(cwd, "eval_FLAC.py")).read()
+        tree_file.write_text("MUTATED\n")                         # the checkout changes mid-cell
+        stdout.write(ev.SENTINEL + "\n")
+        stdout.flush()
+        fx.make_cell(ev, cell, world["campaign"], (tr["final_ckpt_sha256"], tr["final_ckpt_bytes"], digest),
+                     str(world["tmp"] / "logs2"))
+        os.remove(cell["receipt"])                                 # the driver writes the receipt
+        return type("R", (), {"returncode": 0})()
+    monkeypatch.setattr(ev.subprocess, "run", fake_run)
+    monkeypatch.setattr(ev, "validate_cell", lambda c, camp=None, offline=False: [] if os.path.exists(c["receipt"]) else ["absent"])
+    assert ev.run_one(cell, 1, world["campaign"]) == "done"
+    assert calls["cwd"] == str(snap) and calls["ran"] == "ORIGINAL\n" and tree_file.read_text() == "MUTATED\n"
+    rec = json.load(open(cell["receipt"]))
+    assert rec["eval_snapshot_sha256"] == fx.CAMPAIGN["eval_snapshot_sha256"] and not os.path.exists(ev.claim_path(cell))
 
 
 def test_validate_cell_refuses_stream_and_campaign_mutations(world):
@@ -365,12 +457,8 @@ def test_offline_validation_needs_no_nas(world):
 
 
 def test_e0_cells_validate_under_the_current_campaign(world, monkeypatch):
-    tmp = world["tmp"]
     cell = [c for c in ev.e0_cells() if c["e0"] == "E0b" and c["K"] == 8][0]
-    for k in ("ckpt_link", "metrics", "stream", "receipt"):
-        cell[k] = str(tmp / "farm" / "E0b" / os.path.basename(cell[k]))
     camp = dict(fx.CAMPAIGN, sha256=None)
-    fx.make_cell(ev, cell, camp, (ev.E0["E0b"]["sha"], ev.E0_BYTES["E0b"], None), str(tmp / "logs"))
     monkeypatch.setattr(ev, "current_campaign", lambda: camp)
     assert ev.validate_cell(cell) == []
     _mut(cell["metrics"], lambda r: r.update(ckpt_bytes_loaded=ev.E0_BYTES["E0a"]))
@@ -379,14 +467,13 @@ def test_e0_cells_validate_under_the_current_campaign(world, monkeypatch):
 
 def test_prepare_requires_the_training_receipt(world, monkeypatch):
     rd = world["tmp"] / "nas" / "de_yaw_f025"
-    monkeypatch.setattr(ev, "FARM", str(world["tmp"] / "farm2"))
     with pytest.raises(ev.reg.GateError):
         ev.prepare("de_yaw_f025")                                # no TRAINING_COMPLETE
-    fx.make_training_receipt(ev, "de_yaw_f025", str(rd), "0" * 64, e0_sha=world["campaign"]["sha256"])
+    fx.make_training_receipt(ev, "de_yaw_f025", str(rd), "0" * 64)
     with pytest.raises(ev.reg.GateError):
         ev.prepare("de_yaw_f025")                                # trained at another closure
     rd2 = world["tmp"] / "nas" / "de_yaw_f050"
-    fx.make_training_receipt(ev, "de_yaw_f050", str(rd2), fx.CAMPAIGN["closure_sha256"], e0_sha="0" * 64)
+    fx.make_training_receipt(ev, "de_yaw_f050", str(rd2), fx.CAMPAIGN["closure_sha256"])
     with pytest.raises(ev.reg.GateError, match="another E0"):
         ev.prepare("de_yaw_f050")                                # trained under another E0 receipt
 
@@ -454,3 +541,31 @@ def test_pending_cells_fail_unless_partial(monkeypatch, tmp_path):
     assert col.main(["--partial"]) == 0
     monkeypatch.setattr(col, "collect", lambda bridge=False: ({}, [], {}))
     assert col.main([]) == 0
+
+
+def test_the_result_manifest_lists_every_admitted_artifact(world, monkeypatch):
+    """Codex code r2 HIGH 7: a path -> sha256 entry for every file the admission consumed."""
+    for K in (8, 1):
+        for s_ in ev.SEEDS:
+            _cell(world, K=K, seed=s_)
+    campaign = world["campaign"]
+    rows, probs, arts = col.run_block("de_bf_f025", campaign)
+    assert probs == [] and len(rows) == 2
+    cells = ev.run_cells("de_bf_f025")
+    farm = os.path.dirname(cells[0]["ckpt_link"])
+    for c in cells:
+        rec = json.load(open(c["receipt"]))
+        for path in (c["metrics"], c["stream"], c["receipt"], rec["log"], ev.dump_manifest_copy(c),
+                     os.path.join(c["dump_dir"], "waveforms.npy"), os.path.join(c["dump_dir"], "COMPLETE")):
+            assert path in arts, path
+    for f in ("CHECKPOINTS.sha256", ev.reg.TRAINING_RECEIPT, ev.reg.TRAINING_RECEIPT + ".sha256", "receipts/train.log",
+              "evidence/run_evidence.json.rank1.json"):
+        assert os.path.join(farm, f) in arts, f
+    assert all(len(v) == 64 for v in arts.values())
+    monkeypatch.setattr(col.reg, "required_runs", lambda rung="2x32": ["de_bf_f025"])
+    rows, pending, manifest = col.collect()
+    assert pending == [] and manifest["runs"]["de_bf_f025"] == arts
+    art = manifest["artifacts"]
+    assert campaign["e0_receipt"] in art and campaign["e0_receipt"] + ".sha256" in art
+    assert all(ev._abs(c["metrics"]) in art for c in ev.e0_cells())
+    assert len([k for k in art if "/ref_cells/" in k]) == 69                 # 68 cells + the manifest

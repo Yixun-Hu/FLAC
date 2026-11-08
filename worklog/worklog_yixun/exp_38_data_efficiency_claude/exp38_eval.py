@@ -85,6 +85,7 @@ E0 = {
             "config": reg.ARMS["p1"]["config"], "cond": "vanilla", "by_scene": True},
 }
 REF_MANIFEST = f"{EXP}/ref_cells/REF_MANIFEST.sha256"
+EVAL_LOG_DIR = f"{EXP}/eval_logs"
 
 
 class EvalError(RuntimeError):
@@ -159,14 +160,48 @@ METRICS_TOP_KEYS = frozenset({
     "weights_source"})
 RECEIPT_KEYS = frozenset({
     "schema", "cell", "argv", "rc", "sentinel", "log", "log_sha256", "gpu", "gpu_uuid", "gpu_name", "head",
+    "eval_snapshot_sha256",
     "closure_sha256", "e0_receipt_sha256", "env_receipt_sha256", "model_config_sha256", "dataset_config_sha256",
     "unseen_split_sha256", "agree_sha256", "vae_ckpt_sha256", "vit_rev", "metrics_sha256", "stream_sha256",
     "dump_manifest_sha256", "ckpt_sha256", "ckpt_bytes", "training_receipt_sha256", "started_at", "finished_at"})
 E0_KEYS = frozenset({"schema", "verdict", "failed", "cells", "head", "closure_sha256", "evaluator_files",
+                     "eval_snapshot_sha256",
                      "env_receipt_sha256", "checkpoints", "reference_manifest_sha256", "references", "input_hash",
                      "eval_pins", "written_at"})
 E0_CELL_KEYS = frozenset({"reference", "equal", "difference", "problems", "metrics_sha256", "receipt_sha256"})
 E0_RECEIPT = reg.E0_RECEIPT
+# every cell runs FROM a sealed closure snapshot of the campaign tree (Codex code r2 BLOCKING 2); its links:
+# the dataset, AGREE + the AGREE audio tower's VAE.ckpt, and outputs_FLAC (the farm links + cell outputs)
+SNAPSHOT_ROOT = "/home/yixunhu/codespace/exp-38-snapshots"
+EVAL_LINKS = ("AcousticRooms", "weights/AGREE", reg.VAE_CKPT_REL, "outputs_FLAC")
+_LIVE_PINS = {}
+
+
+def live_eval_pins():
+    """reg.eval_pins() of THIS process, computed once (admission compares receipts with it)."""
+    if not _LIVE_PINS:
+        _LIVE_PINS.update(reg.eval_pins())
+    return dict(_LIVE_PINS)
+
+
+def eval_snapshot_dir(closure):
+    return os.path.join(SNAPSHOT_ROOT, f"eval_{closure[:16]}")
+
+
+def eval_snapshot(closure, create=False):
+    """(dir, sha256) of the campaign's evaluation snapshot, verified (and created once, from the clean
+    campaign tree, when ``create``)."""
+    dest = eval_snapshot_dir(closure)
+    if not os.path.isdir(dest):
+        if not create:
+            raise EvalError(f"no evaluation snapshot {dest} (run `prepare-e0` from the campaign tree)")
+        os.makedirs(_abs("outputs_FLAC"), exist_ok=True)
+        os.makedirs(SNAPSHOT_ROOT, exist_ok=True)
+        reg.snapshot_tools("eval", dest, reg.REPO, links=EVAL_LINKS)
+    v = reg.verify_snapshot(dest)
+    if reg.closure_digest(dest)["closure_sha256"] != closure:
+        raise EvalError(f"{dest} is not a snapshot of closure {closure[:12]}")
+    return dest, v["snapshot_sha256"]
 
 
 def _num(x):
@@ -253,15 +288,19 @@ def git_head(repo=None):
 
 def current_campaign():
     """The identity the E0 cells are produced and judged under (before an E0 receipt exists)."""
-    return {"head": git_head(), "closure_sha256": reg.closure_digest()["closure_sha256"], "sha256": None,
-            "env_receipt_sha256": reg.env_receipt_sha("a6000")}
+    closure = reg.closure_digest()["closure_sha256"]
+    return {"head": git_head(), "closure_sha256": closure, "sha256": None,
+            "env_receipt_sha256": reg.env_receipt_sha("a6000"), "eval_snapshot_sha256": eval_snapshot(closure)[1]}
 
 
-def validate_e0_receipt(repo=None, offline=False, platform="a6000"):
+def validate_e0_receipt(repo=None, offline=False, platform="a6000", readmit=True):
     """The sealed E0 receipt: exact schema, a complete PASS of the eight registered replays with the
     pinned checkpoints / inputs / weights / references, and -- online -- bound to THIS tree's closure,
     evaluator files and (on this box) environment receipt. ``offline`` (the table generator, any
-    host): the receipt's own bindings only. Returns the campaign identity."""
+    host): the receipt's own bindings only. ``readmit`` (Codex code r2 HIGH 3): each E0 cell's metrics
+    and receipt are re-hashed against the receipt, re-admitted and re-compared with its reference
+    (the neuronic launch gate, where the E0 cells do not exist, uses ``readmit=False``). Returns the
+    campaign identity."""
     path = _abs(E0_RECEIPT) if repo is None else os.path.join(repo, E0_RECEIPT)
     rec, digest = reg.read_sealed(path, E0_KEYS)
     p = []
@@ -303,10 +342,39 @@ def validate_e0_receipt(repo=None, offline=False, platform="a6000"):
                 p.append(f"{rel} changed since E0")
         if platform == "a6000" and reg.env_receipt_sha("a6000", repo) != rec["env_receipt_sha256"]:
             p.append("environment receipt changed since E0")
+    if not reg._is_sha(rec["eval_snapshot_sha256"]):
+        p.append("eval_snapshot_sha256 malformed")
+    if not offline and platform == "a6000" and not p:
+        try:
+            if eval_snapshot(rec["closure_sha256"])[1] != rec["eval_snapshot_sha256"]:
+                p.append("the evaluation snapshot changed since E0")
+        except (EvalError, reg.GateError, OSError) as err:
+            p.append(str(err))
+    campaign = {"e0_receipt": path, "sha256": digest, "head": rec["head"], "closure_sha256": rec["closure_sha256"],
+                "env_receipt_sha256": rec["env_receipt_sha256"], "eval_snapshot_sha256": rec["eval_snapshot_sha256"]}
+    if readmit and not p:
+        e0camp = dict(campaign, sha256=None)
+        try:
+            refs = check_refs()
+            for c in e0_cells():
+                v = cells[c["name"]]
+                if (reg.sha256_file(_abs(c["metrics"])), reg.sha256_file(_abs(c["receipt"]))) != \
+                        (v["metrics_sha256"], v["receipt_sha256"]):
+                    p.append(f"{c['name']}: metrics / receipt != the E0 receipt's")
+                    continue
+                probs = validate_cell(c, e0camp, offline=offline)
+                ref, _ = e0_reference(c, refs)
+                got = json.load(open(_abs(c["metrics"])))
+                diff = strict_equal(got["metrics"], ref["metrics"]) if not probs else "not admitted"
+                if not diff and E0[c["e0"]]["by_scene"]:
+                    diff = strict_equal(got["by_scene"], ref["by_scene"])
+                if probs or diff:
+                    p.append(f"{c['name']}: re-admission {probs[:1]} / difference {diff}")
+        except (OSError, ValueError, KeyError, EvalError) as err:
+            p.append(f"E0 cells: {err}")
     if p:
         raise reg.GateError(f"{path}: " + "; ".join(p))
-    return {"e0_receipt": path, "sha256": digest, "head": rec["head"], "closure_sha256": rec["closure_sha256"],
-            "env_receipt_sha256": rec["env_receipt_sha256"]}
+    return campaign
 
 
 # ---------------------------------------------------------------- admission
@@ -404,12 +472,21 @@ def validate_cell(cell, campaign=None, offline=False):
         p.append(f"receipt schema (missing {sorted(RECEIPT_KEYS - got)}, extra {sorted(got - RECEIPT_KEYS)})")
         return [f"{cell['name']}: {x}" for x in p]
     gpu = receipt["gpu"]
+    if not offline:                  # the dependencies as they are NOW (Codex code r2 HIGH 5)
+        try:
+            live = live_eval_pins()
+            if (live["agree_sha256"], live["vae_ckpt_sha256"], live["vit_rev"]) != \
+                    (reg.AGREE_SHA256, reg.VAE_CKPT_SHA256, reg.VIT_REV):
+                p.append("the current evaluator weights are not the pinned ones")
+        except (reg.GateError, OSError) as err:
+            p.append(f"evaluator weight pins: {err}")
     want_r = {"schema": 1, "cell": cell["name"], "argv": eval_argv(cell), "rc": 0, "sentinel": SENTINEL,
               "gpu_name": GPU_NAME, "head": campaign["head"], "closure_sha256": campaign["closure_sha256"],
               "e0_receipt_sha256": campaign["sha256"], "env_receipt_sha256": campaign["env_receipt_sha256"],
               "model_config_sha256": reg.sha256_file(_abs(cell["config"])),
               "dataset_config_sha256": EVAL_CONFIG_SHA256[cell["K"]], "unseen_split_sha256": UNSEEN_SPLIT[1],
               "agree_sha256": reg.AGREE_SHA256, "vae_ckpt_sha256": reg.VAE_CKPT_SHA256, "vit_rev": reg.VIT_REV,
+              "eval_snapshot_sha256": campaign.get("eval_snapshot_sha256"),
               "ckpt_sha256": ck_sha, "ckpt_bytes": ck_bytes, "training_receipt_sha256": tr_sha, **links}
     for k, v in want_r.items():
         if strict_equal(receipt[k], v):
@@ -438,6 +515,54 @@ def validate_cell(cell, campaign=None, offline=False):
     elif receipt["dump_manifest_sha256"] is not None:
         p.append("a no-dump cell records a dump manifest")
     return [f"{cell['name']}: {x}" for x in p]
+
+
+def cell_artifacts(cell):
+    """{path: sha256} of every file the admission of ``cell`` consumed (Codex code r2 HIGH 7); the
+    waveform array's sha is the manifest's (re-verified by dump_problems at admission)."""
+    out = {}
+    for k in ("metrics", "stream", "receipt"):
+        out[_abs(cell[k])] = reg.sha256_file(_abs(cell[k]))
+    receipt = json.load(open(_abs(cell["receipt"])))
+    out[_abs(receipt["log"])] = receipt["log_sha256"]
+    if cell["dump"]:
+        out[dump_manifest_copy(cell)] = reg.sha256_file(dump_manifest_copy(cell))
+        d = cell["dump_dir"]
+        for f in ("manifest.json", "COMPLETE", "waveforms.sha256"):
+            out[os.path.join(d, f)] = reg.sha256_file(os.path.join(d, f))
+        out[os.path.join(d, "waveforms.npy")] = json.load(open(os.path.join(d, "manifest.json")))["sha256"]
+    return out
+
+
+def run_artifacts(run):
+    """{path: sha256} of a run's admission records in the farm, + the final checkpoint (receipt sha)."""
+    farm = os.path.dirname(_abs(run_cells(run)[0]["ckpt_link"]))
+    out = {}
+    for f in ("CHECKPOINTS.sha256", reg.TRAINING_RECEIPT, reg.TRAINING_RECEIPT + ".sha256"):
+        out[os.path.join(farm, f)] = reg.sha256_file(os.path.join(farm, f))
+    for sub in (reg.RECEIPTS_DIR, "evidence"):
+        for f in sorted(os.listdir(os.path.join(farm, sub))):
+            out[os.path.join(farm, sub, f)] = reg.sha256_file(os.path.join(farm, sub, f))
+    tr = json.load(open(os.path.join(farm, reg.TRAINING_RECEIPT)))
+    out[os.path.realpath(_abs(run_cells(run)[0]["ckpt_link"]))] = tr["final_ckpt_sha256"]
+    return out
+
+
+def campaign_artifacts(campaign):
+    """{path: sha256} of the E0 receipt (+ sidecar), its eight cells, the references, the env receipt."""
+    out = {campaign["e0_receipt"]: reg.sha256_file(campaign["e0_receipt"]),
+           campaign["e0_receipt"] + ".sha256": reg.sha256_file(campaign["e0_receipt"] + ".sha256"),
+           _abs(REF_MANIFEST): reg.sha256_file(_abs(REF_MANIFEST))}
+    for c in e0_cells():
+        for k in ("metrics", "stream", "receipt"):
+            out[_abs(c[k])] = reg.sha256_file(_abs(c[k]))
+    for rel, d in check_refs().items():
+        out[_abs(os.path.join(EXP, "ref_cells", rel))] = d
+    env = _abs(reg.env_receipt_rel("a6000"))
+    for f in (env, env + ".sha256"):
+        if os.path.exists(f):
+            out[f] = reg.sha256_file(f)
+    return out
 
 
 # ---------------------------------------------------------------- preparation
@@ -482,11 +607,17 @@ def prepare(run):
     _link(f"{FARM}/{run}/{name}", os.path.join(rd, name))
     for f in ("CHECKPOINTS.sha256", reg.TRAINING_RECEIPT, reg.TRAINING_RECEIPT + ".sha256"):
         _copy_once(os.path.join(rd, f), _abs(f"{FARM}/{run}/{f}"))
+    for sub in (reg.RECEIPTS_DIR, "evidence"):           # what the offline consumer re-validates
+        os.makedirs(_abs(f"{FARM}/{run}/{sub}"), exist_ok=True)
+        for f in sorted(os.listdir(os.path.join(rd, sub))):
+            _copy_once(os.path.join(rd, sub, f), _abs(f"{FARM}/{run}/{sub}/{f}"))
     return {"run": run, "admitted": audit, "training_receipt_sha256": digest}
 
 
 def prepare_e0():
-    out = {}
+    """Verify + link the four E0 reference checkpoints and create the campaign's evaluation snapshot."""
+    campaign_gates()
+    out = {"eval_snapshot": eval_snapshot(reg.closure_digest()["closure_sha256"], create=True)}
     for gate, g in E0.items():
         got = reg.sha256_file(g["ckpt"])
         if got != g["sha"] or os.path.getsize(g["ckpt"]) != E0_BYTES[gate]:
@@ -514,10 +645,31 @@ def gpu_foreign(gpu):
 
 
 def eval_env(gpu):
-    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH",) + reg.FORBIDDEN_ENV}
+    """The evaluator's environment: sanitised, one card, and GIT_DIR = the campaign tree's git dir so
+    eval_FLAC's ``source_sha`` (``git rev-parse HEAD``) reports the campaign HEAD from the snapshot."""
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH",) + reg.FORBIDDEN_ENV
+           and k not in reg.LAUNCHER_VARS and not k.startswith(reg.LAUNCHER_PREFIXES) and not k.startswith("SLURM_")}
+    gitdir = subprocess.run(["git", "-C", reg.REPO, "rev-parse", "--absolute-git-dir"], capture_output=True,
+                            text=True, check=True).stdout.strip()
     env.update({"PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1", "HF_HUB_OFFLINE": "1",
-                "CUDA_VISIBLE_DEVICES": str(gpu)})
+                "CUDA_VISIBLE_DEVICES": str(gpu), "GIT_DIR": gitdir})
     return env
+
+
+def claim_path(cell):
+    return _abs(cell["metrics"])[:-len(".json")] + ".claim"
+
+
+def claim_cell(cell):
+    """Atomic per-cell ownership (Codex code r2 HIGH 9): refused while a claim exists (a live or
+    crashed run of this cell: archive it first). Released only when the cell is admitted."""
+    try:
+        os.makedirs(os.path.dirname(claim_path(cell)), exist_ok=True)
+        os.mkdir(claim_path(cell))
+    except FileExistsError:
+        raise EvalError(f"{cell['name']}: claimed by another (or a crashed) run ({claim_path(cell)}); archive it first")
+    with open(os.path.join(claim_path(cell), "holder"), "w") as fh:
+        fh.write(f"{os.getpid()} {os.uname().nodename} {time.strftime('%Y-%m-%dT%H:%M:%S%z')}\n")
 
 
 def run_one(cell, gpu, campaign):
@@ -529,20 +681,26 @@ def run_one(cell, gpu, campaign):
     if cell["dump"] and os.path.lexists(cell["dump_dir"]):
         raise EvalError(f"{cell['name']}: dump dir {cell['dump_dir']} exists; archive it first")
     ck_sha, ck_bytes, tr_sha = expected_ckpt(cell, campaign)
-    pins = reg.eval_pins()
+    snap, snap_sha = eval_snapshot(campaign["closure_sha256"])
+    if snap_sha != campaign["eval_snapshot_sha256"]:
+        raise EvalError("the evaluation snapshot is not the campaign's")
+    claim_cell(cell)
+    pins = reg.eval_pins(snap)
     uuid, name = gpu_row(gpu)
     ts = time.strftime("%Y-%m-%d_%H-%M-%S")
     started = time.strftime("%Y-%m-%dT%H:%M:%S%z")
-    log = _abs(f"{EXP}/eval_logs/data_efficiency_{ts}_{cell['name']}.log")
+    log = _abs(f"{EVAL_LOG_DIR}/data_efficiency_{ts}_{cell['name']}.log")
     os.makedirs(os.path.dirname(log), exist_ok=True)
     argv = eval_argv(cell)
     with open(log, "w") as fh:
         fh.write("argv: " + " ".join(["python", NO_FLASH, "eval_FLAC.py"] + argv) + "\n")
         fh.flush()
-        rc = subprocess.run([sys.executable, NO_FLASH, "eval_FLAC.py"] + argv, cwd=reg.REPO, env=eval_env(gpu),
+        rc = subprocess.run([sys.executable, NO_FLASH, "eval_FLAC.py"] + argv, cwd=snap, env=eval_env(gpu),
                             stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL).returncode
-    if reg.eval_pins() != pins:
+    if reg.eval_pins(snap) != pins:
         raise EvalError(f"{cell['name']}: evaluator weights changed during the cell")
+    if reg.verify_snapshot(snap, snap_sha)["snapshot_sha256"] != snap_sha:
+        raise EvalError(f"{cell['name']}: the evaluation snapshot changed during the cell")
     text = open(log, errors="replace").read()
     sentinels = [line for line in text.split("\n") if line.startswith("EXP35_NO_FLASH_LAUNCHER")]
     exists = os.path.exists
@@ -550,6 +708,7 @@ def run_one(cell, gpu, campaign):
                "sentinel": sentinels[0] if len(sentinels) == 1 else None,
                "log": os.path.relpath(log, reg.REPO), "log_sha256": reg.sha256_file(log), "gpu": gpu,
                "gpu_uuid": uuid, "gpu_name": name, "head": campaign["head"], "closure_sha256": campaign["closure_sha256"],
+               "eval_snapshot_sha256": snap_sha,
                "e0_receipt_sha256": campaign["sha256"], "env_receipt_sha256": campaign["env_receipt_sha256"],
                "model_config_sha256": reg.sha256_file(_abs(cell["config"])),
                "dataset_config_sha256": reg.sha256_file(_abs(EVAL_CONFIGS[cell["K"]])),
@@ -566,8 +725,14 @@ def run_one(cell, gpu, campaign):
     reg.atomic_write_bytes(_abs(cell["receipt"]), (json.dumps(receipt, indent=1, sort_keys=True) + "\n").encode())
     probs = validate_cell(cell, campaign)
     if rc != 0 or probs:
-        raise EvalError(f"{cell['name']}: rc {rc}; " + "; ".join(probs))
+        raise EvalError(f"{cell['name']}: rc {rc}; " + "; ".join(probs) + f" (claim {claim_path(cell)} kept)")
+    shutil_rmtree(claim_path(cell))
     return "done"
+
+
+def shutil_rmtree(path):
+    import shutil
+    shutil.rmtree(path)
 
 
 def campaign_gates():
@@ -642,7 +807,7 @@ def cmd_e0():
     rec = {"schema": 1, "verdict": "PASS" if not failed else "FAIL", "failed": failed, "cells": verdicts,
            "head": campaign["head"], "closure_sha256": campaign["closure_sha256"],
            "evaluator_files": {f: reg.sha256_file(_abs(f)) for f in EVALUATOR_FILES},
-           "env_receipt_sha256": campaign["env_receipt_sha256"],
+           "env_receipt_sha256": campaign["env_receipt_sha256"], "eval_snapshot_sha256": campaign["eval_snapshot_sha256"],
            "checkpoints": {g: {"sha256": E0[g]["sha"], "bytes": E0_BYTES[g]} for g in E0},
            "reference_manifest_sha256": reg.sha256_file(_abs(REF_MANIFEST)), "references": refs,
            "input_hash": {f"K{k}_s{s}": v for (k, s), v in INPUT_HASH.items()},
