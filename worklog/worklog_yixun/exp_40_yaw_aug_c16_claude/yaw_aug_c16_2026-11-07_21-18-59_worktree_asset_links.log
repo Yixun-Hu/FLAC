@@ -1,0 +1,7 @@
+lrwxrwxrwx 1 yixunhu yixunhu 45 Nov  7 21:18 AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms
+lrwxrwxrwx 1 yixunhu yixunhu 42 Nov  7 21:18 weights/AGREE -> /home/yixunhu/codespace/FLAC/weights/AGREE
+lrwxrwxrwx 1 yixunhu yixunhu 50 Nov  7 21:18 weights/FLAC/VAE.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt
+lrwxrwxrwx 1 yixunhu yixunhu 57 Nov  7 21:18 weights/FLAC/VAE.safetensors -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.safetensors
+8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9  weights/FLAC/VAE.safetensors
+?? AcousticRooms
+?? worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/
