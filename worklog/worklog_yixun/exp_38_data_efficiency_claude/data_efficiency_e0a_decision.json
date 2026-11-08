@@ -5,9 +5,21 @@
     "ours": 4.4343,
     "reference": 4.4185
    },
+   "RIR_to_GT_RIR_R@5": {
+    "ours": 14.4864,
+    "reference": 14.5337
+   },
    "RIR_to_geom_R@1": {
     "ours": 3.5348,
     "reference": 3.5032
+   },
+   "RIR_to_geom_R@10": {
+    "ours": 19.4887,
+    "reference": 19.394
+   },
+   "RIR_to_geom_R@5": {
+    "ours": 12.2455,
+    "reference": 12.1982
    }
   },
   "de_E0a_K8_s42": {
@@ -15,19 +27,37 @@
     "ours": 4.4343,
     "reference": 4.3869
    },
+   "RIR_to_GT_RIR_R@10": {
+    "ours": 22.8657,
+    "reference": 22.8184
+   },
    "RIR_to_geom_R@1": {
     "ours": 3.519,
     "reference": 3.5506
+   },
+   "RIR_to_geom_R@10": {
+    "ours": 19.4572,
+    "reference": 19.4729
+   },
+   "RIR_to_geom_R@5": {
+    "ours": 12.6243,
+    "reference": 12.719
    }
   }
  },
- "answer": "Accept, label R@1: accept the exact acoustics and use exp_14's FLAC values for 25/50/75 %; label FLAC's R@1 as exp_14's evaluator (or omit it) in the data-efficiency table / plot.",
- "channel": "AskUserQuestion in the main FLAC session (relayed to the exp_38 Coder by the coordinator)",
- "consequence": "E0a passes as 'acoustics exact, R@1 deviation accepted by Yixun's decision' ONLY for the keys and the exact (ours, reference) values listed under 'accepted'; every other key of E0a and every key of E0b-d stays type-strictly exact. The FLAC (dc_van) 25/50/75 % retrieval values in the results are labelled exp_14-evaluator.",
+ "answer": "\"Widen to R@1/5/10\" (Yixun, 2026-11-08: the E0a accepted deviations cover all retrieval metrics), widening his earlier answer of the same day, recorded as: \"Accept, label R@1: accept the exact acoustics and use exp_14's FLAC values for 25/50/75 %; label FLAC's R@1 as exp_14's evaluator (or omit it) in the data-efficiency table / plot.\" -- so FLAC's 25/50/75 % R@1, R@5 and R@10 (RIR->GT-RIR and RIR->geom) are all exp_14-evaluator values.",
+ "channel": "AskUserQuestion in the main FLAC session (two questions, relayed to the exp_38 Coder by the coordinator)",
+ "consequence": "E0a passes as 'acoustics exact, AGREE retrieval deviation accepted by Yixun's decision' ONLY for the keys and the exact (ours, reference) values listed under 'accepted' (the bfc4ea4b replay: metrics sha256 K8 9b1c5378..., K1 e3c148f6...); every other key of E0a (all acoustic metrics and FD) and every key of E0b-d stays type-strictly exact. The FLAC (dc_van) 25/50/75 % retrieval values (R@1 / R@5 / R@10, RIR->GT-RIR and RIR->geom) in the results are labelled exp_14-evaluator.",
  "decided_by": "Yixun Hu",
  "decided_on": "2026-11-08",
- "decision": "E0a-retrieval-R@1-2026-11-08",
+ "decision": "E0a-retrieval-R@1-5-10-2026-11-08",
  "gate": "E0a",
- "question": "The E0a replay of exp_14's dc_van_f025 endpoint at the exp_38 evaluator pin reproduces exp_14's acoustic metrics (T60, Invalid T60, C50, EDT) and FD exactly, but its AGREE retrieval R@1 differs by a few items. Accept, or stop?",
- "schema": 1
+ "question": "The E0a replay of exp_14's dc_van_f025 endpoint at the exp_38 evaluator pin (bfc4ea4b) reproduces exp_14's acoustic metrics (T60, Invalid T60, C50, EDT) and FD exactly, but its AGREE retrieval metrics differ by 1-6 items of 6,337: R@1 (first question, answered 'Accept, label R@1') and, measured afterwards in the same replay, R@5 / R@10 (second question: widen the accepted scope to R@1/5/10, or stop?).",
+ "reason": "AGREE's audio encoder samples noise at evaluation: VAEBottleneck.encode -> vae_sample (AGREE/AGREE/audio_model.py: latents = torch.randn_like(mean) * stdev + mean, with no eval guard), so the retrieval embeddings, and hence R@k, depend on the RNG state at the moment of evaluation. exp_37's G0 diagnosis found the same cause the same day. The acoustic metrics and FD replay type-strictly exact.",
+ "schema": 2,
+ "supersedes": {
+  "commit": "1a158d73e8805a60179c8246d9a08e3800984401",
+  "decision": "E0a-retrieval-R@1-2026-11-08",
+  "sha256": "332338a3dd2e05ffb3a370342b880e4dc74b313d4abfadbc5fdd5d2e1d219068"
+ }
 }

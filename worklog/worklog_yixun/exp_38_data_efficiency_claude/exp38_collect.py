@@ -128,9 +128,11 @@ def render(rows, pending):
         out.append("")
     if any(v.get("retrieval_evaluator") == "exp_14" for v in rows.values()):
         out += [f"{RETRIEVAL_MARK.strip()} FLAC 25 / 50 / 75 %: exp_14's own evaluator records. Their acoustic metrics "
-                "(T60, C50, EDT, FD) replay exactly at the exp_38 evaluator pin (E0a); their AGREE retrieval metrics "
-                "(R@k) do not, so these retrieval values are exp_14-evaluator numbers, not comparable item-for-item "
-                "with the exp_38-evaluator rows (Yixun's decision, `data_efficiency_e0a_decision.json`).", ""]
+                "(T60, Invalid T60, C50, EDT) and FD replay exactly at the exp_38 evaluator pin (E0a); their AGREE "
+                "retrieval metrics -- R@1, R@5 and R@10, RIR->GT-RIR and RIR->geom, shown or not -- do not (AGREE "
+                "samples encoder noise at evaluation), so ALL their retrieval values are exp_14-evaluator numbers, "
+                "not comparable item-for-item with the exp_38-evaluator rows (Yixun's decision, "
+                "`data_efficiency_e0a_decision.json`).", ""]
     if pending:
         out += ["## Pending / not admitted", ""] + [f"- {p}" for p in pending] + [""]
     return "\n".join(out) + "\n"
@@ -140,6 +142,7 @@ def publish(rows, pending, manifest, repo=None):
     repo = repo or reg.REPO
     payload = {"rows": [{"model": k[0], "fraction": k[1], "K": k[2], "source": v["source"],
                          "retrieval_evaluator": v.get("retrieval_evaluator") or "exp_38",
+                         "exp_14_evaluator_metrics": sorted(ev.RETRIEVAL_KEYS) if v.get("retrieval_evaluator") == "exp_14" else [],
                          "stats": {m: {"mean": s[0], "sd": s[1], "n": s[2]} for m, s in v["stats"].items()}}
                         for k, v in sorted(rows.items())], "pending": pending, "manifest": manifest}
     jtext = (json.dumps(payload, indent=1, sort_keys=True) + "\n").encode()

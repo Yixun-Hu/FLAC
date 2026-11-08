@@ -32,7 +32,7 @@ python $E/exp38_eval.py e0      # FAIL: E0a K8 + K1 (acoustics exact; AGREE retr
 #                                 1-6 items of 6,337); E0b-d exact -> D6 asked (data_efficiency_e0a_decision.md)
 ```
 
-## Campaign under Yixun's decisions of 2026-11-08 (D2 = neuronic, D6 = "Accept, label R@1")
+## Campaign under Yixun's decisions of 2026-11-08 (D2 = neuronic, D6 = "Accept, label R@1" widened to "Widen to R@1/5/10")
 All seven trainings (six primary + the mandatory bridge `de_p1_f025`) run on neuronic
 (`data_efficiency_neuronic_commands.md`); `MODE=FULL` refuses on this box (`TRAINING_PLATFORM`). This box runs
 E0 and every evaluation cell, FROM the campaign's evaluation snapshot `~/codespace/exp-38-snapshots/eval_<closure16>/`
@@ -41,7 +41,9 @@ E0 and every evaluation cell, FROM the campaign's evaluation snapshot `~/codespa
 HEAD, so the tree stays frozen at the pin for the whole campaign (records written there are untracked; they are
 copied to the dev worktree and committed from there — with the farm's E0 / result cells force-added, which the
 offline table validator re-admits). E0a passes only with the exact (ours, reference) values pinned in
-`data_efficiency_e0a_decision.json`; everything else is type-strictly exact.
+`data_efficiency_e0a_decision.json` (the ten retrieval values of the bfc4ea4b replay); everything else is
+type-strictly exact. AGREE samples encoder noise at evaluation, so a re-run whose retrieval values differ
+from the pinned ones FAILS closed (the E0 stops; ask Yixun).
 ```bash
 # 0. move the campaign tree to the new pin (no exp_38 job may be running in it)
 PIN=1006394601542d2e08afe6e4efd66e3d5a9a8bbe   # closure 404458083f4c7531…

@@ -715,10 +715,33 @@ def _decision_copy(tmp_path, monkeypatch, fn=None):
     return dst
 
 
+# the bfc4ea4b E0a replay (the campaign tree's cells, copied; sha256 == the bfc4ea4b E0 receipt's metrics_sha256)
+REPLAY = os.path.join(REPO, "src", "tests", "fixtures", "exp38_e0a_replay_bfc4ea4b")
+REPLAY_SHA = {"de_E0a_K8_s42": "9b1c537876031ac711d149fb8f2f96f8d777c9a01d3fc71e91ab6b4dcebdbbca",
+              "de_E0a_K1_s42": "e3c148f6e4850e3ad2f6367ca7d3601ab14079d7e9b864fe45f838f3fbca546e"}
+WIDENED = {"de_E0a_K8_s42": {"RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@10", "RIR_to_geom_R@1", "RIR_to_geom_R@5",
+                             "RIR_to_geom_R@10"},
+           "de_E0a_K1_s42": {"RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5", "RIR_to_geom_R@1", "RIR_to_geom_R@5",
+                             "RIR_to_geom_R@10"}}
+
+
+def _replay(name):
+    path = os.path.join(REPLAY, f"{name}.metrics.json")
+    assert ev.reg.sha256_file(path) == REPLAY_SHA[name]
+    c = [c for c in ev.e0_cells() if c["name"] == name][0]
+    ref, _ = ev.e0_reference(c, ev.check_refs())
+    return c, json.load(open(path)), ref
+
+
 def test_the_committed_e0a_decision_is_narrow_and_pinned():
+    """Yixun 2026-11-08: "Accept, label R@1", widened the same day to "Widen to R@1/5/10" -- exactly the ten
+    measured (ours, reference) pairs of the bfc4ea4b replay, nothing else."""
     acc, sha = ev.load_e0a_decision(required=True)
     assert set(acc) == set(ev.E0A_CELLS)
-    assert all(set(keys) == {"RIR_to_GT_RIR_R@1", "RIR_to_geom_R@1"} for keys in acc.values())   # R@1 only, as decided
+    assert {n: set(keys) for n, keys in acc.items()} == WIDENED
+    for n in ev.E0A_CELLS:
+        c, got, ref = _replay(n)
+        assert {k: (v["ours"], v["reference"]) for k, v in acc[n].items()} == ev.metric_diff(got["metrics"], ref["metrics"])
     refs = ev.check_refs()
     for c in ev.e0_cells():
         if c["name"] in acc:
@@ -726,7 +749,10 @@ def test_the_committed_e0a_decision_is_narrow_and_pinned():
             assert all(v["reference"] == ref["metrics"][k] for k, v in acc[c["name"]].items())
     d = json.load(open(ev._abs(ev.E0A_DECISION)))
     import re
-    assert d["decided_by"] == "Yixun Hu" and d["gate"] == "E0a"
+    assert d["decided_by"] == "Yixun Hu" and d["gate"] == "E0a" and d["schema"] == 2
+    assert '"Widen to R@1/5/10"' in d["answer"] and "Accept, label R@1" in d["answer"]
+    assert "vae_sample" in d["reason"] and "randn_like" in d["reason"] and "exp_37" in d["reason"]
+    assert d["supersedes"]["sha256"] == "332338a3dd2e05ffb3a370342b880e4dc74b313d4abfadbc5fdd5d2e1d219068"
     assert not re.search(r"[\w.+-]+@[\w-]+\.[A-Za-z]{2,}", json.dumps(d))   # no account email
 
 
@@ -737,7 +763,10 @@ def test_the_committed_e0a_decision_is_narrow_and_pinned():
     ("no deviation", lambda r: r["accepted"]["de_E0a_K1_s42"]["RIR_to_geom_R@1"].update(ours=3.5032)),
     ("bool value", lambda r: r["accepted"]["de_E0a_K8_s42"]["RIR_to_geom_R@1"].update(ours=True)),
     ("gate", lambda r: r.update(gate="E0b")), ("extra key", lambda r: r.update(extra=1)),
-    ("empty", lambda r: r.update(accepted={})),
+    ("empty", lambda r: r.update(accepted={})), ("schema 1", lambda r: r.update(schema=1)),
+    ("no reason", lambda r: r.update(reason=" ")), ("no supersedes", lambda r: r.pop("supersedes")),
+    ("empty cell", lambda r: r["accepted"].update(de_E0a_K1_s42={})),
+    ("FD key", lambda r: r["accepted"]["de_E0a_K1_s42"].update(FD={"ours": 1.0, "reference": 2.0})),
 ])
 def test_an_out_of_scope_decision_is_refused(tmp_path, monkeypatch, name, fn):
     _decision_copy(tmp_path, monkeypatch, fn)
@@ -773,7 +802,7 @@ def test_the_judge_accepts_exactly_the_decided_deviations():
 
 @pytest.fixture
 def decided(tmp_path, monkeypatch):
-    """A campaign whose E0a cells carry exactly the decided R@1 deviations."""
+    """A campaign whose E0a cells carry exactly the decided retrieval deviations."""
     monkeypatch.setattr(ev, "E0_RECEIPT", str(tmp_path / "e0_receipt.json"))
     monkeypatch.setattr(ev, "FARM", str(tmp_path / "farm"))
     monkeypatch.setattr(ev.reg, "closure_digest", lambda repo=None: {"closure_sha256": fx.CAMPAIGN["closure_sha256"]})
@@ -817,25 +846,38 @@ def test_a_decided_receipt_needs_the_decision_and_e0b_stays_strict(decided, monk
     assert ev.e0_static_problems(bad)
 
 
-CAMPAIGN_E0A = "/home/yixunhu/codespace/exp-38-campaign/outputs_FLAC/exp38_data_efficiency/eval/E0a"
-
-
-@pytest.mark.skipif(not os.path.isdir(CAMPAIGN_E0A), reason="the 2026-11-08 E0a replay lives in the campaign tree")
-def test_the_real_e0a_replay_also_deviates_at_r5_and_r10():
-    """Read-only evidence: the bfc4ea4b E0a replay differs in R@5 / R@10 too, which the R@1-only decision does
-    not accept -- so a re-sealed E0 under it FAILS until the decision is widened (reported to the coordinator)."""
+def test_the_real_bfc4ea4b_e0a_replay_passes_under_the_widened_decision():
+    """The real evidence: both bfc4ea4b E0a replays pass with exactly their five retrieval deviations accepted;
+    a changed acoustic value, an off-pin decided retrieval value or a changed undecided key still fails."""
     decision, _ = ev.load_e0a_decision(required=True)
-    refs = ev.check_refs()
-    for c in ev.e0_cells():
-        if c["e0"] != "E0a":
-            continue
-        got = json.load(open(os.path.join(CAMPAIGN_E0A, os.path.basename(c["metrics"]))))
-        ref, _ = ev.e0_reference(c, refs)
+    for name in ev.E0A_CELLS:
+        c, got, ref = _replay(name)
         diff = ev.metric_diff(got["metrics"], ref["metrics"])
-        assert set(diff) <= set(ev.RETRIEVAL_KEYS)                         # the acoustics and FD are exact
-        assert {k for k in diff if k.endswith("_R@1")} == set(decision[c["name"]])
-        assert {k: diff[k][0] for k in decision[c["name"]]} == {k: v["ours"] for k, v in decision[c["name"]].items()}
-        assert not ev.judge_e0(c, got, ref, decision)[0]                   # R@5 / R@10 deviations remain
+        assert set(diff) == WIDENED[name] and set(diff) <= set(ev.RETRIEVAL_KEYS)     # acoustics + FD exact
+        ok, equal, text, acc = ev.judge_e0(c, got, ref, decision)
+        assert ok and equal is False and acc == decision[name]
+        assert not ev.judge_e0(c, got, ref, None)[0]                                  # strict without it
+        for k in ("T60", "Invalid T60", "C50", "EDT", "FD"):                          # any acoustic change fails
+            bad = json.loads(json.dumps(got))
+            bad["metrics"][k] = got["metrics"][k] + 1e-4
+            assert not ev.judge_e0(c, bad, ref, decision)[0], (name, k)
+            bad["metrics"][k] = float(got["metrics"][k]) if isinstance(got["metrics"][k], int) else str(got["metrics"][k])
+            assert not ev.judge_e0(c, bad, ref, decision)[0], (name, k, "type")
+        for k in WIDENED[name]:                                                       # off-pin retrieval fails
+            for delta in (1e-4, -1e-4):
+                bad = json.loads(json.dumps(got))
+                bad["metrics"][k] = round(got["metrics"][k] + delta, 4)
+                assert not ev.judge_e0(c, bad, ref, decision)[0], (name, k, delta)
+            bad = json.loads(json.dumps(got))
+            bad["metrics"][k] = ref["metrics"][k]                                     # partly reverted: a subset
+            ok, _, _, acc = ev.judge_e0(c, bad, ref, decision)
+            assert ok and set(acc) == WIDENED[name] - {k}
+        for k in set(ev.RETRIEVAL_KEYS) - WIDENED[name]:                              # an undecided key moves: fail
+            bad = json.loads(json.dumps(got))
+            bad["metrics"][k] = round(got["metrics"][k] + 0.0158, 4)
+            assert not ev.judge_e0(c, bad, ref, decision)[0], (name, k)
+        other = [o for o in ev.E0A_CELLS if o != name][0]                             # pins are per cell
+        assert not ev.judge_e0(c, got, ref, {other: decision[other]})[0]
 
 
 def test_flac_rows_carry_the_exp14_retrieval_label(decided, tmp_path):
@@ -852,6 +894,28 @@ def test_flac_rows_carry_the_exp14_retrieval_label(decided, tmp_path):
     payload = json.load(open(tmp_path / col.OUT_JSON))
     labels = {(r["model"], r["fraction"]): r["retrieval_evaluator"] for r in payload["rows"]}
     assert labels[("p1", "050")] == "exp_14" and labels[("p1", "100")] == "exp_38" and labels[("yaw", "100")] == "exp_38"
+    for r in payload["rows"]:                       # the JSON names EVERY exp_14-evaluator metric: all six R@k
+        exp14 = r["model"] == "p1" and r["fraction"] in ("025", "050", "075")
+        assert r["exp_14_evaluator_metrics"] == (sorted(ev.RETRIEVAL_KEYS) if exp14 else []), r
+        assert set(r["exp_14_evaluator_metrics"]) <= set(r["stats"])
+    for k in ("R@1", "R@5", "R@10", "RIR->GT-RIR", "RIR->geom"):
+        assert k in md, k                           # the footnote covers them whether shown or not
+
+
+def test_every_shown_flac_retrieval_column_carries_the_mark(decided, monkeypatch):
+    """With every metric shown, all six retrieval columns of the FLAC 25 / 50 / 75 % rows carry the mark and no
+    acoustic column does (the table shows R@1 GT by default; the mark follows RETRIEVAL_KEYS, not R@1)."""
+    campaign, rec, decision = decided
+    monkeypatch.setattr(col, "SHOW", ev.METRIC_KEYS)
+    rows, _ = col.reference_rows(campaign)
+    md = col.render(rows, [])
+    for frac in ("25 %", "50 %", "75 %", "100 %"):
+        lines = [ln for ln in md.split("\n") if ln.startswith(f"| FLAC (P1) | {frac}")]
+        assert len(lines) == 2                      # K8 + K1
+        for ln in lines:
+            cells = [x.strip() for x in ln.strip("|").split("|")][2:2 + len(ev.METRIC_KEYS)]
+            marked = {m for m, x in zip(ev.METRIC_KEYS, cells) if x.endswith("†")}
+            assert marked == (set(ev.RETRIEVAL_KEYS) if frac != "100 %" else set()), (frac, marked)
 
 
 def test_d2_neuronic_campaign_runs_and_admission(world, monkeypatch):

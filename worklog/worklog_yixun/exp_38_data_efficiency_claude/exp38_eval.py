@@ -179,8 +179,9 @@ RETRIEVAL_KEYS = ("RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5", "RIR_to_GT_RIR_R@10"
                   "RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10")
 E0A_CELLS = ("de_E0a_K8_s42", "de_E0a_K1_s42")
 E0A_DECISION = f"{EXP}/data_efficiency_e0a_decision.json"
+# schema 2 (Yixun's widening, 2026-11-08): + the recorded cause and the decision it supersedes
 DECISION_KEYS = frozenset({"schema", "decision", "gate", "decided_by", "decided_on", "channel", "question", "answer",
-                           "accepted", "consequence"})
+                           "reason", "supersedes", "accepted", "consequence"})
 E0_RECEIPT = reg.E0_RECEIPT
 # every cell runs FROM a sealed closure snapshot of the campaign tree (Codex code r2 BLOCKING 2); its links:
 # the dataset, AGREE + the AGREE audio tower's VAE.ckpt, and outputs_FLAC (the farm links + cell outputs)
@@ -260,7 +261,8 @@ def load_e0a_decision(required=False):
     rec, digest = reg.read_sealed(path, DECISION_KEYS)
     acc = rec["accepted"]
     p = []
-    if (rec["schema"], rec["gate"]) != (1, "E0a") or not isinstance(rec["decided_by"], str) \
+    if (rec["schema"], rec["gate"]) != (2, "E0a") or not isinstance(rec["decided_by"], str) \
+            or not (isinstance(rec["reason"], str) and rec["reason"].strip()) \
             or not isinstance(acc, dict) or not acc or not set(acc) <= set(E0A_CELLS):
         p.append("decision schema / gate / cells off the registered E0a scope")
     else:
