@@ -1,0 +1,192 @@
+..FF..FF..FF......................................FFF                    [100%]
+=================================== FAILURES ===================================
+_______ test_committed_bf_configs_are_the_base_plus_exactly_the_cap[32] ________
+
+micro = 32
+
+    @pytest.mark.parametrize("micro", [32, 8])
+    def test_committed_bf_configs_are_the_base_plus_exactly_the_cap(micro):
+        base_text = open(os.path.join(REPO, reg.BF_BASE_CONFIG)).read()
+        path = os.path.join(REPO, reg.bf_config_rel(micro))
+>       assert open(path).read() == reg.derive_bf_config_text(base_text, micro)
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap32.json'
+
+src/tests/test_exp38_registry.py:73: FileNotFoundError
+________ test_committed_bf_configs_are_the_base_plus_exactly_the_cap[8] ________
+
+micro = 8
+
+    @pytest.mark.parametrize("micro", [32, 8])
+    def test_committed_bf_configs_are_the_base_plus_exactly_the_cap(micro):
+        base_text = open(os.path.join(REPO, reg.BF_BASE_CONFIG)).read()
+        path = os.path.join(REPO, reg.bf_config_rel(micro))
+>       assert open(path).read() == reg.derive_bf_config_text(base_text, micro)
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap8.json'
+
+src/tests/test_exp38_registry.py:73: FileNotFoundError
+________ test_check_config_accepts_the_registered_arm_configs[bf-2x32] _________
+
+arm = 'bf', rung = '2x32'
+
+    @pytest.mark.parametrize("arm,rung", [("yaw", "2x32"), ("bf", "2x32"), ("bf", "8x8"), ("p1", "2x32")])
+    def test_check_config_accepts_the_registered_arm_configs(arm, rung):
+>       cfg = reg.check_config(arm, rung)
+
+src/tests/test_exp38_registry.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+arm = 'bf', rung = '2x32', repo = None
+
+    def check_config(arm, rung, repo=None):
+        """Verify the arm's config file on disk; return its parsed dict."""
+        rel = model_config_rel(arm, rung)
+        path = _abs(rel, repo)
+        if arm == "bf":
+            base = _abs(BF_BASE_CONFIG, repo)
+            if sha256_file(base) != BF_BASE_SHA256:
+                raise GateError(f"{BF_BASE_CONFIG} is not the B-F 100 % config")
+            want = derive_bf_config_text(open(base).read(), RUNGS[rung]["micro"])
+>           if open(path).read() != want:
+E           FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap32.json'
+
+worklog/worklog_yixun/exp_38_data_efficiency_claude/exp38_registry.py:201: FileNotFoundError
+_________ test_check_config_accepts_the_registered_arm_configs[bf-8x8] _________
+
+arm = 'bf', rung = '8x8'
+
+    @pytest.mark.parametrize("arm,rung", [("yaw", "2x32"), ("bf", "2x32"), ("bf", "8x8"), ("p1", "2x32")])
+    def test_check_config_accepts_the_registered_arm_configs(arm, rung):
+>       cfg = reg.check_config(arm, rung)
+
+src/tests/test_exp38_registry.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+arm = 'bf', rung = '8x8', repo = None
+
+    def check_config(arm, rung, repo=None):
+        """Verify the arm's config file on disk; return its parsed dict."""
+        rel = model_config_rel(arm, rung)
+        path = _abs(rel, repo)
+        if arm == "bf":
+            base = _abs(BF_BASE_CONFIG, repo)
+            if sha256_file(base) != BF_BASE_SHA256:
+                raise GateError(f"{BF_BASE_CONFIG} is not the B-F 100 % config")
+            want = derive_bf_config_text(open(base).read(), RUNGS[rung]["micro"])
+>           if open(path).read() != want:
+E           FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap8.json'
+
+worklog/worklog_yixun/exp_38_data_efficiency_claude/exp38_registry.py:201: FileNotFoundError
+________________ test_check_config_refuses_a_tampered_bf_config ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6826/test_check_config_refuses_a_ta0')
+
+    def test_check_config_refuses_a_tampered_bf_config(tmp_path):
+        root = tmp_path / "repo"
+        for rel in (reg.BF_BASE_CONFIG, reg.bf_config_rel(32)):
+            (root / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
+>           (root / rel).write_text(open(os.path.join(REPO, rel)).read())
+E           FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap32.json'
+
+src/tests/test_exp38_registry.py:100: FileNotFoundError
+________________ test_the_factory_hands_the_cap_to_the_wrapper _________________
+
+    def test_the_factory_hands_the_cap_to_the_wrapper():
+        from src.training.factory import _parse_frame_avg_cap_config
+>       cfg = json.load(open(os.path.join(REPO, reg.bf_config_rel(32))))
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap32.json'
+
+src/tests/test_exp38_registry.py:111: FileNotFoundError
+___________________ test_describe_every_required_run[a6000] ____________________
+
+platform = 'a6000'
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6826/test_describe_every_required_r0')
+
+    @pytest.mark.parametrize("platform", ["a6000", "neuronic"])
+    def test_describe_every_required_run(platform, tmp_path):
+        for run in reg.required_runs():
+>           d = reg.describe_run(run, platform, save_root=str(tmp_path))
+
+src/tests/test_exp38_registry.py:437: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_38_data_efficiency_claude/exp38_registry.py:498: in describe_run
+    check_config(arm, rung, repo)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+arm = 'bf', rung = '2x32', repo = None
+
+    def check_config(arm, rung, repo=None):
+        """Verify the arm's config file on disk; return its parsed dict."""
+        rel = model_config_rel(arm, rung)
+        path = _abs(rel, repo)
+        if arm == "bf":
+            base = _abs(BF_BASE_CONFIG, repo)
+            if sha256_file(base) != BF_BASE_SHA256:
+                raise GateError(f"{BF_BASE_CONFIG} is not the B-F 100 % config")
+            want = derive_bf_config_text(open(base).read(), RUNGS[rung]["micro"])
+>           if open(path).read() != want:
+E           FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap32.json'
+
+worklog/worklog_yixun/exp_38_data_efficiency_claude/exp38_registry.py:201: FileNotFoundError
+__________________ test_describe_every_required_run[neuronic] __________________
+
+platform = 'neuronic'
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6826/test_describe_every_required_r1')
+
+    @pytest.mark.parametrize("platform", ["a6000", "neuronic"])
+    def test_describe_every_required_run(platform, tmp_path):
+        for run in reg.required_runs():
+>           d = reg.describe_run(run, platform, save_root=str(tmp_path))
+
+src/tests/test_exp38_registry.py:437: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_38_data_efficiency_claude/exp38_registry.py:498: in describe_run
+    check_config(arm, rung, repo)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+arm = 'bf', rung = '2x32', repo = None
+
+    def check_config(arm, rung, repo=None):
+        """Verify the arm's config file on disk; return its parsed dict."""
+        rel = model_config_rel(arm, rung)
+        path = _abs(rel, repo)
+        if arm == "bf":
+            base = _abs(BF_BASE_CONFIG, repo)
+            if sha256_file(base) != BF_BASE_SHA256:
+                raise GateError(f"{BF_BASE_CONFIG} is not the B-F 100 % config")
+            want = derive_bf_config_text(open(base).read(), RUNGS[rung]["micro"])
+>           if open(path).read() != want:
+E           FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap32.json'
+
+worklog/worklog_yixun/exp_38_data_efficiency_claude/exp38_registry.py:201: FileNotFoundError
+_________________________ test_cli_dry_run_exit_codes __________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6826/test_cli_dry_run_exit_codes0')
+capsys = <_pytest.capture.CaptureFixture object at 0x7d49c44a20b0>
+
+    def test_cli_dry_run_exit_codes(tmp_path, capsys):
+>       assert reg._cli(["dry-run", "--platform", "a6000", "--save-root", str(tmp_path)]) == 0
+E       AssertionError: assert 2 == 0
+E        +  where 2 = <function _cli at 0x7d49c1464700>(['dry-run', '--platform', 'a6000', '--save-root', '/tmp/pytest-of-yixunhu/pytest-6826/test_cli_dry_run_exit_codes0'])
+E        +    where <function _cli at 0x7d49c1464700> = reg._cli
+
+src/tests/test_exp38_registry.py:443: AssertionError
+----------------------------- Captured stdout call -----------------------------
+=== de_yaw_f025 [a6000 2x32] config worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json (b14caae27afe) split data/AR/train_frac025_s2026.json (73473 items / 243 rooms, restricted) chunk None run dir fresh final epoch=34-step=40000.ckpt
+    argv: train.py --model-config worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --logger none --checkpoint-every 2500 --name de_yaw_f025 --experiment-name de_yaw_f025 --save-dir /tmp/pytest-of-yixunhu/pytest-6826/test_cli_dry_run_exit_codes0/de_yaw_f025
+=== de_yaw_f050 [a6000 2x32] config worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json (b14caae27afe) split data/AR/train_frac050_s2026.json (145665 items / 243 rooms, restricted) chunk None run dir fresh final epoch=17-step=40000.ckpt
+    argv: train.py --model-config worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --logger none --checkpoint-every 2500 --name de_yaw_f050 --experiment-name de_yaw_f050 --save-dir /tmp/pytest-of-yixunhu/pytest-6826/test_cli_dry_run_exit_codes0/de_yaw_f050
+=== de_yaw_f075 [a6000 2x32] config worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json (b14caae27afe) split data/AR/train_frac075_s2026.json (218463 items / 243 rooms, restricted) chunk None run dir fresh final epoch=11-step=40000.ckpt
+    argv: train.py --model-config worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --logger none --checkpoint-every 2500 --name de_yaw_f075 --experiment-name de_yaw_f075 --save-dir /tmp/pytest-of-yixunhu/pytest-6826/test_cli_dry_run_exit_codes0/de_yaw_f075
+----------------------------- Captured stderr call -----------------------------
+EXP38 GATE REFUSED: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-38-data-efficiency/worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap32.json'
+=========================== short test summary info ============================
+FAILED src/tests/test_exp38_registry.py::test_committed_bf_configs_are_the_base_plus_exactly_the_cap[32]
+FAILED src/tests/test_exp38_registry.py::test_committed_bf_configs_are_the_base_plus_exactly_the_cap[8]
+FAILED src/tests/test_exp38_registry.py::test_check_config_accepts_the_registered_arm_configs[bf-2x32]
+FAILED src/tests/test_exp38_registry.py::test_check_config_accepts_the_registered_arm_configs[bf-8x8]
+FAILED src/tests/test_exp38_registry.py::test_check_config_refuses_a_tampered_bf_config
+FAILED src/tests/test_exp38_registry.py::test_the_factory_hands_the_cap_to_the_wrapper
+FAILED src/tests/test_exp38_registry.py::test_describe_every_required_run[a6000]
+FAILED src/tests/test_exp38_registry.py::test_describe_every_required_run[neuronic]
+FAILED src/tests/test_exp38_registry.py::test_cli_dry_run_exit_codes - Assert...
+9 failed, 44 passed in 3.47s
