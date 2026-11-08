@@ -1,0 +1,68 @@
+# exp_38 code r1 fix round — full CPU regression of src/tests minus the exp_38 files (run separately: …_pytest_exp38_final_code_r1.log)
+# 8 manual shards (no xdist installed), file i -> shard i mod 8; CPU-only (CUDA_VISIBLE_DEVICES=''), PYTHONNOUSERSITE=1, HF_HUB_OFFLINE=1
+# tree: commits up to c8c22818 (+ uncommitted exp38-only edits that touch no file these tests import); started 22:53
+
+## shard 0: files
+src/tests/test_are_anchor.py src/tests/test_depth_canon_audit_gate.py src/tests/test_depth_canon_tie_audit.py src/tests/test_exp11_restart_record.py src/tests/test_exp35_phase_ii_checks.py src/tests/test_exp35_phase_ii_reserve.py src/tests/test_gen_model_comparison_gate.py src/tests/test_loc_meshgrid_engine.py src/tests/test_loc_metrics_report.py src/tests/test_raf_metrics.py src/tests/test_train_max_steps.py src/tests/test_yaw_random_eval.py 
+## shard 0: result
+FAILED src/tests/test_depth_canon_audit_gate.py::test_the_real_full_audit_passes_the_registered_contract_without_rehash
+FAILED src/tests/test_depth_canon_audit_gate.py::test_a_report_audited_in_another_checkout_is_accepted
+2 failed, 779 passed, 9 skipped, 10 warnings in 355.20s (0:05:55)
+rc=1
+
+## shard 1: files
+src/tests/test_are_lambda_config.py src/tests/test_depth_canon_autolaunch.py src/tests/test_depth_canon_training.py src/tests/test_exp11_trajectory_figures.py src/tests/test_exp35_phase_ii_cli.py src/tests/test_exp35_phase_ii_retired.py src/tests/test_invariant_conditioning.py src/tests/test_loc_meshgrid_fa_split.py src/tests/test_loc_reaggregate.py src/tests/test_raf_prepare_data.py src/tests/test_train_sync_batchnorm.py src/tests/test_yaw_symmetry.py 
+## shard 1: result
+FAILED src/tests/test_depth_canon_autolaunch.py::test_j2_a_non_numeric_used_memory_is_a_dirty_poll_that_waits[na-GPU-test-0, 4242, python, [N/A]]
+1 failed, 1590 passed, 1 skipped, 35 warnings in 503.53s (0:08:23)
+rc=1
+
+## shard 2: files
+src/tests/test_are_launch_schedule.py src/tests/test_depth_canon_collect.py src/tests/test_eval_localization.py src/tests/test_exp11_validate_rows.py src/tests/test_exp35_phase_ii_dry_parse.py src/tests/test_exp35_phase_ii_schema.py src/tests/test_loc_agree_embed.py src/tests/test_loc_meshgrid_geometry.py src/tests/test_loc_rir_metrics.py src/tests/test_raf_publish.py src/tests/test_vit_gradient_checkpointing.py 
+## shard 2: result
+(still running when this summary was written)
+
+## shard 3: files
+src/tests/test_assert_arm_configs_vit_pin.py src/tests/test_depth_canon_cond_probe.py src/tests/test_eval_paths.py src/tests/test_exp11_wandb_readback.py src/tests/test_exp35_phase_ii_dry_run.py src/tests/test_exp35_phase_ii_world.py src/tests/test_loc_candidates.py src/tests/test_loc_meshgrid_launch_record.py src/tests/test_loc_scoring.py src/tests/test_raf_readback.py src/tests/test_yaw_aug_arm_config.py 
+## shard 3: result
+430 passed, 5 warnings in 195.07s (0:03:15)
+rc=0
+
+## shard 4: files
+src/tests/test_bn_drift_probe.py src/tests/test_depth_canon_eval.py src/tests/test_exp11_equiv_probe.py src/tests/test_exp14_fixed_mode_snapshot.py src/tests/test_exp35_phase_ii_launch.py src/tests/test_exp35_phase_ii_wrap.py src/tests/test_loc_crossarm.py src/tests/test_loc_meshgrid_offgrid_probe.py src/tests/test_phase3_vit_training.py src/tests/test_raf_render_depth.py src/tests/test_yaw_aug_collect.py 
+## shard 4: result
+765 passed, 3 skipped, 7 warnings in 173.76s (0:02:53)
+rc=0
+
+## shard 5: files
+src/tests/test_cond_dispatch.py src/tests/test_depth_canon_eval_run.py src/tests/test_exp11_orbit_configs.py src/tests/test_exp14_validate_cell.py src/tests/test_exp35_phase_ii_preconditions.py src/tests/test_finetune_cond.py src/tests/test_loc_heatmaps.py src/tests/test_loc_meshgrid_queries.py src/tests/test_raf_common.py src/tests/test_raf_stream.py src/tests/test_yaw_aug_record_control.py 
+## shard 5: result
+FAILED src/tests/test_loc_meshgrid_queries.py::test_real_bounded_slice_materializes_through_the_released_loader
+FAILED src/tests/test_loc_meshgrid_queries.py::test_release_stack_resolves_and_records_the_agree_checkpoint
+FAILED src/tests/test_loc_meshgrid_queries.py::test_our_call_graph_matches_an_eval_flac_faithful_reference
+FAILED src/tests/test_loc_meshgrid_queries.py::test_skipping_the_metric_stack_changes_the_draw
+4 failed, 483 passed, 6 skipped, 10 warnings in 1767.78s (0:29:27)
+rc=1
+
+## shard 6: files
+src/tests/test_cyl_vit_patch_embedding.py src/tests/test_depth_canon.py src/tests/test_exp11_p0_collect.py src/tests/test_exp35_no_flash_launch.py src/tests/test_exp35_phase_ii.py src/tests/test_frame_avg_cap_config.py src/tests/test_loc_meshgrid_crossarm.py src/tests/test_loc_meshgrid_report.py src/tests/test_raf_configs.py src/tests/test_retune_lr_state.py src/tests/test_yaw_aug_training.py 
+## shard 6: result
+759 passed, 1 skipped, 1 xfailed, 6 warnings, 2 subtests passed in 466.11s (0:07:46)
+rc=0
+
+## shard 7: files
+src/tests/test_depth_canon_arm_config.py src/tests/test_depth_canon_stats.py src/tests/test_exp11_p0_runner.py src/tests/test_exp35_phase_ii_cards.py src/tests/test_exp35_phase_ii_release.py src/tests/test_gen_model_comparison_data_curve.py src/tests/test_loc_meshgrid_drift_measurement.py src/tests/test_loc_meshgrid_retrieval_control.py src/tests/test_raf_md.py src/tests/test_strip_optimizer_state.py src/tests/test_yaw_gen_collect.py 
+## shard 7: result
+507 passed, 9 warnings in 148.43s (0:02:28)
+rc=0
+
+## classification of the failures (Coder, 2026-11-07 23:35)
+- shard 0, test_depth_canon_audit_gate.py ×2 (the real exp_25 tie audit "passes against the CURRENT files"): CAUSED BY
+  THE PLANNED PORT. exp_25's gate binds the bytes of src/data/dataset.py and AR_md.py ("tool.code_sha256 (current
+  files)"); the exp_14 port (round A, fac501b0) changes both, so on this branch the gate refuses exp_25's audit --
+  fail-closed as designed. Both tests PASS at the base 2b42468c (run in a temporary base worktree, then removed).
+  Not changed here (exp_25 code / tests are not exp_38's); a merge-time decision (D8 in the report).
+- shard 1, test_depth_canon_autolaunch.py::test_j2_…[N/A] : flaky under the 8-way parallel load (fake nvidia-smi
+  poll timing); the whole file passes alone on this branch (52 passed).
+- shard 5, test_loc_meshgrid_queries.py ×4: the pre-existing GPU-only real-stack tests CLAUDE.md documents (AGREE
+  torch.load without map_location on a CPU-only run in a checkout holding the real data).
