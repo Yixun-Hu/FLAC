@@ -27,6 +27,10 @@ Branch `exp-38-data-efficiency`, cut from `localization-exp` `2b42468c8f429b1d93
 | 21 | 5b26bfd5 | exp_38 code r2 BLOCKING 3: bind the BYTES of every AR file the runs read (content manifest, 445,414 files) |
 | 22 | 449f73f1 | exp_38 code r2: full terminal-receipt consumer, retained receipts, launcher variables, lock holder, exact checkpoint state |
 | 23 | 8771f486 | exp_38 code r2: evaluation from a sealed snapshot, E0 re-admission, live pins, cell claims, complete manifest |
-| 24 | (this) | exp_38 records: Codex code review r2 + fix-round worklog, plan §15 r2 amendments, command sheets, AR content verify PASS |
+| 24 | f909b7dc | exp_38 records: Codex code review r2 + fix-round worklog, plan §15 r2 amendments, command sheets, AR content verify PASS |
+| 25 | 2bb7435b | exp_38 code r2 tests: isolate from leftover launcher variables; eval logs dir patchable |
+| 26 | 61037926 | exp_38 records: clean-HEAD evidence for code review r3 (exp38 suite 587 passed; all-paths dry run) |
+| 27 | 62b0de4a | exp_38 post-review-3 fixes (fixed without re-review, the 3-round cap): every r3 finding addressed and test-covered |
+| 28 | (this) | exp_38 records: Codex code review r3 + its disposition (fixed without re-review), D8 / D9, final evidence (exp38 suite 615 passed at 62b0de4a; all-paths dry run 31 OK + 7 registered refusals) |
 
 Note: commit 4's message says '21 green'; after the git-dependent base-commit test moved into the audit tool (Codex plan r1 NIT 6) the file has 20 tests (all green).

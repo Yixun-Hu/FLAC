@@ -266,3 +266,22 @@ One training seed per cell; matched steps, not epochs or compute. Historical asy
 | H11 backend discoverability only | the pre-launch probe imports the production transformer in the child's exact environment and checks `flash_attn_func` is bound (flash) / unbound (sdpa) |
 | N1 corrupted command sheet | rebuilt from its last good version + the current flow |
 | r1 N3 / N4 | the full CPU regression finished (11 failures classified: 3 caused by the planned port — exp_25's tie-audit gate binds the bytes of dataset.py / AR_md.py, D8 — 1 flaky, 7 pre-existing GPU-only); `git diff --check 2b42468c..HEAD` clean (verbatim Codex reviews exempted like raw logs) |
+
+**Code review r3 (Codex, the LAST round: REQUEST-CHANGES — 1 BLOCKING, 8 HIGH, 2 NIT) → fixed WITHOUT re-review (cap of 3 code rounds), each test-covered (`62b0de4a`):**
+
+| Finding | Disposition |
+|---|---|
+| B1 AR bytes verified only before a multi-day run | FULL re-hashes every manifested AR byte after the run too (post-run gate before the receipt); a file changed during the run refuses the receipt (fake-trainer test). **Residual, disclosed:** a change-and-restore entirely inside the run is not detectable without an immutable copy → **decision D9** |
+| H1 snapshot accepts extra files | `verify_snapshot` walks the tree lexically: only listed files / links, their parents, the manifests and the bytecode of a listed module (`__pycache__/<stem>.cpython-*.pyc`); extra .py / .so / link / dir / foreign pyc refuse |
+| H2 child ownership not exception-safe; eval lock held only by the driver | evaluator = owned child (own group, lock fds passed down, detached holder until the group is empty); any exception after spawn terminates + reaps the group (training and eval); tests: SIGKILLed eval driver with a surviving grandchild keeps the card locked; holder-start failure; record failure inside a gate |
+| H3 terminal bundle not reproducible; context-free CLI | the run bundle also retains `SNAPSHOT.sha256/.links` and the SMOKE log; the consumer re-derives the snapshot digest and the closure from them, runs the E0 static checks on the retained copy, checks the environment copy's internal package hash / flags / flash pin, the SMOKE copy's schema / GPUs / log (re-gated) / times, unique L40 UUIDs, time order; `training-check` requires `--platform --closure --e0-sha` (sheet updated) |
+| H4 RECORD text ≠ installed bytes | every RECORD-listed file re-hashed and checked against its recorded hash (bytecode excluded); synthetic-distribution test |
+| H5 neuronic E0 trusts the receipt alone | the eight E0 cells are copied with the receipt (sheet) and re-admitted offline by the neuronic launch gate |
+| H6 manifest declared hashes / omissions | current bytes re-hashed and compared with the admitted values (waveforms, final checkpoint, cell and E0 logs, evaluator weights, eval snapshot manifests) |
+| H7 receipt without a terminal record | `TRAINING_COMMITTED.json` (sealed) binds the training receipt and the terminal launch record; written last; every consumer and `prepare` require it; strict outer error path |
+| H8 SDPA-only env refused | `flash_attn` recorded as `absent` when not installed; flash mode still requires the version and the binding |
+| N1 inherited GIT_* | stripped; one intended GIT_DIR (also for the git-dir probe itself) |
+| N2 command-sheet guard | `test_exp38_command_sheets.py` (balanced fences, current commands, no command outside a block) |
+
+**D8 (new, merge-time):** the exp_14 data-side port changes the bytes of `src/data/dataset.py` and `AR_md.py`, which exp_25's tie-audit gate binds; three exp_25 tests fail on this branch (pass at the base). Options: (a) keep exp_38 on its branch and publish only its rows (recommended); (b) on merge, re-run exp_25's tie audit at the merged tree; (c) extend exp_25's gate to accept the ported files with a recorded equivalence argument.
+**D9 (new):** AR immutability during training. (a) pre- + post-run full re-hash of the 445,414 files (implemented; recommended — the NAS AR tree is a static dataset); (b) additionally train from a local read-only release (≈ 18 GB of the manifested bytes + empty placeholders for every other listed name, so the room listings — and thus AR_md's candidate order — stay identical; root fingerprint + content manifest verified) — airtight, but a data-path change no review has seen.
