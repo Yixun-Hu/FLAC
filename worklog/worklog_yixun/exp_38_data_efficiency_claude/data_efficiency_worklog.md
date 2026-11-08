@@ -17,3 +17,10 @@
   5. The 8×8 neuronic rung is a recipe change (per-rank micro / RoPE-draw granularity; same-model evidence VANL 8×8 vs P1 2×32: 0.95 T60 gap) → recommend 2×L40 × 32 on neuronic.
   6. Our base's evaluator is byte-identical to the one that produced all three 100 % anchors (exp_25 `d6ca307a`, exp_35 `5b065801`); dc_van used exp_14's evaluator → E0 replay gates.
 - **Next** — Codex plan review r1 (1 of max 3).
+
+## 2026-11-07T21:05:00-05:00 — Codex plan review r1 (1 of 3) = REVISE → plan r1
+- **Goal** — independent plan review before code (SOP; cap 3 plan rounds).
+- **Command / Validation** — `codex exec -s read-only -m gpt-5.6-sol -c model_reasoning_effort=xhigh -C ~/codespace/exp-38-data-efficiency -o <scratch>/plan_r1_review.md "<prompt>" < /dev/null`; transcript `data_efficiency_2026-11-07_20-30-50_codex_plan_r1.log.gz`; review verbatim `data_efficiency_codex_plan_r1_review.md`.
+- **Result** — REVISE: 4 BLOCKING (platform confounding of the default allocation; mid-epoch chaining; submit-exactly-once; fail-open flash gate), 13 HIGH, 6 NIT. All addressed in plan r1 (§15 changelog); r0 archived as `plan_history/plan_data_efficiency_r0.md`.
+- **Analysis** — the decisive change: the primary design moves all six runs onto this box (every reference point trained here at 2 × 32); neuronic becomes a labelled sensitivity platform; chains are dropped (monolithic only). Process slip recorded (Codex HIGH 13): round-A port + first kit drafts were written in the worktree while r1 ran — uncommitted, provisional, reconciled with r1 and sent to the code review as code.
+- **Next** — Codex plan review r2 (2 of 3); implementation of plan r1 continues in parallel, r2 findings bind both plan and code.
