@@ -24,8 +24,10 @@ from ..data.yaw_rotation import (
     POSE_KEYS,
     TIE_CLASSES,
     canonicalize_scene_metadata,
+    check_yaw_offset_step,
     draw_yaw_offsets,
     offsets_to_radians,
+    quantize_yaw_offsets,
     rotate_scene_metadata,
 )
 from ..inference.sampling import get_alphas_sigmas, sample, sample_discrete_euler, sample_flow_pingpong, truncated_logistic_normal_rescaled, DistributionShift, sample_timesteps_logsnr
@@ -207,7 +209,8 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             canonicalize_enabled: bool = False,
             canonicalize_img_w: int = 512,
             are_lambda: tp.Optional[float] = None,
-            are_anchor: tp.Optional[dict] = None
+            are_anchor: tp.Optional[dict] = None,
+            yaw_aug_offset_step: tp.Optional[int] = None
     ):
         super().__init__()
 
@@ -270,6 +273,22 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         self.yaw_aug_enabled = yaw_aug_enabled
         self.yaw_aug_img_w = yaw_aug_img_w
         self.yaw_aug_seed = yaw_aug_seed
+        # exp_40: optional discrete grid for the drawn offsets (appended LAST to the
+        # signature so no positional caller shifts). None -- the default, and what
+        # the factory leaves when the config has no offset_step -- is the exp_15
+        # behaviour. Anything else is validated with the factory's rule and refused
+        # unless the treatment is on: an offset_step on a disabled arm would be a
+        # silent no-op.
+        if yaw_aug_offset_step is not None:
+            if not yaw_aug_enabled:
+                raise ValueError(
+                    "yaw_aug_offset_step requires yaw_aug_enabled=True (got "
+                    f"yaw_aug_offset_step={yaw_aug_offset_step!r} on a disabled arm)")
+            try:
+                check_yaw_offset_step(yaw_aug_offset_step, yaw_aug_img_w)
+            except ValueError as err:
+                raise ValueError(f"yaw_aug_offset_step: {err}") from None
+        self.yaw_aug_offset_step = yaw_aug_offset_step
 
         # exp_25: deepest-column yaw canonicalization of every step's metadata
         # (plan_depth_canon.md v7 §2.2; _canonicalize_batch). Off by default. The
@@ -456,10 +475,12 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         # flush: the launcher tees torchrun's stdout through a FIFO without
         # PYTHONUNBUFFERED, so a buffered banner could reach the log after the
         # post-launch gate has already looked for it.
-        print(
-            f"yaw_aug ENABLED img_w={self.yaw_aug_img_w} seed={self.yaw_aug_seed}",
-            flush=True,
-        )
+        # exp_40: a declared grid makes it a DIFFERENT whole line, so a launch gate
+        # can never accept one arm's log for the other; absent, the exp_15 line.
+        line = f"yaw_aug ENABLED img_w={self.yaw_aug_img_w} seed={self.yaw_aug_seed}"
+        if self.yaw_aug_offset_step is not None:
+            line += f" offset_step={self.yaw_aug_offset_step}"
+        print(line, flush=True)
 
     @rank_zero_only
     def _print_canonicalize_banner(self):
@@ -715,6 +736,8 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             _yaw_aug_step_seed(self.yaw_aug_seed, int(self.global_step), int(self.global_rank))
         )
         offsets = draw_yaw_offsets(len(metadata), self.yaw_aug_img_w, generator)
+        if self.yaw_aug_offset_step is not None:   # exp_40: snap DOWN onto the grid
+            offsets = quantize_yaw_offsets(offsets, self.yaw_aug_img_w, self.yaw_aug_offset_step)
         angles = offsets_to_radians(offsets, self.yaw_aug_img_w)
         return [
             rotate_scene_metadata(md, alpha, self.yaw_aug_img_w)

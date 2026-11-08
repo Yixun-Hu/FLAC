@@ -1,9 +1,11 @@
 import torch
 from torch.nn import Parameter
 from ..data import are_anchor
+from ..data.yaw_rotation import check_yaw_offset_step
 from ..models.factory import create_model_from_config
 
-YAW_AUG_KEYS = ("enabled", "img_w", "seed")
+# exp_40 appends the OPTIONAL "offset_step" (a discrete grid for the drawn offsets).
+YAW_AUG_KEYS = ("enabled", "img_w", "seed", "offset_step")
 
 
 def _parse_yaw_aug_config(training_config):
@@ -69,11 +71,20 @@ def _parse_yaw_aug_config(training_config):
             f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
         )
 
-    return {
+    kwargs = {
         "yaw_aug_enabled": True,
         "yaw_aug_img_w": int(block["img_w"]),
         "yaw_aug_seed": int(block["seed"]),
     }
+    # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+    # above, so the wrapper call of every existing config is literally unchanged.
+    if "offset_step" in block:
+        try:
+            kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                block["offset_step"], block["img_w"])
+        except ValueError as err:
+            raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+    return kwargs
 
 
 def _parse_frame_avg_cap_config(training_config):
