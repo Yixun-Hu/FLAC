@@ -21,62 +21,71 @@ MODE=SMOKE RUN=de_yaw_f025 SMOKE_GPU=0 SMOKE_STEPS=20 bash $E/exp38_train_local.
 MODE=SMOKE RUN=de_bf_f025  SMOKE_GPU=0 SMOKE_STEPS=20 bash $E/exp38_train_local.sh   # 21-10-54 PASS
 ```
 
-## Campaign on THIS box (primary design D2-a) — to run after Yixun's decisions and the code reviews
-Every training mode runs through `exp38_train_local.sh` → `exec exp38_supervise.py`, which holds both card
-locks (passed down to train.py and to a detached lock holder that keeps them until NO process of the run's
-group remains), launches train.py FROM an immutable closure snapshot under
-`~/codespace/exp-38-snapshots/<run>_<mode>_<ts>/`, owns its process group (TERM/INT/HUP forwarded, 120 s
-grace then KILL) and seals its receipt only after every end audit passes. Every evaluation cell runs FROM
-the campaign's evaluation snapshot `~/codespace/exp-38-snapshots/eval_<closure16>/` (created once by
-`prepare-e0`). The campaign identity is the **closure digest** (`exp38_registry.py closure`); the campaign
-tree's HEAD stays frozen for the whole campaign (receipts and logs written there are untracked; they are
-copied to the dev worktree and committed from there — with the farm's E0 / result cells force-added, which
-the offline table validator re-admits).
+## Done (campaign tree at `bfc4ea4b`, 2026-11-08 01:36–03:44) — superseded by the decisions below
 ```bash
-# 0. the immutable campaign tree at the pushed pin (once)
-git -C ~/codespace/FLAC fetch origin exp-38-data-efficiency
-git -C ~/codespace/FLAC worktree add --detach ~/codespace/exp-38-campaign <PIN>
-cd ~/codespace/exp-38-campaign
-ln -s /media/diskstation/yixunhu/FLAC/AcousticRooms AcousticRooms           # the exact registered targets
-ln -s /home/yixunhu/codespace/FLAC/weights/AGREE weights/AGREE
-ln -s /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.safetensors weights/FLAC/VAE.safetensors
-ln -s /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt weights/FLAC/VAE.ckpt
-source ~/miniconda3/etc/profile.d/conda.sh && conda activate flac
-export PYTHONNOUSERSITE=1 HF_HUB_OFFLINE=1; unset PYTHONOPTIMIZE PYTHONPATH
-E=worklog/worklog_yixun/exp_38_data_efficiency_claude; PIN=$(git rev-parse HEAD)
-python $E/exp38_registry.py untracked --platform a6000                     # UNTRACKED PASS (links by content)
-python $E/exp38_content_manifest.py --verify $E/data_efficiency_ar_content_manifest.txt.gz   # ~15 min; FULL repeats it
-
-# 1. environment receipt (sealed, once) + E0 (both cards idle — the main session sequences this through
-#    ~/codespace/claude_gpu_yield/ first; ≈ 2–3 h)
-python $E/exp38_eval.py env-receipt --write
-python $E/exp38_eval.py prepare-e0          # sha256 + bytes of the 4 references; creates the evaluation snapshot
-python $E/exp38_eval.py run --gpu 0 --cells de_E0a_K8_s42 de_E0b_K8_s42 de_E0c_K8_s42 de_E0d_K8_s42 &
-python $E/exp38_eval.py run --gpu 1 --cells de_E0a_K1_s42 de_E0b_K1_s42 de_E0c_K1_s42 de_E0d_K1_s42; wait
-python $E/exp38_eval.py e0            # -> the sealed $E/data_efficiency_e0_receipt.json; FAIL = stop, ask Yixun (D6)
-python $E/exp38_eval.py e0-check      # every later consumer re-runs this (incl. re-admitting the 8 E0 cells)
-
-# 2. per run, in the order de_bf_f025, de_yaw_f025, de_bf_f050, de_yaw_f050, de_bf_f075, de_yaw_f075:
-RUN=de_bf_f025
-MODE=DRY_RUN   RUN=$RUN bash $E/exp38_train_local.sh                                   # gates + exact commands
-MODE=SMOKE_DDP RUN=$RUN EXPECT_SHA=$PIN bash $E/exp38_train_local.sh                   # ≈ 5–15 min -> sealed
-#    $E/data_efficiency_smoke_${RUN}_a6000_<ts>.json (the NEWEST receipt of the run must be a full PASS; its log
-#    and snapshot are re-opened by FULL, so keep both)
-MODE=FULL      RUN=$RUN EXPECT_SHA=$PIN setsid nohup bash $E/exp38_train_local.sh \
-  > $E/data_efficiency_$(date +%Y-%m-%d_%H-%M-%S)_${RUN}_FULL_driver.out 2>&1 < /dev/null &
-#    ≈ 15 min of AR content verification first, then B-F ≈ 61–77 h exclusive, YAW ≈ 22 h. Records:
-#    $E/at_launch_${RUN}_a6000_FULL_<ts>.json (authoritative; + the run-dir copy), the train log, <NAS run dir>/receipts/
-#    (the E0 / SMOKE / environment receipts the run was admitted under + the train log) and the sealed
-#    <NAS run dir>/TRAINING_COMPLETE.json on success. Stop it only with `kill -TERM <supervisor_pid>` (in the record):
-#    the supervisor stops ITS group and keeps the .exp38_lock crash marker; a crashed run is archived and re-run
-#    from step 0 (there is no resume).
-python $E/exp38_eval.py prepare $RUN          # TRAINING_COMPLETE (every field + retained records) at the E0 closure,
-#                                              re-hash + bytes, full-state audit; farm copies for the offline validator
-python $E/exp38_eval.py run --gpu 0 --cells ${RUN}_K8_s42 ${RUN}_K8_s43 ${RUN}_K8_s44 ${RUN}_K8_s45 ${RUN}_K8_s46 &
-python $E/exp38_eval.py run --gpu 1 --cells ${RUN}_K1_s42 ${RUN}_K1_s43 ${RUN}_K1_s44 ${RUN}_K1_s45 ${RUN}_K1_s46; wait
-#    a failed / interrupted cell keeps its <metrics stem>.claim dir (archive it with the partial outputs to retry)
-python $E/exp38_collect.py            # -> $E/data_efficiency_results.{md,json}; exit 1 while cells are pending
-python $E/exp38_collect.py --partial  #    (publishes the admitted runs with PENDING rows, exit 0)
+python $E/exp38_registry.py untracked --platform a6000                     # PASS
+python $E/exp38_content_manifest.py --verify $E/data_efficiency_ar_content_manifest.txt.gz   # PASS
+python $E/exp38_eval.py env-receipt --write && python $E/exp38_eval.py prepare-e0             # eval_8828062f4d436732
+python $E/exp38_eval.py run --gpu 0 --cells de_E0a_K8_s42 de_E0b_K8_s42 de_E0c_K8_s42 de_E0d_K8_s42   # 01:57-02:55
+python $E/exp38_eval.py run --gpu 1 --cells de_E0a_K1_s42 de_E0b_K1_s42 de_E0c_K1_s42 de_E0d_K1_s42   # 02:55-03:44
+python $E/exp38_eval.py e0      # FAIL: E0a K8 + K1 (acoustics exact; AGREE retrieval R@1 / R@5 / R@10 differ by
+#                                 1-6 items of 6,337); E0b-d exact -> D6 asked (data_efficiency_e0a_decision.md)
 ```
 
-## Neuronic (sensitivity platform only — D2-b / D2-c): see `data_efficiency_neuronic_commands.md`
+## Campaign under Yixun's decisions of 2026-11-08 (D2 = neuronic, D6 = "Accept, label R@1")
+All seven trainings (six primary + the mandatory bridge `de_p1_f025`) run on neuronic
+(`data_efficiency_neuronic_commands.md`); `MODE=FULL` refuses on this box (`TRAINING_PLATFORM`). This box runs
+E0 and every evaluation cell, FROM the campaign's evaluation snapshot `~/codespace/exp-38-snapshots/eval_<closure16>/`
+(created by `prepare-e0`; a new closure gets a new snapshot, the old one is inert). The campaign identity is the
+**closure digest** (`exp38_registry.py closure`); the E0 cells and the result cells bind the campaign tree's
+HEAD, so the tree stays frozen at the pin for the whole campaign (records written there are untracked; they are
+copied to the dev worktree and committed from there — with the farm's E0 / result cells force-added, which the
+offline table validator re-admits). E0a passes only with the exact (ours, reference) values pinned in
+`data_efficiency_e0a_decision.json`; everything else is type-strictly exact.
+```bash
+# 0. move the campaign tree to the new pin (no exp_38 job may be running in it)
+PIN=<PIN>
+git -C ~/codespace/exp-38-campaign fetch origin exp-38-data-efficiency   # shared object store; harmless if present
+git -C ~/codespace/exp-38-campaign checkout --detach $PIN
+cd ~/codespace/exp-38-campaign
+source ~/miniconda3/etc/profile.d/conda.sh && conda activate flac
+export PYTHONNOUSERSITE=1 HF_HUB_OFFLINE=1; unset PYTHONOPTIMIZE PYTHONPATH
+E=worklog/worklog_yixun/exp_38_data_efficiency_claude
+test "$(git rev-parse HEAD)" = "$PIN" && test -z "$(git status --porcelain --untracked-files=no)"
+python $E/exp38_registry.py closure                    # the closure digest of this pin
+#    archive the superseded E0 at bfc4ea4b: the cells (receipts are written once; a cell refuses existing
+#    outputs) inside the ignored outputs tree, the sealed E0 receipt OUTSIDE the tree (the untracked allowlist
+#    admits no sub-directories in $E); the .ckpt links, the environment receipt and the logs stay
+A=outputs_FLAC/exp38_archive/E0_bfc4ea4b_2026-11-08; mkdir -p $A
+for g in E0a E0b E0c E0d; do mkdir -p $A/$g && mv outputs_FLAC/exp38_data_efficiency/eval/$g/*.json $A/$g/; done
+mkdir -p ~/codespace/exp-38-archive/E0_bfc4ea4b_2026-11-08
+mv $E/data_efficiency_e0_receipt.json{,.sha256} ~/codespace/exp-38-archive/E0_bfc4ea4b_2026-11-08/
+python $E/exp38_registry.py untracked --platform a6000                      # UNTRACKED PASS (links by content)
+python $E/exp38_eval.py env-receipt --check                                 # the sealed receipt of 01:56 still holds
+#    (a fresh tree instead: the links + `env-receipt --write`, as in the first campaign, and the content verify:)
+python $E/exp38_content_manifest.py --verify $E/data_efficiency_ar_content_manifest.txt.gz   # ~15 min, optional here
+
+# 1. E0 at the pin (one A6000 card suffices: both cards are the registered A6000 model, every cell receipt
+#    records its card; ≈ 1 h 50 min sequentially on one card, or ≈ 1 h on both)
+python $E/exp38_eval.py prepare-e0          # sha256 + bytes of the 4 references; creates eval_<closure16>
+python $E/exp38_eval.py run --gpu 1 --cells de_E0a_K8_s42 de_E0b_K8_s42 de_E0c_K8_s42 de_E0d_K8_s42 \
+                                            de_E0a_K1_s42 de_E0b_K1_s42 de_E0c_K1_s42 de_E0d_K1_s42
+python $E/exp38_eval.py e0            # -> the sealed $E/data_efficiency_e0_receipt.json (PASS / FAIL + every difference)
+python $E/exp38_eval.py e0-check      # every later consumer re-runs this (incl. re-admitting the 8 E0 cells)
+#    then copy the E0 receipt + the 8 cells' JSONs to neuronic (neuronic sheet step 0) and start the trainings
+
+# 2. per neuronic-trained run, once it is published to the NAS (neuronic sheet step 4), in any order:
+#    the seven: de_yaw_f025 de_yaw_f050 de_yaw_f075 de_bf_f025 de_bf_f050 de_bf_f075 de_p1_f025
+RUN=de_bf_f025
+python $E/exp38_eval.py prepare $RUN          # TRAINING_COMPLETE (neuronic, every field + retained records) at the
+#                                              E0 closure, re-hash + bytes, full-state audit; farm copies
+python $E/exp38_eval.py run --gpu 0 --cells ${RUN}_K8_s42 ${RUN}_K8_s43 ${RUN}_K8_s44 ${RUN}_K8_s45 ${RUN}_K8_s46 &
+python $E/exp38_eval.py run --gpu 1 --cells ${RUN}_K1_s42 ${RUN}_K1_s43 ${RUN}_K1_s44 ${RUN}_K1_s45 ${RUN}_K1_s46; wait
+#    (or all ten on one card: run --gpu 1 --cells <the 10>); a failed / interrupted cell keeps its
+#    <metrics stem>.claim dir (archive it with the partial outputs to retry)
+python $E/exp38_collect.py            # -> $E/data_efficiency_results.{md,json}; exit 1 while cells are pending
+python $E/exp38_collect.py --partial  #    (publishes the admitted runs with PENDING rows, exit 0)
+#    the FLAC 25/50/75 % rows are exp_14's records: their retrieval columns carry † (exp_14's evaluator, D6)
+```
+
+## Neuronic (D2 = neuronic: all seven trainings): see `data_efficiency_neuronic_commands.md`

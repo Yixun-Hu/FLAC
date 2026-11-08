@@ -129,8 +129,9 @@ def e0_cells():
     return out
 
 
-def all_cells(bridge=False):
-    runs = reg.required_runs() + (["de_p1_f025"] if bridge else [])
+def all_cells(bridge=None):
+    """E0 + every campaign run's cells (the bridge is part of the campaign under D2 = neuronic)."""
+    runs = reg.campaign_runs() + (["de_p1_f025"] if bridge and "de_p1_f025" not in reg.campaign_runs() else [])
     return e0_cells() + [c for r in runs for c in run_cells(r)]
 
 
@@ -165,10 +166,21 @@ RECEIPT_KEYS = frozenset({
     "unseen_split_sha256", "agree_sha256", "vae_ckpt_sha256", "vit_rev", "metrics_sha256", "stream_sha256",
     "dump_manifest_sha256", "ckpt_sha256", "ckpt_bytes", "training_receipt_sha256", "started_at", "finished_at"})
 E0_KEYS = frozenset({"schema", "verdict", "failed", "cells", "head", "closure_sha256", "evaluator_files",
-                     "eval_snapshot_sha256",
+                     "eval_snapshot_sha256", "e0a_decision_sha256",
                      "env_receipt_sha256", "checkpoints", "reference_manifest_sha256", "references", "input_hash",
                      "eval_pins", "written_at"})
-E0_CELL_KEYS = frozenset({"reference", "equal", "difference", "problems", "metrics_sha256", "receipt_sha256"})
+E0_CELL_KEYS = frozenset({"reference", "equal", "difference", "problems", "metrics_sha256", "receipt_sha256",
+                          "accepted_deviations"})
+# ---- Yixun's E0a decision (plan §9.3 / D6; 2026-11-08): the dc_van_f025 replay reproduces exp_14's
+# acoustic metrics exactly, its AGREE retrieval metrics differ by a few items. A signed decision file may
+# accept ONLY retrieval keys of ONLY the two E0a cells, each with its measured (ours, reference) values
+# pinned: any other key, value, cell or gate still fails strictly.
+RETRIEVAL_KEYS = ("RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5", "RIR_to_GT_RIR_R@10",
+                  "RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10")
+E0A_CELLS = ("de_E0a_K8_s42", "de_E0a_K1_s42")
+E0A_DECISION = f"{EXP}/data_efficiency_e0a_decision.json"
+DECISION_KEYS = frozenset({"schema", "decision", "gate", "decided_by", "decided_on", "channel", "question", "answer",
+                           "accepted", "consequence"})
 E0_RECEIPT = reg.E0_RECEIPT
 # every cell runs FROM a sealed closure snapshot of the campaign tree (Codex code r2 BLOCKING 2); its links:
 # the dataset, AGREE + the AGREE audio tower's VAE.ckpt, and outputs_FLAC (the farm links + cell outputs)
@@ -236,6 +248,57 @@ def strict_equal(a, b, path="$"):
                 return d
         return None
     return None if a == b else f"{path}: {a!r} != {b!r}"
+
+
+def load_e0a_decision(required=False):
+    """(accepted {cell: {key: {"ours": v, "reference": v}}}, sha256) of the sealed E0a decision, or
+    (None, None) when there is none. Refuses anything outside the registered narrow scope, and a pinned
+    reference value that is not the registered reference cell's."""
+    path = _abs(E0A_DECISION)
+    if not os.path.exists(path) and not required:
+        return None, None
+    rec, digest = reg.read_sealed(path, DECISION_KEYS)
+    acc = rec["accepted"]
+    p = []
+    if (rec["schema"], rec["gate"]) != (1, "E0a") or not isinstance(rec["decided_by"], str) \
+            or not isinstance(acc, dict) or not acc or not set(acc) <= set(E0A_CELLS):
+        p.append("decision schema / gate / cells off the registered E0a scope")
+    else:
+        refs = check_refs()
+        for name, keys in acc.items():
+            cell = [c for c in e0_cells() if c["name"] == name][0]
+            ref, _ = e0_reference(cell, refs)
+            if not isinstance(keys, dict) or not keys or not set(keys) <= set(RETRIEVAL_KEYS):
+                p.append(f"{name}: accepted keys {sorted(keys) if isinstance(keys, dict) else keys!r} not retrieval-only")
+                continue
+            for k, v in keys.items():
+                if not (isinstance(v, dict) and set(v) == {"ours", "reference"} and _num(v["ours"]) and _num(v["reference"])
+                        and strict_equal(v["reference"], ref["metrics"][k]) is None and v["ours"] != v["reference"]):
+                    p.append(f"{name}.{k}: pinned values {v!r} malformed / not the reference's")
+    if p:
+        raise reg.GateError(f"{path}: " + "; ".join(p))
+    return acc, digest
+
+
+def metric_diff(got, ref):
+    """{key: (ours, reference)} of every metric that is not type-strictly equal."""
+    keys = sorted(set(got or {}) | set(ref or {}))
+    return {k: ((got or {}).get(k), (ref or {}).get(k)) for k in keys
+            if strict_equal((got or {}).get(k), (ref or {}).get(k)) is not None}
+
+
+def judge_e0(cell, got, ref, decision):
+    """(passes, equal, difference, accepted deviations) of one E0 replay against its reference."""
+    dm = metric_diff(got.get("metrics"), ref.get("metrics"))
+    ds = strict_equal(got.get("by_scene"), ref.get("by_scene")) if E0[cell["e0"]]["by_scene"] else None
+    if not dm and ds is None:
+        return True, True, None, {}
+    text = "; ".join(f"$.{k}: {a!r} != {b!r}" for k, (a, b) in dm.items()) or ds
+    acc = (decision or {}).get(cell["name"], {})
+    if cell["e0"] == "E0a" and ds is None and dm and set(dm) <= set(acc) and all(
+            strict_equal([a, b], [acc[k]["ours"], acc[k]["reference"]]) is None for k, (a, b) in dm.items()):
+        return True, False, text, {k: {"ours": a, "reference": b} for k, (a, b) in dm.items()}
+    return False, False, text, {}
 
 
 # ---------------------------------------------------------------- references (Codex code r1 BLOCKING 7)
@@ -327,10 +390,16 @@ def e0_static_problems(rec):
     for c in e0_cells():
         v = cells.get(c["name"])
         want_ref = f"E0/{c['e0']}_K{c['K']}_s42.json"
-        if not (isinstance(v, dict) and set(v) == E0_CELL_KEYS and v["reference"] == want_ref and v["equal"] is True
-                and v["difference"] is None and v["problems"] == [] and reg._is_sha(v["metrics_sha256"])
-                and reg._is_sha(v["receipt_sha256"])):
-            p.append(f"{c['name']}: not an exact, admitted replay of {want_ref}")
+        ok = (isinstance(v, dict) and set(v) == E0_CELL_KEYS and v["reference"] == want_ref and v["problems"] == []
+              and reg._is_sha(v["metrics_sha256"]) and reg._is_sha(v["receipt_sha256"]))
+        exact = ok and v["equal"] is True and v["difference"] is None and v["accepted_deviations"] == {}
+        decided = (ok and c["e0"] == "E0a" and v["equal"] is False and isinstance(v["difference"], str)
+                   and isinstance(v["accepted_deviations"], dict) and v["accepted_deviations"]
+                   and set(v["accepted_deviations"]) <= set(RETRIEVAL_KEYS) and reg._is_sha(rec["e0a_decision_sha256"]))
+        if not (exact or decided):
+            p.append(f"{c['name']}: not an exact (or, E0a, a decided) admitted replay of {want_ref}")
+    if rec["e0a_decision_sha256"] is not None and not reg._is_sha(rec["e0a_decision_sha256"]):
+        p.append("e0a_decision_sha256 malformed")
     want_ck = {g: {"sha256": E0[g]["sha"], "bytes": E0_BYTES[g]} for g in E0}
     if rec["checkpoints"] != want_ck:
         p.append("E0 checkpoint pins differ")
@@ -371,6 +440,18 @@ def _e0_online_problems(rec, repo, offline, platform):
 def _e0_finish(rec, digest, path, p, cells, readmit, offline):
     campaign = {"e0_receipt": path, "sha256": digest, "head": rec["head"], "closure_sha256": rec["closure_sha256"],
                 "env_receipt_sha256": rec["env_receipt_sha256"], "eval_snapshot_sha256": rec["eval_snapshot_sha256"]}
+    decision = None
+    if not p and rec["e0a_decision_sha256"] is not None:
+        try:
+            decision, dsha = load_e0a_decision(required=True)
+            if dsha != rec["e0a_decision_sha256"]:
+                p.append("the E0a decision file is not the one the E0 receipt bound")
+            for name in E0A_CELLS:
+                for k, v in cells[name]["accepted_deviations"].items():
+                    if strict_equal(v, (decision.get(name) or {}).get(k)) is not None:
+                        p.append(f"{name}.{k}: accepted deviation not in the decision")
+        except (reg.GateError, EvalError, OSError, KeyError) as err:
+            p.append(f"E0a decision: {err}")
     if readmit and not p:
         e0camp = dict(campaign, sha256=None)
         try:
@@ -384,10 +465,8 @@ def _e0_finish(rec, digest, path, p, cells, readmit, offline):
                 probs = validate_cell(c, e0camp, offline=offline)
                 ref, _ = e0_reference(c, refs)
                 got = json.load(open(_abs(c["metrics"])))
-                diff = strict_equal(got["metrics"], ref["metrics"]) if not probs else "not admitted"
-                if not diff and E0[c["e0"]]["by_scene"]:
-                    diff = strict_equal(got["by_scene"], ref["by_scene"])
-                if probs or diff:
+                ok, equal, diff, acc = judge_e0(c, got, ref, decision) if not probs else (False, False, "not admitted", {})
+                if probs or not ok or strict_equal(acc, v["accepted_deviations"]) is not None:
                     p.append(f"{c['name']}: re-admission {probs[:1]} / difference {diff}")
         except (OSError, ValueError, KeyError, EvalError) as err:
             p.append(f"E0 cells: {err}")
@@ -642,6 +721,8 @@ def prepare(run):
     name = reg.ckpt_name(reg.MAX_STEPS, tag)
     # the checkpoint's ModelCheckpoint dirpath is the dir it was TRAINED in (neuronic runs are published
     # to the NAS afterwards): the receipt's own argv names it
+    if rec["platform"] != reg.TRAINING_PLATFORM:
+        raise EvalError(f"{run} was trained on {rec['platform']}; D2 = {reg.TRAINING_PLATFORM}")
     trained_in = rec["argv"][rec["argv"].index("--save-dir") + 1]
     if trained_in != reg.save_dir(rec["platform"], run):
         raise EvalError(f"{run} was trained in {trained_in}, not its registered {rec['platform']} run dir")
@@ -852,25 +933,25 @@ def cmd_e0():
     campaign_gates()
     campaign = current_campaign()
     refs = check_refs()
+    decision, decision_sha = load_e0a_decision()
     verdicts, failed = {}, []
     for cell in e0_cells():
         probs = validate_cell(cell, campaign)
         ref, rel = e0_reference(cell, refs)
         rec = json.load(open(_abs(cell["metrics"]))) if not probs else {}
-        diff = strict_equal(rec.get("metrics"), ref.get("metrics")) if not probs else "cell not admitted"
-        if not diff and E0[cell["e0"]]["by_scene"]:
-            diff = strict_equal(rec.get("by_scene"), ref.get("by_scene"))
+        ok, equal, diff, acc = judge_e0(cell, rec, ref, decision) if not probs else (False, False, "cell not admitted", {})
         verdicts[cell["name"]] = {
-            "reference": rel, "equal": diff is None, "difference": diff, "problems": probs,
+            "reference": rel, "equal": equal, "difference": diff, "problems": probs, "accepted_deviations": acc,
             "metrics_sha256": reg.sha256_file(_abs(cell["metrics"])) if os.path.exists(_abs(cell["metrics"])) else None,
             "receipt_sha256": reg.sha256_file(_abs(cell["receipt"])) if os.path.exists(_abs(cell["receipt"])) else None}
-        if probs or diff:
+        if probs or not ok:
             failed.append(cell["name"])
     pins = reg.eval_pins()
     rec = {"schema": 1, "verdict": "PASS" if not failed else "FAIL", "failed": failed, "cells": verdicts,
            "head": campaign["head"], "closure_sha256": campaign["closure_sha256"],
            "evaluator_files": {f: reg.sha256_file(_abs(f)) for f in EVALUATOR_FILES},
            "env_receipt_sha256": campaign["env_receipt_sha256"], "eval_snapshot_sha256": campaign["eval_snapshot_sha256"],
+           "e0a_decision_sha256": decision_sha if any(v["accepted_deviations"] for v in verdicts.values()) else None,
            "checkpoints": {g: {"sha256": E0[g]["sha"], "bytes": E0_BYTES[g]} for g in E0},
            "reference_manifest_sha256": reg.sha256_file(_abs(REF_MANIFEST)), "references": refs,
            "input_hash": {f"K{k}_s{s}": v for (k, s), v in INPUT_HASH.items()},

@@ -1,0 +1,33 @@
+{
+ "accepted": {
+  "de_E0a_K1_s42": {
+   "RIR_to_GT_RIR_R@1": {
+    "ours": 4.4343,
+    "reference": 4.4185
+   },
+   "RIR_to_geom_R@1": {
+    "ours": 3.5348,
+    "reference": 3.5032
+   }
+  },
+  "de_E0a_K8_s42": {
+   "RIR_to_GT_RIR_R@1": {
+    "ours": 4.4343,
+    "reference": 4.3869
+   },
+   "RIR_to_geom_R@1": {
+    "ours": 3.519,
+    "reference": 3.5506
+   }
+  }
+ },
+ "answer": "Accept, label R@1: accept the exact acoustics and use exp_14's FLAC values for 25/50/75 %; label FLAC's R@1 as exp_14's evaluator (or omit it) in the data-efficiency table / plot.",
+ "channel": "AskUserQuestion in the main FLAC session (relayed to the exp_38 Coder by the coordinator)",
+ "consequence": "E0a passes as 'acoustics exact, R@1 deviation accepted by Yixun's decision' ONLY for the keys and the exact (ours, reference) values listed under 'accepted'; every other key of E0a and every key of E0b-d stays type-strictly exact. The FLAC (dc_van) 25/50/75 % retrieval values in the results are labelled exp_14-evaluator.",
+ "decided_by": "Yixun Hu",
+ "decided_on": "2026-11-08",
+ "decision": "E0a-retrieval-R@1-2026-11-08",
+ "gate": "E0a",
+ "question": "The E0a replay of exp_14's dc_van_f025 endpoint at the exp_38 evaluator pin reproduces exp_14's acoustic metrics (T60, Invalid T60, C50, EDT) and FD exactly, but its AGREE retrieval R@1 differs by a few items. Accept, or stop?",
+ "schema": 1
+}

@@ -95,11 +95,12 @@ def write_snapshot_manifests(reg, d):
 
 
 def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint bytes", e0_sha=None, e0_path=None,
-                          platform="a6000", backend="flash", head=None, content_sha=None):
+                          platform=None, backend="flash", head=None, content_sha=None):
     """(record, sha256) of a complete sealed TRAINING_COMPLETE in ``rd`` with everything the consumer
     re-opens: CHECKPOINTS.sha256 + the 16 files, receipts/ (E0 copy = ``e0_path`` or a synthetic PASS,
     environment, SMOKE_DDP with valid evidence, the train log), evidence/."""
     reg = ev.reg
+    platform = platform or reg.TRAINING_PLATFORM                # D2: the campaign trains on neuronic
     arm, tag, rung = reg.parse_run_id(run)
     ngpu = reg.RUNGS[rung]["ngpu"]
     head = head or CAMPAIGN["head"]
@@ -189,8 +190,10 @@ def synthetic_e0(ev, closure):
     """An E0 receipt that passes e0_static_problems (for retained copies of a synthetic campaign)."""
     reg = ev.reg
     cells = {c["name"]: {"reference": f"E0/{c['e0']}_K{c['K']}_s42.json", "equal": True, "difference": None,
-                         "problems": [], "metrics_sha256": "a" * 64, "receipt_sha256": "b" * 64} for c in ev.e0_cells()}
+                         "problems": [], "metrics_sha256": "a" * 64, "receipt_sha256": "b" * 64,
+                         "accepted_deviations": {}} for c in ev.e0_cells()}
     return {"schema": 1, "verdict": "PASS", "failed": [], "cells": cells, "head": CAMPAIGN["head"],
+            "e0a_decision_sha256": None,
             "closure_sha256": closure, "evaluator_files": {f: "0" * 64 for f in ev.EVALUATOR_FILES},
             "env_receipt_sha256": CAMPAIGN["env_receipt_sha256"], "eval_snapshot_sha256": CAMPAIGN["eval_snapshot_sha256"],
             "checkpoints": {g: {"sha256": ev.E0[g]["sha"], "bytes": ev.E0_BYTES[g]} for g in ev.E0},
@@ -214,9 +217,11 @@ def copy_to_farm(ev, rd, farm):
             open(os.path.join(farm, sub, f), "wb").write(open(os.path.join(rd, sub, f), "rb").read())
 
 
-def make_e0_receipt(ev, campaign=None, evaluator_files=None, log_dir=None):
+def make_e0_receipt(ev, campaign=None, evaluator_files=None, log_dir=None, e0a_ours=None, decision=None):
     """A sealed, valid E0 receipt at ``campaign`` whose eight cells EXIST (in the module's farm paths),
-    are admissible under that campaign and equal their references; returns (campaign incl. sha256, rec)."""
+    are admissible under that campaign and equal their references -- or, with ``e0a_ours`` = {cell:
+    {key: value}}, E0a cells carrying those retrieval values, judged under ``decision`` (accepted map,
+    sha256); returns (campaign incl. sha256, rec)."""
     reg = ev.reg
     campaign = dict(campaign or CAMPAIGN)
     refs = ev.check_refs()
@@ -224,10 +229,15 @@ def make_e0_receipt(ev, campaign=None, evaluator_files=None, log_dir=None):
     cells = {}
     for c in ev.e0_cells():
         ref, rel = ev.e0_reference(c, refs)
+        metrics = dict(ref["metrics"], **((e0a_ours or {}).get(c["name"], {})))
         make_cell(ev, c, e0camp, (ev.E0[c["e0"]]["sha"], ev.E0_BYTES[c["e0"]], None),
                   log_dir or os.path.join(os.path.dirname(ev._abs(c["metrics"])), "logs"),
-                  metrics=ref["metrics"], by_scene=ref.get("by_scene"))
-        cells[c["name"]] = {"reference": rel, "equal": True, "difference": None, "problems": [],
+                  metrics=metrics, by_scene=ref.get("by_scene"))
+        ok, equal, diff, acc = ev.judge_e0(c, json.load(open(ev._abs(c["metrics"]))), ref,
+                                           decision[0] if decision else None)
+        assert ok, (c["name"], diff)
+        cells[c["name"]] = {"reference": rel, "equal": equal, "difference": diff, "problems": [],
+                            "accepted_deviations": acc,
                             "metrics_sha256": reg.sha256_file(ev._abs(c["metrics"])),
                             "receipt_sha256": reg.sha256_file(ev._abs(c["receipt"]))}
     files = evaluator_files or {f: (reg.sha256_file(ev._abs(f)) if os.path.exists(ev._abs(f)) else "0" * 64)
@@ -235,6 +245,7 @@ def make_e0_receipt(ev, campaign=None, evaluator_files=None, log_dir=None):
     rec = {"schema": 1, "verdict": "PASS", "failed": [], "cells": cells, "head": campaign["head"],
            "closure_sha256": campaign["closure_sha256"], "evaluator_files": files,
            "env_receipt_sha256": campaign["env_receipt_sha256"], "eval_snapshot_sha256": campaign["eval_snapshot_sha256"],
+           "e0a_decision_sha256": decision[1] if decision and any(v["accepted_deviations"] for v in cells.values()) else None,
            "checkpoints": {g: {"sha256": ev.E0[g]["sha"], "bytes": ev.E0_BYTES[g]} for g in ev.E0},
            "reference_manifest_sha256": reg.sha256_file(ev._abs(ev.REF_MANIFEST)), "references": refs,
            "input_hash": {f"K{k}_s{s}": v for (k, s), v in ev.INPUT_HASH.items()},

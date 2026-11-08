@@ -369,6 +369,7 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
     reg = sv.reg
     run = "de_bf_f025"
     monkeypatch.setattr(reg, "REPO", str(tmp_path))
+    monkeypatch.setattr(reg, "TRAINING_PLATFORM", "a6000")     # exercise the local lifecycle (D2 itself: below)
     (tmp_path / reg.EXP_DIR).mkdir(parents=True)
     monkeypatch.setitem(reg.PLATFORMS["a6000"], "save_root", str(tmp_path / "nas"))
     (tmp_path / "nas").mkdir()
@@ -536,3 +537,12 @@ def test_an_exception_after_spawn_stops_our_group(tmp_path, monkeypatch, where):
     with pytest.raises((OSError, RuntimeError)):
         _campaign(tmp_path, monkeypatch)
     assert spawned and all(c.rc is not None for c in spawned) and all(_gone(c.pid) for c in spawned)
+
+
+def test_d2_full_refuses_off_the_training_platform(monkeypatch):
+    """Yixun 2026-11-08: all exp_38 trainings run on neuronic; a FULL on this box refuses before any work."""
+    assert sv.reg.TRAINING_PLATFORM == "neuronic"
+    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("bf", "025", "2x32", PY, {}, {}))
+    a = sv.parse(["--platform", "a6000", "--mode", "FULL", "--run", "de_bf_f025", "--expect-sha", "f" * 40])
+    with pytest.raises(sv.Refused, match="D2"):
+        sv.mode_campaign(a, "a6000")

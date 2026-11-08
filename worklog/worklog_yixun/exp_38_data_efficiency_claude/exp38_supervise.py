@@ -504,6 +504,8 @@ def mode_campaign(a, platform):
     arm, tag, rung, exe, d, pins = common_gates(a, platform)
     ngpu = reg.RUNGS[rung]["ngpu"]
     full = a.mode == "FULL"
+    if full and platform != reg.TRAINING_PLATFORM:
+        raise Refused(f"D2: every exp_38 training runs on {reg.TRAINING_PLATFORM}; FULL refuses on {platform}")
     head, env_sha, closure = campaign_gates(a, platform)
     e0 = smoke = owner = None
     if platform == "neuronic":

@@ -42,10 +42,10 @@ def _opt(argv, flag):
 
 
 def test_plan_has_8_e0_and_60_result_cells_with_unique_outputs():
-    cells = ev.all_cells()
-    assert len(cells) == 68 and len(ev.all_cells(bridge=True)) == 78
-    assert len({c["name"] for c in cells}) == 68 and len({c["metrics"] for c in cells}) == 68
-    assert sum(c["e0"] is not None for c in cells) == 8
+    cells = ev.all_cells()                      # D2 = neuronic: the P1 f025 bridge is part of the campaign
+    assert ev.reg.TRAINING_PLATFORM == "neuronic" and len(cells) == 78 and len(ev.all_cells(bridge=True)) == 78
+    assert len({c["name"] for c in cells}) == 78 and len({c["metrics"] for c in cells}) == 78
+    assert sum(c["e0"] is not None for c in cells) == 8 and sum(c["run"] == "de_p1_f025" for c in cells) == 10
     assert all(c["dump"] == (c["e0"] is None) for c in cells)
 
 
@@ -575,7 +575,7 @@ def test_the_result_manifest_lists_every_admitted_artifact(world, monkeypatch):
         assert os.path.join(farm, f) in arts, f
     assert all(len(v) == 64 for v in arts.values())
     assert os.path.realpath(cells[0]["ckpt_link"]) in arts and os.path.join(farm, ev.reg.COMMIT_MARKER) in arts
-    monkeypatch.setattr(col.reg, "required_runs", lambda rung="2x32": ["de_bf_f025"])
+    monkeypatch.setattr(col.reg, "campaign_runs", lambda: ["de_bf_f025"])
     snapdir = world["tmp"] / "evalsnap_manifests"
     fx.write_snapshot_manifests(ev.reg, str(snapdir))
     monkeypatch.setattr(ev, "eval_snapshot_dir", lambda closure: str(snapdir))
@@ -698,3 +698,166 @@ def test_run_owned_passes_the_status_and_stops_the_group_on_an_exception(tmp_pat
         ev.run_owned([sys.executable, "-c", "import time; time.sleep(60)"], str(tmp_path), dict(os.environ),
                      str(tmp_path / "b.log"), grace=2)
     assert made and made[0].rc is not None
+
+
+# ------------------------------------------------------------------ Yixun's E0a decision (2026-11-08)
+def _decision_copy(tmp_path, monkeypatch, fn=None):
+    src = ev._abs(ev.E0A_DECISION)
+    rec = json.load(open(src))
+    if fn:
+        fn(rec)
+    dst = str(tmp_path / "data_efficiency_e0a_decision.json")
+    for p in (dst, dst + ".sha256"):
+        if os.path.exists(p):
+            os.remove(p)
+    ev.reg.write_sealed(dst, rec)
+    monkeypatch.setattr(ev, "E0A_DECISION", dst)
+    return dst
+
+
+def test_the_committed_e0a_decision_is_narrow_and_pinned():
+    acc, sha = ev.load_e0a_decision(required=True)
+    assert set(acc) == set(ev.E0A_CELLS)
+    assert all(set(keys) == {"RIR_to_GT_RIR_R@1", "RIR_to_geom_R@1"} for keys in acc.values())   # R@1 only, as decided
+    refs = ev.check_refs()
+    for c in ev.e0_cells():
+        if c["name"] in acc:
+            ref, _ = ev.e0_reference(c, refs)
+            assert all(v["reference"] == ref["metrics"][k] for k, v in acc[c["name"]].items())
+    d = json.load(open(ev._abs(ev.E0A_DECISION)))
+    import re
+    assert d["decided_by"] == "Yixun Hu" and d["gate"] == "E0a"
+    assert not re.search(r"[\w.+-]+@[\w-]+\.[A-Za-z]{2,}", json.dumps(d))   # no account email
+
+
+@pytest.mark.parametrize("name,fn", [
+    ("acoustic key", lambda r: r["accepted"]["de_E0a_K8_s42"].update(T60={"ours": 1.0, "reference": 10.252})),
+    ("other gate cell", lambda r: r["accepted"].update(de_E0b_K8_s42={"RIR_to_GT_RIR_R@1": {"ours": 1.0, "reference": 2.0}})),
+    ("wrong reference", lambda r: r["accepted"]["de_E0a_K1_s42"]["RIR_to_geom_R@1"].update(reference=3.5)),
+    ("no deviation", lambda r: r["accepted"]["de_E0a_K1_s42"]["RIR_to_geom_R@1"].update(ours=3.5032)),
+    ("bool value", lambda r: r["accepted"]["de_E0a_K8_s42"]["RIR_to_geom_R@1"].update(ours=True)),
+    ("gate", lambda r: r.update(gate="E0b")), ("extra key", lambda r: r.update(extra=1)),
+    ("empty", lambda r: r.update(accepted={})),
+])
+def test_an_out_of_scope_decision_is_refused(tmp_path, monkeypatch, name, fn):
+    _decision_copy(tmp_path, monkeypatch, fn)
+    with pytest.raises(ev.reg.GateError):
+        ev.load_e0a_decision(required=True)
+
+
+def _e0a_with(ours):
+    c = [c for c in ev.e0_cells() if c["name"] == "de_E0a_K8_s42"][0]
+    ref, _ = ev.e0_reference(c, ev.check_refs())
+    return c, {"metrics": dict(ref["metrics"], **ours)}, ref
+
+
+def test_the_judge_accepts_exactly_the_decided_deviations():
+    decision, _ = ev.load_e0a_decision(required=True)
+    pinned = {k: v["ours"] for k, v in decision["de_E0a_K8_s42"].items()}
+    c, got, ref = _e0a_with(pinned)
+    ok, equal, diff, acc = ev.judge_e0(c, got, ref, decision)
+    assert ok and equal is False and set(acc) == set(pinned) and "RIR_to_GT_RIR_R@1" in diff
+    for extra in ({"RIR_to_GT_RIR_R@5": 99.0}, {"T60": 1.0}, {"FD": 0.1}, {"RIR_to_geom_R@1": pinned["RIR_to_geom_R@1"] + 1e-4}):
+        c, got, ref = _e0a_with(dict(pinned, **extra))
+        assert not ev.judge_e0(c, got, ref, decision)[0], extra
+    c, got, ref = _e0a_with(pinned)
+    assert not ev.judge_e0(c, got, ref, None)[0]                         # without the decision: strict
+    c, got, ref = _e0a_with({"RIR_to_GT_RIR_R@1": pinned["RIR_to_GT_RIR_R@1"]})
+    ok, equal, diff, acc = ev.judge_e0(c, got, ref, decision)              # a subset of the decided keys: fine
+    assert ok and list(acc) == ["RIR_to_GT_RIR_R@1"]
+    e0b = [c for c in ev.e0_cells() if c["name"] == "de_E0b_K8_s42"][0]
+    ref_b, _ = ev.e0_reference(e0b, ev.check_refs())
+    bad = {"metrics": dict(ref_b["metrics"], **{"RIR_to_GT_RIR_R@1": 1.0}), "by_scene": ref_b["by_scene"]}
+    assert not ev.judge_e0(e0b, bad, ref_b, decision)[0]                  # E0b-d stay strict
+
+
+@pytest.fixture
+def decided(tmp_path, monkeypatch):
+    """A campaign whose E0a cells carry exactly the decided R@1 deviations."""
+    monkeypatch.setattr(ev, "E0_RECEIPT", str(tmp_path / "e0_receipt.json"))
+    monkeypatch.setattr(ev, "FARM", str(tmp_path / "farm"))
+    monkeypatch.setattr(ev.reg, "closure_digest", lambda repo=None: {"closure_sha256": fx.CAMPAIGN["closure_sha256"]})
+    monkeypatch.setattr(ev.reg, "env_receipt_sha", lambda platform, repo=None: fx.CAMPAIGN["env_receipt_sha256"])
+    monkeypatch.setattr(ev, "eval_snapshot", lambda closure, create=False: (str(tmp_path / "snap"),
+                                                                           fx.CAMPAIGN["eval_snapshot_sha256"]))
+    monkeypatch.setattr(ev, "live_eval_pins", lambda: {"agree_sha256": ev.reg.AGREE_SHA256,
+                                                       "vae_ckpt_sha256": ev.reg.VAE_CKPT_SHA256, "vit_rev": ev.reg.VIT_REV})
+    decision = ev.load_e0a_decision(required=True)
+    ours = {n: {k: v["ours"] for k, v in keys.items()} for n, keys in decision[0].items()}
+    campaign, rec = fx.make_e0_receipt(ev, log_dir=str(tmp_path / "logs"), e0a_ours=ours, decision=decision)
+    return campaign, rec, decision
+
+
+def test_a_decided_e0_receipt_validates_online_offline_and_on_neuronic(decided):
+    campaign, rec, decision = decided
+    assert rec["e0a_decision_sha256"] == decision[1] and rec["verdict"] == "PASS"
+    assert rec["cells"]["de_E0a_K8_s42"]["equal"] is False and rec["cells"]["de_E0b_K8_s42"]["accepted_deviations"] == {}
+    for kw in ({}, {"offline": True}, {"platform": "neuronic"}):
+        assert ev.validate_e0_receipt(**kw)["sha256"] == campaign["sha256"]
+    assert ev.e0_static_problems(rec) == []
+
+
+@pytest.mark.parametrize("fn", [
+    lambda r: r["accepted"]["de_E0a_K8_s42"].pop("RIR_to_geom_R@1"),        # a narrower decision
+    lambda r: r.update(answer=r["answer"] + " (edited)"),                    # any other edit: another sha
+])
+def test_the_e0_receipt_binds_its_decision_file(decided, tmp_path, monkeypatch, fn):
+    _decision_copy(tmp_path, monkeypatch, fn)
+    with pytest.raises(ev.reg.GateError):
+        ev.validate_e0_receipt()
+
+
+def test_a_decided_receipt_needs_the_decision_and_e0b_stays_strict(decided, monkeypatch):
+    campaign, rec, decision = decided
+    bad = json.loads(json.dumps(rec))
+    bad["e0a_decision_sha256"] = None
+    assert ev.e0_static_problems(bad)
+    bad = json.loads(json.dumps(rec))
+    bad["cells"]["de_E0b_K8_s42"].update(equal=False, difference="x", accepted_deviations={"RIR_to_GT_RIR_R@1": {}})
+    assert ev.e0_static_problems(bad)
+
+
+CAMPAIGN_E0A = "/home/yixunhu/codespace/exp-38-campaign/outputs_FLAC/exp38_data_efficiency/eval/E0a"
+
+
+@pytest.mark.skipif(not os.path.isdir(CAMPAIGN_E0A), reason="the 2026-11-08 E0a replay lives in the campaign tree")
+def test_the_real_e0a_replay_also_deviates_at_r5_and_r10():
+    """Read-only evidence: the bfc4ea4b E0a replay differs in R@5 / R@10 too, which the R@1-only decision does
+    not accept -- so a re-sealed E0 under it FAILS until the decision is widened (reported to the coordinator)."""
+    decision, _ = ev.load_e0a_decision(required=True)
+    refs = ev.check_refs()
+    for c in ev.e0_cells():
+        if c["e0"] != "E0a":
+            continue
+        got = json.load(open(os.path.join(CAMPAIGN_E0A, os.path.basename(c["metrics"]))))
+        ref, _ = ev.e0_reference(c, refs)
+        diff = ev.metric_diff(got["metrics"], ref["metrics"])
+        assert set(diff) <= set(ev.RETRIEVAL_KEYS)                         # the acoustics and FD are exact
+        assert {k for k in diff if k.endswith("_R@1")} == set(decision[c["name"]])
+        assert {k: diff[k][0] for k in decision[c["name"]]} == {k: v["ours"] for k, v in decision[c["name"]].items()}
+        assert not ev.judge_e0(c, got, ref, decision)[0]                   # R@5 / R@10 deviations remain
+
+
+def test_flac_rows_carry_the_exp14_retrieval_label(decided, tmp_path):
+    campaign, rec, decision = decided
+    rows, used = col.reference_rows(campaign)
+    for (m, f, K), v in rows.items():
+        assert v["retrieval_evaluator"] == ("exp_14" if m == "p1" and f in ("025", "050", "075") else None)
+    md = col.render(rows, [])
+    flac25 = [ln for ln in md.split("\n") if ln.startswith("| FLAC (P1) | 25 %")]
+    assert flac25 and all(ln.count("†") == 1 for ln in flac25) and "exp_14's own evaluator" in md
+    assert all("†" not in ln for ln in md.split("\n") if ln.startswith("| FLAC (P1) | 100 %"))
+    (tmp_path / col.reg.EXP_DIR).mkdir(parents=True)
+    col.publish(rows, [], {}, repo=str(tmp_path))
+    payload = json.load(open(tmp_path / col.OUT_JSON))
+    labels = {(r["model"], r["fraction"]): r["retrieval_evaluator"] for r in payload["rows"]}
+    assert labels[("p1", "050")] == "exp_14" and labels[("p1", "100")] == "exp_38" and labels[("yaw", "100")] == "exp_38"
+
+
+def test_d2_neuronic_campaign_runs_and_admission(world, monkeypatch):
+    assert ev.reg.campaign_runs() == ev.reg.required_runs() + ["de_p1_f025"]
+    rd = world["tmp"] / "nas" / "de_yaw_f050"
+    fx.make_training_receipt(ev, "de_yaw_f050", str(rd), fx.CAMPAIGN["closure_sha256"], e0_sha=world["campaign"]["sha256"],
+                             e0_path=world["campaign"]["e0_receipt"], platform="a6000")
+    with pytest.raises(ev.EvalError, match="D2"):
+        ev.prepare("de_yaw_f050")                                        # trained on the wrong platform

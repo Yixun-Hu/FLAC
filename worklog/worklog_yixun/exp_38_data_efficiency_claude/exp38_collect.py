@@ -65,8 +65,22 @@ def reference_rows(campaign):
                 rel = pattern.format(K=K, s=s_)
                 recs[s_] = ev.load_ref(rel, refs)["metrics"]
                 used[rel] = refs[rel]
-            rows[(model, frac, K)] = {"stats": aggregate(recs), "source": "reference (ref_cells/anchors)"}
+            label = "exp_14" if (model, frac) in EXP14_ROWS and e0a_decided(campaign) else None
+            rows[(model, frac, K)] = {"stats": aggregate(recs), "source": "reference (ref_cells/anchors)",
+                                      "retrieval_evaluator": label}
     return rows, used
+
+
+# the FLAC 25 / 50 / 75 % rows are exp_14's dc_van records: their acoustics replay exactly at our evaluator
+# (E0a), their AGREE retrieval does not -- Yixun's decision (data_efficiency_e0a_decision.json): keep exp_14's
+# values and LABEL their retrieval columns as exp_14-evaluator
+EXP14_ROWS = {("p1", "025"), ("p1", "050"), ("p1", "075")}
+RETRIEVAL_MARK = " †"
+
+
+def e0a_decided(campaign):
+    """True when the campaign's E0 receipt admitted E0a under the decision (retrieval deviations accepted)."""
+    return json.load(open(campaign["e0_receipt"])).get("e0a_decision_sha256") is not None
 
 
 def run_block(run, campaign, validate=None):
@@ -80,13 +94,16 @@ def run_block(run, campaign, validate=None):
     model = "p1_bridge" if arm == "p1" else arm
     farm = os.path.dirname(ev._abs(cells[0]["ckpt_link"]))
     platform = json.load(open(os.path.join(farm, reg.TRAINING_RECEIPT)))["platform"]
+    if platform != reg.TRAINING_PLATFORM:
+        return {}, [f"{run}: trained on {platform}, D2 = {reg.TRAINING_PLATFORM} (not admitted)"], {}
     rows, manifest = {}, ev.run_artifacts(run)
     for c in cells:
         manifest.update(ev.cell_artifacts(c))
     for K in (8, 1):
         recs = {c["seed"]: json.load(open(ev._abs(c["metrics"])))["metrics"] for c in cells if c["K"] == K}
         rows[(model, tag, K)] = {"stats": aggregate(recs), "source": f"exp_38 {run}, trained on {platform} "
-                                                                 f"(eval pin {campaign['head'][:12]})"}
+                                                                 f"(eval pin {campaign['head'][:12]})",
+                                 "retrieval_evaluator": None}
     return rows, [], manifest
 
 
@@ -102,11 +119,18 @@ def render(rows, pending):
                 key = (model, frac, K)
                 if key in rows:
                     st = rows[key]["stats"]
-                    cells = [f"{st[m][0]:.3f} ± {st[m][1]:.3f}" for m in SHOW]
+                    mark = RETRIEVAL_MARK if rows[key].get("retrieval_evaluator") == "exp_14" else ""
+                    cells = [f"{st[m][0]:.3f} ± {st[m][1]:.3f}" + (mark if m in ev.RETRIEVAL_KEYS else "") for m in SHOW]
                     out.append(f"| {MODELS[model]} | {FRAC_LABEL[frac]} | " + " | ".join(cells) + f" | {rows[key]['source']} |")
-                elif model in ("yaw", "bf") and frac != "100":
+                elif (model in ("yaw", "bf") and frac != "100") or (model == "p1_bridge" and frac == "025"
+                                                                     and "de_p1_f025" in reg.campaign_runs()):
                     out.append(f"| {MODELS[model]} | {FRAC_LABEL[frac]} | " + " | ".join(["PENDING"] * len(SHOW)) + " | — |")
         out.append("")
+    if any(v.get("retrieval_evaluator") == "exp_14" for v in rows.values()):
+        out += [f"{RETRIEVAL_MARK.strip()} FLAC 25 / 50 / 75 %: exp_14's own evaluator records. Their acoustic metrics "
+                "(T60, C50, EDT, FD) replay exactly at the exp_38 evaluator pin (E0a); their AGREE retrieval metrics "
+                "(R@k) do not, so these retrieval values are exp_14-evaluator numbers, not comparable item-for-item "
+                "with the exp_38-evaluator rows (Yixun's decision, `data_efficiency_e0a_decision.json`).", ""]
     if pending:
         out += ["## Pending / not admitted", ""] + [f"- {p}" for p in pending] + [""]
     return "\n".join(out) + "\n"
@@ -115,6 +139,7 @@ def render(rows, pending):
 def publish(rows, pending, manifest, repo=None):
     repo = repo or reg.REPO
     payload = {"rows": [{"model": k[0], "fraction": k[1], "K": k[2], "source": v["source"],
+                         "retrieval_evaluator": v.get("retrieval_evaluator") or "exp_38",
                          "stats": {m: {"mean": s[0], "sd": s[1], "n": s[2]} for m, s in v["stats"].items()}}
                         for k, v in sorted(rows.items())], "pending": pending, "manifest": manifest}
     jtext = (json.dumps(payload, indent=1, sort_keys=True) + "\n").encode()
@@ -130,14 +155,15 @@ def publish(rows, pending, manifest, repo=None):
     return hashlib.sha256(jtext).hexdigest()
 
 
-def collect(bridge=False):
+def collect(bridge=None):
     campaign = ev.validate_e0_receipt()
     rows, used = reference_rows(campaign)
     manifest = {"campaign": {k: campaign[k] for k in ("head", "closure_sha256", "env_receipt_sha256",
                                                       "eval_snapshot_sha256", "sha256")},
                 "artifacts": ev.campaign_artifacts(campaign), "runs": {}}
     pending = []
-    for run in reg.required_runs() + (["de_p1_f025"] if bridge else []):
+    runs = reg.campaign_runs() + (["de_p1_f025"] if bridge and "de_p1_f025" not in reg.campaign_runs() else [])
+    for run in runs:
         r, probs, arts = run_block(run, campaign)
         rows.update(r)
         pending += probs

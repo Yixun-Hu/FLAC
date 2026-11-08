@@ -244,6 +244,15 @@ def test_run_dir_fresh_and_complete_states_only(tmp_path):
         reg.check_run_dir(str(d4), run, 0)                      # a torn write is foreign
 
 
+def test_d2_campaign_is_six_runs_plus_the_mandatory_bridge(monkeypatch):
+    assert reg.TRAINING_PLATFORM == "neuronic"
+    assert reg.campaign_runs() == ["de_yaw_f025", "de_yaw_f050", "de_yaw_f075", "de_bf_f025", "de_bf_f050",
+                                   "de_bf_f075", "de_p1_f025"]
+    assert all(r in reg.REGISTERED_RUNS for r in reg.campaign_runs())
+    monkeypatch.setattr(reg, "TRAINING_PLATFORM", "a6000")
+    assert reg.campaign_runs() == reg.required_runs()            # the bridge is only needed off this box
+
+
 def test_only_the_registered_matrix_is_launchable():
     """Codex code r1 HIGH 3: P1 only at f025 / 2x32; the 8x8 rung only for the six primary runs."""
     assert sorted(reg.REGISTERED_RUNS) == sorted(reg.all_runs("2x32") + reg.required_runs("8x8"))

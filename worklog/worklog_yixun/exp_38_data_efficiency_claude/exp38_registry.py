@@ -156,6 +156,15 @@ def all_runs(rung="2x32"):
 # the launchable matrix (Codex code r1 HIGH 3): the six primary runs and the P1 bridge at 2x32, and the
 # six primary runs on the opt-in 8x8 sensitivity rung -- nothing else (no P1 f050 / f075, no bridge 8x8)
 REGISTERED_RUNS = frozenset(all_runs("2x32") + required_runs("8x8"))
+# D2 (Yixun, 2026-11-08): ALL exp_38 trainings run on neuronic 2 x L40 x 32; the P1 f025 platform bridge is
+# then mandatory (plan §13 D2-b/c). FULL refuses on any other platform; the collector admits only runs
+# trained here and requires the bridge.
+TRAINING_PLATFORM = "neuronic"
+
+
+def campaign_runs():
+    """The runs the campaign must train and evaluate: the six primary runs (+ the bridge off this box)."""
+    return required_runs("2x32") + ([run_id("p1", "025")] if TRAINING_PLATFORM != "a6000" else [])
 _RUN_RE = re.compile(r"^de_(yaw|bf|p1)_f(025|050|075)(?:_r(8x8))?$")
 
 
