@@ -488,12 +488,13 @@ def test_replay_reasons_semantics_and_reference_byte_check(tmp_path, manifest):
     assert any("changed since they were pinned" in r for r in ev.replay_reasons(cell, d, ref))
 
 
-def _ar_receipt(path, t=None):
-    """A PASS full-re-hash receipt of the committed AR manifest (kit schema), at ``path``."""
+def _ar_receipt(path, t=None, root=None):
+    """A PASS full-re-hash receipt of the committed AR manifest (kit schema), at ``path``, over
+    ``root`` (default: the evaluation's local AcousticRooms copy, ``ev.EVAL_AR_ROOT``)."""
     man = json.loads((_REPO / kit.AR_MANIFEST).read_text())
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     kit.atomic_write_json(str(path), {"verdict": "PASS", "manifest_digest": man["digest"], "got_digest": man["digest"],
-                                      "ar_root": os.path.realpath(man["ar_root"]),
+                                      "ar_root": os.path.realpath(ev.EVAL_AR_ROOT if root is None else root),
                                       "t": time.time() - 3600 if t is None else t, "seconds": 1.0,
                                       "differing_rooms": []})
     return str(path)
@@ -981,6 +982,30 @@ def test_receipt_runtime_identity_is_proven_not_just_well_formed(run_env, manife
     _named(rec, cell, ident, "no longer holds its recorded bytes")
     Path(ri["ar_verify"]["path"]).write_bytes(good)
     assert ev.receipt_reasons(rec, cell, ident) == []
+
+
+def test_eval_reads_the_local_acousticrooms_copy():
+    """Yixun 2026-11-11 (B): the evaluation reads the local AcousticRooms copy, not the NAS root;
+    the eval worktree's AcousticRooms link must resolve to it."""
+    assert ev.EVAL_UNTRACKED["AcousticRooms"] == ev.EVAL_AR_ROOT == "/home/yixunhu/data_local/exp39_AcousticRooms"
+    man = json.loads((_REPO / kit.AR_MANIFEST).read_text())
+    assert man["ar_root"] == "/media/diskstation/yixunhu/FLAC/AcousticRooms"     # the manifest is unchanged
+
+
+def test_runtime_identity_demands_an_ar_receipt_over_the_local_root(run_env, manifest, tmp_path):
+    """A PASS re-hash receipt over EVAL_AR_ROOT is accepted; the same receipt over the manifest's
+    NAS ar_root is refused (named reason)."""
+    ctx, _ = run_env
+    cell = _c16(manifest, "exp40_C16_T_S40000_K1_s42")[0]
+    adm = ctx["ident"]["admission"]
+    t0 = time.time()
+    ri = ctx["inputs"]
+    assert ev.runtime_identity_reasons(ri, ev.inputs_digest(ri), cell, TREE, t0, admission=adm) == []
+    man = json.loads((_REPO / kit.AR_MANIFEST).read_text())
+    nas = _ar_receipt(tmp_path / "ar_verify_nas.json", root=man["ar_root"])
+    ri_nas = {**ri, "ar_verify": _pin(nas)}
+    got = ev.runtime_identity_reasons(ri_nas, ev.inputs_digest(ri_nas), cell, TREE, t0, admission=adm)
+    assert any("AR receipt at the cell's start" in x and "AR re-hash receipt root" in x for x in got), got
 
 
 def test_a_stale_ar_receipt_refuses_the_spawn(run_env, manifest):

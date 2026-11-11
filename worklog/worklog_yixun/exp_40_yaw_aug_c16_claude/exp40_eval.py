@@ -372,7 +372,11 @@ def expected_offsets(cell, tree):
 # --------------------------------------------------------------------------- #
 # evaluation tree identity, closure digest, environment, AR gates (plan §5.1, §14 H2/H3/H7)
 # --------------------------------------------------------------------------- #
-EVAL_UNTRACKED = {"AcousticRooms": "/media/diskstation/yixunhu/FLAC/AcousticRooms",
+# The evaluation reads the LOCAL AcousticRooms copy (Yixun 2026-11-11; the NAS root was data-bound
+# at 6.7 s/batch). Identity is still the full content re-hash receipt of the committed manifest
+# over THIS root (0..48 h) plus the 16-item eval sample digest.
+EVAL_AR_ROOT = "/home/yixunhu/data_local/exp39_AcousticRooms"
+EVAL_UNTRACKED = {"AcousticRooms": EVAL_AR_ROOT,
                   "weights/AGREE": None, "weights/FLAC/VAE.ckpt": None}     # allowlist (plan §14 N2)
 
 
@@ -575,7 +579,7 @@ def runtime_identity_reasons(ri, ri_sha, cell, tree, t_start, admission=None, re
     canonical digest of the entries; every entry's bytes still present (``resolve`` maps an entry
     to a local copy, e.g. the committed table evidence); for C16 the admission entry equal to the
     validated admission, which must predate the cell; the AR re-hash receipt a PASS of the
-    committed manifest that was 0..48 h old AT THE CELL'S START (``t_start``)."""
+    committed manifest over ``EVAL_AR_ROOT`` that was 0..48 h old AT THE CELL'S START (``t_start``)."""
     r = runtime_entries_reasons(ri, tree)
     if r:
         return r
@@ -607,7 +611,7 @@ def runtime_identity_reasons(ri, ri_sha, cell, tree, t_start, admission=None, re
             r.append(f"{kit.AR_MANIFEST} unreadable ({err})")
         else:
             r += [f"AR receipt at the cell's start: {x}" for x in
-                  kit.ar_verify_reasons(local["ar_verify"], man, man["ar_root"], now=t_start)]
+                  kit.ar_verify_reasons(local["ar_verify"], man, EVAL_AR_ROOT, now=t_start)]
     return r
 
 

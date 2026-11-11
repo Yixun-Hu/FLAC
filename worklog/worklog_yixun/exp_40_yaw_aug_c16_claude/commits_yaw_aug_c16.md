@@ -31,4 +31,5 @@
 | `2d43f95f` | hand-off records: notebook, ledger, launch-sheet EXPECT_SHA rule, final test log |
 | `f8ed13b5` | redact the e-mail addresses two Codex plan transcripts quoted (the FULL training EXPECT_SHA) |
 | `23e9fe21` | comparator registry (92 reused cells, sha 7dec3d76) for the evaluation pin (superseded as EVAL_SHA by the audit fix) |
-| (this commit) | audit fix 2026-11-11, fixed without re-review (cap reached): scheduled-lr check (`initial_lr` + InverseLR closed form), the seven pinned never-gradient parameters exempt from AdamW-state coverage and checked bit-identical step 2,500 → 40,000, admission-state runs the live kit on the training-commit tree (`--tree`); tests (275 passed) |
+| `2b5f4a35` | audit fix 2026-11-11, fixed without re-review (cap reached): scheduled-lr check (`initial_lr` + InverseLR closed form), the seven pinned never-gradient parameters exempt from AdamW-state coverage and checked bit-identical step 2,500 → 40,000, admission-state runs the live kit on the training-commit tree (`--tree`); tests (275 passed) |
+| (this commit) | the evaluation reads the LOCAL AcousticRooms copy (Yixun 2026-11-11, "B"; the NAS root was data-bound at 6.7 s/batch), fixed without re-review (cap reached): `EVAL_AR_ROOT`, the eval-worktree link and the cell AR-receipt check bound to it; tests; eval commands; worklog (re-audit PASS + admission) |

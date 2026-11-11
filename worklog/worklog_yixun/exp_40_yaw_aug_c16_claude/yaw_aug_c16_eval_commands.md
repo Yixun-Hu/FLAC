@@ -76,19 +76,19 @@ EVAL_SHA=$(git rev-parse HEAD)
 # 2. the detached eval worktree at EVAL_SHA (the lab's run-worktree pattern) + its three allowlisted assets
 W=~/codespace/exp-40-eval-${EVAL_SHA:0:12}
 git worktree add --detach "$W" "$EVAL_SHA"
-ln -s /media/diskstation/yixunhu/FLAC/AcousticRooms "$W/AcousticRooms"
+ln -s /home/yixunhu/data_local/exp39_AcousticRooms "$W/AcousticRooms"   # the LOCAL copy (2026-11-11; exp40_eval.EVAL_AR_ROOT)
 ln -s ~/codespace/FLAC/weights/AGREE "$W/weights/AGREE"
 ln -s ~/codespace/FLAC/weights/FLAC/VAE.ckpt "$W/weights/FLAC/VAE.ckpt"
 mkdir -p /media/diskstation/yixunhu/FLAC/exp40_pred_waveforms          # the dump root is never auto-created
 # 3. the sealed HF hub (built once from the local cache; `run --dry-run` below verifies it + resolution)
 [ -d "$SEALED" ] || $PY $K/exp40_kit.py build-hf-sealed --src-hub ~/.cache/huggingface/hub --dest "$SEALED"
-# 4. the full AcousticRooms re-hash (CPU, ~1 h, NAS), outside the eval worktree, to a NEW timestamped
+# 4. the full AcousticRooms re-hash (CPU, ~35 s on the local copy; ~91 min on the NAS before 2026-11-11), outside the eval worktree, to a NEW timestamped
 #    receipt (never overwrite one: earlier cell receipts are bound to its bytes), and a NEW runtime-input
 #    manifest pinning it. Every cell must START within 48 h of the receipt's time: before a batch that
 #    could run past that, repeat step 4 (and step 6) and use the new manifest.
 pin() { $PY -c "import hashlib,json,sys; print(json.dumps({'path': sys.argv[1], 'sha256': hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest()}))" "$1"; }
 AR="$R/ar_verify_eval_$(date +%F_%H-%M-%S).json"; [ -e "$AR" ] && echo "exists: $AR" && exit 1
-$PY $K/exp40_kit.py ar-verify --ar-root /media/diskstation/yixunhu/FLAC/AcousticRooms \
+$PY $K/exp40_kit.py ar-verify --ar-root /home/yixunhu/data_local/exp39_AcousticRooms \
   --manifest $K/exp40_ar_manifest.json --out "$AR"
 RI_E0="$R/runtime_inputs_E0_$(date +%F_%H-%M-%S).json"
 echo "{\"ar_verify\": $(pin "$AR")}" > "$RI_E0"
