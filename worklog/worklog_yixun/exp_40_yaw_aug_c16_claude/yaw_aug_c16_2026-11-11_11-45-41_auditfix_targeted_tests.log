@@ -1,0 +1,61 @@
+.................F
+=================================== FAILURES ===================================
+_______________ test_full_audit_and_derived_admission_end_to_end _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-7135/test_full_audit_and_derived_ad0')
+tiny_ckpt = ({'global_step': 40000, 'epoch': 8, 'model_config': {'model_type': 'diffusion_cond', 'sample_size': 64, 'sample_rate':...=(1,), bias=False)
+      )
+    )
+  )
+  (losses): MultiLoss(
+    (losses): ModuleList(
+      (0): MSELoss()
+    )
+  )
+))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x735bb93bf850>
+full_stream = {0: {'digest': 'bfa9badc16084c9ed6e5236f46879217658c92c55fbc8116d68b9363163b6947', 'hist': [80502, 80008, 79517, 80177...2, 288, 448, 64, 256, ...], '2': [0, 256, 256, 448, 288, 288, ...], '3': [192, 480, 384, 224, 320, 0, ...], ...}, ...}}
+sealed_hub = '/tmp/pytest-of-yixunhu/pytest-7135/sealed0/hf_sealed'
+
+    def test_full_audit_and_derived_admission_end_to_end(tmp_path, tiny_ckpt, monkeypatch, full_stream, sealed_hub):
+>       tree, ckdir, nas_root, d, ev = _tiny_full_run(tmp_path, tiny_ckpt, monkeypatch, full_stream)
+
+src/tests/test_exp40_kit.py:1645: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp40_kit.py:1640: in _tiny_full_run
+    d, ev = _full_records(tmp_path, full_stream, run_id)
+src/tests/test_exp40_kit.py:1464: in _full_records
+    kst = smoke if smoke is not None else _real_smoke_stream()
+src/tests/test_exp40_kit.py:1437: in _real_smoke_stream
+    _SMOKE["s"] = kit.expected_stream(kit.ROOT, kit.SMOKE_STEPS["DDP_SMOKE"], range(2), 32, verbatim=False)
+src/tests/test_exp40_kit.py:1448: in <lambda>
+    return lambda tree, steps, *a, **k: full_stream if steps == kit.ENDPOINT else _real_smoke_stream()
+src/tests/test_exp40_kit.py:1437: in _real_smoke_stream
+    _SMOKE["s"] = kit.expected_stream(kit.ROOT, kit.SMOKE_STEPS["DDP_SMOKE"], range(2), 32, verbatim=False)
+E   RecursionError: maximum recursion depth exceeded in comparison
+!!! Recursion detected (same locals & position)
+=============================== warnings summary ===============================
+src/tests/test_exp40_kit.py::test_checkpoint_state_pass
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp40_kit.py::test_checkpoint_state_pass
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp40_kit.py::test_checkpoint_state_pass
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp40_kit.py::test_checkpoint_state_pass
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp40_kit.py::test_checkpoint_state_pass
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp40_kit.py::test_full_audit_and_derived_admission_end_to_end
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 17 passed, 167 deselected, 5 warnings in 23.37s

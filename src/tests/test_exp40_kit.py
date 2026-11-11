@@ -10,6 +10,7 @@ import hashlib
 import importlib.util
 import inspect
 import json
+import math
 import os
 import signal
 import subprocess
@@ -840,16 +841,18 @@ def tiny_ckpt(monkeypatch):
     cfg["training"]["use_ema"] = True
     w = kit.build_wrapper_cpu(str(_REPO), cfg)
     opt = torch.optim.AdamW(w.diffusion.parameters(), lr=5e-5, betas=(0.9, 0.999), weight_decay=1e-3)
-    params = list(w.diffusion.parameters())
+    named = list(w.diffusion.named_parameters())
+    params = [p for _, p in named]
     state = {i: {"step": torch.tensor(40000.0), "exp_avg": torch.zeros_like(p), "exp_avg_sq": torch.zeros_like(p)}
-             for i, p in enumerate(params) if p.requires_grad}
+             for i, (n, p) in enumerate(named) if p.requires_grad and n not in kit.NO_GRAD_PARAMS}
     sd = w.state_dict()
     sd["diffusion_ema.initted"] = torch.tensor([1.0])
     sd["diffusion_ema.step"] = torch.tensor([40000])
     key = ("ModelCheckpoint{'monitor': None, 'mode': 'min', 'every_n_train_steps': 2500, "
            "'every_n_epochs': 0, 'train_time_interval': None}")
     ck = {"global_step": 40000, "epoch": 8, "model_config": cfg, "state_dict": sd,
-          "optimizer_states": [{"state": state, "param_groups": [{"lr": 5e-05, "betas": (0.9, 0.999),
+          "optimizer_states": [{"state": state, "param_groups": [{"lr": kit.scheduled_lr(kit.ENDPOINT),
+                                                                  "initial_lr": 5e-05, "betas": (0.9, 0.999),
                                                                   "weight_decay": 0.001,
                                                                   "params": list(range(len(params)))}]}],
           "lr_schedulers": [dict(kit.SCHED)],
@@ -872,6 +875,11 @@ def test_checkpoint_state_pass(tiny_ckpt):
     (lambda ck: ck["callbacks"].clear(), "callbacks"),
     (lambda ck: ck["optimizer_states"][0]["param_groups"][0].update(lr=1.0), "AdamW"),
     (lambda ck: ck["optimizer_states"][0]["state"].popitem(), "optimizer state"),
+    # audit fix 2026-11-11: the group's lr is the SCHEDULED lr; the base lr lives in initial_lr
+    (lambda ck: ck["optimizer_states"][0]["param_groups"][0].update(lr=5e-05), "scheduled InverseLR"),
+    (lambda ck: ck["optimizer_states"][0]["param_groups"][0].update(lr=True), "scheduled InverseLR"),
+    (lambda ck: ck["optimizer_states"][0]["param_groups"][0].update(initial_lr=1e-04), "initial_lr"),
+    (lambda ck: ck["optimizer_states"][0]["param_groups"][0].pop("initial_lr"), "initial_lr"),
 ])
 def test_checkpoint_state_failures(tiny_ckpt, mutate, needle):
     ck, cfg, w = tiny_ckpt
@@ -879,6 +887,90 @@ def test_checkpoint_state_failures(tiny_ckpt, mutate, needle):
     ck = copy.deepcopy(ck)
     mutate(ck)
     assert any(needle in x for x in kit.checkpoint_state_reasons(ck, cfg, "/ck", w))
+
+
+# --------------------------------------------------------------------------- #
+# audit fix 2026-11-11: scheduled lr + never-gradient parameters (the _r1 false FAIL)
+# --------------------------------------------------------------------------- #
+def test_scheduled_lr_is_the_real_inverselr_after_40000_steps():
+    from src.training.utils import InverseLR
+    p = torch.nn.Parameter(torch.zeros(1))
+    opt = torch.optim.AdamW([p], lr=kit.ADAMW["lr"], betas=tuple(kit.ADAMW["betas"]),
+                            weight_decay=kit.ADAMW["weight_decay"])
+    s = kit.SCHED
+    sch = InverseLR(opt, inv_gamma=s["inv_gamma"], power=s["power"], warmup=s["warmup"], final_lr=s["final_lr"])
+    for _ in range(kit.ENDPOINT):
+        opt.step()
+        sch.step()
+    pg = opt.param_groups[0]
+    assert sch.last_epoch == kit.ENDPOINT and pg["initial_lr"] == kit.ADAMW["lr"]
+    assert math.isclose(pg["lr"], kit.scheduled_lr(kit.ENDPOINT), rel_tol=1e-12, abs_tol=0.0)
+    assert kit.scheduled_lr(kit.ENDPOINT) == 4.902903378454601e-05      # the _r1 40k checkpoint's lr
+    assert not math.isclose(kit.scheduled_lr(kit.ENDPOINT), kit.ADAMW["lr"], rel_tol=1e-3)
+
+
+def test_no_grad_params_are_the_seven_pinned_names():
+    assert kit.NO_GRAD_PARAMS == {
+        "conditioner.conditioners.source.proj_out.weight",
+        "conditioner.conditioners.source.proj_out.bias",
+        "conditioner.conditioners.source_vit.vit.embeddings.mask_token",
+        "conditioner.conditioners.context_poses.proj_out.weight",
+        "conditioner.conditioners.context_poses.proj_out.bias",
+        "conditioner.conditioners.context_audio.net.cnn.fc_backup.weight",
+        "conditioner.conditioners.context_audio.net.cnn.fc_backup.bias"}
+
+
+def _a_trainable_name(w):
+    return next(n for n, p in w.diffusion.named_parameters() if p.requires_grad and n not in kit.NO_GRAD_PARAMS)
+
+
+def test_only_never_gradient_parameters_may_lack_optimizer_state(tiny_ckpt, monkeypatch):
+    import copy
+    ck, cfg, w = tiny_ckpt
+    named = [n for n, _ in w.diffusion.named_parameters()]
+    name = _a_trainable_name(w)
+    idx = named.index(name)
+    with_state = copy.deepcopy(ck)
+    without = copy.deepcopy(ck)
+    del without["optimizer_states"][0]["state"][idx]
+    # not exempt: a missing state is a FAIL naming the parameter
+    got = kit.checkpoint_state_reasons(without, cfg, "/ck", w)
+    assert any("optimizer state" in r and name in r for r in got), got
+    # exempt: the missing state is expected, and a PRESENT state is a FAIL (the set is exact)
+    monkeypatch.setattr(kit, "NO_GRAD_PARAMS", kit.NO_GRAD_PARAMS | {name})
+    assert kit.checkpoint_state_reasons(without, cfg, "/ck", w) == []
+    got = kit.checkpoint_state_reasons(with_state, cfg, "/ck", w)
+    assert any("optimizer state" in r and name in r for r in got), got
+
+
+def test_frozen_param_reasons(tiny_ckpt, monkeypatch):
+    import copy
+    ck, cfg, w = tiny_ckpt
+    name = _a_trainable_name(w)
+    monkeypatch.setattr(kit, "NO_GRAD_PARAMS", frozenset({name}))
+    last = copy.deepcopy(ck)
+    assert kit.frozen_param_reasons(ck, last) == []
+    last["state_dict"]["diffusion." + name] = last["state_dict"]["diffusion." + name] + 1e-7
+    assert any("changed" in r for r in kit.frozen_param_reasons(ck, last))
+    del last["state_dict"]["diffusion." + name]
+    assert any("only one" in r for r in kit.frozen_param_reasons(ck, last))
+    monkeypatch.setattr(kit, "NO_GRAD_PARAMS", frozenset({"not.a.parameter"}))
+    assert kit.frozen_param_reasons(ck, ck) == []                    # absent from both: nothing to compare
+
+
+def test_admission_state_subprocess_runs_the_live_kit_on_the_tree(tmp_path, monkeypatch):
+    seen = {}
+
+    def fake_run(cmd, cwd=None, env=None, **kw):
+        seen.update(cmd=cmd, cwd=cwd)
+        return 0, json.dumps({"tree": os.path.realpath(str(tmp_path)), "reasons": []}) + "\n", ""
+
+    monkeypatch.setattr(kit, "run", fake_run)
+    st = kit.admission_state_subprocess(str(tmp_path), "/x.ckpt", "/ck", hf_sealed=str(tmp_path / "hub"))
+    cmd = seen["cmd"]
+    assert st["tree"] == os.path.realpath(str(tmp_path)) and seen["cwd"] == str(tmp_path)
+    assert cmd[1] == "-B" and cmd[2] == os.path.abspath(kit.__file__) and cmd[3] == "admission-state"
+    assert cmd[cmd.index("--tree") + 1] == str(tmp_path)
 
 
 # --------------------------------------------------------------------------- #
@@ -1537,7 +1629,7 @@ def _tiny_full_run(tmp_path, tiny_ckpt, monkeypatch, full_stream):
     ckdir = tmp_path / "ck"
     ckdir.mkdir()
     for n in kit.EXPECTED_CKPTS:
-        if n == kit.ckpt_name(kit.ENDPOINT):
+        if n in (kit.ckpt_name(kit.ENDPOINT), kit.ckpt_name(kit.CADENCE)):   # the audit reads both
             torch.save(ck, str(ckdir / n))
         else:
             (ckdir / n).write_bytes(n.encode() * 10)

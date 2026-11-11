@@ -28,4 +28,7 @@
 | `09150566` | exp_40 round 3 records: notebook (every code-review-2 finding mapped to its fix; full CPU suite at e5954933 = only the 7 pre-existing CPU-environment failures), ledger, command record, round-3 test log (735 passed), DRY_RUN records |
 | `c73ba758` | exp_40: Codex code review 3 of 3, the last (REQUEST-CHANGES, verbatim + transcript) + notebook |
 | `c7436932` | exp_40 code-r3 fixes (the last review; fixed without re-review per the cap): B1 admission resolves DINOv3 ONLY from a mandatory, verified sealed hub (competing HF variables stripped in the admission-tree subprocess, resolution checked there, hub + resolved ... |
-| (this commit) | hand-off records: notebook, ledger, launch-sheet EXPECT_SHA rule, final test log |
+| `2d43f95f` | hand-off records: notebook, ledger, launch-sheet EXPECT_SHA rule, final test log |
+| `f8ed13b5` | redact the e-mail addresses two Codex plan transcripts quoted (the FULL training EXPECT_SHA) |
+| `23e9fe21` | comparator registry (92 reused cells, sha 7dec3d76) for the evaluation pin (superseded as EVAL_SHA by the audit fix) |
+| (this commit) | audit fix 2026-11-11, fixed without re-review (cap reached): scheduled-lr check (`initial_lr` + InverseLR closed form), the seven pinned never-gradient parameters exempt from AdamW-state coverage and checked bit-identical step 2,500 → 40,000, admission-state runs the live kit on the training-commit tree (`--tree`); tests (275 passed) |

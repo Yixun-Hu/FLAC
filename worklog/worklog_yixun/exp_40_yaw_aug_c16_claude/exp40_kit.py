@@ -122,6 +122,27 @@ FORBIDDEN_TRAINING_KEYS = ("cond_method", "canonicalize", "are_lambda", "are_anc
 ADAMW = {"lr": 5e-05, "betas": [0.9, 0.999], "weight_decay": 0.001}
 SCHED = {"inv_gamma": 1000000, "power": 0.5, "warmup": 0.99, "final_lr": 0.0,
          "base_lrs": [5e-05], "last_epoch": ENDPOINT, "_step_count": ENDPOINT + 1}
+# Audit fix 2026-11-11 (Yixun's go; no Codex round left under the cap): the trainable parameters
+# that never receive a gradient in the FLAC / C16 forward pass, so AdamW never creates state for
+# them. The _r1 40k checkpoint and the exp_20 references YAW_40k / P1_40k lack state for exactly
+# these seven (indices 174, 175, 179, 392, 393, 456, 457), bit-identical from step 2,500 to 40,000.
+NO_GRAD_PARAMS = frozenset((
+    "conditioner.conditioners.source.proj_out.weight",
+    "conditioner.conditioners.source.proj_out.bias",
+    "conditioner.conditioners.source_vit.vit.embeddings.mask_token",
+    "conditioner.conditioners.context_poses.proj_out.weight",
+    "conditioner.conditioners.context_poses.proj_out.bias",
+    "conditioner.conditioners.context_audio.net.cnn.fc_backup.weight",
+    "conditioner.conditioners.context_audio.net.cnn.fc_backup.bias",
+))
+
+
+def scheduled_lr(step):
+    """InverseLR's closed form (src/training/utils.py) at ``last_epoch = step`` for ADAMW / SCHED:
+    the lr a checkpoint's param group holds after ``step`` scheduler steps (audit fix 2026-11-11:
+    the group's ``lr`` is the SCHEDULED value, its ``initial_lr`` the base lr)."""
+    warm = 1 - SCHED["warmup"] ** (step + 1)
+    return warm * max(SCHED["final_lr"], ADAMW["lr"] * (1 + step / SCHED["inv_gamma"]) ** -SCHED["power"])
 STEPS_PER_EPOCH = 4550          # 291,210 items / 64 (DistributedSampler, drop_last) -- exp_15/17 logs
 
 
@@ -1924,9 +1945,17 @@ def checkpoint_state_reasons(ck, arm_cfg, expected_dirpath, wrapper=None):
     else:
         pg = opt[0]["param_groups"][0]
         for k, v in ADAMW.items():
+            if k == "lr":
+                continue
             got = list(pg.get(k)) if isinstance(pg.get(k), (tuple, list)) else pg.get(k)
             if got != v:
                 reasons.append(f"AdamW {k} {got!r} != {v!r}")
+        if pg.get("initial_lr") != ADAMW["lr"]:
+            reasons.append(f"AdamW initial_lr {pg.get('initial_lr')!r} != {ADAMW['lr']!r}")
+        want, got = scheduled_lr(ENDPOINT), pg.get("lr")
+        if isinstance(got, bool) or not isinstance(got, (int, float)) \
+                or not math.isclose(got, want, rel_tol=1e-12, abs_tol=0.0):
+            reasons.append(f"AdamW lr {got!r} != the scheduled InverseLR lr {want!r} at step {ENDPOINT}")
     sch = ck.get("lr_schedulers") or []
     if len(sch) != 1 or any(sch[0].get(k) != v for k, v in SCHED.items()):
         reasons.append(f"InverseLR state {({k: sch[0].get(k) for k in SCHED} if sch else None)} != {SCHED}")
@@ -1954,11 +1983,16 @@ def checkpoint_state_reasons(ck, arm_cfg, expected_dirpath, wrapper=None):
                            f"extra {extra})")
         else:
             wrapper.load_state_dict(sd, strict=True)
-            params = list(wrapper.diffusion.parameters())
+            named = list(wrapper.diffusion.named_parameters())
+            params = [p for _, p in named]
             trainable = {i for i, p in enumerate(params) if p.requires_grad}
+            exempt = {i for i in trainable if named[i][0] in NO_GRAD_PARAMS}   # audit fix 2026-11-11
             state = opt[0]["state"]
-            if set(map(int, state)) != trainable or sorted(opt[0]["param_groups"][0]["params"]) != sorted(range(len(params))):
-                reasons.append(f"optimizer state covers {len(state)} params, {len(trainable)} trainable")
+            have = set(map(int, state))
+            if have != trainable - exempt or sorted(opt[0]["param_groups"][0]["params"]) != sorted(range(len(params))):
+                odd = sorted(named[i][0] if 0 <= i < len(named) else str(i) for i in have ^ (trainable - exempt))
+                reasons.append(f"optimizer state covers {len(state)} params, {len(trainable)} trainable, "
+                               f"{len(exempt)} never-gradient exempt; differing: {odd[:5]}")
             for idx, st in state.items():
                 p = params[int(idx)]
                 bad = [k for k in ("exp_avg", "exp_avg_sq")
@@ -1968,6 +2002,22 @@ def checkpoint_state_reasons(ck, arm_cfg, expected_dirpath, wrapper=None):
                     reasons.append(f"optimizer state {idx} malformed ({bad}, step {st.get('step')})")
                     break
     return reasons
+
+
+def frozen_param_reasons(first, last):
+    """Audit fix 2026-11-11: every NO_GRAD_PARAMS tensor present in the online model is
+    bit-identical at the first cadence checkpoint and at the endpoint (AdamW never stepped it)."""
+    import torch
+    a, b = first.get("state_dict") or {}, last.get("state_dict") or {}
+    r = []
+    for name in sorted(NO_GRAD_PARAMS):
+        k = "diffusion." + name
+        if (k in a) != (k in b):
+            r.append(f"never-gradient parameter {name} is in only one of the step-{CADENCE} / "
+                     f"step-{ENDPOINT} checkpoints")
+        elif k in a and not (torch.is_tensor(a[k]) and torch.is_tensor(b[k]) and torch.equal(a[k], b[k])):
+            r.append(f"never-gradient parameter {name} changed between step {CADENCE} and step {ENDPOINT}")
+    return r
 
 
 def build_wrapper_cpu(tree, arm_cfg):
@@ -2126,6 +2176,12 @@ def audit(ckpt_dir, tree, nas_dir=None, strict_load=True, evidence=None, run_id=
             arm_cfg = json.load(f)
         wrapper = build_wrapper_cpu(tree, arm_cfg) if strict_load else None
         reasons += checkpoint_state_reasons(ck, arm_cfg, expected_dirpath or ckpt_dir, wrapper)
+        first_name = ckpt_name(CADENCE)                                   # audit fix 2026-11-11
+        fsha, _, first = load_checkpoint_once(os.path.join(ckpt_dir, first_name))
+        if fsha != shas[first_name]:
+            reasons.append(f"{first_name} changed while it was audited")
+        reasons += frozen_param_reasons(first, ck)
+        del first
         if nas_dir is not None:
             reasons += nas_run_dir_reasons(nas_dir, shas)
     if not reasons:
@@ -2300,12 +2356,13 @@ def checkpoint_admission_state(ckpt_path, expected_dirpath, tree, strict_load=Tr
 
 def admission_state_subprocess(tree, ckpt_path, expected_dirpath, strict_load=True, python=None,
                                hf_sealed=None):
-    """Run ``admission-state`` with the admission tree's OWN kit, cwd = that tree, no bytecode:
-    the arm config and the strict-load wrapper come from the training commit, never from the
-    live checkout (code-r2 H2)."""
+    """Run ``admission-state`` in the admission tree (cwd = that tree, ``--tree`` = that tree, no
+    bytecode): the arm config and the strict-load wrapper's source come from the training commit,
+    never from the live checkout (code-r2 H2). Audit fix 2026-11-11: the CHECKS are this (live)
+    kit's -- the training commit's kit carries the two false-positive checks fixed here."""
     if hf_sealed is None:
         raise Refused("admission-state needs the sealed HF hub")
-    cmd = [python or sys.executable, "-B", os.path.join(tree, EXPREL, "exp40_kit.py"), "admission-state",
+    cmd = [python or sys.executable, "-B", os.path.abspath(__file__), "admission-state", "--tree", tree,
            "--ckpt", ckpt_path, "--expected-dirpath", expected_dirpath, "--hf-sealed", hf_sealed] \
         + ([] if strict_load else ["--no-strict"])
     env = sealed_env(hf_sealed, os.environ)                    # code-r3 B1: ONLY the sealed hub
@@ -3021,6 +3078,8 @@ def main(argv=None):
     u.add_argument("--expected-dirpath", help="the ModelCheckpoint dirpath recorded at training time "
                                               "(neuronic pull: the neuronic path)")
     u.add_argument("--check", required=True); u.add_argument("--reference", required=True)
+    u.add_argument("--tree", help="the run tree whose arm config + source build the strict wrapper "
+                                  "(default: this kit's own tree; audit fix 2026-11-11 re-audit)")
     rr_ = sub.add_parser("run-result"); rr_.add_argument("--run-id", required=True)
     rr_.add_argument("--sha", required=True); rr_.add_argument("--verdict", required=True)
     for k in RUN_RESULT_FILES:
@@ -3030,6 +3089,8 @@ def main(argv=None):
     st_ = sub.add_parser("admission-state"); st_.add_argument("--ckpt", required=True)
     st_.add_argument("--expected-dirpath", required=True); st_.add_argument("--no-strict", action="store_true")
     st_.add_argument("--hf-sealed", required=True)
+    st_.add_argument("--tree", help="the admission tree whose arm config + source are interpreted "
+                                    "(default: this kit's own tree)")
     d = sub.add_parser("admit"); d.add_argument("--run-result", required=True)
     d.add_argument("--receipts-dir", required=True); d.add_argument("--note", default="")
     d.add_argument("--hf-sealed", required=True)
@@ -3211,7 +3272,7 @@ def main(argv=None):
             print(f"PUBLISHED {done}")
             return 0
         if args.cmd == "audit":
-            v = audit(args.ckpt_dir, ROOT, nas_dir=args.nas_dir, evidence=args.evidence,
+            v = audit(args.ckpt_dir, args.tree or ROOT, nas_dir=args.nas_dir, evidence=args.evidence,
                       run_id=args.run_id, expected_dirpath=args.expected_dirpath,
                       check_path=args.check, reference_path=args.reference)
             atomic_write_json(args.out, v)
@@ -3230,8 +3291,9 @@ def main(argv=None):
             print(f"RUN RESULT {rec['verdict']} -> {args.out}")
             return 0
         if args.cmd == "admission-state":
-            print(json.dumps(admission_state(args.ckpt, args.expected_dirpath, strict_load=not args.no_strict,
-                                             hf_sealed=args.hf_sealed), sort_keys=True))
+            print(json.dumps(admission_state(args.ckpt, args.expected_dirpath, tree=args.tree,
+                                             strict_load=not args.no_strict, hf_sealed=args.hf_sealed),
+                             sort_keys=True))
             return 0
         if args.cmd == "admit":
             if os.path.lexists(args.out):
