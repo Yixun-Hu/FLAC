@@ -1,0 +1,5 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/yaw_aug_c16_cells_raw.csv
+/home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/yaw_aug_c16_results_tables.md
+/home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/yaw_aug_c16_paper_import.csv
+/home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/yaw_aug_c16_collect_manifest.json

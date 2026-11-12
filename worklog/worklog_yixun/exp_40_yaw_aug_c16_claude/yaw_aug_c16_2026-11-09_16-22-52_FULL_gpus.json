@@ -1,0 +1,28 @@
+{
+ "compute_apps": [],
+ "cuda_visible_devices": null,
+ "gpus": [
+  {
+   "free_mib": 48530,
+   "index": 0,
+   "name": "NVIDIA RTX A6000",
+   "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e"
+  },
+  {
+   "free_mib": 48374,
+   "index": 1,
+   "name": "NVIDIA RTX A6000",
+   "uuid": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da"
+  }
+ ],
+ "lanes": [
+  0,
+  1
+ ],
+ "policy": "idle",
+ "reasons": [],
+ "slurm_job_gpus": null,
+ "t": 1794259410.1626427,
+ "verdict": "PASS",
+ "visible_uuids": null
+}

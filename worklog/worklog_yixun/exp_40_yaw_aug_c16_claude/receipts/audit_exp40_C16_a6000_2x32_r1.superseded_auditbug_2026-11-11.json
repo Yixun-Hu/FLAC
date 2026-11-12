@@ -1,0 +1,29 @@
+{
+ "ckpt_dir": "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/FLAC_exp40_C16/exp40_C16_a6000_2x32_r1/checkpoints",
+ "expected_dirpath": "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/FLAC_exp40_C16/exp40_C16_a6000_2x32_r1/checkpoints",
+ "full_evidence_sha256": "eb5937ac66db3bae02b287a76c402da93c40c028e728571f9841ca44e6cf413a",
+ "nas_dir": "/media/diskstation/yixunhu/FLAC/checkpoints/exp40_yaw_aug_c16/exp40_C16_a6000_2x32_r1",
+ "reasons": [
+  "AdamW lr 4.902903378454601e-05 != 5e-05"
+ ],
+ "sha256": {
+  "epoch=0-step=2500.ckpt": "bd72e506dc61832c02a8df031e30a4191c7c3fc97571890cf102586934197ee0",
+  "epoch=1-step=5000.ckpt": "d5416a7be517866e4c7a7dd73ea8d563e3744b5c8c0ff317d6e42b4c6d43ded6",
+  "epoch=1-step=7500.ckpt": "a02cb9c18789d608a06a3094a3eb7386fbccbbb862f0826b218a8d9948645e9f",
+  "epoch=2-step=10000.ckpt": "267dd56d045b4ca3e877a70d7c024fb86d73d160e96b344282867bc2a2ff6233",
+  "epoch=2-step=12500.ckpt": "3172acfe14f63585d52c745809d4dfcf078b0588f9a4b61a4487280a24137e3d",
+  "epoch=3-step=15000.ckpt": "7beaf919afffe15fe0b6649d9dfa7fa5713aeb714630cb08ba3fde598cf0f0fa",
+  "epoch=3-step=17500.ckpt": "8243c6a537296e003d8882974bfe40d956769d25a51bf1dcb5543c85e5772a1a",
+  "epoch=4-step=20000.ckpt": "7067b22b3e6bca9d270747d31c47d54933677375a880bf9760c95026a61c51cc",
+  "epoch=4-step=22500.ckpt": "06777d01a5244d2bc6e46c1c8d1faaf76f6978d44cd962affc4dff9c5e6194e5",
+  "epoch=5-step=25000.ckpt": "84241d4363167f90643dc4755dd6c2ca32fbd47617aab87cd995fcfdc19a5378",
+  "epoch=6-step=27500.ckpt": "6fc188a53d17ecdd3df3606eeb7493b7aa40f72efbe10d661c941174be52523b",
+  "epoch=6-step=30000.ckpt": "f0e7dee5050c96cfad5a9c399520936a043e70cc7cb602aa0f8edf6718797cdf",
+  "epoch=7-step=32500.ckpt": "92b6160a77142fa62646fca5519519ee2f9e149de5e108daacad0df8e0a59fbd",
+  "epoch=7-step=35000.ckpt": "ef66b7d049ff58f30b944388bc78108b502b5e226118e7e6fd921f6fffe94c4d",
+  "epoch=8-step=37500.ckpt": "edf3baa0ab950481701251cef5665fa5b12b6fd0e444ae046c4cd4902b21774d",
+  "epoch=8-step=40000.ckpt": "07a5fefb6ceaaf205c373ca1612efc845f9a5d8e77feeec353320240f10e25ae"
+ },
+ "strict_load": true,
+ "verdict": "FAIL"
+}

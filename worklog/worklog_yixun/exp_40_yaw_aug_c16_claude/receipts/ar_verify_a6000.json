@@ -1,0 +1,9 @@
+{
+ "ar_root": "/home/yixunhu/data_local/exp39_AcousticRooms",
+ "differing_rooms": [],
+ "got_digest": "d930e14c5b5b25ce9c3345d4f0ce925704bcd690245532397b00b937718f3cd0",
+ "manifest_digest": "d930e14c5b5b25ce9c3345d4f0ce925704bcd690245532397b00b937718f3cd0",
+ "seconds": 33.46585726737976,
+ "t": 1794272145.379584,
+ "verdict": "PASS"
+}

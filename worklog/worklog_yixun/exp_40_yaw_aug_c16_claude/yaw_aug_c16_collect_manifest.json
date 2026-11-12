@@ -1,0 +1,20 @@
+{
+ "kind": "exp40_collect",
+ "outputs": {
+  "yaw_aug_c16_cells_raw.csv": "0f01fb589aec4f7e42281a389a97ce988883a9da06ed38cd55c3667dde96f029",
+  "yaw_aug_c16_paper_import.csv": "3055e308289020123df59b3766d601a70530e2de4dab11c9f4f7486dd7d8f4b7",
+  "yaw_aug_c16_results_tables.md": "9b5a844d60691712479d9f5c4b0e409e924a88ec565ef6041b1976b4ab860178"
+ },
+ "pending": [],
+ "provenance": {
+  "admission_sha256": "dd36d93d85aa356145523ef430a3adc8b63b2bd975b28a65e43f686970238db4",
+  "cells_manifest_sha256": "53f6d7d35414d3d20fd40193d73ba30281e42f7db9cf72b7075ebbe3166acdff",
+  "closure": "f4f8434a96b952f4f37ca5293fa57ecc819f27e1c864ea2db72c9f2f1aaa1ab2",
+  "e0_receipt_sha256": "28d1c29eb63eb68563be0d627c790e26f5e95cbfeeb3403a2a4a733f6a6f6cd5",
+  "e0_reference_sha256": "180a4534df2d8ea2f7cf84ee9a73b6e9a715fffd667e79c277dcf19072280c49",
+  "eval_sha": "9d6366fce65a9a79a4badd86a3244ed2fd66780f",
+  "registry_sha256": "7dec3d76009543b1d47f1a955135d9986c7a68344bfc5f9396bb62f58fc8f1e3"
+ },
+ "rows": 174,
+ "schema_version": 1
+}

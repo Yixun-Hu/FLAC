@@ -1,0 +1,13 @@
+=== exp_40 C16 DDP_SMOKE (dry_run=0) -- 2026-11-09_19-56-00 -- host mae-cab-lab-server -- source HEAD f8ed13b50bb7b9fe6fcaa16a5e2277198c6b4d3b ===
+/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_ddp_smoke_2026-11-09_19-56-00__f8ed13b50bb7
+run tree: /home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_ddp_smoke_2026-11-09_19-56-00__f8ed13b50bb7
+CHECK PASS -> /home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/yaw_aug_c16_2026-11-09_19-56-00_DDP_SMOKE_check.json
+argv: train.py --model-config worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/FLAC_AR_YAWAUG_C16.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 30 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --val-dataset-config  --gradient-clip-val 0.0 --logger wandb --checkpoint-every 2500 --name FLAC_exp40_C16 --experiment-name exp40_C16_a6000_2x32_ddp_smoke_2026-11-09_19-56-00 --save-dir /home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_smoke
+LOCKED ['/home/yixunhu/codespace/claude_gpu_yield/GPU_LOCK_GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e', '/home/yixunhu/codespace/claude_gpu_yield/GPU_LOCK_GPU-6ac2604a-e84e-0615-1221-ccbed7c268da']
+spawned pid/pgid 1889772; log /home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/yaw_aug_c16_2026-11-09_19-56-00_DDP_SMOKE_train.log
+START GATE PASS: banner and ranks before the first step
+process group 1889772 gone
+train rc=0 watcher rc=0
+EVIDENCE PASS -> /home/yixunhu/codespace/exp-40-yaw-aug-c16/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/yaw_aug_c16_2026-11-09_19-56-00_DDP_SMOKE_evidence.json
+=== exp_40 C16 DDP_SMOKE finished 2026-11-09 19:57:52: PASS (locks released at exit) ===
+UNLOCKED ['/home/yixunhu/codespace/claude_gpu_yield/GPU_LOCK_GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e', '/home/yixunhu/codespace/claude_gpu_yield/GPU_LOCK_GPU-6ac2604a-e84e-0615-1221-ccbed7c268da']

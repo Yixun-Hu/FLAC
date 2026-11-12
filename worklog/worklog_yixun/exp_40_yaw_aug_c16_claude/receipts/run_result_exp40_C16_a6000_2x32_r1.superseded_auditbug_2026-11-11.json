@@ -1,0 +1,32 @@
+{
+ "ckpt_dir": "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/FLAC_exp40_C16/exp40_C16_a6000_2x32_r1/checkpoints",
+ "expected_dirpath": "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/FLAC_exp40_C16/exp40_C16_a6000_2x32_r1/checkpoints",
+ "files": {
+  "audit": {
+   "name": "audit_exp40_C16_a6000_2x32_r1.json",
+   "sha256": "22193583c69a5e9245b94950fcc6637bb816490a6ec4c3b9db7db4ae0c454cff"
+  },
+  "check": {
+   "name": "check_exp40_C16_a6000_2x32_r1.json",
+   "sha256": "8dd0bd21aca45c52e5dd0100c8804da92e4f78449eafe1e51942a08840449ce4"
+  },
+  "evidence": {
+   "name": "full_evidence_exp40_C16_a6000_2x32_r1.json",
+   "sha256": "eb5937ac66db3bae02b287a76c402da93c40c028e728571f9841ca44e6cf413a"
+  },
+  "reference": {
+   "name": "ddp_smoke_a6000_2x32_f8ed13b50bb7b9fe6fcaa16a5e2277198c6b4d3b.json",
+   "sha256": "ef22ed8d25b9d09075d97b9e3b62b2eb1f3129b58939ba09c7a72ef49ecc2b2b"
+  }
+ },
+ "kind": "exp40_run_result",
+ "mode": "FULL",
+ "nas_dir": "/media/diskstation/yixunhu/FLAC/checkpoints/exp40_yaw_aug_c16/exp40_C16_a6000_2x32_r1",
+ "platform": "a6000",
+ "run_id": "exp40_C16_a6000_2x32_r1",
+ "rung": "2x32",
+ "runtree": "/home/yixunhu/codespace/exp-40-yaw-aug-c16/outputs_FLAC/exp40_yaw_aug_c16/runtrees/exp40_C16_a6000_2x32_r1__f8ed13b50bb7",
+ "sha": "f8ed13b50bb7b9fe6fcaa16a5e2277198c6b4d3b",
+ "t": 1794350125.6285524,
+ "verdict": "FAIL"
+}

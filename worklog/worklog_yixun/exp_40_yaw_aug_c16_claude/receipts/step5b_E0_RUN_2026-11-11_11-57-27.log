@@ -1,0 +1,6 @@
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+DONE exp40_E0_YAW_T_S40000_K1_s42 (1210 s)
+DONE exp40_E0_YAW_C4_S40000_K8_s42_th90 (1395 s)
+FAIL exp40_E0_YAW_R_S40000_K8_s42: ['eval rc -15']
+FAILED exp40_E0_YAW_R_S40000_K8_s42: ['eval rc -15']
+INTERRUPTED: owned evaluators terminated, locks released

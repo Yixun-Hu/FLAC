@@ -1,0 +1,173 @@
+{
+ "admission": {
+  "path": "worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/exp40_C16_admission.json",
+  "sha256": "dd36d93d85aa356145523ef430a3adc8b63b2bd975b28a65e43f686970238db4"
+ },
+ "ar_receipts": {
+  "ed0851fe3590c55393a6d6b3c2ed79bd9f7a6bcb9f70978c3a04408dc113a6d0": "worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/receipts/ar_verify_eval_LOCAL_2026-11-11_12-40-51.json"
+ },
+ "cells": {
+  "exp40_C16_T_S40000_K1_s42": {
+   "metrics": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s42.json",
+    "sha256": "87fa25687bcfa8ca39ba175b84a34e95dd8c2084c50e079c50a1bc479f54e2f8"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s42.exp40_receipt.json",
+    "sha256": "80b9003f137fa9c1b8992fed8541655ef8233dc713ce114612fb0ca09cec98ac"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s42.stream.json",
+    "sha256": "31aa02dcd5dcb2f6d80247f13e8a4e76ae28bc050f7f2c8f353e2b0808e0793d"
+   }
+  },
+  "exp40_C16_T_S40000_K1_s43": {
+   "metrics": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s43.json",
+    "sha256": "75a3b814d6850966d3c71e74bd767c25548f6e28103b2adcb9ae29e480ca5f9d"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s43.exp40_receipt.json",
+    "sha256": "bf630f2d2139f023fd73f87866b804909c8808510a226c89a5c64294d047b0bb"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s43.stream.json",
+    "sha256": "adf76ffd81806910963cc9221ae3e17d1e9f7705e2a764147cbe505ab89d4ae8"
+   }
+  },
+  "exp40_C16_T_S40000_K1_s44": {
+   "metrics": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s44.json",
+    "sha256": "101e08f613ec84aa52a6d27e248f91a6d99a7bdc39f9acd76c595ef70934de4c"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s44.exp40_receipt.json",
+    "sha256": "9c00be505f5ab070408278489158370c5fd53a1c57a7df814f2a524e067f724c"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s44.stream.json",
+    "sha256": "316fac4c6ec17f56e14956671e06ecdd0105aac404c423c367d9bfbf147d7564"
+   }
+  },
+  "exp40_C16_T_S40000_K1_s45": {
+   "metrics": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s45.json",
+    "sha256": "58ac1170859e388b271295439c64324341ec3fa07ba6e6e037b5c4c534097c7b"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s45.exp40_receipt.json",
+    "sha256": "5768ab9112239757958e5c71cca84d230a776af8cc28e78daebd8100e35f9811"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s45.stream.json",
+    "sha256": "300ea90fbf888aa49a3406173564f898fac65d421908d8bddb87a6545e7eeed2"
+   }
+  },
+  "exp40_C16_T_S40000_K1_s46": {
+   "metrics": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s46.json",
+    "sha256": "6a99ba72e2d4b251af6f0d718a537ac583eca6d4d4278b8ee88830c6bd6f5249"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s46.exp40_receipt.json",
+    "sha256": "34913031059ed1636a66e9fa733f4e4325e48309601ad25e00904110c3e17ec4"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K1_s46.stream.json",
+    "sha256": "8a7d7817c10f2b978b0264e94cdd233627241b5101e5a072e4d6632cd3ac48c1"
+   }
+  },
+  "exp40_C16_T_S40000_K8_s42": {
+   "metrics": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s42.json",
+    "sha256": "e08eac6b25ca0a8e08988adde89fc4a23d8ec278bec25181c2b7eea51aee78e0"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s42.exp40_receipt.json",
+    "sha256": "7d06893b7693c8eb621ae714909d7956f89d170e16d3a017cd8450c32e7cc6db"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s42.stream.json",
+    "sha256": "8d8018cabfd803be559b4224ef7c8833fe0af7b96542cbce65cd0a3e1d1d4af6"
+   }
+  },
+  "exp40_C16_T_S40000_K8_s43": {
+   "metrics": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s43.json",
+    "sha256": "1c16c0a90713c44b06393701bace95bf2d4413249f2a39e888e321f907e62578"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s43.exp40_receipt.json",
+    "sha256": "8b1a593260e88d3652c4ccc90cfe3f7b51927786911d074280e8e1fac208f0b3"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s43.stream.json",
+    "sha256": "124201165bf27cde1bcd0ef299f3f3af23c6036c96a1f93daf8895d8e0a844f9"
+   }
+  },
+  "exp40_C16_T_S40000_K8_s44": {
+   "metrics": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s44.json",
+    "sha256": "b8a728945014f7aa3a5f502f42ad9fd3b52a07a45c5d7b9bc482ddf030e8f472"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s44.exp40_receipt.json",
+    "sha256": "4afbb22e71a5128fce334d6066a911bbcc560cd146b15e0323fd45be3e152588"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s44.stream.json",
+    "sha256": "e121c3b74c3ff81ce66bd0fd72072f64b12e940f83b4605689e3af25767dcc60"
+   }
+  },
+  "exp40_C16_T_S40000_K8_s45": {
+   "metrics": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s45.json",
+    "sha256": "11654cb1841de65b23622991fec139d7d0a38ebb1e1f6636d8cafb10337ba1d5"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s45.exp40_receipt.json",
+    "sha256": "9fd95adb1bb453c2b97a690627afea90db1dcd0358587085d3cff7b85422a773"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s45.stream.json",
+    "sha256": "58a49cdf95274e54d2402e259001bb4db47eac80d66f563b35bc69cfd53d5cd1"
+   }
+  },
+  "exp40_C16_T_S40000_K8_s46": {
+   "metrics": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s46.json",
+    "sha256": "58bbf590be87876dcc8d00f6174fcbebc2dbd9180915a78197445a8786d50b16"
+   },
+   "receipt": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s46.exp40_receipt.json",
+    "sha256": "ba639b06c56726aa49a97081ca116c3c69c75804106c2d79774a7c4af95636a8"
+   },
+   "stream": {
+    "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/C16/epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K8_s46.stream.json",
+    "sha256": "f0a0221f8fab4a6e42b2471ca88dfb61ee899aa95035457eb2374874a66da4ab"
+   }
+  }
+ },
+ "closure": "f4f8434a96b952f4f37ca5293fa57ecc819f27e1c864ea2db72c9f2f1aaa1ab2",
+ "e0_cells": {
+  "exp40_E0_YAW_C4_S40000_K8_s42_th90": {
+   "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/YAW/epoch=8-step=40000_metrics_1_1.0_exp40_E0_YAW_C4_S40000_K8_s42_th90_rot90.exp40_receipt.json",
+   "sha256": "e2fba8e88d6a4e9d45b4fb7edcfba8ff4187ff16ca424f79cffdcf770d16c570"
+  },
+  "exp40_E0_YAW_R_S40000_K8_s42": {
+   "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/YAW/epoch=8-step=40000_metrics_1_1.0_exp40_E0_YAW_R_S40000_K8_s42_rotrand42.exp40_receipt.json",
+   "sha256": "debdaa71fbbe361eda0b046e660b701fc444485a732558b6ae2965c367479691"
+  },
+  "exp40_E0_YAW_T_S40000_K1_s42": {
+   "path": "outputs_FLAC/exp40_yaw_aug_c16/farm/YAW/epoch=8-step=40000_metrics_1_1.0_exp40_E0_YAW_T_S40000_K1_s42.exp40_receipt.json",
+   "sha256": "cf2da90af66996447beba4259dd96e5e65c834baa1051ccd79bddcb86bded186"
+  }
+ },
+ "e0_receipt": {
+  "path": "worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/receipts/e0_9d6366fce65a9a79a4badd86a3244ed2fd66780f_f4f8434a96b952f4f37ca5293fa57ecc819f27e1c864ea2db72c9f2f1aaa1ab2.json",
+  "sha256": "28d1c29eb63eb68563be0d627c790e26f5e95cbfeeb3403a2a4a733f6a6f6cd5"
+ },
+ "eval_sha": "9d6366fce65a9a79a4badd86a3244ed2fd66780f",
+ "kind": "exp40_table_evidence",
+ "schema_version": 2
+}

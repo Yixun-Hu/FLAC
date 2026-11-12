@@ -1,0 +1,9 @@
+{
+ "ar_root": "/media/diskstation/yixunhu/FLAC/AcousticRooms",
+ "differing_rooms": [],
+ "got_digest": "d930e14c5b5b25ce9c3345d4f0ce925704bcd690245532397b00b937718f3cd0",
+ "manifest_digest": "d930e14c5b5b25ce9c3345d4f0ce925704bcd690245532397b00b937718f3cd0",
+ "seconds": 5447.095666408539,
+ "t": 1794292303.9242003,
+ "verdict": "PASS"
+}
