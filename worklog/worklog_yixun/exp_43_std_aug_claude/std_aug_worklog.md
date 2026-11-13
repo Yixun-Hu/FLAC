@@ -119,3 +119,4 @@
 - **Result** — met. The training-path batch (`6a51f741..HEAD`) is complete.
 - **Analysis** — nothing in the training closure has been reviewed yet; no rung of the ladder (L1–L6) has run. The frame-audit gate of record is still the registered one (A2 PROPOSED, awaiting Yixun).
 - **Next** — Codex code round 1 (round 1 of 3) on the whole batch → fix every finding → L1 frame audit → L2 … L5 → FULL.
+- **Timestamp correction (2026-11-13T02:50-05:00)** — the heading above was stamped 02:58 without reading the clock; commits 6b–6d were made at ≈ 02:44 EST and this entry was written at ≈ 02:46 EST. Codex code round 1 was launched at ≈ 02:48 EST.

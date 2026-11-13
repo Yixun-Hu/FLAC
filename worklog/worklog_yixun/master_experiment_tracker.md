@@ -43,3 +43,13 @@ Living index — one row per experiment; updated at every session handoff/compac
 - **Key artifacts:** `exp_22_loc_meshgrid_claude/loc_meshgrid_results.md` (final), R1 report + retrieval + probe v8 reports beside it; pre-registered digests `loc_meshgrid_preregistered_digests.json`; merged run `outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged` (71.2M waveforms, census-exact); probe dumps on NAS `checkpoints/exp22_loc_meshgrid/`.
 - **Review chain:** r9→r9z7 (14 fix rounds, 12 Codex passes), suite 3,044→3,524.
 - **AWAITING YIXUN:** BF@40k + YAW@40k mesh arms (option ii; ~3 days both, all pins frozen); cross-hardware tie policy; Ruling 3 veto window.
+
+## Rebuttal lane (OrbitRIR Submission 22312) — exp_40 / 42 / 43 / 44 — refreshed 2026-11-13 02:50 EST (on branch `exp-43-std-aug`; details in the HANDOFF snapshot of that date)
+
+| Exp | Name | Status | Headline result | Key commits |
+|---|---|---|---|---|
+| 40 | yaw_aug_c16 | **COMPLETE** (pushed) | C16 Yaw-Aug, 100 % data, 40k steps; table handed to Yixun for the 3wyj response; `model_comparison.md` regeneration pending on neuronic (Yixun) | `6a51f741` |
+| 42 | c16_data_curve | **HOLD** (Yixun D8, follow-up ≈ Nov 14) | C16 Yaw-Aug at 25 / 50 / 75 % data; plan r3 written, D1–D8 approved as recommended; Codex plan rounds 2 / 3 used | none (folder uncommitted in `~/codespace/exp-42-c16-data-curve`) |
+| 43 | std_aug | **IMPLEMENTING — highest priority**; training path written, Codex code round 1 running; nothing trained yet | arm `RF` = full-circle roll + mirror flip p = ½ (PanoFormer / UniFuse style), 40k steps on 2 × A6000; target launch Nov 13 09:00–11:00 EST, θ = 0 table ≈ Nov 14 midday–evening | branch `exp-43-std-aug` (local): `def92ceb` … `b5738581` (6d), ledger `exp_43_std_aug_claude/commits_std_aug.md` |
+| 44 | train_efficiency | **PLANNING** (plan r2; last Codex plan round held for Yixun's §11 answers) | convergence (train / val loss) of OrbitRIR vs standard augmentation by offline loss evaluation; no number yet | none (folder untracked in `~/codespace/exp-44-train-efficiency`) |
+| 36 / 37 | (other session, `orbitrir-review`) | exp_36 waits for exp_43; exp_37 not to be run (Yixun 2026-11-13) | — | — |

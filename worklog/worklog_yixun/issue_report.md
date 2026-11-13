@@ -4,6 +4,17 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 
 ## Awaiting Yixun (decisions)
 
+### Rebuttal lane (exp_40 / 42 / 43 / 44) — refreshed 2026-11-13 02:50 EST (branch `exp-43-std-aug`)
+
+R1. **exp_43 frame-audit gate: adopt amendment A2?** (plan §15; PROPOSED, not approved.) True-frame synthetic data failed the registered gate 3 / 3 because Score A's top is flat over several columns; A2 keeps Score B at ± 2 columns and requires Score A only inside S = I, circular |k| ≤ 32. Recommendation: adopt. Needed before the official L1 run (≈ Nov 13 07:00–09:00 EST). Without an answer L1 runs the registered gate; a FAIL stops the ladder and both verdicts are reported. No real-data score has been computed.
+R2. **exp_43 admission strictness.** Admission refuses unless the W&B history extractor returns a clean 400-row cadence (steps 99..39999) with an exit record; no override exists, so a logging gap would block admission of an otherwise valid run. Recommendation: keep strict; a gap is reported for a decision.
+R3. **exp_44 plan §11 (T1–T15 + T2s).** Needs Yixun: T2 (train-side item list; branches (c) / (d) need an announcement-01 exemption; Codex names (a) as the safe default), T2s (the one sub-threshold seen-eval item), T7 (W&B CSV export of the five runs), T9 (P1 seed-43 provenance), T10 (reading of "incremental increasement"), and the neuronic existence checks of §10. The last Codex plan round is held until then.
+R4. **exp_42** — on hold by D8 until Yixun's follow-up (≈ Nov 14); D7-A needs his push of the exp_38 results commit from neuronic.
+R5. **Rebuttal deadline** — unknown to this session. **3wyj response** — which baseline-row number set (open, not blocking).
+
+Caveats (rebuttal lane): exp_40's FULL offline W&B run is unrecoverable (deleted with the launcher's `$TMPDIR`; fixed for exp_43 in commit 6d `b5738581`). None of the exp_43 code has been Codex-reviewed yet (code round 1 running). The exp_43 branch is local only (nothing pushed).
+
+
 0. **ARE-V is HELD INDEFINITELY (Yixun 2026-08-14: "ARE-V先不做").** Code committed, reviewed and parked launch-ready; the Aug-16 22:00 deadline is formally dropped and no longer tracked. One instruction reactivates it (~1 h to launch, ~46 h training).
 0b. **ARE ablation scheduling (ARE-FA, ARE-CYL)** — deferred by his instruction to the ARE-V completion discussion; includes choosing the cylindrical backbone (in-repo `cyl_vit` vs sibling cylindrical-dinov3, and which weights).
 
