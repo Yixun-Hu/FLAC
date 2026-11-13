@@ -1,0 +1,21 @@
+{
+ "checks": {
+  "atomic_manifest_replace": true,
+  "noreplace_refuses_existing": true,
+  "o_excl_create": true,
+  "o_excl_refuses_existing": true,
+  "staged_copy_fsync_rehash_noreplace_rename_dirfsync": true
+ },
+ "dest_root": "/media/diskstation/yixunhu/FLAC/checkpoints/exp43_std_aug",
+ "dir": "/media/diskstation/yixunhu/FLAC/checkpoints/exp43_std_aug/.capability_probe_2026-11-13_05-58-52_cb9a15",
+ "kind": "nas_capability",
+ "mount": {
+  "dev": 84,
+  "findmnt_rc": 0,
+  "fstype": "cifs",
+  "source": "//10.249.7.28/shared_data"
+ },
+ "reasons": [],
+ "t": 1794567533.447672,
+ "verdict": "PASS"
+}
