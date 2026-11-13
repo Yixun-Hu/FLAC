@@ -95,3 +95,12 @@
 - **GPU state** — both A6000s idle at 01:51 EST (12 MiB / 159 MiB, 0 %).
 - **Version Control** — HEAD `44ba2854` + this record commit; nothing pushed.
 - **Next** — Coder B (dual verdict) and Coder D (6b–6d) reports → commits 2a, 6b–6d → Codex code round 1 on the whole training-path batch → fixes → L1–L5 → FULL.
+
+## 2026-11-13T02:08:00-05:00 — commit 2a (frame-audit tool with both gate verdicts); Coder D still on 6b–6d
+
+- **Goal** — have the L1 tool ready for either outcome of Yixun's A2 decision, without looking at real data.
+- **Change** — Coder B extended the tool: `run` requires `--gate {registered,a2}` (missing → exit 2, nothing written); the result file carries `gate_of_record`, `gate_registered`, `gate_a2_proposed`, both rule texts, shared resamples and diagnostics; exit 0 = PASS, 3 = FAIL of the gate of record. Constants: `ACCEPT_KS = (510, 511, 0, 1, 2)`, `COARSE_HALF_WIDTH = 32`.
+- **Version Control** — `e0410621` (2a), local, not pushed, not Codex-reviewed yet. Ledger rows added for `8352d320` and `e0410621`.
+- **Command / Validation** — re-run by the main session before committing: `src/tests/test_exp43_frame_audit.py` 71 passed in 113 s; tool sha256 `86d77dfa191afd16d21f1ac75d2c6bd98e15331743314c6f9e21104fa882ebc3`; inputs sha256 `5124c23b504130378ab73385dc4b46023ec2ab2d09807092dd674e91e580af84` unchanged; `git diff 6a51f741 -- src/data/yaw_rotation.py` empty.
+- **Result** — tool ready. **No real-data score exists.** The gate of record is still the registered one; A2 awaits Yixun (asked 01:58 EST). No answer by L1 time → `--gate registered`; FAIL → STOP and report both verdicts.
+- **Next** — Coder D's report (6b–6d incl. W&B run preservation) → commits → Codex code round 1 on `6a51f741..HEAD` → fixes → L1–L5 → FULL.
