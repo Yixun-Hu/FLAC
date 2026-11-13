@@ -4,8 +4,9 @@ from ..data import are_anchor
 from ..data.yaw_offset_step import check_yaw_offset_step
 from ..models.factory import create_model_from_config
 
-# exp_40 appends the OPTIONAL "offset_step" (a discrete grid for the drawn offsets).
-YAW_AUG_KEYS = ("enabled", "img_w", "seed", "offset_step")
+# exp_40 appends the OPTIONAL "offset_step" (a discrete grid for the drawn offsets);
+# exp_43 the OPTIONAL "flip" (a horizontal mirror flip with p = 1/2 after the roll).
+YAW_AUG_KEYS = ("enabled", "img_w", "seed", "offset_step", "flip")
 
 
 def _parse_yaw_aug_config(training_config):
@@ -84,6 +85,21 @@ def _parse_yaw_aug_config(training_config):
                 block["offset_step"], block["img_w"])
         except ValueError as err:
             raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+    # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+    # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+    # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+    if "flip" in block:
+        flip = block["flip"]
+        if not isinstance(flip, bool):
+            raise ValueError(
+                "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                f"{flip!r}")
+        if flip:
+            if "offset_step" in block:
+                raise ValueError(
+                    "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                    "scope for exp_43: the flip arm is the continuous full-circle roll")
+            kwargs["yaw_aug_flip"] = True
     return kwargs
 
 
