@@ -387,3 +387,17 @@ Disclosed consequences:
 - The registered gate remains the gate of record until Yixun decides. The tool reports **both** verdicts in every result file (`gate_registered`, `gate_a2_proposed`); `--gate` is a required option and is recorded.
 - No real-data score is computed before the official L1 run (the "preliminary run" planned by the Planner is cancelled so that Yixun can decide blind). If Yixun has not answered when L1 is due, L1 runs under the **registered** gate, as approved; a FAIL stops the ladder and is reported with both verdicts.
 - The width 32 was chosen from the synthetic evidence above and from the C16 step, before any real score; it will not be changed after the real run.
+
+### A3 — OrbitRIR row source, result-file names, chain entry points — **PROPOSED 2026-11-13 ~05:45 EST, NOT approved**
+
+**Trigger.** Writing the evaluation kit (commits 7b + 7c) showed three places where r1 cannot be implemented as written.
+
+1. **§1 / §5.2 are wrong about `B-F`.** The 92-row comparator registry (`exp40_comparators.json`, byte-copied as `exp43_comparators.json`) holds only `YAW` and `P1` rows. There is no validated `B-F` (OrbitRIR) θ = 0 row in it. Proposed: the `OrbitRIR` row of the rebuttal table is read from a separately pinned source file (`exp43_orbitrir_source.json`: path, sha256, K, seed of every input), checked by the table generator, and labelled as not re-validated by exp_43. Candidate sources — the choice is Yixun's:
+   - (a) *recommended*: the ten git-tracked θ = 0 `fa_invariant` metric files of B-F @ 40k behind the `model_comparison.md` row "fa scratch B-F @40k (equivariant, 59% budget)" (K = 8: T60 8.202 ± 0.017, C50 0.9778 ± 0.0015, EDT 38.793 ± 0.074, R@1 5.387 ± 0.075, R@5 16.456 ± 0.038, R@10 24.198 ± 0.164). Reproducible from git.
+   - (b) the exp_38 table values Yixun supplied on Nov 12 (K = 8: EDT 38.794 ± 0.074, C50 0.978 ± 0.002, T60 8.202 ± 0.017, R@1 5.394 ± 0.047, R@5 16.459 ± 0.046, R@10 24.194 ± 0.151), quoted as given. These differ from (a) in the third decimal; their files are not in this checkout.
+   The B-F row is evaluated under `--cond-method fa_invariant` (the protocol that matches its training); every other row under `vanilla`. The generator is written for (a) with the source isolated, so a change to (b) is a small edit inside the review rounds.
+2. **§5.5 result-file names.** The kit writes stage-suffixed files — `std_aug_stage{A,B}_{cells_raw.csv,results_tables.md,collect_manifest.json}` and two table-evidence documents `exp43_table_evidence_{A,B}.json` — instead of the single `std_aug_results_tables.md`, because Stage A is published before Stage B exists and a document is never overwritten. `std_aug_results.md` remains the hand-written summary of both.
+3. **§5.3 chain under A1.** The FULL training is launched by hand before the chain exists and at a different commit than the evaluation. The chain therefore accepts an entry step (`FROM=`), can wait for a given process id to disappear (polling `/proc`, no signals), and refuses to run an evaluation step unless the checkout is at the evaluation commit. Its length will exceed the ≈ 40 lines guessed in r1. `check-comparators` and `bind-source-evidence` are added before `collect` (they implement §5.2's "validated by its original source validators" and "validated by exp_40's own validator at exp_40's pin").
+
+**Unchanged.** The estimand (§1), the evaluation cells and protocol flags (§5.2), every gate of §8, the acceptance criteria of §9, the review cap.
+

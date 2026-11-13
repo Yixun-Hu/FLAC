@@ -1,0 +1,7 @@
+=== exp_43 RF SMOKE (dry_run=1) -- 2026-11-13_05-41-31 -- host mae-cab-lab-server -- source HEAD 7566a63ccec6fc0b0cef9d5d658f2b51207e9895 ===
+/home/yixunhu/codespace/exp-43-std-aug/outputs_FLAC/exp43_std_aug/hf_sealed
+/home/yixunhu/codespace/exp-43-std-aug/outputs_FLAC/exp43_std_aug/runtrees/exp43_RF_a6000_2x32_smoke_2026-11-13_05-41-31__7566a63ccec6__dryrun_2026-11-13_05-41-31
+run tree: /home/yixunhu/codespace/exp-43-std-aug/outputs_FLAC/exp43_std_aug/runtrees/exp43_RF_a6000_2x32_smoke_2026-11-13_05-41-31__7566a63ccec6__dryrun_2026-11-13_05-41-31
+CHECK PASS -> /home/yixunhu/codespace/exp-43-std-aug/worklog/worklog_yixun/exp_43_std_aug_claude/std_aug_2026-11-13_05-41-31_SMOKE_DRYRUN_check.json
+argv: train.py --model-config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 20 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 1 --num-nodes 1 --strategy auto --precision bf16-mixed --val-every -1 --val-dataset-config  --gradient-clip-val 0.0 --logger wandb --checkpoint-every 2500 --name exp43_std_aug --experiment-name exp43_RF_a6000_2x32_smoke_2026-11-13_05-41-31 --save-dir /home/yixunhu/codespace/exp-43-std-aug/outputs_FLAC/exp43_smoke
+DRY_RUN: every gate passed; nothing spawned, no lock taken. Run tree kept: /home/yixunhu/codespace/exp-43-std-aug/outputs_FLAC/exp43_std_aug/runtrees/exp43_RF_a6000_2x32_smoke_2026-11-13_05-41-31__7566a63ccec6__dryrun_2026-11-13_05-41-31

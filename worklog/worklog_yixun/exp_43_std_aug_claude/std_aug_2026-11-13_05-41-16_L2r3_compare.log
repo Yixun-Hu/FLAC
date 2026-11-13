@@ -1,0 +1,2 @@
+verdict PASS
+node ids canonicalised: baseline 18, new 19, pairs 18 (node-id rules sha256 135c47b35d0559d5e505c8ebf94ef0449ac6037acbfddf3a1543f2c12d11bec8)
