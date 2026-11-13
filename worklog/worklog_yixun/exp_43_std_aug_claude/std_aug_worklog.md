@@ -64,3 +64,34 @@
 - **GPU state** — both A6000s idle at 00:58 EST (12 MiB / 159 MiB, 0 %).
 - **Version Control** — commit 0 (scaffold + records) on `exp-43-std-aug`; SHAs in `commits_std_aug.md`.
 - **Next** — review agent output, commit, frame audit on real data (L1), Codex code round 1.
+
+## 2026-11-13T01:06:11-05:00 — implementation round 1 launched (four Opus Coders, one worktree)
+
+- **Goal** — produce all training-path code of the approved plan r1 for a single Codex code round 1 (cap: 3).
+- **Change** — four Opus 5.5 Coder subagents started at ≈ 01:03 EST, disjoint file sets, no git writes by the Coders (the main session commits by explicit path per plan §6): **A** arm config, `src/data/yaw_mirror.py`, factory key `flip`, wrapper `yaw_aug_flip`, golden + capture tool (commits 1, 3, 4, 5); **B** frame-audit tool, synthetic proofs, frozen inputs via `freeze-inputs` only — no real-data score (commit 2a); **C** full CPU suite at `6a51f741` in `~/codespace/exp-43-baseline-6a51f741` → `exp43_regression_baseline.json`, recorder / comparator tool, W&B history extractor `exp43_train_history.py`; **D** training-kit bindings 6b–6d with per-stage snapshots in the session scratchpad.
+- **Version Control** — HEAD `e1288a92` (commits 0 and 6a, local, not pushed; ledger `commits_std_aug.md`).
+- **Command / Validation** — baseline suite log: `std_aug_2026-11-13_01-04-27_baseline_full_cpu_suite.log` (started 01:04 EST, ≈ 55–60 min). No GPU process started; both A6000s idle.
+- **Acceptance criteria** — each Coder's targeted suites green, §3.4 inventory green unmodified, `src/data/yaw_rotation.py` byte-identical; then Codex code round 1 on everything at once.
+- **Result** — in progress.
+- **Next** — review the Coders' reports, commit per plan §6, preliminary (labelled, unreviewed) real-data frame-audit run after the inputs commit, Codex code round 1.
+
+## 2026-11-13T01:20:07-05:00 — amendment A1: train after code round 1
+
+- **Goal** — shorten the path to the rebuttal row.
+- **Change** — plan §15 A1 + changelog line; Query 6 logged. No code.
+- **Result** — Yixun: "Yes, train early". FULL launches after Codex code round 1 + all fixes + L1–L5; evaluation kit / chain reviewed in rounds 2–3 during training. Restart rule on a late training-path finding recorded.
+- **Next** — unchanged: collect the four Coders' reports, commit per §6, preliminary frame audit, Codex code round 1.
+
+## 2026-11-13T01:53:00-05:00 — Coders A, B, C returned; commits 1, 3, 4, 5 + baseline + history tool; gate risk → amendment A2 PROPOSED
+
+- **Goal** — collect the training-path code for Codex code round 1; decide how to handle a risk found in the registered frame-audit gate.
+- **Change (committed by the main session, by explicit path, local only)** — `581bf072` regression-baseline tool + record; `09ef0b12` W&B history extractor; `ba932892` (1) mirror operator; `cd7053f1` (3) factory key; `1e0f3d8c` (4) wrapper flip path + F12 edit; `44ba2854` (5) arm config + golden. Ledger: `commits_std_aug.md`. None Codex-reviewed yet.
+- **Regression baseline (Coder C)** — full CPU suite at `6a51f741` in the detached worktree: 6966 nodes — 7 failed, 6928 passed, 30 skipped, 1 xfailed (+ 2 subtests). The 7 failures are the known CPU-only ones (3 × flash-attention has no CPU kernel in `test_eval_localization.py`; 4 × AGREE `torch.load` without `map_location` in `test_loc_meshgrid_queries.py`). Serial run ≈ 27 min. L2 compares against this record by signature (`exp43_regression_baseline.py compare`).
+- **Trap found (Coder C) → requirement for commit 6d (Coder D)** — PL's `WandbLogger(save_dir=".")` overrides `WANDB_DIR`; with the exp_40 launcher the offline run landed in `$TMPDIR/wandb/` and the exit trap `rm -rf -- "$TMPDIR"` deleted it (exp_40's logged train loss is lost on this machine). `exp43_train_local.sh` inherited the pattern. Coder D was told: preserve the offline run directory before `$TMPDIR` is removed on every exit path, fail closed on 0 or > 1 candidates, FULL admission requires exactly one preserved `run-<id>.wandb` with its sha256 recorded and re-hashed on the NAS, and SMOKE / DDP_SMOKE exercise the same path.
+- **Coder A (src chain)** — red-first per step; 207 new tests green; §3.4 inventory green unmodified apart from the disclosed F12 edit; 12 / 12 mutants caught; `src/data/yaw_rotation.py` byte-identical. Re-run by the main session before committing: 527 passed, 1 skipped (new files + `test_yaw_aug_c16`, `_training`, `_c16_config`, `_arm_config`, `test_depth_canon_training`). Golden recaptured at `1e0f3d8c` (`--repo . --sha`): record `03e9a9e2…` identical to the working-tree capture; only `_meta.source` differs. Deviations disclosed by the Coder, to be put to Codex: (i) render / analytic-room tolerance implemented relative to range (|Δ| ≤ 1e-6 · D); (ii) the unequal-entry count of F6 measured as 102,892 (fp32), not 50,921 — the test asserts "not bitwise" + the bound only; (iii) quarter-turn exactness holds in fp32 only; (iv) `check_mirror_metadata` runs on every rotated sample before the bit draw (refusal independent of the bits); (v) pose finiteness is not checked (as in `rotate_scene_metadata`) — open question for the review.
+- **Coder B (frame-audit tool, commit 2a candidate, not committed yet)** — `exp43_frame_audit.py` + 55 tests green; inputs frozen (`exp43_frame_audit_inputs.json`: 10 categories, 33 rooms, 198 receivers, 6,935 receiver–source pairs; sha256 `5124c23b…`). **No real-data score computed.**
+- **Risk** — the Coder's true-frame simulation at real scale FAILED the registered gate 3 / 3 (bootstrap 761 / 874 / 541 of 1000; one dataset also two LOCO checks) because Score A's top is flat over several columns; Score B was exact (1000 / 1000, 33 / 33 rooms). Checked by the Planner against `frame_audit_sim/sim_gate.jsonl` (archived here with the scripts).
+- **Decision taken (reversible, record-only)** — amendment **A2 written as PROPOSED** (plan §15) before any real-data score: B keeps ±2 columns, A coarse (S = I, |k| ≤ 32). The planned "preliminary real-data run" is cancelled so the choice is made blind. Coder B resumed to report both verdicts (`gate_registered`, `gate_a2_proposed`) with a required `--gate`. **Not decided by the Planner:** which gate is of record — Yixun's call; without an answer L1 runs the registered gate and a FAIL stops the ladder.
+- **GPU state** — both A6000s idle at 01:51 EST (12 MiB / 159 MiB, 0 %).
+- **Version Control** — HEAD `44ba2854` + this record commit; nothing pushed.
+- **Next** — Coder B (dual verdict) and Coder D (6b–6d) reports → commits 2a, 6b–6d → Codex code round 1 on the whole training-path batch → fixes → L1–L5 → FULL.

@@ -326,6 +326,8 @@ The frame audit (L1) result is available ≈ 2–3 h after T0; a FAIL there ends
 ## 13. Changelog
 
 - r0 (2026-11-12 11:22): first version, after Yixun's E1.
+- A2 (2026-11-13 01:55, PROPOSED, not approved): frame-audit pass conditions — Score B keeps the ±2-column accept set, Score A a coarse set (S = I, |k| ≤ 32 columns); written before any real-data score after the synthetic true-frame gate failed 3 / 3 on Score A's flat top (§15 A2). The registered gate stays the gate of record until Yixun decides.
+- A1 (2026-11-13 01:19, after approval): review order amended on Yixun's decision (Query 6) — FULL may start after code round 1 + fixes + L1–L5; evaluation kit reviewed during training (§15).
 - r1 (2026-11-12): Codex round 1 folded (§14): frame audit redesigned (two scores, 1,024 hypotheses, margin-free registered gate, synthetic proof) and its meaning for the rotation arms stated; F6 corrected (numerical, not bitwise); F11 corrected (every 100 steps); keyword-only `yaw_aug_flip`, stricter input contracts; disabled-mode parser rule; test / pin inventory; exhaustive kit binding checklist, neuronic removal, leftover gate; cell and comparator counts corrected, comparison-row provenance defined; shared-vs-private runtime policy; baseline by signature from a detached worktree, E0 reference byte copy; sequencer + REQUEST replaced by a plain chain; exp_44 artefacts; estimand language; naming; applied-flip evidence; preparation time 10–14 h.
 
 ## 14. Codex plan round 1 — dispositions
@@ -353,3 +355,35 @@ The frame audit (L1) result is available ≈ 2–3 h after T0; a FAIL there ends
 | 19 | MINOR | optimistic preparation time, commit sizes | Accepted — §6, §10.8, §12 |
 | 20 | MINOR | narrow the acoustic assumption | Accepted — §2.2 |
 - 2026-11-13: status → APPROVED (Query 5). Plan body unchanged (sha256 of the approved body before this status edit: `f9182f479d15a80992dc726ba08c4aefef3b02f80fc21f132ade177beb407769`).
+
+## 15. Amendments after approval
+
+### A1 — review order: FULL training may start after Codex code round 1 (Yixun, 2026-11-13 ~01:19 EST, Query 6: "Yes, train early")
+
+§12 scheduled all three Codex code rounds before L6. Amended order, approved by Yixun:
+
+1. **Code round 1** reviews, in one batch, every file in the training closure and everything that gates the launch: commits 1, 2a, 3, 4, 5, 6a–6d, the regression-baseline tool and the W&B history extractor.
+2. All round-1 findings (blocking and non-blocking) are fixed, with tests. Then, unchanged from §8: L1 official frame-audit record (PASS required), L2 full CPU suite against the `6a51f741` baseline, L3 stub dry-run, L4 SMOKE + DDP_SMOKE, L5 FULL `DRY_RUN=1`.
+3. **L6 FULL training launches** at that pin. The evaluation kit (7a–7c), the chain script, the table generator and the `gen_model_comparison` contract (8) are written and reviewed in **code rounds 2 and 3 while the training runs**.
+
+Unchanged: the cap of 3 code rounds; every gate of §8 before L6; the acceptance criteria of §9.
+
+Disclosed consequences:
+- The round-1 fixes that touch the training closure are reviewed by Codex only in round 2, i.e. after the launch. If round 2 or 3 finds a defect in the training path (anything that changes what the run trains on, or invalidates its evidence), the run is stopped and restarted at the fixed pin — up to ≈ 21.6 h lost. A finding confined to the evaluation kit, chain or records does not touch the run.
+- The training pin therefore precedes the evaluation pin. Evaluation and admission run at a later commit whose diff against the training pin must leave the training closure byte-identical (checked by the kit's closure hashes; a closure change = restart, never "resume at a new pin").
+- The unattended chain to Stage A (E6) is armed only after the round that reviews the chain script has been folded; if the training ends before that, the chain is started by hand after the review.
+
+### A2 — frame-audit gate: Score B carries the ±2-column criterion, Score A a coarse one — **PROPOSED 2026-11-13 ~01:55 EST, NOT approved; fixed before any real-data score exists**
+
+**Trigger.** While building the audit tool (commit 2a), the Coder simulated the registered gate of §4.1 on synthetic rooms *in the true frame* (33 random furnished rooms, 6 receivers, the real per-room source counts; three datasets). Score B was exact everywhere (33 / 33 rooms and 1000 / 1000 resamples at `(I, 0)`). Score A's top is flat over several columns — a small wrong rotation hides about as many just-visible sources behind occluder edges as it reveals — so the registered gate **FAILED in 3 of 3 true-frame datasets** (bootstrap passes 761, 874, 541 of 1000; one dataset also failed two leave-one-category-out checks on A). In all 3,000 resamples A's arg-max had `S = I` and lay within 9 columns of 0. Evidence: the simulation script and its output are archived in `EXPREL/frame_audit_sim/` (synthetic data only).
+
+**Reading.** As registered, the gate is expected to FAIL on correctly aligned data, with a reading of "`S = I`, `k ≈ 0`, A not sharp". That would stop the experiment for a property of the score, not of the data.
+
+**Proposed rule (replaces only the pass conditions of §4.1; the scores, the input selection, the bootstrap matrix, the tie rule and "any other outcome → STOP and report to Yixun" are unchanged).** Accept set `ACCEPT = {(I, k) : k ∈ {510, 511, 0, 1, 2}}` as registered; coarse set `COARSE = {(I, k) : circular distance of k from 0 ≤ 32 columns}` (22.5°, one C16 step). PASS iff, in the full aggregate, in every leave-one-category-out aggregate, and in ≥ 990 of the 1,000 room resamples: arg-max set of **B ⊆ ACCEPT** and arg-max set of **A ⊆ COARSE**.
+
+**What each score then certifies.** B (surface reprojection between receivers, using the receiver positions) fixes the rotation to ±2 columns and, through non-collinear baselines, the handedness. A (source positions against the receiver's depth) independently certifies the handedness and the rotation to within one C16 step, i.e. it rules out a mirror, a quarter turn and a half turn through a second, source-based route. What is lost against r1: A no longer confirms the ±2-column precision by itself.
+
+**Status and handling.**
+- The registered gate remains the gate of record until Yixun decides. The tool reports **both** verdicts in every result file (`gate_registered`, `gate_a2_proposed`); `--gate` is a required option and is recorded.
+- No real-data score is computed before the official L1 run (the "preliminary run" planned by the Planner is cancelled so that Yixun can decide blind). If Yixun has not answered when L1 is due, L1 runs under the **registered** gate, as approved; a FAIL stops the ladder and is reported with both verdicts.
+- The width 32 was chosen from the synthetic evidence above and from the C16 step, before any real score; it will not be changed after the real run.

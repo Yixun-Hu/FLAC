@@ -94,3 +94,15 @@ i.e. (1) a horizontal roll by a uniform integer number of columns in [0, W/4] in
 3. The approval covers the plan's local commits on `exp-43-std-aug` (§6); nothing is pushed and no result is published without Yixun's go.
 
 **Why:** the reviewer-facing augmentation baseline should be a recognised standard panorama augmentation; Yixun wants this row first.
+
+## Query 6 — 2026-11-13 ~01:19 EST (button answer to "Start the exp_43 40k training after Codex code round 1 and review the eval kit while it trains?")
+
+**Verbatim:**
+
+> Yes, train early
+
+**Summary:** the 40k training may launch after Codex code round 1, its fixes, and the gates L1–L5; the evaluation kit and chain are written and reviewed (rounds 2–3) during the 21.6 h run.
+
+**Assumption / hypothesis:** the approval covers the review *order* only — not skipping any gate of plan §8, not a fourth review round, and not a push. The restart risk (a later round finding a training-path defect) was stated in the question's context and is accepted; it is written into plan §15 A1.
+
+**Why:** saves ≈ 4–6 h on the rebuttal row; exp_43 is the highest-priority experiment (Query 5).
