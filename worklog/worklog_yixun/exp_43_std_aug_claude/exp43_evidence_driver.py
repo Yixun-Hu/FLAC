@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""exp_40 yaw_aug_c16 -- run ``train.py`` in-process with OBSERVE-ONLY evidence (plan §4.7).
+"""exp_43 std_aug -- run ``train.py`` in-process with OBSERVE-ONLY evidence (plan_std_aug.md §5.1).
 
-Usage (from the run tree root, which is the cwd)::
+Forked from the exp_40 evidence driver (whose folder stays byte-frozen). Usage (from the run
+tree root, which is the cwd)::
 
-    EXP40_EVIDENCE_DIR=<abs dir> python <runtree>/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/exp40_evidence_driver.py <train.py argv>
+    EXP43_EVIDENCE_DIR=<abs dir> EXP43_EVIDENCE_MODE=verbatim|digest EXP43_PUBLISH=nas|off \
+        python <runtree>/worklog/worklog_yixun/exp_43_std_aug_claude/exp43_evidence_driver.py <train.py argv>
 
 ``sys.argv[0]`` stays this file, so PyTorch Lightning's subprocess DDP launcher
 (``_basic_subprocess_cmd``: ``[python, abspath(sys.argv[0])] + sys.argv[1:]``) re-executes
@@ -22,14 +24,13 @@ calls the original with the original arguments and returns its result unchanged:
   python / NumPy / torch CPU / CUDA RNG digests, Sobol engine state);
 * ``on_train_end`` -- the counters, written atomically as ``rank<r>.summary.json``;
 * ``ModelCheckpoint._save_checkpoint`` (FULL) -- right after each synchronous save: the
-  ``.saved`` marker, then (A6000) the bounded, killable NAS publication + acknowledgement or
-  (neuronic, D4) the local ``CHECKPOINTS.partial.sha256`` entry; the outcome is broadcast so
-  every rank raises on a failure (plan §14 B2).
+  ``.saved`` marker, then the bounded, killable NAS publication + acknowledgement; the outcome
+  is broadcast so every rank raises on a failure (exp_40 plan §14 B2).
 
 Evidence is RANK-PRIVATE: rank r appends only to ``<dir>/rank<r>.jsonl``. Nothing here
 draws randomness, moves a tensor the step uses, or changes a return value.
 
-Written by the exp_40 Coder seat (Claude Opus 5.5) per plan_yaw_aug_c16.md §4.7 / §14 (binding).
+Written by the exp_43 Coder seat (Claude Opus 5.5) per plan_std_aug.md §5.1 on the exp_40 driver.
 """
 import hashlib
 import json
@@ -43,7 +44,7 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 
 
 def _fail(msg):
-    print(f"EXP40 EVIDENCE DRIVER REFUSED: {msg}", flush=True)
+    print(f"EXP43 EVIDENCE DRIVER REFUSED: {msg}", flush=True)
     sys.exit(86)
 
 
@@ -200,15 +201,17 @@ def checkpoint_owner_class(function):
 
 def install_publication(ev, mode):
     """B2 (plan §14): right after each synchronous checkpoint save, rank 0 marks it and
-    publishes it (``nas``) or records its sha (``local-manifest``); the outcome is broadcast
-    and EVERY rank raises if it failed, so training never continues past an unacknowledged
-    checkpoint. ``off`` (smokes) installs nothing."""
+    publishes it to the NAS (``nas``); the outcome is broadcast and EVERY rank raises if it
+    failed, so training never continues past an unacknowledged checkpoint. ``off`` (smokes)
+    installs nothing."""
     if mode == "off":
         return
     import pytorch_lightning as pl
     sys.path.insert(0, HERE)
-    import exp40_kit as kit
-    run_id = os.environ.get("EXP40_RUN_ID", "")
+    import exp43_kit as kit
+    if mode != "nas":
+        _fail(f"publication mode {mode!r} is not nas / off")
+    run_id = os.environ.get("EXP43_RUN_ID", "")
     orig = pl.callbacks.ModelCheckpoint._save_checkpoint
 
     def _save_checkpoint(self, trainer, filepath):
@@ -218,10 +221,7 @@ def install_publication(ev, mode):
             try:
                 t0 = time.time()
                 kit.mark_saved(filepath)
-                if mode == "nas":
-                    kit.publish_saved(filepath, run_id, timeout_s=1800)
-                else:
-                    kit.record_saved_local(filepath)
+                kit.publish_saved(filepath, run_id, timeout_s=1800)
                 ev.counts["checkpoints_published"] += 1
                 ev.write({"kind": "publish", "rank": ev.rank, "path": os.path.basename(filepath),
                           "seconds": time.time() - t0})
@@ -229,7 +229,7 @@ def install_publication(ev, mode):
                 ok, why = False, f"{type(err).__name__}: {err}"
         ok, why = trainer.strategy.broadcast((ok, why), src=0)
         if not ok:
-            raise RuntimeError(f"exp40: checkpoint {filepath} was not acknowledged: {why}")
+            raise RuntimeError(f"exp43: checkpoint {filepath} was not acknowledged: {why}")
     pl.callbacks.ModelCheckpoint._save_checkpoint = _save_checkpoint
 
 
@@ -334,19 +334,19 @@ def install(ev):
 
 
 def main():
-    evdir = os.environ.get("EXP40_EVIDENCE_DIR", "")
+    evdir = os.environ.get("EXP43_EVIDENCE_DIR", "")
     if not os.path.isabs(evdir) or not os.path.isdir(evdir):
-        _fail(f"EXP40_EVIDENCE_DIR must be an existing absolute directory, got {evdir!r}")
+        _fail(f"EXP43_EVIDENCE_DIR must be an existing absolute directory, got {evdir!r}")
     if not os.path.isfile(os.path.join(ROOT, "train.py")):
         _fail(f"no train.py at the run tree root {ROOT}")
     if os.path.realpath(os.getcwd()) != os.path.realpath(ROOT):
         _fail(f"cwd {os.getcwd()} is not the run tree root {ROOT}")
-    mode = os.environ.get("EXP40_EVIDENCE_MODE", "")
+    mode = os.environ.get("EXP43_EVIDENCE_MODE", "")
     if mode not in ("verbatim", "digest"):
-        _fail(f"EXP40_EVIDENCE_MODE must be verbatim or digest, got {mode!r}")
-    publish = os.environ.get("EXP40_PUBLISH", "")
-    if publish not in ("nas", "local-manifest", "off"):
-        _fail(f"EXP40_PUBLISH must be nas, local-manifest or off, got {publish!r}")
+        _fail(f"EXP43_EVIDENCE_MODE must be verbatim or digest, got {mode!r}")
+    publish = os.environ.get("EXP43_PUBLISH", "")
+    if publish not in ("nas", "off"):
+        _fail(f"EXP43_PUBLISH must be nas or off, got {publish!r}")
     sys.path.insert(0, ROOT)
     ev = Evidence(evdir, verbatim=(mode == "verbatim"))
     install(ev)

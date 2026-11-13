@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 # ============================================================================
-# exp40_train_local.sh -- exp_40 yaw_aug_c16 training on the 2xRTX A6000 box (plan §4, §14).
-# Thin sequencing over exp40_kit.py; every decision is made (and unit-tested) there.
+# exp43_train_local.sh -- exp_43 std_aug (arm RF) training on the 2xRTX A6000 box
+# (plan_std_aug.md §5.1; forked from the byte-frozen exp_40 launcher).
+# Thin sequencing over exp43_kit.py; every decision is made (and unit-tested) there.
 #
-#   MODE=SMOKE|DDP_SMOKE|FULL  PLATFORM=a6000  RUNG=2x32  RUN_ID=exp40_C16_a6000_2x32[_r<n>]
+#   MODE=SMOKE|DDP_SMOKE|FULL  PLATFORM=a6000  RUNG=2x32  RUN_ID=exp43_RF_a6000_2x32[_r<n>]
 #   EXPECT_SHA=<40-hex>  [DRY_RUN=0|1]  [GPU_POLICY=idle|shared (smokes only)]  [SMOKE_GPU=0]
 #   DDP_SMOKE / FULL also need GPU_RESERVATION_OK=1 (cards sequenced through the
 #   ~/codespace/claude_gpu_yield/ handshake); every mode takes the cooperative per-card
 #   locks claude_gpu_yield/GPU_LOCK_<uuid> (O_EXCL, owner token) until it ends.
-#   bash worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/exp40_train_local.sh
+#   bash worklog/worklog_yixun/exp_43_std_aug_claude/exp43_train_local.sh
 #
-# Order: exp_40 card flock -> sealed HF hub -> immutable run tree (git archive EXPECT_SHA +
+# Shared ON PURPOSE with other experiments (plan §5.1): the claude_gpu_yield handshake dir, the
+# per-card GPU_LOCK_<uuid> files in it and the card flock ~/.exp40_cards.lock (kept at its exp_40
+# path: cross-experiment serialisation of the A6000 cards). Everything else is private to exp_43.
+#
+# Order: card flock -> sealed HF hub -> immutable run tree (git archive EXPECT_SHA +
 # 2 allowlisted links) -> every no-GPU gate (the run tree's own kit) -> GPU gate ->
 # [DRY_RUN stops] -> per-card locks -> GPU re-check -> launch record -> setsid evidence
 # driver (cwd = run tree; FULL publishes + NAS-acknowledges every checkpoint right after
@@ -18,17 +23,17 @@
 # Never signals a process it did not start; the watcher and the EXIT/INT/TERM cleanup trap
 # terminate only the training's own session (SIGTERM, bounded wait, SIGKILL of that group).
 # FULL ends TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION with a stable run-result manifest
-# (receipts/run_result_<RUN_ID>.json) from which `exp40_kit.py admit` derives the admission
+# (receipts/run_result_<RUN_ID>.json) from which `exp43_kit.py admit` derives the admission
 # (the experiment-level PASS). Exit: 0 PASS / FULL pending admission | 1 a verdict FAILED | 2 a gate
 # refused | 8/9/10/11 watcher | 12 cleanup failed | 130 interrupted.
-# Written by the exp_40 Coder seat (Claude Opus 5.5) per plan_yaw_aug_c16.md §4 / §14.
+# Written by the exp_43 Coder seat (Claude Opus 5.5) per plan_std_aug.md §5.1 on the exp_40 launcher.
 # ============================================================================
 set -uo pipefail
 die() { echo "REFUSED: $*"; exit 2; }
 
 SELF_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 REPO="$(git -C "$SELF_DIR" rev-parse --show-toplevel)" || die "not inside a git checkout"
-EXPREL="worklog/worklog_yixun/exp_40_yaw_aug_c16_claude"
+EXPREL="worklog/worklog_yixun/exp_43_std_aug_claude"
 PY="/home/yixunhu/miniconda3/envs/flac/bin/python"
 MODE="${MODE:-}"; PLATFORM="${PLATFORM:-}"; RUNG="${RUNG:-}"; RUN_ID="${RUN_ID:-}"
 EXPECT_SHA="${EXPECT_SHA:-}"; DRY_RUN="${DRY_RUN:-0}"; GPU_POLICY="${GPU_POLICY:-idle}"
@@ -42,23 +47,23 @@ case "$DRY_RUN" in 0|1) ;; *) die "DRY_RUN must be 0 or 1" ;; esac
 [ -x "$PY" ] || die "pinned interpreter $PY missing"
 
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
-BASE="$REPO/outputs_FLAC/exp40_yaw_aug_c16"
+BASE="$REPO/outputs_FLAC/exp43_std_aug"
 if [ "$MODE" = FULL ]; then
   SAVE_ROOT="$BASE"; NS="$RUN_ID"; LANES="0,1"; MEMBERS=2; PUBLISH=nas
 else
-  SAVE_ROOT="$REPO/outputs_FLAC/exp40_smoke"; NS="${RUN_ID}_$(echo "$MODE" | tr 'A-Z' 'a-z')_${TS}"; PUBLISH=off
+  SAVE_ROOT="$REPO/outputs_FLAC/exp43_smoke"; NS="${RUN_ID}_$(echo "$MODE" | tr 'A-Z' 'a-z')_${TS}"; PUBLISH=off
   if [ "$MODE" = SMOKE ]; then LANES="$SMOKE_GPU"; MEMBERS=1; else LANES="0,1"; MEMBERS=2; fi
 fi
 RUNTREE="$BASE/runtrees/${NS}__${EXPECT_SHA:0:12}"
 [ "$DRY_RUN" = 1 ] && RUNTREE="${RUNTREE}__dryrun_${TS}"
-LOGBASE="$REPO/$EXPREL/yaw_aug_c16_${TS}_${MODE}"; [ "$DRY_RUN" = 1 ] && LOGBASE="${LOGBASE}_DRYRUN"
+LOGBASE="$REPO/$EXPREL/std_aug_${TS}_${MODE}"; [ "$DRY_RUN" = 1 ] && LOGBASE="${LOGBASE}_DRYRUN"
 RECEIPTS="$REPO/$EXPREL/receipts"; EVDIR="$SAVE_ROOT/evidence/$NS"
-CKPT_DIR="$SAVE_ROOT/FLAC_exp40_C16/$NS/checkpoints"
-NAS_DIR="/media/diskstation/yixunhu/FLAC/checkpoints/exp40_yaw_aug_c16/$RUN_ID"
+CKPT_DIR="$SAVE_ROOT/exp43_std_aug/$NS/checkpoints"
+NAS_DIR="/media/diskstation/yixunhu/FLAC/checkpoints/exp43_std_aug/$RUN_ID"
 HF_SEALED="$BASE/hf_sealed"
 mkdir -p "$BASE/runtrees" "$RECEIPTS" || die "cannot create $BASE/runtrees / $RECEIPTS"
 exec > >(tee -a "${LOGBASE}_launcher.log") 2>&1
-echo "=== exp_40 C16 ${MODE} (dry_run=${DRY_RUN}) -- ${TS} -- host $(hostname) -- source HEAD $(git -C "$REPO" rev-parse HEAD) ==="
+echo "=== exp_43 RF ${MODE} (dry_run=${DRY_RUN}) -- ${TS} -- host $(hostname) -- source HEAD $(git -C "$REPO" rev-parse HEAD) ==="
 
 # --- environment: nothing injected; sealed offline HF; offline W&B; no bytecode --------- #
 unset PYTHONPATH PYTHONSTARTUP PYTHONHOME PYTHONUSERBASE TRANSFORMERS_CACHE HUGGINGFACE_HUB_CACHE
@@ -67,29 +72,30 @@ export HF_HOME="$HF_SEALED" HF_HUB_CACHE="$HF_SEALED/hub" HF_HUB_OFFLINE=1 TRANS
 RT="$SAVE_ROOT/runtime/$NS"
 # TMPDIR stays SHORT: torch_shm_manager (file_system sharing, train.py) binds a UNIX socket
 # under it, and a socket path over 108 bytes fails with EINVAL (smoke 2026-11-07 22:22).
-TMPDIR="$(mktemp -d /tmp/exp40.XXXXXX)" || die "mktemp failed"
+TMPDIR="$(mktemp -d /tmp/exp43.XXXXXX)" || die "mktemp failed"
 trap 'rm -rf -- "$TMPDIR"' EXIT                 # replaced by the full cleanup trap below
 export WANDB_MODE=offline WANDB_DIR="$RT/wandb" TMPDIR XDG_CACHE_HOME="$RT/xdg" \
   TORCH_HOME="$RT/torch" TRITON_CACHE_DIR="$RT/triton" MPLCONFIGDIR="$RT/mpl"
-EXP40_DRIVER_VERSION="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | sort -u)"
-[ "$(printf '%s\n' "$EXP40_DRIVER_VERSION" | wc -l)" = 1 ] || die "not exactly one NVIDIA driver version: $EXP40_DRIVER_VERSION"
-export EXP40_DRIVER_VERSION
+EXP43_DRIVER_VERSION="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | sort -u)"
+[ "$(printf '%s\n' "$EXP43_DRIVER_VERSION" | wc -l)" = 1 ] || die "not exactly one NVIDIA driver version: $EXP43_DRIVER_VERSION"
+export EXP43_DRIVER_VERSION
 
-# --- one exp_40 user of the cards at a time (training and evaluation share it) --------- #
-CARDS_LOCK="$HOME/.exp40_cards.lock"          # checkout-independent; the eval driver takes it too
+# --- one user of the A6000 cards at a time: the SHARED card flock (exp_40's path, on purpose:
+# exp_40 evaluation, exp_42 and exp_43 serialise on it; checkout-independent) ------------- #
+CARDS_LOCK="$HOME/.exp40_cards.lock"
 exec 8>"$CARDS_LOCK" || die "cannot open the card lock"
-flock -n 8 || die "another exp_40 training/evaluation holds $CARDS_LOCK"
+flock -n 8 || die "another training/evaluation holds the shared card lock $CARDS_LOCK"
 
 # --- sealed HF hub (built once), immutable run tree -------------------------------------- #
-[ -d "$HF_SEALED" ] || "$PY" "$REPO/$EXPREL/exp40_kit.py" build-hf-sealed \
+[ -d "$HF_SEALED" ] || "$PY" "$REPO/$EXPREL/exp43_kit.py" build-hf-sealed \
   --src-hub /home/yixunhu/.cache/huggingface/hub --dest "$HF_SEALED" || die "sealed HF hub build failed"
 AR_REAL="$(readlink -f "$REPO/AcousticRooms")" || die "AcousticRooms link missing"
 VAE_REAL="$(readlink -f "$REPO/weights/FLAC/VAE.safetensors")" || die "VAE link missing"
 LINKS=(--link "AcousticRooms=$AR_REAL" --link "weights/FLAC/VAE.safetensors=$VAE_REAL")
 [ "$(git -C "$REPO" rev-parse HEAD)" = "$EXPECT_SHA" ] || die "source HEAD != EXPECT_SHA"
-"$PY" "$REPO/$EXPREL/exp40_kit.py" build-runtree --repo "$REPO" --sha "$EXPECT_SHA" \
+"$PY" "$REPO/$EXPREL/exp43_kit.py" build-runtree --repo "$REPO" --sha "$EXPECT_SHA" \
   --dest "$RUNTREE" "${LINKS[@]}" || die "run tree build failed"
-KIT="$RUNTREE/$EXPREL/exp40_kit.py"; DRIVER="$RUNTREE/$EXPREL/exp40_evidence_driver.py"
+KIT="$RUNTREE/$EXPREL/exp43_kit.py"; DRIVER="$RUNTREE/$EXPREL/exp43_evidence_driver.py"
 echo "run tree: $RUNTREE"
 
 # --- every no-GPU gate, from the run tree's own kit ------------------------------------ #
@@ -144,7 +150,7 @@ cleanup() {
   fi
   [ -n "$TMPDIR" ] && [ -d "$TMPDIR" ] && rm -rf -- "$TMPDIR"
   if [ -n "$INTERRUPTED" ]; then
-    echo "=== exp_40 C16 ${MODE} INTERRUPTED by SIG${INTERRUPTED} $(date '+%Y-%m-%d %H:%M:%S'): FAIL ==="
+    echo "=== exp_43 RF ${MODE} INTERRUPTED by SIG${INTERRUPTED} $(date '+%Y-%m-%d %H:%M:%S'): FAIL ==="
     exit 130
   fi
   [ "$bad" = 0 ] || { echo "=== cleanup FAILED: exit 12 ==="; exit 12; }
@@ -156,7 +162,7 @@ trap 'on_signal INT' INT
 trap 'on_signal TERM' TERM
 
 "$PY" "$KIT" gpu-lock --uuids "$UUIDS" --out "$LOCK_JSON" \
-  --payload-json "{\"experiment\": \"exp_40\", \"namespace\": \"$NS\", \"host\": \"$(hostname)\", \"pid\": $$}" \
+  --payload-json "{\"experiment\": \"exp_43\", \"namespace\": \"$NS\", \"host\": \"$(hostname)\", \"pid\": $$}" \
   || die "per-card locks refused"
 "$PY" "$KIT" gpus --platform "$PLATFORM" --rung "$RUNG" --mode "$MODE" --lanes "$LANES" \
   --policy "$GPU_POLICY" --expect-total 2 --out "${LOGBASE}_gpus_prespawn.json" \
@@ -178,8 +184,8 @@ PYEOF
 mkdir -p "$EVDIR" || die "cannot create $EVDIR"
 TRAIN_LOG="${LOGBASE}_train.log"
 EVMODE=verbatim; [ "$MODE" = FULL ] && EVMODE=digest
-( cd "$RUNTREE" && CUDA_VISIBLE_DEVICES="$LANES" EXP40_EVIDENCE_DIR="$EVDIR" EXP40_EVIDENCE_MODE="$EVMODE" \
-    EXP40_PUBLISH="$PUBLISH" EXP40_RUN_ID="$RUN_ID" exec setsid "$PY" "$DRIVER" "${ARGV[@]}" ) > "$TRAIN_LOG" 2>&1 &
+( cd "$RUNTREE" && CUDA_VISIBLE_DEVICES="$LANES" EXP43_EVIDENCE_DIR="$EVDIR" EXP43_EVIDENCE_MODE="$EVMODE" \
+    EXP43_PUBLISH="$PUBLISH" EXP43_RUN_ID="$RUN_ID" exec setsid "$PY" "$DRIVER" "${ARGV[@]}" ) > "$TRAIN_LOG" 2>&1 &
 TRAIN_PID=$!
 sleep 2
 [ "$(ps -o pgid= -p "$TRAIN_PID" | tr -d ' ')" = "$TRAIN_PID" ] \
@@ -217,20 +223,20 @@ if [ "$MODE" = FULL ]; then
     --check "$RECEIPTS/check_${RUN_ID}.json" --reference "$REF" --evidence "$EVOUT" --audit "$AUDIT" \
     --expected-dirpath "$CKPT_DIR" --ckpt-dir "$CKPT_DIR" --runtree "$RUNTREE" \
     --out "$RECEIPTS/run_result_${RUN_ID}.json" || FINAL=1
-  echo "next (admission): $PY $REPO/$EXPREL/exp40_kit.py admit --run-result $RECEIPTS/run_result_${RUN_ID}.json --receipts-dir $RECEIPTS --out $REPO/$EXPREL/exp40_C16_admission.json"
+  echo "next (admission): $PY $REPO/$EXPREL/exp43_kit.py admit --run-result $RECEIPTS/run_result_${RUN_ID}.json --receipts-dir $RECEIPTS --hf-sealed $HF_SEALED --out $REPO/$EXPREL/exp43_RF_admission.json"
 else
   "$PY" "$KIT" evidence --platform "$PLATFORM" --rung "$RUNG" --mode "$MODE" --run-id "$RUN_ID" \
     --save-root "$SAVE_ROOT" --stamp "$TS" --evidence-dir "$EVDIR" --log "$TRAIN_LOG" \
     --check-json "$CHECK_JSON" --receipts "$RECEIPTS" --train-rc "$TRAIN_RC" --watcher-rc "$WATCH_RC" \
     --out "${LOGBASE}_evidence.json" || FINAL=1
-  n_ckpt="$(find "$SAVE_ROOT/FLAC_exp40_C16/$NS" -name '*.ckpt' 2>/dev/null | wc -l)"
+  n_ckpt="$(find "$SAVE_ROOT/exp43_std_aug/$NS" -name '*.ckpt' 2>/dev/null | wc -l)"
   [ "$n_ckpt" = 0 ] || { echo "a smoke wrote ${n_ckpt} checkpoint(s)"; FINAL=1; }
 fi
 [ "$TRAIN_RC" = 0 ] && [ "$WATCH_RC" = 0 ] || FINAL=1
 if [ "$MODE" = FULL ]; then
-  echo "=== exp_40 C16 FULL training finished $(date '+%Y-%m-%d %H:%M:%S'): $([ $FINAL = 0 ] && echo TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION || echo FAIL) (locks released at exit) ==="
+  echo "=== exp_43 RF FULL training finished $(date '+%Y-%m-%d %H:%M:%S'): $([ $FINAL = 0 ] && echo TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION || echo FAIL) (locks released at exit) ==="
 else
-  echo "=== exp_40 C16 ${MODE} finished $(date '+%Y-%m-%d %H:%M:%S'): $([ $FINAL = 0 ] && echo PASS || echo FAIL) (locks released at exit) ==="
+  echo "=== exp_43 RF ${MODE} finished $(date '+%Y-%m-%d %H:%M:%S'): $([ $FINAL = 0 ] && echo PASS || echo FAIL) (locks released at exit) ==="
 fi
 [ "$WATCH_RC" -ge 8 ] && exit "$WATCH_RC"
 exit "$FINAL"
