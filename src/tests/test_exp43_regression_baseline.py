@@ -9,6 +9,8 @@ are monkeypatched; nothing here runs git or touches a real checkout.
 import hashlib
 import importlib.util
 import json
+import os
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -191,7 +193,8 @@ def _sha(p):
     ("see /usr/lib/x86/libfoo.so.1 now", "see <ABS>/libfoo.so.1 now"),
     ("\x1b[31mred\x1b[0m", "red"),
     ("trailing   \nlines  ", "trailing\nlines"),
-])
+], ids=["hex", "pid", "pid_kwarg", "dur_s", "dur_word", "dur_clock", "timestamp", "line_ref", "line_word",
+        "pytest_tmp", "tmp_entry", "tmp_mkdtemp", "abs_path", "ansi", "whitespace"])
 def test_each_normalisation_rule(raw, expected):
     assert rb.normalise(raw, rb.path_roots(None)) == expected
 
@@ -865,12 +868,19 @@ def _path_node(root, rel="src/tests/test_alpha.py", outcome="passed"):
     ("d/1794553485.4892116/f.py::t[1794553485.4892116]", [], "d/1794553485.4892116/f.py::t[<EPOCH>]"),
     ("/x/repo/f.py::t", ["/x/repo"], "/x/repo/f.py::t"),
     ("src/tests/test_a.py", ["/x/repo"], "src/tests/test_a.py"),
-])
+], ids=["root_subpath", "root_alone", "root_after_eq_and_comma", "prefix_only_digit", "prefix_only_dot",
+        "prefix_only_dash", "deeper_path", "relative_path", "dash_before_root", "other_runs_root", "longest_first",
+        "root_escaped", "root_escaped_no_match", "root_before_epoch",
+        "epoch_real", "epoch_9_digits", "epoch_after_letter", "digits_8", "no_fraction", "no_fraction_digit",
+        "dot_before", "dot_after", "small_float", "epoch_nested",
+        "outside_root", "outside_epoch_no_brackets", "outside_epoch_with_brackets", "outside_root_no_brackets",
+        "collection_level"])
 def test_canonical_nodeid_rules(nodeid, roots, expected):
     assert rb.canonical_nodeid(nodeid, roots) == expected
 
 
-@pytest.mark.parametrize("nodeid", ["f.py::t[abc", "f.py::t[<EPOCH>]", "f.py::t[<REPO>/a]", "f.py::t[x<REPO>]"])
+@pytest.mark.parametrize("nodeid", ["f.py::t[abc", "f.py::t[<EPOCH>]", "f.py::t[<REPO>/a]", "f.py::t[x<REPO>]"],
+                         ids=["unbalanced", "epoch_token", "repo_token", "repo_token_inside"])
 def test_canonical_nodeid_refuses_unbalanced_brackets_or_a_preexisting_token(nodeid):
     with pytest.raises(rb.Refusal):
         rb.canonical_nodeid(nodeid, ["/x/repo"])
@@ -957,7 +967,7 @@ def test_a_path_that_only_shares_the_roots_prefix_is_not_canonicalised(tmp_path,
     ("test_t[1794553485]", "test_t[1794562367]"),                           # no fraction: no epoch
     ("test_t[1.5]", "test_t[2.5]"),
     ("test_t[a-1794553485.5]", "test_t[b-1794553485.5]"),                   # text next to an epoch
-])
+], ids=["other_file", "digits_8", "no_fraction", "small_float", "text_next_to_epoch"])
 def test_a_real_difference_inside_the_brackets_still_fails(tmp_path, git_ok, base_name, new_name):
     base, wb, wn, arg, j, lg = _canon_runs(tmp_path, lambda r: [(A, base_name.format(r=r), "passed")],
                                            lambda r: [(A, new_name.format(r=r), "passed")])
@@ -1095,3 +1105,45 @@ def test_baseline_repo_roots_requires_usable_recorded_roots(rec):
         rb.baseline_repo_roots(rec)
     assert rb.baseline_repo_roots({"worktree": "/x/repo", "normalisation": {"roots": {"<REPO>": ["/y", "/x/repo"]}}}) \
         == ["/x/repo", "/y"]
+
+
+# --------------------------------------------------------------------------- #
+# this file's own node ids must be inert for the tool (found on the L2r2 run: the compare refused the
+# id ``...preexisting_token[f.py::t[<EPOCH>]]`` of this very file). Every parametrize set whose auto ids
+# would hold a token, a nested bracket, an absolute path or an epoch-like float carries explicit ids.
+# --------------------------------------------------------------------------- #
+def test_this_files_own_node_ids_are_inert_for_the_tool(request):
+    here = Path(__file__).resolve()
+    items = [it for it in request.session.items if Path(str(it.path)).resolve() == here]
+    expected = {}
+    for name, obj in list(globals().items()):
+        marks = [m for m in getattr(obj, "pytestmark", []) if m.name == "parametrize"] if name.startswith("test_") else []
+        if marks:
+            expected[name] = 1
+            for m in marks:
+                expected[name] *= len(m.args[1])
+    got = {}
+    for it in items:
+        k = getattr(it, "originalname", it.name)
+        got[k] = got.get(k, 0) + 1
+    if not expected or any(got.get(k, 0) != v for k, v in expected.items()):
+        pytest.skip("needs this whole file collected (a -k / --deselect run collects only part of it)")
+    roots = rb.path_roots(Path(os.path.abspath(__file__)).parents[2])["<REPO>"]
+    params = [it.nodeid for it in items if "[" in it.nodeid]
+    assert len(params) == sum(expected.values())
+    bad = []
+    for nid in (it.nodeid for it in items):
+        try:
+            changed = rb.canonical_nodeid(nid, roots) != nid
+        except rb.Refusal as e:
+            bad.append((nid, f"refused: {e}"))
+            continue
+        if changed:
+            bad.append((nid, "rewritten by a node-id rule"))
+        if "[" in nid:
+            p = nid[nid.index("[") + 1:-1]
+            if "[" in p or "]" in p:
+                bad.append((nid, "nested bracket"))
+            if re.search(r"(?:^|[\s'\"=(,:-])/", p):
+                bad.append((nid, "absolute path"))
+    assert bad == []
