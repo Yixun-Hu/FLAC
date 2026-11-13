@@ -14,6 +14,14 @@ calls the original with the original arguments and returns its result unchanged:
 
 * ``DiffusionCondTrainingWrapper._apply_yaw_aug`` + ``src.training.diffusion.rotate_scene_metadata``
   -- the column offset every sample of every step actually received;
+* ``src.training.diffusion.mirror_scene_metadata`` (the very function object of
+  ``src.data.yaw_mirror``; install refuses otherwise) -- the MIRROR SPY: per step and rank, the
+  indices of the samples actually passed to the mirror, resolved by object identity against
+  that step's rotated samples, and the check that the returned batch is exactly the rotated
+  samples with those mirrored outputs substituted. Each step's applied ``(offsets, flip bits)``
+  is compared with a PRIVATE recomputation (a fresh ``torch.Generator`` seeded like
+  ``_apply_yaw_aug``'s: the offsets, then ``torch.randint(0, 2, (n,))``; plan §2.3), and the
+  streaming digest is taken over ``"<step>:<offsets>|<bits>\n"``;
 * ``src.models.transformer.flash_attn_func`` -- the number of flash-attention calls (the
   DiT's attention branch is chosen by this module global at call time);
 * ``torch.utils.checkpoint.checkpoint`` -- calls by ``use_reentrant`` value (FLAC's ViT
@@ -28,7 +36,8 @@ calls the original with the original arguments and returns its result unchanged:
   is broadcast so every rank raises on a failure (exp_40 plan §14 B2).
 
 Evidence is RANK-PRIVATE: rank r appends only to ``<dir>/rank<r>.jsonl``. Nothing here
-draws randomness, moves a tensor the step uses, or changes a return value.
+draws from the python / NumPy / torch global streams (the recomputation uses its own generator),
+moves a tensor the step uses, or changes a return value.
 
 Written by the exp_43 Coder seat (Claude Opus 5.5) per plan_std_aug.md §5.1 on the exp_40 driver.
 """
@@ -49,14 +58,16 @@ def _fail(msg):
 
 
 SAMPLED_STEPS = (0, 1, 2, 3, 1000, 2499, 2500, 39997, 39998, 39999)
+HIST_BINS, HIST_WIDTH = 16, 32          # 16 coarse bins of the unquantised offsets: bin = d // 32
 
 
 class Evidence:
-    """Per-process evidence. ``verbatim`` (smokes): every step's offsets as records. Both
-    modes keep the streaming offset digest the FULL receipt is judged on (sha256 over
-    ``"<step>:<d0>,<d1>,...\n"``), the offset histogram, the sampled steps' offsets and
-    losses, and a device-side all-losses-finite flag (plan §14 H4: no per-step loss digest,
-    no per-step host sync)."""
+    """Per-process evidence. ``verbatim`` (smokes): every step's offsets and applied flip bits as
+    records. Both modes keep the streaming digest the FULL receipt is judged on (sha256 over
+    ``"<step>:<d0>,<d1>,...|<b0>,<b1>,...\n"``, bit i = 1 iff sample i was passed to the
+    mirror), the 16-bin offset histogram, the applied-flip count, the sampled steps' offsets,
+    bits and losses, and a device-side all-losses-finite flag (exp_40 plan §14 H4: no per-step
+    loss digest, no per-step host sync)."""
 
     def __init__(self, directory, verbatim):
         self.dir = directory
@@ -65,14 +76,19 @@ class Evidence:
         self.fh = None
         self.counts = {"flash_calls": 0, "ckpt_dinov3": 0, "ckpt_dit": 0, "ckpt_unclassified": 0,
                        "ckpt_reentrant": 0, "ckpt_default": 0, "apply_yaw_aug": 0,
-                       "training_step": 0, "checkpoints_published": 0}
-        self.collecting = None
-        self.off_hash = hashlib.sha256()
+                       "training_step": 0, "checkpoints_published": 0,
+                       "mirror_calls": 0, "flip_anomalies": 0, "stream_mismatch_steps": 0}
+        self.collecting = None         # inside one _apply_yaw_aug: the offsets reaching the rotation
+        self.rotated = None            # ... the rotated sample dicts, in call order
+        self.mirrored = None           # ... {sample index: mirrored output} of the samples mirrored
+        self.stream_hash = hashlib.sha256()
         self.finite = None             # device-side all-finite flag (plan §14 H4: no per-step sync)
         self.hist = [0] * 16
         self.n_offsets = 0
         self.steps = []
         self.sampled = {}
+        self.sampled_flips = {}
+        self.flips_applied = 0
         self.losses_sampled = {}
 
     def bind_rank(self, rank):
@@ -90,18 +106,20 @@ class Evidence:
         self.fh.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
         self.fh.flush()
 
-    def record_offsets(self, step, offsets, t):
-        self.off_hash.update(f"{step}:{','.join(map(str, offsets))}\n".encode())
+    def record_step(self, step, offsets, flips, t):
+        self.stream_hash.update(f"{step}:{','.join(map(str, offsets))}|{','.join(map(str, flips))}\n".encode())
         for d in offsets:
-            if d % 32 == 0 and 0 <= d < 512:
-                self.hist[d // 32] += 1
+            if type(d) is int and 0 <= d < HIST_BINS * HIST_WIDTH:
+                self.hist[d // HIST_WIDTH] += 1
         self.n_offsets += len(offsets)
+        self.flips_applied += sum(flips)
         self.steps.append(step)
         if step in SAMPLED_STEPS:
             self.sampled[str(step)] = list(offsets)
+            self.sampled_flips[str(step)] = list(flips)
         if self.verbatim:
             self.write({"kind": "offsets", "rank": self.rank, "step": step, "n": len(offsets),
-                        "offsets": list(offsets), "t": t})
+                        "offsets": list(offsets), "flips": list(flips), "t": t})
         elif step in (100, 299) or step % 1000 == 0:
             self.write({"kind": "tick", "rank": self.rank, "step": step, "t": t})
 
@@ -119,10 +137,11 @@ class Evidence:
         finite = None if self.finite is None else bool(self.finite.item())       # ONE transfer
         sampled_losses = {k: float(v.float().cpu()).hex() for k, v in self.losses_sampled.items()}
         payload = {"rank": self.rank, "counts": dict(self.counts),
-                   "offset_digest": self.off_hash.hexdigest(), "all_losses_finite": finite,
+                   "stream_digest": self.stream_hash.hexdigest(), "all_losses_finite": finite,
                    "offset_histogram": list(self.hist), "n_offsets": self.n_offsets,
                    "n_steps": len(self.steps), "steps_contiguous_from_0": steps_ok,
-                   "sampled_offsets": self.sampled, "sampled_losses": sampled_losses, **extra}
+                   "sampled_offsets": self.sampled, "sampled_flips": self.sampled_flips,
+                   "flips_applied": self.flips_applied, "sampled_losses": sampled_losses, **extra}
         path = os.path.join(self.dir, f"rank{self.rank}.summary.json")
         tmp = f"{path}.tmp-{os.getpid()}"
         with open(tmp, "w") as f:
@@ -233,12 +252,34 @@ def install_publication(ev, mode):
     pl.callbacks.ModelCheckpoint._save_checkpoint = _save_checkpoint
 
 
+def recompute_step(wrapper, n):
+    """The PRIVATE per-step recomputation of what ``_apply_yaw_aug`` must apply (plan §2.3): a
+    FRESH generator seeded by ``(yaw_aug_seed, global_step, global_rank)``, the ``n`` offsets
+    first (the exp_15 draw), then ``n`` flip bits by ``torch.randint(0, 2, (n,))``. Touches no
+    global stream."""
+    import torch
+    import src.training.diffusion as tdiff
+    from src.data.yaw_rotation import draw_yaw_offsets
+    g = torch.Generator()
+    g.manual_seed(tdiff._yaw_aug_step_seed(wrapper.yaw_aug_seed, int(wrapper.global_step),
+                                           int(wrapper.global_rank)))
+    offsets = draw_yaw_offsets(n, wrapper.yaw_aug_img_w, g).tolist()
+    return offsets, torch.randint(0, 2, (n,), generator=g, dtype=torch.long).tolist()
+
+
 def install(ev):
     import torch
     import torch.utils.checkpoint as tcp
     import src.models.transformer as transformer
     import src.training.diffusion as tdiff
+    import src.data.yaw_mirror as yaw_mirror
     from src.data.yaw_rotation import yaw_column_shift
+
+    # the mirror spy must observe THE function the wrapper calls: refuse before patching anything
+    orig_mirror = getattr(tdiff, "mirror_scene_metadata", None)
+    if orig_mirror is None or orig_mirror is not yaw_mirror.mirror_scene_metadata:
+        _fail("src.training.diffusion.mirror_scene_metadata is not src.data.yaw_mirror's: the mirror "
+              "spy would not observe the applied flips")
 
     orig_flash = transformer.flash_attn_func
     if orig_flash is not None:
@@ -262,23 +303,46 @@ def install(ev):
     orig_rotate = tdiff.rotate_scene_metadata
 
     def spied_rotate(md, alpha, img_w):
+        out = orig_rotate(md, alpha, img_w)
         if ev.collecting is not None:
             ev.collecting.append(int(yaw_column_shift(alpha, img_w)))
-        return orig_rotate(md, alpha, img_w)
+            ev.rotated.append(out)
+        return out
     tdiff.rotate_scene_metadata = spied_rotate
+
+    def spied_mirror(md, *args, **kwargs):
+        out = orig_mirror(md, *args, **kwargs)
+        ev.counts["mirror_calls"] += 1
+        hits = [] if ev.rotated is None else [i for i, x in enumerate(ev.rotated) if x is md]
+        if len(hits) != 1 or hits[0] in ev.mirrored:
+            # outside _apply_yaw_aug, not exactly one of this step's rotated samples, or twice
+            ev.counts["flip_anomalies"] += 1
+        else:
+            ev.mirrored[hits[0]] = out
+        return out
+    tdiff.mirror_scene_metadata = spied_mirror
 
     cls = tdiff.DiffusionCondTrainingWrapper
     orig_apply = cls._apply_yaw_aug
 
     def apply_yaw_aug(self, metadata):
         ev.bind_rank(self.global_rank)
-        ev.collecting = []
+        ev.collecting, ev.rotated, ev.mirrored = [], [], {}
         try:
             out = orig_apply(self, metadata)
         finally:
-            got, ev.collecting = ev.collecting, None
+            got, rotated, mirrored = ev.collecting, ev.rotated, ev.mirrored
+            ev.collecting = ev.rotated = ev.mirrored = None
+        n = len(metadata)
+        flips = [1 if i in mirrored else 0 for i in range(n)]
+        if not (isinstance(out, list) and len(out) == len(rotated) == len(got) == n
+                and set(mirrored) <= set(range(n))
+                and all(out[i] is (mirrored[i] if flips[i] else rotated[i]) for i in range(n))):
+            ev.counts["flip_anomalies"] += 1      # the batch is not the rotated samples + the mirrored ones
+        if (got, flips) != recompute_step(self, n):
+            ev.counts["stream_mismatch_steps"] += 1
         ev.counts["apply_yaw_aug"] += 1
-        ev.record_offsets(int(self.global_step), got, time.time())
+        ev.record_step(int(self.global_step), got, flips, time.time())
         return out
     cls._apply_yaw_aug = apply_yaw_aug
 
@@ -308,7 +372,7 @@ def install(ev):
             "batchnorm_modules": sum(isinstance(m, torch.nn.modules.batchnorm._BatchNorm)
                                      for m in self.modules()),
             "yaw_aug": {"enabled": self.yaw_aug_enabled, "img_w": self.yaw_aug_img_w,
-                        "seed": self.yaw_aug_seed, "offset_step": self.yaw_aug_offset_step},
+                        "seed": self.yaw_aug_seed, "flip": self.yaw_aug_flip},
             "flash_attn_func_is_none": orig_flash is None,
             "state_signature": state_signature(self),
             "param_signature": param_signature(self),

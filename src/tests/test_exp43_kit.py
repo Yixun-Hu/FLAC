@@ -264,6 +264,312 @@ def test_driver_reasons_name_the_exp43_variable():
 
 
 # --------------------------------------------------------------------------- #
+# exp_43 6c: the RF treatment binding (unquantised offsets + flip bits, mirror spy)
+# --------------------------------------------------------------------------- #
+FLIP_CASES = ((0, 1), (1, 1), (2499, 1), (2500, 1), (39999, 1))      # (global_step, global_rank)
+
+
+def test_treatment_constants_and_the_real_banner(capsys, monkeypatch):
+    assert kit.YAW_BLOCK == {"enabled": True, "img_w": 512, "seed": 42, "flip": True}
+    assert kit.YAW_KWARGS == {"yaw_aug_enabled": True, "yaw_aug_img_w": 512, "yaw_aug_seed": 42,
+                              "yaw_aug_flip": True}
+    assert kit.BANNER == "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"
+    assert (kit.HIST_BINS, kit.HIST_WIDTH) == (16, 32) and kit.HIST_BINS * kit.HIST_WIDTH == kit.YAW_BLOCK["img_w"]
+    assert json.loads((_REPO / kit.ARM_CONFIG).read_text())["training"]["yaw_aug"] == kit.YAW_BLOCK
+    import src.models.transformer as T
+    monkeypatch.setattr(T, "flash_attn_func", None)
+    m = cap._mods()
+    w = cap.build_wrapper(m, cap.tiny_config(512, {"flip": True}))
+    capsys.readouterr()
+    w._print_yaw_aug_banner()
+    assert capsys.readouterr().out.strip().splitlines() == [kit.BANNER]
+    assert kit.start_gate("\n".join([kit.BANNER, STEP1]), 1)[0] == "pass"
+    for other in ("yaw_aug ENABLED img_w=512 seed=42", "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"):
+        assert kit.start_gate("\n".join([other, STEP1]), 1)[0] == "fail", other
+
+
+def _contract_tree(tmp_path, mutate):
+    t = tmp_path / f"tree{len(list(tmp_path.iterdir()))}"
+    for rel in (kit.ARM_CONFIG, kit.BASE_CONFIG):
+        (t / rel).parent.mkdir(parents=True, exist_ok=True)
+    os.symlink(str(_REPO / "src"), str(t / "src"))
+    cfg = json.loads((_REPO / kit.ARM_CONFIG).read_text())
+    mutate(cfg)
+    (t / kit.ARM_CONFIG).write_text(json.dumps(cfg))
+    (t / kit.BASE_CONFIG).write_bytes((_REPO / kit.BASE_CONFIG).read_bytes())
+    return str(t)
+
+
+def test_config_contract_through_the_real_factory(tmp_path):
+    assert kit.config_contract_reasons(str(_REPO), sys.executable) == []
+    assert kit.config_contract_reasons(_contract_tree(tmp_path, lambda c: None), sys.executable) == []
+    for mutate, needle in [
+            (lambda c: c["training"]["yaw_aug"].update(flip=False), "yaw_aug"),
+            (lambda c: c["training"]["yaw_aug"].pop("flip"), "yaw_aug"),
+            (lambda c: c["training"]["yaw_aug"].update(flip=1), "factory refuses"),
+            (lambda c: c["training"]["yaw_aug"].update(offset_step=32), "factory refuses"),
+            (lambda c: c.update(sample_rate=1), "exactly training.yaw_aug.flip"),
+            (lambda c: c["training"].update(use_ema=False), "use_ema")]:
+        got = kit.config_contract_reasons(_contract_tree(tmp_path, mutate), sys.executable)
+        assert any(needle in x for x in got), (needle, got)
+
+
+def _oracle_stream(steps, ranks, micro):
+    """An independent oracle of the registered RF stream (plan §2.3): per (42, step, rank) one
+    generator; ``micro`` offsets ``randint(0, 512)`` FIRST, then ``micro`` bits ``randint(0, 2)``."""
+    import src.training.diffusion as D
+    out = {}
+    for r in ranks:
+        h, hist, nflip, so, sf, verb = hashlib.sha256(), [0] * 16, 0, {}, {}, []
+        for s in range(steps):
+            g = torch.Generator()
+            g.manual_seed(D._yaw_aug_step_seed(42, s, r))
+            o = torch.randint(0, 512, (micro,), generator=g, dtype=torch.long).tolist()
+            f = torch.randint(0, 2, (micro,), generator=g, dtype=torch.long).tolist()
+            h.update(f"{s}:{','.join(map(str, o))}|{','.join(map(str, f))}\n".encode())
+            for d in o:
+                hist[d // 32] += 1
+            nflip += sum(f)
+            if s in kit.SAMPLED_STEPS:
+                so[str(s)], sf[str(s)] = o, f
+            verb.append([o, f])
+        out[r] = {"digest": h.hexdigest(), "hist": hist, "n": steps * micro, "flips": nflip, "sampled": so,
+                  "sampled_flips": sf, "verbatim": verb}
+    return out
+
+
+def test_the_stream_reconstruction_is_the_registered_rf_stream():
+    got = kit.expected_stream(str(_REPO), 5, range(2), 32, verbatim=True)
+    assert got == _oracle_stream(5, range(2), 32)
+    nov = kit.expected_stream(str(_REPO), 5, range(2), 32, verbatim=False)
+    assert all(nov[r]["verbatim"] == [] and dict(nov[r], verbatim=got[r]["verbatim"]) == got[r] for r in range(2))
+    offs = [d for r in range(2) for o, _ in got[r]["verbatim"] for d in o]
+    assert any(d % 32 for d in offs), "the RF offsets are not quantised"
+    assert {b for r in range(2) for _, f in got[r]["verbatim"] for b in f} == {0, 1}
+
+
+def test_rf_offsets_are_the_reference_yaw_draws_and_flips_are_drawn_after_them(full_stream):
+    """plan §2.3: RF's offset draw stream IS the YAW configuration's (the E1 golden of the exp_15
+    / exp_17 reference pins) -- the flip bits come after the offsets from the same generator."""
+    fx = json.loads((_REPO / kit.FIXTURE).read_text())["record"]["real"]["offsets"]["2x32"]
+    assert sorted(fx, key=int) == ["0", "1", "2", "3", "1000", "2499", "2500", "39999"]
+    for step, per_rank in fx.items():
+        for r in range(2):
+            assert full_stream[r]["sampled"][step] == per_rank[r], (step, r)
+    assert all(0 < full_stream[r]["flips"] < kit.ENDPOINT * 32 for r in range(2))
+
+
+def _spy_apply(monkeypatch, w, mds, step, rank):
+    """Run the REAL wrapper's _apply_yaw_aug at (step, rank); return the offsets that reached the
+    rotation and the sample indices that reached the mirror (by object identity)."""
+    import src.training.diffusion as D
+    from src.data.yaw_rotation import yaw_column_shift
+    rotated, offsets, mirrored = [], [], []
+    rot, mir = D.rotate_scene_metadata, D.mirror_scene_metadata
+
+    def spy_rot(md, alpha, img_w):
+        out = rot(md, alpha, img_w)
+        offsets.append(int(yaw_column_shift(alpha, img_w)))
+        rotated.append(out)
+        return out
+
+    def spy_mir(md, img_w, *a, **k):
+        mirrored.append(next(i for i, x in enumerate(rotated) if x is md))
+        return mir(md, img_w, *a, **k)
+    monkeypatch.setattr(D, "rotate_scene_metadata", spy_rot)
+    monkeypatch.setattr(D, "mirror_scene_metadata", spy_mir)
+    cap.attach_stub_trainer(w, step, rank)
+    out = D.DiffusionCondTrainingWrapper._apply_yaw_aug(w, mds)
+    monkeypatch.setattr(D, "rotate_scene_metadata", rot)
+    monkeypatch.setattr(D, "mirror_scene_metadata", mir)
+    return out, offsets, mirrored, rotated
+
+
+def test_the_wrapper_mirrors_exactly_the_recomputed_bits(monkeypatch, full_stream):
+    """The kit's reconstruction against the REAL training path: at every sampled (step, rank) the
+    offsets reaching rotate_scene_metadata and the indices reaching mirror_scene_metadata are the
+    recomputed stream's; flipped samples equal an independent index-arithmetic mirror."""
+    import src.models.transformer as T
+    monkeypatch.setattr(T, "flash_attn_func", None)
+    m = cap._mods()
+    w = cap.build_wrapper(m, cap.tiny_config(512, {"flip": True}))
+    mds = [cap.make_md(m, i, 512) for i in range(32)]
+    for step, rank in FLIP_CASES + ((0, 0), (39998, 0)):
+        out, offsets, mirrored, rotated = _spy_apply(monkeypatch, w, mds, step, rank)
+        bits = full_stream[rank]["sampled_flips"][str(step)]
+        assert offsets == full_stream[rank]["sampled"][str(step)], (step, rank)
+        assert mirrored == [i for i, b in enumerate(bits) if b], (step, rank)
+        for i, b in enumerate(bits):
+            if not b:
+                assert out[i] is rotated[i]
+                continue
+            depth = rotated[i]["depth"]
+            want = depth[:, :, torch.arange(511, -1, -1)].clone()
+            want[1] = -want[1]
+            assert torch.equal(out[i]["depth"], want)
+            for key in ("source", "source_vit", "context_poses", "context_poses_vit"):
+                v = rotated[i][key].clone()
+                v[..., 1] = -v[..., 1]
+                assert torch.equal(out[i][key], v), key
+            assert out[i]["context_audio"] is mds[i]["context_audio"]
+
+
+@pytest.fixture
+def driver_restore():
+    """Undo drv.install's class / module patches after a test."""
+    import torch.utils.checkpoint as tcp
+    import src.models.transformer as T
+    import src.training.diffusion as D
+    cls = D.DiffusionCondTrainingWrapper
+    snap = {k: getattr(cls, k) for k in ("_apply_yaw_aug", "on_fit_start", "on_train_end", "training_step")}
+    saved = (D.rotate_scene_metadata, D.mirror_scene_metadata, tcp.checkpoint, T.flash_attn_func)
+    yield
+    for k, v in snap.items():
+        setattr(cls, k, v)
+    D.rotate_scene_metadata, D.mirror_scene_metadata, tcp.checkpoint, T.flash_attn_func = saved
+
+
+def _flip_wrapper(monkeypatch):
+    import src.models.transformer as T
+    monkeypatch.setattr(T, "flash_attn_func", None)
+    m = cap._mods()
+    return m, cap.build_wrapper(m, cap.tiny_config(512, {"flip": True})), [cap.make_md(m, i, 512) for i in range(32)]
+
+
+def _md_equal(a, b):
+    return a.keys() == b.keys() and all(
+        torch.equal(a[k], b[k]) if torch.is_tensor(a[k]) else a[k] == b[k] for k in a)
+
+
+def test_mirror_spy_records_the_applied_bits_and_checks_them_per_step(tmp_path, monkeypatch, full_stream,
+                                                                       driver_restore):
+    import src.training.diffusion as D
+    m, w, mds = _flip_wrapper(monkeypatch)
+    plain = {}
+    for step, rank in FLIP_CASES:
+        cap.attach_stub_trainer(w, step, rank)
+        plain[step] = D.DiffusionCondTrainingWrapper._apply_yaw_aug(w, mds)
+    ev = drv.Evidence(str(tmp_path), verbatim=True)
+    drv.install(ev)
+    rng = (torch.get_rng_state(), cap.rng_digest(m))
+    total = 0
+    for step, rank in FLIP_CASES:
+        cap.attach_stub_trainer(w, step, rank)
+        out = D.DiffusionCondTrainingWrapper._apply_yaw_aug(w, mds)
+        assert len(out) == 32 and all(_md_equal(a, b) for a, b in zip(out, plain[step])), step
+        total += sum(full_stream[rank]["sampled_flips"][str(step)])
+    assert torch.equal(rng[0], torch.get_rng_state()) and rng[1] == cap.rng_digest(m)
+    for step, rank in FLIP_CASES:
+        assert ev.sampled[str(step)] == full_stream[rank]["sampled"][str(step)]
+        assert ev.sampled_flips[str(step)] == full_stream[rank]["sampled_flips"][str(step)]
+    assert ev.flips_applied == total == ev.counts["mirror_calls"] > 0
+    assert ev.counts["flip_anomalies"] == 0 and ev.counts["stream_mismatch_steps"] == 0
+    assert ev.counts["apply_yaw_aug"] == len(FLIP_CASES)
+    rows = [json.loads(x) for x in (tmp_path / "rank1.jsonl").read_text().splitlines()]
+    assert [r["flips"] for r in rows] == [full_stream[1]["sampled_flips"][str(s)] for s, _ in FLIP_CASES]
+    assert [r["offsets"] for r in rows] == [full_stream[1]["sampled"][str(s)] for s, _ in FLIP_CASES]
+    ev.summary({"global_step": 1, "pid": 1})
+    summ = json.loads((tmp_path / "rank1.summary.json").read_text())
+    assert summ["flips_applied"] == total and summ["sampled_flips"] == ev.sampled_flips
+    assert sum(summ["offset_histogram"]) == summ["n_offsets"] == 32 * len(FLIP_CASES)
+    h = hashlib.sha256()
+    for (step, _), r in zip(FLIP_CASES, rows):
+        h.update(f"{step}:{','.join(map(str, r['offsets']))}|{','.join(map(str, r['flips']))}\n".encode())
+    assert summ["stream_digest"] == h.hexdigest()
+    D.mirror_scene_metadata(mds[0], 512)                          # a mirror call outside _apply_yaw_aug
+    assert ev.counts["flip_anomalies"] == 1 and ev.counts["mirror_calls"] == total + 1
+
+
+def test_mirror_spy_flags_bits_that_are_not_the_recomputed_ones(tmp_path, monkeypatch, full_stream,
+                                                                 driver_restore):
+    import src.training.diffusion as D
+    m, w, mds = _flip_wrapper(monkeypatch)
+    orig = D.draw_mirror_flips
+    monkeypatch.setattr(D, "draw_mirror_flips", lambda n, g: 1 - orig(n, g))      # mirrors the complement
+    ev = drv.Evidence(str(tmp_path), verbatim=False)
+    drv.install(ev)
+    cap.attach_stub_trainer(w, 2500, 1)
+    D.DiffusionCondTrainingWrapper._apply_yaw_aug(w, mds)
+    want = full_stream[1]["sampled_flips"]["2500"]
+    assert ev.sampled_flips["2500"] == [1 - b for b in want]           # what was APPLIED is recorded
+    assert ev.counts["stream_mismatch_steps"] == 1 and ev.counts["flip_anomalies"] == 0
+
+
+def test_mirror_spy_flags_a_batch_that_drops_a_mirrored_sample(tmp_path, monkeypatch, driver_restore):
+    import src.training.diffusion as D
+    m, w, mds = _flip_wrapper(monkeypatch)
+    real = D.DiffusionCondTrainingWrapper._apply_yaw_aug
+
+    def buggy(self, metadata):                                  # mirrors, then returns sample 0 un-mirrored
+        out = real(self, metadata)
+        return [metadata[0]] + out[1:]
+    monkeypatch.setattr(D.DiffusionCondTrainingWrapper, "_apply_yaw_aug", buggy)
+    ev = drv.Evidence(str(tmp_path), verbatim=False)
+    drv.install(ev)
+    cap.attach_stub_trainer(w, 0, 0)
+    D.DiffusionCondTrainingWrapper._apply_yaw_aug(w, mds)
+    assert ev.counts["flip_anomalies"] == 1
+
+
+def test_mirror_spy_refuses_a_rebound_mirror_function(tmp_path, monkeypatch, driver_restore):
+    import src.training.diffusion as D
+    monkeypatch.setattr(D, "mirror_scene_metadata", lambda md, img_w, *a, **k: md)
+    with pytest.raises(SystemExit) as e:
+        drv.install(drv.Evidence(str(tmp_path), verbatim=False))
+    assert e.value.code == 86
+
+
+def test_fit_start_records_the_flip_state(tmp_path, monkeypatch, driver_restore):
+    import src.training.diffusion as D
+    m, w, mds = _flip_wrapper(monkeypatch)
+    ev = drv.Evidence(str(tmp_path), verbatim=False)
+    drv.install(ev)
+    cap.attach_stub_trainer(w, 0, 0)
+    w.trainer.world_size, w.trainer.local_rank = 1, 0
+    D.DiffusionCondTrainingWrapper.on_fit_start(w)
+    rec = json.loads((tmp_path / "rank0.jsonl").read_text().splitlines()[0])
+    assert rec["kind"] == "fit_start" and rec["yaw_aug"] == kit.YAW_BLOCK
+
+
+def _noflip(recs, sums, exp):
+    """The evidence a run WITHOUT the flip would produce (same offsets, every bit 0)."""
+    for r, s in sums.items():
+        h = hashlib.sha256()
+        for row in recs[r][1:]:
+            row["flips"] = [0] * len(row["flips"])
+            h.update(f"{row['step']}:{','.join(map(str, row['offsets']))}|{','.join(map(str, row['flips']))}\n".encode())
+        s.update(stream_digest=h.hexdigest(), flips_applied=0,
+                 sampled_flips={k: [0] * len(v) for k, v in s["sampled_flips"].items()})
+        s["counts"]["mirror_calls"] = 0
+
+
+@pytest.mark.parametrize("mode,world", [("SMOKE", 1), ("DDP_SMOKE", 2)])
+def test_smoke_evidence_requires_applied_flip_evidence(mode, world):
+    import copy
+    recs, sums, log, exp = _evidence(world=world)
+    fx = json.loads((_REPO / kit.FIXTURE).read_text())["record"]["real"]["offsets"]["2x32"]
+    assert kit.evidence_reasons(recs, sums, log, mode, "2x32", 6, exp, fx) == []
+    snapped = {k: [[32 * (d // 32) for d in v] for v in per] for k, per in fx.items()}
+    assert any("E1 fixture" in x for x in kit.evidence_reasons(recs, sums, log, mode, "2x32", 6, exp, snapped))
+    for mutate, needle in [
+            (lambda r, s: s[0].update(flips_applied=0), "flips_applied"),
+            (lambda r, s: s[0].update(flips_applied=True), "flips_applied"),
+            (lambda r, s: s[0]["counts"].update(mirror_calls=s[0]["flips_applied"] + 1), "mirror_calls"),
+            (lambda r, s: s[0]["counts"].update(flip_anomalies=1), "flip_anomalies"),
+            (lambda r, s: s[0]["counts"].update(stream_mismatch_steps=1), "stream_mismatch_steps"),
+            (lambda r, s: r[0][2]["flips"].__setitem__(4, 1 - r[0][2]["flips"][4]), "verbatim"),
+            (lambda r, s: s[0]["sampled_flips"]["3"].__setitem__(0, 1 - s[0]["sampled_flips"]["3"][0]), "sampled_flips"),
+            (lambda r, s: s[0].update(stream_digest=exp[0]["digest"][::-1]), "stream_digest")]:
+        r2, s2 = copy.deepcopy(recs), copy.deepcopy(sums)
+        mutate(r2, s2)
+        got = kit.evidence_reasons(r2, s2, log, mode, "2x32", 6, exp, None)
+        assert any(needle in x for x in got), (needle, got)
+    _noflip(recs, sums, exp)
+    got = kit.evidence_reasons(recs, sums, log, mode, "2x32", 6, exp, None)
+    assert any("flips_applied" in x for x in got) and any("stream_digest" in x for x in got), got
+
+
+# --------------------------------------------------------------------------- #
 # argv / recipe projection / prefigure parse
 # --------------------------------------------------------------------------- #
 def test_full_argv_is_the_exp15_shape_with_the_arm_config():
@@ -648,7 +954,7 @@ def test_init_signature_parity_through_lightning(tmp_path, monkeypatch):
 
     for name, steps in (("a_smoke", 30), ("b_full", 40000)):
         pl.seed_everything(42, workers=True)
-        w = cap.build_wrapper(m, cap.tiny_config(16, {"offset_step": 4}))
+        w = cap.build_wrapper(m, cap.tiny_config(16, {"flip": True}))
         logger = pl.loggers.WandbLogger(project="p", name=name, save_dir=str(tmp_path / name))
         trainer = pl.Trainer(accelerator="cpu", devices=1, max_steps=steps, logger=logger,
                              enable_progress_bar=False, enable_model_summary=False,
@@ -674,15 +980,20 @@ def _evidence(steps=6, world=2, micro=32):
     recs, sums = {}, {}
     for r in range(world):
         rows = [dict(fit, rank=r)] + [{"kind": "offsets", "rank": r, "step": s, "n": micro,
-                                       "offsets": list(exp[r]["verbatim"][s]), "t": float(s)} for s in range(steps)]
+                                       "offsets": list(exp[r]["verbatim"][s][0]),
+                                       "flips": list(exp[r]["verbatim"][s][1]), "t": float(s)} for s in range(steps)]
         recs[r] = rows
         sums[r] = {"rank": r, "counts": {"apply_yaw_aug": steps, "training_step": steps, "ckpt_reentrant": 0,
                                          "ckpt_default": 0, "ckpt_unclassified": 0, "flash_calls": 3,
-                                         "ckpt_dinov3": 5, "ckpt_dit": 5, "checkpoints_published": 0},
-                   "offset_digest": exp[r]["digest"], "offset_histogram": exp[r]["hist"],
+                                         "ckpt_dinov3": 5, "ckpt_dit": 5, "checkpoints_published": 0,
+                                         "mirror_calls": exp[r]["flips"], "flip_anomalies": 0,
+                                         "stream_mismatch_steps": 0},
+                   "stream_digest": exp[r]["digest"], "offset_histogram": exp[r]["hist"],
                    "n_offsets": exp[r]["n"], "n_steps": steps, "steps_contiguous_from_0": True,
-                   "sampled_offsets": exp[r]["sampled"], "all_losses_finite": True, "global_step": steps}
-    log = "\n".join([MEM.format(r=0, m=1), MEM.format(r=1, m=2), B, STEP1])
+                   "sampled_offsets": exp[r]["sampled"], "sampled_flips": exp[r]["sampled_flips"],
+                   "flips_applied": exp[r]["flips"], "all_losses_finite": True, "global_step": steps}
+        sums[r] = json.loads(json.dumps(sums[r]))          # no aliasing with the recomputation ``exp``
+    log = "\n".join(([MEM.format(r=0, m=1), MEM.format(r=1, m=2)] if world > 1 else []) + [B, STEP1])
     return recs, sums, log, exp
 
 
@@ -697,7 +1008,17 @@ def test_evidence_pass():
     (lambda r, s: s[0]["counts"].update(ckpt_dinov3=0), "ckpt_dinov3"),
     (lambda r, s: s[0]["counts"].update(flash_calls=0), "flash_calls"),
     (lambda r, s: s[1].update(all_losses_finite=False), "all_losses_finite"),
-    (lambda r, s: s[0].update(offset_digest="0" * 64), "offset stream"),
+    (lambda r, s: s[0].update(stream_digest="0" * 64), "stream_digest"),
+    (lambda r, s: r[0][3]["flips"].__setitem__(0, 1 - r[0][3]["flips"][0]), "verbatim"),
+    (lambda r, s: r[1][4].pop("flips"), "verbatim"),
+    (lambda r, s: s[0].update(flips_applied=s[0]["flips_applied"] - 1), "flips_applied"),
+    (lambda r, s: s[1]["counts"].update(mirror_calls=0), "mirror_calls"),
+    (lambda r, s: s[0]["counts"].update(flip_anomalies=1), "flip_anomalies"),
+    (lambda r, s: s[1]["counts"].update(stream_mismatch_steps=2), "stream_mismatch_steps"),
+    (lambda r, s: s[0]["sampled_flips"]["0"].__setitem__(0, 1 - s[0]["sampled_flips"]["0"][0]), "sampled_flips"),
+    (lambda r, s: s[1]["sampled_offsets"]["1"].__setitem__(5, (s[1]["sampled_offsets"]["1"][5] + 1) % 512),
+     "sampled_offsets"),
+    (lambda r, s: r[1][0].update(yaw_aug={"enabled": True, "img_w": 512, "seed": 42}), "yaw_aug"),
     (lambda r, s: r[1][2]["offsets"].__setitem__(0, 1), "verbatim"),
     (lambda r, s: r[0][0].update(state_signature="other"), "state_signature"),
     (lambda r, s: r[1][0].update(syncbn_modules=0), "SyncBatchNorm"),
@@ -727,7 +1048,7 @@ def tiny_ckpt(monkeypatch):
     import src.models.transformer as T
     monkeypatch.setattr(T, "flash_attn_func", None)
     m = cap._mods()
-    cfg = cap.tiny_config(16, {"offset_step": 4})
+    cfg = cap.tiny_config(16, {"flip": True})
     cfg["training"]["use_ema"] = True
     w = kit.build_wrapper_cpu(str(_REPO), cfg)
     opt = torch.optim.AdamW(w.diffusion.parameters(), lr=5e-5, betas=(0.9, 0.999), weight_decay=1e-3)
@@ -1207,9 +1528,11 @@ def _summary(r, e, steps, published):
     keys = sorted(str(t) for t in kit.SAMPLED_STEPS if t < steps)
     return {"rank": r, "counts": {"apply_yaw_aug": steps, "training_step": steps, "ckpt_reentrant": 0,
                                   "ckpt_default": 0, "ckpt_unclassified": 0, "flash_calls": 9,
-                                  "ckpt_dinov3": 9, "ckpt_dit": 9, "checkpoints_published": published},
-            "offset_digest": e["digest"], "offset_histogram": e["hist"], "n_offsets": e["n"],
+                                  "ckpt_dinov3": 9, "ckpt_dit": 9, "checkpoints_published": published,
+                                  "mirror_calls": e["flips"], "flip_anomalies": 0, "stream_mismatch_steps": 0},
+            "stream_digest": e["digest"], "offset_histogram": e["hist"], "n_offsets": e["n"],
             "sampled_offsets": {k: e["sampled"][k] for k in keys},
+            "sampled_flips": {k: e["sampled_flips"][k] for k in keys}, "flips_applied": e["flips"],
             "sampled_losses": {k: (2.5).hex() for k in keys}, "n_steps": steps, "global_step": steps,
             "steps_contiguous_from_0": True, "all_losses_finite": True, "pid": 1000 + r}
 
@@ -1294,7 +1617,23 @@ def test_the_reference_receipt_validator_is_exact(tmp_path, full_stream, smoke_s
         (lambda x: x["summaries"]["0"]["counts"].update(ckpt_dit=True), "counters"),
         (lambda x: x["summaries"]["0"]["offset_histogram"].__setitem__(0, 0), "histogram"),
         (lambda x: x["summaries"]["0"]["sampled_offsets"].pop("3"), "sampled offsets"),
-        (lambda x: x["summaries"]["0"]["sampled_offsets"]["0"].__setitem__(0, 33), "sampled offsets"),
+        (lambda x: x["summaries"]["0"]["sampled_offsets"]["0"].__setitem__(0, 512), "sampled offsets"),
+        (lambda x: x["summaries"]["0"]["sampled_offsets"]["0"].__setitem__(0, -1), "sampled offsets"),
+        (lambda x: x["summaries"]["0"]["sampled_offsets"]["0"].__setitem__(0, True), "sampled offsets"),
+        (lambda x: x["summaries"]["0"]["sampled_flips"]["0"].__setitem__(0, 2), "sampled flips"),
+        (lambda x: x["summaries"]["0"]["sampled_flips"]["1"].__setitem__(0, True), "sampled flips"),
+        (lambda x: x["summaries"]["1"]["sampled_flips"].pop("3"), "sampled flips"),
+        (lambda x: x["summaries"]["1"]["sampled_flips"]["2"].pop(), "sampled flips"),
+        (lambda x: x["summaries"]["0"].update(flips_applied=0), "flips_applied"),
+        (lambda x: x["summaries"]["0"].update(flips_applied=True), "flips_applied"),
+        (lambda x: x["summaries"]["0"].update(flips_applied=30 * 32 + 1), "flips_applied"),
+        (lambda x: x["summaries"]["0"]["counts"].update(mirror_calls=1), "flips_applied"),
+        (lambda x: x["summaries"]["0"]["counts"].update(flip_anomalies=1), "flip_anomalies"),
+        (lambda x: x["summaries"]["1"]["counts"].update(stream_mismatch_steps=1), "stream_mismatch_steps"),
+        (lambda x: x["summaries"]["1"]["counts"].pop("mirror_calls"), "counters"),
+        (lambda x: x["summaries"]["0"].pop("sampled_flips"), "summary keys"),
+        (lambda x: x["summaries"]["0"].pop("flips_applied"), "summary keys"),
+        (lambda x: x["summaries"]["0"].update(stream_digest="x"), "stream_digest"),
         (lambda x: x["summaries"]["0"]["sampled_losses"].update({"0": "nan"}), "sampled losses"),
         (lambda x: x["summaries"]["0"]["sampled_losses"].update({"0": (float("inf")).hex()}), "sampled losses"),
     ]
@@ -1334,7 +1673,19 @@ def test_full_evidence_validator_accepts_the_bound_record(tmp_path, full_stream,
     (lambda e: e["summaries"]["0"]["counts"].update(apply_yaw_aug=39999), "apply_yaw_aug"),
     (lambda e: e["summaries"]["1"].update(all_losses_finite=None), "all_losses_finite"),
     (lambda e: e["summaries"]["0"].update(steps_contiguous_from_0=False), "contiguous"),
-    (lambda e: e["summaries"]["1"].update(offset_digest="0" * 64), "recomputation"),
+    (lambda e: e["summaries"]["1"].update(stream_digest="0" * 64), "recomputation"),
+    (lambda e: e["summaries"]["1"].update(flips_applied=e["summaries"]["1"]["flips_applied"] + 1), "flips_applied"),
+    (lambda e: [e["summaries"]["0"].update(flips_applied=e["summaries"]["0"]["flips_applied"] + 1),
+                e["summaries"]["0"]["counts"].update(mirror_calls=e["summaries"]["0"]["flips_applied"])],
+     "RF recomputation"),
+    (lambda e: e["summaries"]["0"]["sampled_flips"]["2500"].__setitem__(3, 1 - e["summaries"]["0"]["sampled_flips"]["2500"][3]),
+     "recomputation"),
+    (lambda e: e["summaries"]["1"]["sampled_offsets"]["39999"].__setitem__(0, (e["summaries"]["1"]["sampled_offsets"]["39999"][0] + 1) % 512),
+     "recomputation"),
+    (lambda e: e["summaries"]["0"]["counts"].update(stream_mismatch_steps=1), "stream_mismatch_steps"),
+    (lambda e: e["summaries"]["1"]["counts"].update(flip_anomalies=3), "flip_anomalies"),
+    (lambda e: e["summaries"]["0"].update(flips_applied=0), "flips_applied"),
+    (lambda e: e["summaries"]["0"].pop("sampled_flips"), "summary keys"),
     (lambda e: e["summaries"].pop("1"), "exactly ranks"),
     (lambda e: e["fit_start"]["0"].update(yaw_aug={"enabled": True}), "yaw_aug"),
     (lambda e: e["fit_start"]["1"].update(rng_signature={"python": "other"}), "rng_signature"),
@@ -1537,7 +1888,7 @@ def test_admission_state_runs_in_the_admission_trees_own_kit(tmp_path, tiny_ckpt
     st = kit.admission_state_subprocess(tree, str(tmp_path / "tiny.ckpt"), "/ck", strict_load=False,
                                         hf_sealed=sealed_hub)
     assert st["tree"] == os.path.realpath(tree) and st["sha256"] == kit.sha256_file(str(tmp_path / "tiny.ckpt"))
-    assert any("model_config" in r for r in st["reasons"])     # the tiny config is not the C16 arm config
+    assert any("model_config" in r for r in st["reasons"])     # the tiny config is not the RF arm config
 
 
 def test_an_already_manifested_name_rehashes_the_source_too(tmp_path):
@@ -1575,6 +1926,11 @@ def test_reference_receipt_rng_schema_bins_and_recomputed_stream(tmp_path, full_
     bad = copy.deepcopy(ref)
     bad["summaries"]["1"]["sampled_offsets"]["2"] = list(reversed(bad["summaries"]["1"]["sampled_offsets"]["2"]))
     assert any("recomputation" in x for x in kit.receipt_stream_reasons(bad, kit.ROOT, "DDP_SMOKE", "2x32"))
+    flipped = copy.deepcopy(ref)                                  # exp_43: the flip bits are recomputed too
+    flipped["summaries"]["0"]["sampled_flips"]["3"] = [1 - b for b in flipped["summaries"]["0"]["sampled_flips"]["3"]]
+    assert kit.receipt_reasons(flipped, *args) == []
+    got = kit.receipt_stream_reasons(flipped, kit.ROOT, "DDP_SMOKE", "2x32")
+    assert any("rank 0" in x and "sampled_flips" in x for x in got), got
     # and the FULL validator recomputes the reference's stream when asked to
     kit.atomic_write_json(str(d / "ref.json"), bad)
     ev2 = kit.read_json(str(d / "ev.json"))

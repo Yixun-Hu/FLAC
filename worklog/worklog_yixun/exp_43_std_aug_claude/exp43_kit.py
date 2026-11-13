@@ -87,10 +87,12 @@ CLOSURE = ("train.py", "defaults.ini", "src", "data/AR", BASE_CONFIG, ARM_CONFIG
            f"{EXPREL}/exp43_train_local.sh", AR_MANIFEST)
 LINKS = ("AcousticRooms", VAE)                     # the ONLY non-archive entries of a run tree
 
-YAW_BLOCK = {"enabled": True, "img_w": 512, "seed": 42, "offset_step": 32}
-YAW_KWARGS = {"yaw_aug_enabled": True, "yaw_aug_img_w": 512, "yaw_aug_seed": 42,
-              "yaw_aug_offset_step": 32}
-BANNER = "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"
+# The RF treatment (plan §2): the exp_15 continuous roll d ~ Uniform{0..511} (UNQUANTISED),
+# then a horizontal mirror flip with p = 1/2, both from the per-(seed, step, rank) generator.
+YAW_BLOCK = {"enabled": True, "img_w": 512, "seed": 42, "flip": True}
+YAW_KWARGS = {"yaw_aug_enabled": True, "yaw_aug_img_w": 512, "yaw_aug_seed": 42, "yaw_aug_flip": True}
+BANNER = "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"
+HIST_BINS, HIST_WIDTH = 16, 32           # 16 coarse offset bins: bin = d // 32 (512 = 16 x 32)
 # exp_43 trains on ONE platform and ONE rung: the 2xRTX A6000 box at 2 ranks x micro 32 (plan
 # §1). Every other platform, rung, grammar and CLI path of the exp_40 kit is deleted.
 PLATFORM, RUNG = "a6000", "2x32"
@@ -133,7 +135,7 @@ ADAMW = {"lr": 5e-05, "betas": [0.9, 0.999], "weight_decay": 0.001}
 SCHED = {"inv_gamma": 1000000, "power": 0.5, "warmup": 0.99, "final_lr": 0.0,
          "base_lrs": [5e-05], "last_epoch": ENDPOINT, "_step_count": ENDPOINT + 1}
 # Audit fix 2026-11-11 (Yixun's go; no Codex round left under the cap): the trainable parameters
-# that never receive a gradient in the FLAC / C16 forward pass, so AdamW never creates state for
+# that never receive a gradient in the FLAC forward pass, so AdamW never creates state for
 # them. The _r1 40k checkpoint and the exp_20 references YAW_40k / P1_40k lack state for exactly
 # these seven (indices 174, 175, 179, 392, 393, 456, 457), bit-identical from step 2,500 to 40,000.
 NO_GRAD_PARAMS = frozenset((
@@ -839,6 +841,16 @@ def config_contract_reasons(tree, python):
     t = cfg["training"]
     if canonical(t.get("yaw_aug")) != canonical(YAW_BLOCK):
         reasons.append(f"training.yaw_aug is {t.get('yaw_aug')!r}")
+    with open(os.path.join(tree, BASE_CONFIG)) as f:          # plan §3.5: the ONLY difference
+        want = json.load(f)
+    try:
+        want["training"]["yaw_aug"] = dict(want["training"]["yaw_aug"], flip=True)
+    except (KeyError, TypeError):
+        reasons.append("the base config has no training.yaw_aug block")
+    else:
+        if canonical(want) != canonical(cfg):
+            reasons.append("the arm config is not the exp_15 YAW config with exactly training.yaw_aug.flip "
+                           "= true added")
     for key in FORBIDDEN_TRAINING_KEYS:
         if key in t:
             reasons.append(f"training.{key} must be absent")
@@ -876,11 +888,25 @@ FIT_START_KEYS = frozenset((
 NUMERICS_KEYS = frozenset(("matmul_allow_tf32", "cudnn_allow_tf32", "cudnn_benchmark",
                            "cudnn_deterministic", "float32_matmul_precision"))
 SUMMARY_KEYS = frozenset((
-    "rank", "counts", "offset_digest", "all_losses_finite", "offset_histogram", "n_offsets", "n_steps",
-    "steps_contiguous_from_0", "sampled_offsets", "sampled_losses", "global_step", "pid"))
+    "rank", "counts", "stream_digest", "all_losses_finite", "offset_histogram", "n_offsets", "n_steps",
+    "steps_contiguous_from_0", "sampled_offsets", "sampled_flips", "flips_applied", "sampled_losses",
+    "global_step", "pid"))
 RNG_KEYS = frozenset(("python", "numpy", "torch_cpu", "torch_cuda", "sobol"))     # the GPU producer's set
 COUNT_KEYS = frozenset(("flash_calls", "ckpt_dinov3", "ckpt_dit", "ckpt_unclassified", "ckpt_reentrant",
-                        "ckpt_default", "apply_yaw_aug", "training_step", "checkpoints_published"))
+                        "ckpt_default", "apply_yaw_aug", "training_step", "checkpoints_published",
+                        # the mirror spy (exp43_evidence_driver.py): every mirror_scene_metadata call,
+                        # the calls not attributable to exactly one sample of the step being augmented
+                        # (or a batch returned without exactly those mirrored samples), and the steps
+                        # whose applied (offsets, flip bits) differ from the private recomputation
+                        "mirror_calls", "flip_anomalies", "stream_mismatch_steps"))
+STREAM_FIELDS = (("stream_digest", "digest"), ("offset_histogram", "hist"), ("n_offsets", "n"),
+                 ("flips_applied", "flips"), ("sampled_offsets", "sampled"), ("sampled_flips", "sampled_flips"))
+
+
+def stream_mismatch(summary, expected):
+    """The summary's stream fields that differ from the recomputation ``expected`` (type-strict:
+    compared as canonical JSON, so ``True`` is not ``1``)."""
+    return [k for k, ek in STREAM_FIELDS if canonical(summary.get(k)) != canonical(expected[ek])]
 
 
 def _int(x):
@@ -932,7 +958,8 @@ def nested_evidence_reasons(fits, sums, platform, rung, mode):
             r.append(f"rank {k}: counters {c!r} are not exactly {sorted(COUNT_KEYS)} as ints")
         else:
             for key, want in (("apply_yaw_aug", steps), ("training_step", steps), ("ckpt_reentrant", 0),
-                              ("ckpt_default", 0), ("ckpt_unclassified", 0),
+                              ("ckpt_default", 0), ("ckpt_unclassified", 0), ("flip_anomalies", 0),
+                              ("stream_mismatch_steps", 0),
                               ("checkpoints_published", len(CKPT_STEPS) if (mode == "FULL" and i == 0) else 0)):
                 if c[key] != want:
                     r.append(f"rank {k}: {key} = {c[key]}, need {want}")
@@ -948,15 +975,24 @@ def nested_evidence_reasons(fits, sums, platform, rung, mode):
             r.append(f"rank {k}: not {steps} contiguous steps")
         h = s_["offset_histogram"]
         if not (_int(s_["n_offsets"]) and s_["n_offsets"] == steps * micro and isinstance(h, list)
-                and len(h) == 16 and all(_int(x) and x >= 0 for x in h) and sum(h) == s_["n_offsets"]):
-            r.append(f"rank {k}: offset count / 16-bin histogram inconsistent ({s_['n_offsets']!r})")
-        if not _is_sha(s_["offset_digest"]):
-            r.append(f"rank {k}: offset_digest is not a sha256")
-        so, sl = s_["sampled_offsets"], s_["sampled_losses"]
+                and len(h) == HIST_BINS and all(_int(x) and x >= 0 for x in h) and sum(h) == s_["n_offsets"]):
+            r.append(f"rank {k}: offset count / {HIST_BINS}-bin histogram inconsistent ({s_['n_offsets']!r})")
+        if not _is_sha(s_["stream_digest"]):
+            r.append(f"rank {k}: stream_digest is not a sha256")
+        so, sl, sf = s_["sampled_offsets"], s_["sampled_losses"], s_["sampled_flips"]
         if not (isinstance(so, dict) and sorted(so) == sampled_keys and all(
-                isinstance(v, list) and len(v) == micro and all(_int(d) and 0 <= d < 512 and d % 32 == 0 for d in v)
+                isinstance(v, list) and len(v) == micro and all(_int(d) and 0 <= d < YAW_BLOCK["img_w"] for d in v)
                 for v in so.values())):
-            r.append(f"rank {k}: sampled offsets are not {micro} C16 offsets at steps {sampled_keys}")
+            r.append(f"rank {k}: sampled offsets are not {micro} column offsets in "
+                     f"[0, {YAW_BLOCK['img_w']}) at steps {sampled_keys}")
+        if not (isinstance(sf, dict) and sorted(sf) == sampled_keys and all(
+                isinstance(v, list) and len(v) == micro and all(_int(b) and b in (0, 1) for b in v)
+                for v in sf.values())):
+            r.append(f"rank {k}: sampled flips are not {micro} 0/1 bits at steps {sampled_keys}")
+        fa = s_["flips_applied"]                       # plan §5.1 / §8 L4: applied-flip evidence
+        if not (_int(fa) and 0 < fa <= steps * micro and isinstance(c, dict) and c.get("mirror_calls") == fa):
+            r.append(f"rank {k}: flips_applied = {fa!r} is not a positive count of mirrored samples equal "
+                     f"to the mirror calls {c.get('mirror_calls') if isinstance(c, dict) else None!r}")
         try:
             losses_ok = isinstance(sl, dict) and sorted(sl) == sampled_keys and all(
                 isinstance(v, str) and math.isfinite(float.fromhex(v)) for v in sl.values())
@@ -1015,16 +1051,17 @@ def receipt_reasons(rec, kind, platform, rung, sha, tree_dig, env_dig, full_proj
 
 
 def receipt_stream_reasons(rec, tree, mode, rung):
-    """code-r3 H1: a DDP_SMOKE receipt's per-rank offset digest, histogram, count and
-    sampled offsets must equal the counter-based C16 stream recomputed in ``tree``."""
+    """code-r3 H1: a DDP_SMOKE receipt's per-rank stream digest (offsets AND applied flip bits),
+    histogram, offset and flip counts and sampled offsets / flips must equal the counter-based
+    RF stream recomputed in ``tree``."""
     world, micro = world_of(mode, rung), RUNGS[rung][1]
     expected = expected_stream(tree, SMOKE_STEPS[mode], range(world), micro, verbatim=False)
     r = []
     for k in range(world):
         s_, e = (rec.get("summaries") or {}).get(str(k)) or {}, expected[k]
-        if s_.get("offset_digest") != e["digest"] or s_.get("offset_histogram") != e["hist"] \
-                or s_.get("n_offsets") != e["n"] or s_.get("sampled_offsets") != e["sampled"]:
-            r.append(f"{mode} receipt rank {k}: the offset stream != the counter-based C16 recomputation")
+        bad = stream_mismatch(s_, e)
+        if bad:
+            r.append(f"{mode} receipt rank {k}: {', '.join(bad)} != the counter-based RF recomputation")
     return r
 
 
@@ -1219,7 +1256,7 @@ def start_gate(text, members, banner=BANNER):
         for sm in _STEP_RE.finditer(raw):
             if int(sm.group(1)) >= 1:
                 if not banner_seen:
-                    return "fail", "a training step completed before the C16 banner"
+                    return "fail", "a training step completed before the RF banner"
                 if members > 1 and ranks != set(range(members)):
                     return "fail", f"a step completed with ranks {sorted(ranks)} registered"
                 return "pass", "banner and ranks before the first step"
@@ -1315,41 +1352,48 @@ def watch(log, members, pid, pgid, timeout_s, poll_s=5.0, grace_s=120.0):
 # --------------------------------------------------------------------------- #
 # evidence (plan §4.7, §4.3-7)
 # --------------------------------------------------------------------------- #
+# plan §2.3: per (seed, step, rank) ONE generator; the n offsets d ~ Uniform{0..511} are drawn
+# FIRST (the unchanged exp_15 draw, unquantised), then the n flip bits by
+# torch.randint(0, 2, (n,), generator=g, dtype=torch.long) from the SAME generator. The digest is
+# sha256 over "<step>:<d0>,<d1>,...|<b0>,<b1>,...\n"; the histogram has 16 coarse bins d // 32.
 _STREAM_SNIPPET = r"""
 import hashlib, json, os, sys
 sys.path.insert(0, os.getcwd())
 import torch
 import src.training.diffusion as D
 from src.data import yaw_rotation as Y
-from src.data import yaw_offset_step as Q
-steps, ranks, micro, sampled, verbatim = json.loads(sys.argv[1])
+steps, ranks, micro, sampled, verbatim, seed, img_w, bins, width = json.loads(sys.argv[1])
 out = {}
 for r in ranks:
-    h, hist, samp, verb = hashlib.sha256(), [0] * 16, {}, []
+    h, hist, so, sf, verb, nflip = hashlib.sha256(), [0] * bins, {}, {}, [], 0
     for s in range(steps):
-        g = torch.Generator(); g.manual_seed(D._yaw_aug_step_seed(42, s, r))
-        o = Q.quantize_yaw_offsets(Y.draw_yaw_offsets(micro, 512, g), 512, 32).tolist()
-        h.update(f"{s}:{','.join(map(str, o))}\n".encode())
+        g = torch.Generator(); g.manual_seed(D._yaw_aug_step_seed(seed, s, r))
+        o = Y.draw_yaw_offsets(micro, img_w, g).tolist()
+        f = torch.randint(0, 2, (micro,), generator=g, dtype=torch.long).tolist()
+        h.update(f"{s}:{','.join(map(str, o))}|{','.join(map(str, f))}\n".encode())
         for d in o:
-            hist[d // 32] += 1
+            hist[d // width] += 1
+        nflip += sum(f)
         if s in sampled:
-            samp[str(s)] = o
+            so[str(s)], sf[str(s)] = o, f
         if verbatim:
-            verb.append(o)
-    out[str(r)] = {"digest": h.hexdigest(), "hist": hist, "n": steps * micro,
-                   "sampled": samp, "verbatim": verb}
+            verb.append([o, f])
+    out[str(r)] = {"digest": h.hexdigest(), "hist": hist, "n": steps * micro, "flips": nflip,
+                   "sampled": so, "sampled_flips": sf, "verbatim": verb}
 print(json.dumps(out))
 """
 SAMPLED_STEPS = (0, 1, 2, 3, 1000, 2499, 2500, 39997, 39998, 39999)
 
 
 def expected_stream(tree, steps, ranks, micro, verbatim):
-    """Recompute, in the run tree, every rank's C16 offset stream from the counter-based seed:
-    the streaming digest, histogram, count, the sampled steps and (smokes) every step."""
-    arg = json.dumps([steps, list(ranks), micro, list(SAMPLED_STEPS), verbatim])
+    """Recompute, in the run tree, every rank's RF stream from the counter-based seed: the
+    streaming digest over offsets + flip bits, the histogram, the offset and flip counts, the
+    sampled steps' offsets and bits and (smokes) every step's ``[offsets, bits]``."""
+    arg = json.dumps([steps, list(ranks), micro, list(SAMPLED_STEPS), verbatim, YAW_BLOCK["seed"],
+                      YAW_BLOCK["img_w"], HIST_BINS, HIST_WIDTH])
     rc, out, err = run([sys.executable, "-c", _STREAM_SNIPPET, arg], cwd=tree)
     if rc != 0:
-        raise Refused(f"offset recomputation failed: {err.strip()[-400:]}")
+        raise Refused(f"stream recomputation failed: {err.strip()[-400:]}")
     return {int(k): v for k, v in json.loads(out.strip().splitlines()[-1]).items()}
 
 
@@ -1404,9 +1448,14 @@ def evidence_reasons(recs, summaries, log_text, mode, rung, steps, expected, fix
             reasons.append(f"rank {rank}: GPU identity {f.get('gpu_name')!r}")
         c = s.get("counts", {})
         for key, want in (("apply_yaw_aug", steps), ("training_step", steps), ("ckpt_reentrant", 0),
-                          ("ckpt_default", 0), ("ckpt_unclassified", 0)):
+                          ("ckpt_default", 0), ("ckpt_unclassified", 0), ("flip_anomalies", 0),
+                          ("stream_mismatch_steps", 0)):
             if c.get(key) != want:
                 reasons.append(f"rank {rank}: {key} = {c.get(key)}, need {want}")
+        fa = s.get("flips_applied")                    # plan §5.1 / §8 L4: applied-flip evidence
+        if not (_int(fa) and fa > 0 and c.get("mirror_calls") == fa):
+            reasons.append(f"rank {rank}: flips_applied = {fa!r}, mirror_calls = {c.get('mirror_calls')!r} "
+                           "(need the same positive count of mirrored samples)")
         for key in ("flash_calls", "ckpt_dinov3", "ckpt_dit"):
             if not c.get(key):
                 reasons.append(f"rank {rank}: {key} = {c.get(key)} (need > 0)")
@@ -1419,19 +1468,18 @@ def evidence_reasons(recs, summaries, log_text, mode, rung, steps, expected, fix
             reasons.append(f"rank {rank}: steps {s.get('n_steps')} / global_step {s.get('global_step')} "
                            f"/ contiguous {s.get('steps_contiguous_from_0')} (need {steps})")
         e = expected[rank]
-        if s.get("offset_digest") != e["digest"] or s.get("offset_histogram") != e["hist"] \
-                or s.get("n_offsets") != e["n"]:
-            reasons.append(f"rank {rank}: offset stream != the counter-based C16 recomputation")
-        if s.get("sampled_offsets") != e["sampled"]:
-            reasons.append(f"rank {rank}: sampled offsets != the recomputation")
-        for step, ref in (fixture or {}).items():
-            if step in s.get("sampled_offsets", {}) and rank < len(ref) and len(ref[rank]) == micro:
-                if s["sampled_offsets"][step] != [32 * (d // 32) for d in ref[rank]]:
-                    reasons.append(f"rank {rank} step {step}: != the E1 fixture snapped down")
+        bad = stream_mismatch(s, e)
+        if bad:
+            reasons.append(f"rank {rank}: {', '.join(bad)} != the counter-based RF recomputation")
+        for step, ref in (fixture or {}).items():   # RF's offsets ARE the reference YAW draws (§2.3)
+            if step in (s.get("sampled_offsets") or {}) and rank < len(ref) and len(ref[rank]) == micro:
+                if s["sampled_offsets"][step] != list(ref[rank]):
+                    reasons.append(f"rank {rank} step {step}: offsets != the E1 fixture's reference YAW draws")
         if verbatim:
             offs = [r for r in rows if r.get("kind") == "offsets"]
-            if [r.get("offsets") for r in offs] != e["verbatim"] or [r.get("step") for r in offs] != list(range(steps)):
-                reasons.append(f"rank {rank}: verbatim offsets differ from the recomputation")
+            if [[r.get("offsets"), r.get("flips")] for r in offs] != e["verbatim"] \
+                    or [r.get("step") for r in offs] != list(range(steps)):
+                reasons.append(f"rank {rank}: verbatim offsets / flip bits differ from the recomputation")
     if len(fits) == world:
         for key in SIGNATURE_KEYS:
             if len({canonical(fits[r].get(key)) for r in range(world)}) != 1:
@@ -1446,7 +1494,7 @@ def evidence_reasons(recs, summaries, log_text, mode, rung, steps, expected, fix
                                        f"{reference.get('kind')} receipt's")
     lines = [ln.strip() for ln in re.split(r"[\r\n]", log_text)]
     if lines.count(BANNER) != 1:
-        reasons.append(f"the C16 banner appears {lines.count(BANNER)} times (need 1)")
+        reasons.append(f"the RF banner appears {lines.count(BANNER)} times (need 1)")
     state, why = start_gate(log_text, world)
     if state != "pass":
         reasons.append(f"start gate {state}: {why}")
@@ -1898,7 +1946,7 @@ def full_evidence_reasons(path, run_id, check_path=None, reference_path=None, re
     evidence verdict, per-rank counts, finite-loss flag, 16 save-time acknowledgements, step
     contiguity); the recipe projection; optionally the binding to the check record and the
     DDP_SMOKE reference receipt (sha256 + identity + initial-state signatures) and a
-    re-computation of every rank's 40k-step offset stream IN ``tree`` (admission: the immutable
+    re-computation of every rank's 40k-step offset + flip stream IN ``tree`` (admission: the immutable
     tree at the training commit, code-r2 H2). Returns (reasons, sha256, record)."""
     try:
         rec = read_json(path)
@@ -1945,10 +1993,9 @@ def full_evidence_reasons(path, run_id, check_path=None, reference_path=None, re
     if recompute and not r:
         expected = expected_stream(tree or ROOT, ENDPOINT, range(world), micro, verbatim=False)
         for k in ranks:
-            e, s_ = expected[int(k)], sums[k]
-            if s_.get("offset_digest") != e["digest"] or s_.get("offset_histogram") != e["hist"] \
-                    or s_.get("n_offsets") != e["n"] or s_.get("sampled_offsets") != e["sampled"]:
-                r.append(f"rank {k}: the offset stream != the counter-based C16 recomputation")
+            bad = stream_mismatch(sums[k], expected[int(k)])
+            if bad:
+                r.append(f"rank {k}: {', '.join(bad)} != the counter-based RF recomputation")
     if check_path is not None:
         try:
             chk = read_json(check_path)
@@ -2348,7 +2395,7 @@ def admission_reasons(path, nas_root=NAS_ROOT, rehash="final"):
     need(type(rec["bytes"]) is int and rec["bytes"] > 0, "bytes is not a positive int")
     need(type(rec["global_step"]) is int and rec["global_step"] == ENDPOINT, "global_step != 40000")
     need(rec["model_config"] == ARM_CONFIG and rec["model_config_sha256"] == PINS[ARM_CONFIG],
-         "model_config is not the pinned C16 arm config")
+         "model_config is not the pinned RF arm config")
     need(rec["strict_load"] is True, "admission without a strict load")
     need(rec["trajectory_equivalence_claim_allowed"] is False, "trajectory claim must be False")
     need(rec["historical"] == HISTORICAL, "historical is not the fixed exp_17 provenance record")
