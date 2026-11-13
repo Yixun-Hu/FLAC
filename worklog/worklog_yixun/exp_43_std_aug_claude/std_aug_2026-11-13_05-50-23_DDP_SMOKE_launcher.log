@@ -1,0 +1,14 @@
+=== exp_43 RF DDP_SMOKE (dry_run=0) -- 2026-11-13_05-50-23 -- host mae-cab-lab-server -- source HEAD 25e2d060be436d0e41af042110052958003e3dff ===
+/home/yixunhu/codespace/exp-43-std-aug/outputs_FLAC/exp43_std_aug/runtrees/exp43_RF_a6000_2x32_ddp_smoke_2026-11-13_05-50-23__25e2d060be43
+run tree: /home/yixunhu/codespace/exp-43-std-aug/outputs_FLAC/exp43_std_aug/runtrees/exp43_RF_a6000_2x32_ddp_smoke_2026-11-13_05-50-23__25e2d060be43
+CHECK PASS -> /home/yixunhu/codespace/exp-43-std-aug/worklog/worklog_yixun/exp_43_std_aug_claude/std_aug_2026-11-13_05-50-23_DDP_SMOKE_check.json
+argv: train.py --model-config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 30 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --val-dataset-config  --gradient-clip-val 0.0 --logger wandb --checkpoint-every 2500 --name exp43_std_aug --experiment-name exp43_RF_a6000_2x32_ddp_smoke_2026-11-13_05-50-23 --save-dir /home/yixunhu/codespace/exp-43-std-aug/outputs_FLAC/exp43_smoke
+LOCKED ['/home/yixunhu/codespace/claude_gpu_yield/GPU_LOCK_GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e', '/home/yixunhu/codespace/claude_gpu_yield/GPU_LOCK_GPU-6ac2604a-e84e-0615-1221-ccbed7c268da']
+spawned pid/pgid 188980; log /home/yixunhu/codespace/exp-43-std-aug/worklog/worklog_yixun/exp_43_std_aug_claude/std_aug_2026-11-13_05-50-23_DDP_SMOKE_train.log
+START GATE PASS: banner and ranks before the first step
+process group 188980 gone
+train rc=0 watcher rc=0
+W&B PRESERVED offline-run-20261113_055047-3zp1v2fi (7 files) -> /home/yixunhu/codespace/exp-43-std-aug/outputs_FLAC/exp43_smoke/runtime/exp43_RF_a6000_2x32_ddp_smoke_2026-11-13_05-50-23/wandb_preserved/offline-run-20261113_055047-3zp1v2fi; receipt /home/yixunhu/codespace/exp-43-std-aug/worklog/worklog_yixun/exp_43_std_aug_claude/std_aug_2026-11-13_05-50-23_DDP_SMOKE_wandb_preserved.json
+EVIDENCE PASS -> /home/yixunhu/codespace/exp-43-std-aug/worklog/worklog_yixun/exp_43_std_aug_claude/std_aug_2026-11-13_05-50-23_DDP_SMOKE_evidence.json
+=== exp_43 RF DDP_SMOKE finished 2026-11-13 05:52:15: PASS (locks released at exit) ===
+UNLOCKED ['/home/yixunhu/codespace/claude_gpu_yield/GPU_LOCK_GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e', '/home/yixunhu/codespace/claude_gpu_yield/GPU_LOCK_GPU-6ac2604a-e84e-0615-1221-ccbed7c268da']

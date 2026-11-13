@@ -1,0 +1,33 @@
+{
+ "dest_dir": "/home/yixunhu/codespace/exp-43-std-aug/outputs_FLAC/exp43_smoke/runtime/exp43_RF_a6000_2x32_smoke_2026-11-13_05-48-13/wandb_preserved/offline-run-20261113_054837-h64ig7dj",
+ "dirs": [
+  "files",
+  "logs",
+  "tmp",
+  "tmp/code"
+ ],
+ "files": {
+  "files/conda-environment.yaml": "814a80af2b4e8146e6d0016f1b2b8e35929907a19d95dfb0040e2edbc25100d2",
+  "files/requirements.txt": "25d9b54c4378e76ba7e948d9e395add35bb07fbd45acaec8c308273966653ff7",
+  "files/wandb-metadata.json": "e1468267a3712fcfcb94a352a39ef29015f73bb2d488617d8d05ae322f4c637c",
+  "files/wandb-summary.json": "1fb4d63c8f8a6bbad473e7ad9bd2d0c32038134d68d3388d13434b35cf1e8dac",
+  "logs/debug-internal.log": "9556566c942626e4f551b8723ca6ded0564ec9e79f79f007b5703afd9c6852cb",
+  "logs/debug.log": "ce2605d7ddd71d4adc233b20f1a73d758f03ec0e12a69636efe0c07e4f7ceae0",
+  "run-h64ig7dj.wandb": "e10d1eff8b797a7d3c7ed2508909c94b548d3b2d596ee0f7289dd1dc703182f6"
+ },
+ "files_digest": "58d44b07c7354ae8294d528afba66911bd301b63d00d187d4e902f183f680c4b",
+ "kind": "exp43_wandb_preserved",
+ "log_run_ids": [
+  "h64ig7dj"
+ ],
+ "run_dir_name": "offline-run-20261113_054837-h64ig7dj",
+ "run_file": "run-h64ig7dj.wandb",
+ "run_file_sha256": "e10d1eff8b797a7d3c7ed2508909c94b548d3b2d596ee0f7289dd1dc703182f6",
+ "searched": [
+  "/tmp/exp43.HZ4QdU/wandb",
+  "/home/yixunhu/codespace/exp-43-std-aug/outputs_FLAC/exp43_smoke/runtime/exp43_RF_a6000_2x32_smoke_2026-11-13_05-48-13/wandb/wandb",
+  "/home/yixunhu/codespace/exp-43-std-aug/outputs_FLAC/exp43_smoke/runtime/exp43_RF_a6000_2x32_smoke_2026-11-13_05-48-13/wandb"
+ ],
+ "src_dir": "/tmp/exp43.HZ4QdU/wandb/offline-run-20261113_054837-h64ig7dj",
+ "t": 1794566966.0136154
+}
