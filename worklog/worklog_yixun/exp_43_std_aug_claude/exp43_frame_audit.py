@@ -10,15 +10,26 @@ Subcommands
     The deterministic input selection (RULE_TEXT below, also written into INPUTS.json). Every selected
     file is recorded with its path relative to AR and its sha256. Files are read only to hash them and to
     validate their FORMAT; this step computes no score of any kind. Refuses to overwrite INPUTS.json.
-``run --inputs INPUTS.json --ar-root AR --out RESULT.json --gate {registered,a2} [--split data/AR/train.json] [--threads N]``
-    Re-hashes every input (any missing file or sha256 mismatch: refused, nothing written); with
-    ``--split`` it also re-derives the selection and refuses unless it is identical; computes Score A and
-    Score B for all 1,024 hypotheses; evaluates BOTH the registered gate and the proposed amendment A2;
-    writes RESULT.json (refuses to overwrite) with both verdict blocks ("gate_registered",
-    "gate_a2_proposed"), all curves, per-room arrays and provenance. ``--gate`` is REQUIRED (no default;
-    missing or unknown: exit 2, nothing written): the named gate is the "gate_of_record" and alone drives
-    the top-level "verdict" / "reasons" and the exit code; the other block is still computed and written.
+``run --inputs INPUTS.json --ar-root AR --split data/AR/train.json --out RESULT.json --gate {registered,a2} [--threads N]``
+    Bound to the registered inputs: refuses (nothing written) unless the bytes of INPUTS.json hash to
+    REGISTERED_INPUTS_SHA256 and the canonical sha256 of its selection is REGISTERED_SELECTION_SHA256 (the
+    committed ``exp43_frame_audit_inputs.json``); no flag changes or skips this. Re-hashes every input (any
+    missing file or sha256 mismatch: refused, nothing written). ``--split`` is REQUIRED (missing: exit 2,
+    nothing written): the selection is ALWAYS re-derived from the split and the AR tree and the run
+    refuses unless it is identical (the result records "split_reverified": true). The registered
+    categories are those of the frozen selection; each must hold at least one room, otherwise refused.
+    Computes Score A and Score B for all 1,024 hypotheses; evaluates BOTH the registered gate and the
+    proposed amendment A2; writes RESULT.json (refuses to overwrite) with both verdict blocks
+    ("gate_registered", "gate_a2_proposed"), all curves, per-room arrays and provenance. ``--gate`` is
+    REQUIRED (no default; missing or unknown: exit 2, nothing written): the named gate is the
+    "gate_of_record" and alone drives the top-level "verdict" / "reasons" and the exit code; the other
+    block is still computed and written.
 Exit codes: 0 = PASS; 3 = FAIL (RESULT.json written); 2 = tool error / refusal (nothing written).
+Python API: ``run_audit(..., expected_inputs_sha256=..., expected_selection_sha256=...)`` (keyword-only,
+defaulting to the registered pair; the CLI never passes them) lets the synthetic tests bind their own
+inputs. RESULT.json always carries "inputs_binding" with both bound hashes and the registered ones;
+its "registered" is true only for the registered pair, and any other binding is labelled "NOT the
+official exp_43 frame-audit record".
 
 Conventions (AcousticRooms; ``src/configs/dataset_configs/custom_metadata/AR_md.py``)
 --------------------------------------------------------------------------------------
@@ -79,8 +90,10 @@ Gate (registered in plan 4.1; frozen; nothing here is tuned on real data). Accep
 set, so a tie with any hypothesis outside the accept set fails. PASS iff all of
   1. the full aggregate: A and B pass;
   2. every leave-one-category-out aggregate (all selected rooms except one category's, for every category
-     of the selected rooms): A and B pass; an undefined curve (no room, or no room with >= 2 receivers,
-     left) fails;
+     of the FROZEN selection -- never derived from the rooms that happen to be scored; a registered
+     category without a scored room, or a scored room of another category, refuses the run, AuditError,
+     never a verdict): A and B pass; an undefined curve (no room, or no room with >= 2 receivers, left)
+     fails;
   3. the room bootstrap: resample b (b = 0..999) is row b of
      ``numpy.random.default_rng(43).integers(0, n_rooms, size=(1000, n_rooms))`` over the selected rooms in
      inputs order; its curves are the multiplicity-weighted room means (B over its rooms with >= 2
@@ -163,6 +176,10 @@ POINT_COLS = tuple(8 * n + 4 for n in range(64))
 INPUTS_SCHEMA = "exp43_frame_audit_inputs/v1"
 RESULT_SCHEMA = "exp43_frame_audit_result/v1"
 EXIT_PASS, EXIT_FAIL, EXIT_ERROR = 0, 3, 2
+# The registered inputs (committed exp43_frame_audit_inputs.json, frozen before any real-data score):
+# sha256 of the file's bytes and its canonical selection hash ("selection_sha256").
+REGISTERED_INPUTS_SHA256 = "5124c23b504130378ab73385dc4b46023ec2ab2d09807092dd674e91e580af84"
+REGISTERED_SELECTION_SHA256 = "035f620f6ce858ac7023f6e885c63a7a3f12ac15990eb818b94dfd61ecbb07e6"
 
 RULE_TEXT = (
     "From the train split file (a JSON object {category: {room_id: [IR file names]}}), for every room "
@@ -817,12 +834,29 @@ def _diagnostics(full, loco_aggs, shared):
     }
 
 
-def _aggregates(rooms):
+def _registered_categories(categories):
+    if not isinstance(categories, (list, tuple)) or not categories:
+        raise AuditError("the registered categories (those of the frozen selection) must be a non-empty list")
+    cats = list(categories)
+    if not all(isinstance(c, str) for c in cats) or len(set(cats)) != len(cats):
+        raise AuditError(f"malformed or duplicated registered categories {cats!r}")
+    return cats
+
+
+def _aggregates(rooms, categories):
+    """The full aggregate and one leave-one-category-out aggregate for EVERY registered category (the
+    frozen selection's, never derived from the scored rooms). A registered category without a scored
+    room, or a scored room of an unregistered category, is refused (AuditError), never judged."""
+    cats = _registered_categories(categories)
+    present = {r["category"] for r in rooms}
+    extra = sorted(present - set(cats))
+    if extra:
+        raise AuditError(f"scored room(s) of unregistered categories {extra} (registered: {cats})")
+    missing = [c for c in cats if c not in present]
+    if missing:
+        raise AuditError(f"registered categories {missing} have no scored room: their leave-one-category-out "
+                         "check cannot be made")
     full = aggregate(rooms)
-    cats = []
-    for r in rooms:
-        if r["category"] not in cats:
-            cats.append(r["category"])
     loco = {}
     for c in cats:
         sub = [r for r in rooms if r["category"] != c]
@@ -863,24 +897,26 @@ def _evaluate(gate, full, loco_aggs, shared):
     return out
 
 
-def evaluate_gates(rooms):
+def evaluate_gates(rooms, *, categories):
     """Both gates over scored rooms [{'room_id', 'category', 'scores'}] (inputs order), one shared
-    resample matrix: {'registered': ..., 'a2': ...}."""
+    resample matrix: {'registered': ..., 'a2': ...}. ``categories`` (REQUIRED, no default) are the
+    registered categories -- ``frozen_categories`` of the selection -- in inputs order; each must hold a
+    scored room (see ``_aggregates``)."""
     if not rooms:
         raise AuditError("no room to evaluate")
-    full, loco_aggs = _aggregates(rooms)
+    full, loco_aggs = _aggregates(rooms, categories)
     shared = _bootstrap_argmax(rooms)
     return {g: _evaluate(g, full, loco_aggs, shared) for g in GATE_CHOICES}
 
 
-def evaluate_gate(rooms):
+def evaluate_gate(rooms, *, categories):
     """The registered gate (plan 4.1)."""
-    return evaluate_gates(rooms)["registered"]
+    return evaluate_gates(rooms, categories=categories)["registered"]
 
 
-def evaluate_gate_a2(rooms):
+def evaluate_gate_a2(rooms, *, categories):
     """Amendment A2 (PROPOSED 2026-11-13, awaiting Yixun)."""
-    return evaluate_gates(rooms)["a2"]
+    return evaluate_gates(rooms, categories=categories)["a2"]
 
 
 def _reading(gate):
@@ -972,9 +1008,78 @@ def freeze_inputs(ar_root, split_path, out_path):
     return doc
 
 
-def load_inputs(inputs_path, ar_root):
-    """Verify the inputs file and re-hash every listed file; -> (doc, inputs sha256, rooms)."""
+def frozen_categories(sel):
+    """The registered categories of a frozen selection (inputs order). Refuses a selection without a
+    category, a category with zero selected rooms or without any room left in the selection (all its
+    selected rooms skipped), a duplicated category or room, and a room its category did not select."""
+    if not isinstance(sel, dict):
+        raise AuditError("the frozen selection is not an object")
+    cats, rooms = sel.get("categories"), sel.get("rooms")
+    if not isinstance(cats, list) or not cats or not isinstance(rooms, list):
+        raise AuditError("the frozen selection lists no category")
+    names, chosen = [], {}
+    for c in cats:
+        if not isinstance(c, dict):
+            raise AuditError("malformed category entry in the frozen selection")
+        name, sel_rooms = c.get("category"), c.get("rooms_selected")
+        _check_id(name, "category")
+        if name in chosen:
+            raise AuditError(f"category {name} is listed twice in the frozen selection")
+        if not isinstance(sel_rooms, list) or not sel_rooms:
+            raise AuditError(f"registered category {name} has zero selected rooms")
+        for rid in sel_rooms:
+            _check_id(rid, "room id")
+        names.append(name)
+        chosen[name] = set(sel_rooms)
+    count, seen = dict.fromkeys(names, 0), set()
+    for room in rooms:
+        if not isinstance(room, dict):
+            raise AuditError("malformed room entry in the frozen selection")
+        cat, rid = room.get("category"), room.get("room_id")
+        _check_id(cat, "category")
+        _check_id(rid, "room id")
+        if cat not in chosen or rid not in chosen[cat]:
+            raise AuditError(f"room {cat}/{rid} is not among the rooms selected for a registered category")
+        if (cat, rid) in seen:
+            raise AuditError(f"room {cat}/{rid} is listed twice in the frozen selection")
+        seen.add((cat, rid))
+        count[cat] += 1
+    empty = [c for c in names if count[c] == 0]
+    if empty:
+        raise AuditError(f"registered categories {empty} have no room in the frozen selection "
+                         "(every selected room was skipped)")
+    return names
+
+
+def _binding_text(expected, registered):
+    return "the registered exp43_frame_audit_inputs.json" if expected == registered else "a non-registered binding"
+
+
+def inputs_binding(inputs_sha256, selection_sha256):
+    """The result's "inputs_binding" block; "registered" is true only for the registered pair."""
+    registered = inputs_sha256 == REGISTERED_INPUTS_SHA256 and selection_sha256 == REGISTERED_SELECTION_SHA256
+    return {
+        "registered": bool(registered),
+        "inputs_sha256": inputs_sha256,
+        "selection_sha256": selection_sha256,
+        "registered_inputs_sha256": REGISTERED_INPUTS_SHA256,
+        "registered_selection_sha256": REGISTERED_SELECTION_SHA256,
+        "statement": ("the inputs are the registered exp43_frame_audit_inputs.json (file and selection "
+                      "sha256 as pinned in the tool)") if registered else (
+                      "NOT the official exp_43 frame-audit record: the inputs are bound to a non-registered "
+                      "pair of hashes through the Python API (synthetic tests only)"),
+    }
+
+
+def load_inputs(inputs_path, ar_root, *, expected_inputs_sha256=REGISTERED_INPUTS_SHA256,
+                expected_selection_sha256=REGISTERED_SELECTION_SHA256):
+    """Verify the inputs file against its binding (default: the registered pair) and re-hash every
+    listed file; -> (doc, inputs sha256, rooms)."""
     raw = _read(inputs_path)
+    inputs_sha = _sha256(raw)
+    if inputs_sha != expected_inputs_sha256:
+        raise AuditError(f"inputs file sha256 {inputs_sha} is not the bound {expected_inputs_sha256} "
+                         f"({_binding_text(expected_inputs_sha256, REGISTERED_INPUTS_SHA256)})")
     try:
         doc = json.loads(raw.decode("utf-8"))
     except Exception as exc:
@@ -982,10 +1087,17 @@ def load_inputs(inputs_path, ar_root):
     if not isinstance(doc, dict) or doc.get("schema") != INPUTS_SCHEMA:
         raise AuditError("inputs schema mismatch")
     sel = doc.get("selection")
-    if canonical_sha256(sel) != doc.get("selection_sha256"):
+    if not isinstance(sel, dict):
+        raise AuditError("inputs hold no selection")
+    sel_sha = canonical_sha256(sel)
+    if sel_sha != doc.get("selection_sha256"):
         raise AuditError("inputs selection_sha256 does not match the selection (edited inputs file)")
+    if sel_sha != expected_selection_sha256:
+        raise AuditError(f"inputs selection sha256 {sel_sha} is not the bound {expected_selection_sha256} "
+                         f"({_binding_text(expected_selection_sha256, REGISTERED_SELECTION_SHA256)})")
     if sel.get("constants") != selection_constants() or sel.get("rule") != RULE_TEXT:
         raise AuditError("inputs were frozen under a different rule or constants")
+    frozen_categories(sel)
     problems, blobs = [], {}
     for room in sel["rooms"]:
         cat, rid = room["category"], room["room_id"]
@@ -1039,7 +1151,7 @@ def load_inputs(inputs_path, ar_root):
         rooms.append({"room_id": room["room_id"], "category": room["category"], "receivers": recs})
     if not rooms:
         raise AuditError("inputs select no room")
-    return doc, _sha256(raw), rooms
+    return doc, inputs_sha, rooms
 
 
 def _room_record(room, sc):
@@ -1087,21 +1199,31 @@ def _block(g):
         "full": _strip_curves(g["full"]), "loco": {c: _strip_curves(v) for c, v in g["loco"].items()}}
 
 
-def run_audit(inputs_path, ar_root, out_path, *, gate, split_path=None, threads=16):
+def run_audit(inputs_path, ar_root, out_path, *, gate, split_path, threads=16,
+              expected_inputs_sha256=REGISTERED_INPUTS_SHA256,
+              expected_selection_sha256=REGISTERED_SELECTION_SHA256):
+    """The ``run`` subcommand. The inputs must match the bound hashes (default: the registered pair; the
+    CLI never overrides it), the selection is always re-derived from ``split_path`` and the AR tree, and
+    the registered categories are the frozen selection's. Any refusal raises AuditError before anything
+    is written."""
     t0 = time.time()
     if gate not in GATE_CHOICES:
         raise AuditError(f"--gate must be one of {GATE_CHOICES}, got {gate!r}")
+    if split_path is None:
+        raise AuditError("--split is required: the selection is always re-derived from the split and the "
+                         "AR tree")
     if os.path.exists(out_path):
         raise AuditError(f"refusing to overwrite {out_path}")
     torch.set_num_threads(int(threads))
-    doc, inputs_sha, rooms = load_inputs(inputs_path, ar_root)
-    if split_path is not None:
-        if select_inputs(ar_root, split_path) != doc["selection"]:
-            raise AuditError("the split / AR tree no longer reproduce the frozen selection")
+    doc, inputs_sha, rooms = load_inputs(inputs_path, ar_root, expected_inputs_sha256=expected_inputs_sha256,
+                                         expected_selection_sha256=expected_selection_sha256)
+    categories = frozen_categories(doc["selection"])
+    if select_inputs(ar_root, split_path) != doc["selection"]:
+        raise AuditError("the split / AR tree no longer reproduce the frozen selection")
     scored = []
     for room in rooms:
         scored.append({"room_id": room["room_id"], "category": room["category"], "scores": score_room(room)})
-    gates = evaluate_gates(scored)
+    gates = evaluate_gates(scored, categories=categories)
     chosen, reg = gates[gate], gates["registered"]
     result = {
         "schema": RESULT_SCHEMA,
@@ -1111,7 +1233,8 @@ def run_audit(inputs_path, ar_root, out_path, *, gate, split_path=None, threads=
         "inputs_path": inputs_path,
         "inputs_sha256": inputs_sha,
         "selection_sha256": doc["selection_sha256"],
-        "split_reverified": split_path is not None,
+        "inputs_binding": inputs_binding(inputs_sha, doc["selection_sha256"]),
+        "split_reverified": True,
         "tool_sha256": _sha256(_read(_tool_path())),
         "provenance": _provenance({"ar_root": ar_root, "ar_root_realpath": os.path.realpath(ar_root),
                                    "split_path": split_path, "threads": int(threads),
@@ -1156,11 +1279,14 @@ def _parser():
     f.add_argument("--ar-root", required=True)
     f.add_argument("--split", required=True)
     f.add_argument("--out", required=True)
-    r = sub.add_parser("run", help="re-hash the inputs, score all 1,024 hypotheses, evaluate the gate")
+    r = sub.add_parser("run", help="bound to the registered inputs: re-hash them, re-derive the selection from "
+                                   "--split, score all 1,024 hypotheses, evaluate both gates")
     r.add_argument("--inputs", required=True)
     r.add_argument("--ar-root", required=True)
     r.add_argument("--out", required=True)
-    r.add_argument("--split", default=None, help="re-derive the selection from this split and require equality")
+    r.add_argument("--split", required=True,
+                   help="the split the inputs were frozen from (REQUIRED): the selection is re-derived from it "
+                        "and the AR tree and must be identical")
     r.add_argument("--threads", type=int, default=16)
     r.add_argument("--gate", required=True, choices=GATE_CHOICES,
                    help="gate of record (REQUIRED): drives the top-level verdict and the exit code; both are reported")

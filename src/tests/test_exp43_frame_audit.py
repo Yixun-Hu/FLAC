@@ -18,8 +18,11 @@ visible sources whose small-shift losses cover every wrong hypothesis with a mar
 plus up to 4 deeply occluded sources (no gain within +-8 columns). The literal coordinates are below;
 the tests re-verify every property they rely on.
 """
+import argparse
+import copy
 import hashlib
 import importlib.util
+import inspect
 import io
 import json
 import os
@@ -33,6 +36,11 @@ _REPO = Path(__file__).resolve().parents[2]
 _EXP = _REPO / "worklog/worklog_yixun/exp_43_std_aug_claude"
 TOOL_PATH = _EXP / "exp43_frame_audit.py"
 INPUTS_PATH = _EXP / "exp43_frame_audit_inputs.json"
+# the registered binding of the committed inputs file (Codex code review r1, finding 1)
+REG_INPUTS = "5124c23b504130378ab73385dc4b46023ec2ab2d09807092dd674e91e580af84"
+REG_SELECTION = "035f620f6ce858ac7023f6e885c63a7a3f12ac15990eb818b94dfd61ecbb07e6"
+REG_CATEGORIES = ["Apartments", "Auditorium", "Bathrooms", "Bedrooms", "Cafe", "ListeningRoom",
+                  "LivingRoomsWithHallway", "MeetingRoom", "Office", "Restaurants"]
 
 
 def _load(name, path):
@@ -252,6 +260,15 @@ def h_of(s, k):
     return s * W + (k % W)
 
 
+SYN_CATS = ["Alpha", "Beta", "Gamma"]          # the registered categories of the synthetic ROOMS
+
+
+def _cats(rooms):
+    """The categories of hand-made room lists, in first-appearance order (these fixtures register
+    exactly the categories they hold; the registered-category refusals are tested separately)."""
+    return list(dict.fromkeys(r["category"] for r in rooms))
+
+
 # --------------------------------------------------------------------------- #
 # Conventions: AR grid, pixel lookup, sign of k
 # --------------------------------------------------------------------------- #
@@ -364,7 +381,7 @@ def test_injection_is_recovered_exactly_by_both_scores(s, k):
 
 @pytest.mark.parametrize("s,k", INJECTIONS + BOUNDARY)
 def test_gate_passes_only_injections_inside_the_accept_set(s, k):
-    gate = fa.evaluate_gate(scored(s, k))
+    gate = fa.evaluate_gate(scored(s, k), categories=SYN_CATS)
     expect = "PASS" if (s == 0 and k in (510, 511, 0, 1, 2)) else "FAIL"
     assert gate["verdict"] == expect, gate["reasons"]
     if expect == "PASS":
@@ -374,10 +391,10 @@ def test_gate_passes_only_injections_inside_the_accept_set(s, k):
         assert any("full aggregate" in r for r in gate["reasons"])
         assert gate["bootstrap"]["n_pass"] == 0
     # amendment A2 (proposed): B within the accept set, A within the coarse set
-    a2 = fa.evaluate_gate_a2(scored(s, k))
+    a2 = fa.evaluate_gate_a2(scored(s, k), categories=SYN_CATS)
     assert a2["verdict"] == expect, a2["reasons"]
     assert a2["bootstrap"]["n_pass"] == (1000 if expect == "PASS" else 0)
-    both = fa.evaluate_gates(scored(s, k))
+    both = fa.evaluate_gates(scored(s, k), categories=SYN_CATS)
     assert both["registered"] == gate and both["a2"] == a2
 
 
@@ -414,10 +431,10 @@ def test_random_layouts_pass_a2_and_record_the_registered_verdict():
     """Same untuned random-layout fixture (flat A, exact B). Amendment A2 PASSes; the registered
     gate FAILs on it (recorded as observed: leave-out Alpha on A, bootstrap 659 / 1000)."""
     rooms = random_scored()
-    a2 = fa.evaluate_gate_a2(rooms)
+    a2 = fa.evaluate_gate_a2(rooms, categories=SYN_CATS)
     assert a2["verdict"] == "PASS", a2["reasons"]
     assert a2["bootstrap"]["n_pass"] == 1000
-    reg = fa.evaluate_gate(rooms)
+    reg = fa.evaluate_gate(rooms, categories=SYN_CATS)
     assert reg["verdict"] == "FAIL"
     assert reg["bootstrap"]["n_pass"] == 659
     assert [r.split(":")[0] for r in reg["reasons"]] == ["leave-out Alpha", "bootstrap"]
@@ -458,7 +475,7 @@ def test_single_receiver_room_contributes_to_A_but_not_B():
     assert np.array_equal(agg["A"], (fs["A"] + fm["A"]) / 2.0)
     assert np.array_equal(agg["B"], fm["B"]) and np.array_equal(agg["V"], fm["V"])
     assert agg["n_rooms_A"] == 2 and agg["n_rooms_B"] == 1
-    gate = fa.evaluate_gate(rooms)
+    gate = fa.evaluate_gate(rooms, categories=_cats(rooms))
     assert gate["full"]["n_rooms_B"] == 1
 
 
@@ -566,13 +583,13 @@ def test_argmax_set_tie_tolerance():
 def test_tie_outside_the_accept_set_fails_and_inside_passes():
     good_b = _curve(0.2, {(0, 0): 0.9})
     tie_out = [_room(f"R{i}", c, _curve(0.3, {(0, 0): 0.8, (0, 3): 0.8}), good_b) for i, c in enumerate("XXYY")]
-    g = fa.evaluate_gate(tie_out)
+    g = fa.evaluate_gate(tie_out, categories=_cats(tie_out))
     assert g["verdict"] == "FAIL" and any("A" in r and "full aggregate" in r for r in g["reasons"])
     assert g["full"]["A"]["argmax"] == ["I:k=0", "I:k=3"]
     tie_in = [_room(f"R{i}", c, _curve(0.3, {(0, 0): 0.8, (0, 511): 0.8}), good_b) for i, c in enumerate("XXYY")]
-    assert fa.evaluate_gate(tie_in)["verdict"] == "PASS"
+    assert fa.evaluate_gate(tie_in, categories=_cats(tie_in))["verdict"] == "PASS"
     tie_mirror = [_room(f"R{i}", c, _curve(0.3, {(0, 0): 0.8, (1, 0): 0.8}), good_b) for i, c in enumerate("XXYY")]
-    assert fa.evaluate_gate(tie_mirror)["verdict"] == "FAIL"
+    assert fa.evaluate_gate(tie_mirror, categories=_cats(tie_mirror))["verdict"] == "FAIL"
 
 
 def test_leave_one_category_out():
@@ -584,7 +601,7 @@ def test_leave_one_category_out():
         _room("Y2", "Y", _curve(0.4, {(0, 0): 0.55, (0, 40): 0.6}), good_b),
         _room("Z1", "Z", _curve(0.4, {(0, 0): 0.55, (0, 40): 0.6}), good_b),
     ]
-    g = fa.evaluate_gate(rooms)
+    g = fa.evaluate_gate(rooms, categories=_cats(rooms))
     assert g["full"]["A"]["argmax"] == ["I:k=0"]
     assert g["loco"]["X"]["A"]["argmax"] == ["I:k=40"]
     assert g["loco"]["Y"]["A"]["argmax"] == ["I:k=0"] and g["loco"]["Z"]["A"]["argmax"] == ["I:k=0"]
@@ -599,7 +616,7 @@ def test_leave_one_category_out():
         _room("X1", "X", _curve(0.4, {(0, 0): 0.9}), good_b),
         _room("Y1", "Y", _curve(0.4, {(0, 0): 0.9}), None),
     ]
-    g2 = fa.evaluate_gate(rooms2)
+    g2 = fa.evaluate_gate(rooms2, categories=_cats(rooms2))
     assert g2["verdict"] == "FAIL" and any("leave-out X" in r and "undefined" in r for r in g2["reasons"])
 
 
@@ -607,8 +624,8 @@ def test_bootstrap_is_seeded_43_and_matches_an_independent_count():
     good_b = _curve(0.2, {(0, 0): 0.9})
     rooms = [_room(f"G{i}", f"C{i}", _curve(0.4, {(0, 0): 0.6, (0, 100): 0.5}), good_b) for i in range(9)]
     rooms.append(_room("BAD", "C9", _curve(0.4, {(0, 0): 0.5, (0, 100): 1.0}), good_b))
-    g1 = fa.evaluate_gate(rooms)
-    g2 = fa.evaluate_gate(rooms)
+    g1 = fa.evaluate_gate(rooms, categories=_cats(rooms))
+    g2 = fa.evaluate_gate(rooms, categories=_cats(rooms))
     assert g1["bootstrap"] == g2["bootstrap"]
     idx = np.random.default_rng(43).integers(0, 10, size=(1000, 10))
     assert np.array_equal(fa.bootstrap_indices(10), idx)
@@ -640,9 +657,9 @@ def test_a2_constants_and_rule_text():
 @pytest.mark.parametrize("ka", [5, 32, 480])
 def test_a2_accepts_a_coarse_A_peak_that_the_registered_gate_rejects(ka):
     rooms = _four(_curve(0.3, {(0, ka): 0.8}), B_GOOD)
-    reg = fa.evaluate_gate(rooms)
+    reg = fa.evaluate_gate(rooms, categories=_cats(rooms))
     assert reg["verdict"] == "FAIL" and any("full aggregate" in r and "Score A" in r for r in reg["reasons"])
-    a2 = fa.evaluate_gate_a2(rooms)
+    a2 = fa.evaluate_gate_a2(rooms, categories=_cats(rooms))
     assert a2["verdict"] == "PASS" and a2["reasons"] == [] and a2["bootstrap"]["n_pass"] == 1000
     assert a2["coarse_half_width"] == 32 and a2["full"]["A"]["passes"] and a2["full"]["B"]["passes"]
     assert a2["diagnostics"]["argmax_column_distance"] == [
@@ -652,8 +669,8 @@ def test_a2_accepts_a_coarse_A_peak_that_the_registered_gate_rejects(ka):
 @pytest.mark.parametrize("sa,ka", [(0, 33), (0, 479), (0, 128), (1, 0), (1, 3)])
 def test_a2_rejects_an_A_peak_outside_the_coarse_set(sa, ka):
     rooms = _four(_curve(0.3, {(sa, ka): 0.8}), B_GOOD)
-    assert fa.evaluate_gate(rooms)["verdict"] == "FAIL"
-    a2 = fa.evaluate_gate_a2(rooms)
+    assert fa.evaluate_gate(rooms, categories=_cats(rooms))["verdict"] == "FAIL"
+    a2 = fa.evaluate_gate_a2(rooms, categories=_cats(rooms))
     assert a2["verdict"] == "FAIL" and a2["bootstrap"]["n_pass"] == 0
     assert any(r.startswith("full aggregate") and "Score A" in r and "coarse" in r for r in a2["reasons"])
     assert not any("Score B" in r for r in a2["reasons"])
@@ -661,8 +678,8 @@ def test_a2_rejects_an_A_peak_outside_the_coarse_set(sa, ka):
 
 def test_a2_still_requires_B_in_the_accept_set():
     rooms = _four(_curve(0.3, {(0, 0): 0.8}), _curve(0.2, {(0, 3): 0.9}))
-    assert fa.evaluate_gate(rooms)["verdict"] == "FAIL"
-    a2 = fa.evaluate_gate_a2(rooms)
+    assert fa.evaluate_gate(rooms, categories=_cats(rooms))["verdict"] == "FAIL"
+    a2 = fa.evaluate_gate_a2(rooms, categories=_cats(rooms))
     assert a2["verdict"] == "FAIL"
     assert any(r.startswith("full aggregate") and "Score B" in r for r in a2["reasons"])
     assert not any("Score A" in r for r in a2["reasons"])
@@ -670,9 +687,9 @@ def test_a2_still_requires_B_in_the_accept_set():
 
 def test_a2_tie_between_I_and_M_fails():
     rooms = _four(_curve(0.3, {(0, 10): 0.8, (1, 10): 0.8}), B_GOOD)
-    a2 = fa.evaluate_gate_a2(rooms)
+    a2 = fa.evaluate_gate_a2(rooms, categories=_cats(rooms))
     assert a2["verdict"] == "FAIL" and a2["full"]["A"]["argmax"] == ["I:k=10", "M:k=10"]
-    assert fa.evaluate_gate(rooms)["verdict"] == "FAIL"
+    assert fa.evaluate_gate(rooms, categories=_cats(rooms))["verdict"] == "FAIL"
     dist = a2["diagnostics"]["argmax_column_distance"]
     assert {(x["A"], x["same_S"]) for x in dist} == {("I:k=10", True), ("M:k=10", False)}
 
@@ -686,18 +703,18 @@ def test_a2_leave_one_category_out():
             _room("Y2", "Y", _curve(0.4, {(0, 0): 0.55, (0, kx): 0.6}), B_GOOD),
             _room("Z1", "Z", _curve(0.4, {(0, 0): 0.55, (0, kx): 0.6}), B_GOOD),
         ]
-    a2 = fa.evaluate_gate_a2(rooms_with(40))          # leave-out X moves A to (I, 40): outside the coarse set
+    a2 = fa.evaluate_gate_a2(rooms_with(40), categories=["X", "Y", "Z"])   # leave-out X: A at (I, 40), outside COARSE
     assert a2["full"]["A"]["argmax"] == ["I:k=0"] and a2["loco"]["X"]["A"]["argmax"] == ["I:k=40"]
     assert a2["verdict"] == "FAIL"
     assert any(r.startswith("leave-out X") and "Score A" in r for r in a2["reasons"])
     assert not any(r.startswith("leave-out Y") or r.startswith("leave-out Z") for r in a2["reasons"])
     assert a2["diagnostics"]["loco_argmax"]["X"] == {"A": ["I:k=40"], "B": ["I:k=0"]}
-    ok = fa.evaluate_gates(rooms_with(30))            # (I, 30) is inside the coarse set
+    ok = fa.evaluate_gates(rooms_with(30), categories=["X", "Y", "Z"])     # (I, 30) is inside the coarse set
     assert not any(r.startswith("leave-out") for r in ok["a2"]["reasons"])
     assert any(r.startswith("leave-out X") for r in ok["registered"]["reasons"])
     # undefined B after leaving a category out fails A2 as registered
     g2 = fa.evaluate_gate_a2([_room("X1", "X", _curve(0.4, {(0, 0): 0.9}), B_GOOD),
-                              _room("Y1", "Y", _curve(0.4, {(0, 0): 0.9}), None)])
+                              _room("Y1", "Y", _curve(0.4, {(0, 0): 0.9}), None)], categories=["X", "Y"])
     assert g2["verdict"] == "FAIL" and any(r.startswith("leave-out X") and "undefined" in r for r in g2["reasons"])
 
 
@@ -711,7 +728,7 @@ def test_a2_bootstrap_threshold_990_passes_989_fails(bad, n_fail):
     rooms[bad] = _room(f"BAD{bad}", f"C{bad}", _curve(0.3, {(0, 10): 0.5, (0, 100): 0.629}), B_GOOD)
     idx = np.random.default_rng(43).integers(0, 8, size=(1000, 8))
     assert int(np.sum((idx == bad).sum(axis=1) >= 4)) == n_fail          # independent count
-    both = fa.evaluate_gates(rooms)
+    both = fa.evaluate_gates(rooms, categories=_cats(rooms))
     a2, reg = both["a2"], both["registered"]
     assert a2["bootstrap"]["n_pass"] == 1000 - n_fail
     assert a2["bootstrap"]["indices_sha256"] == reg["bootstrap"]["indices_sha256"]
@@ -770,7 +787,32 @@ def _freeze(ar, split, out):
     return fa.main(["freeze-inputs", "--ar-root", str(ar), "--split", str(split), "--out", str(out)])
 
 
-def _run(inputs, ar, out, split=None, gate="registered"):
+def _self_binding(inputs):
+    """A synthetic inputs file bound to its OWN hashes (a non-registered binding; Python API only)."""
+    raw = Path(inputs).read_bytes()
+    return {"expected_inputs_sha256": hashlib.sha256(raw).hexdigest(),
+            "expected_selection_sha256": json.loads(raw)["selection_sha256"]}
+
+
+def _run(inputs, ar, out, split, gate="registered", binding="self"):
+    """``run_audit`` through the Python API: the CLI is bound to the registered inputs, which a
+    synthetic tree never is. binding: "self" (the file's own hashes), None (the default, i.e. the
+    registered pair) or a dict of the two ``expected_*`` keywords. AuditError -> EXIT_ERROR, as
+    main() maps it; any other exception propagates."""
+    if binding == "self":
+        kw = _self_binding(inputs) if Path(inputs).exists() else {
+            "expected_inputs_sha256": "0" * 64, "expected_selection_sha256": "0" * 64}
+    else:
+        kw = {} if binding is None else dict(binding)
+    try:
+        return fa.run_audit(str(inputs), str(ar), str(out), gate=gate,
+                            split_path=None if split is None else str(split), threads=4, **kw)
+    except fa.AuditError:
+        return fa.EXIT_ERROR
+
+
+def _cli(inputs, ar, out, split=None, gate="registered"):
+    """The CLI ``run`` (always the registered binding)."""
     argv = ["run", "--inputs", str(inputs), "--ar-root", str(ar), "--out", str(out), "--threads", "4"]
     if split is not None:
         argv += ["--split", str(split)]
@@ -814,9 +856,17 @@ def test_end_to_end_identity_passes_and_records_everything(tmp_path):
     # every aggregate is recomputable from the per-room arrays
     assert np.array_equal(np.asarray(res["aggregates"]["all"]["A"]), np.mean(per_room_A, axis=0))
     assert np.allclose(np.asarray(res["aggregates"]["all"]["B"]), np.mean(per_room_B, axis=0), atol=1e-15)
-    assert set(res["aggregates"]["loco"]) == {"Alpha", "Beta", "Gamma"}
+    assert list(res["aggregates"]["loco"]) == SYN_CATS
+    assert list(res["gate_registered"]["loco"]) == SYN_CATS == list(res["gate_a2_proposed"]["loco"])
     assert res["gate_registered"]["bootstrap"]["n_pass"] == 1000
     assert "gate" not in res
+    # the split was re-derived (always), and the non-registered binding is labelled as such
+    assert res["split_reverified"] is True
+    assert res["selection_sha256"] == doc["selection_sha256"]
+    b = res["inputs_binding"]
+    assert b["registered"] is False and "NOT the official" in b["statement"]
+    assert (b["inputs_sha256"], b["selection_sha256"]) == (res["inputs_sha256"], doc["selection_sha256"])
+    assert (b["registered_inputs_sha256"], b["registered_selection_sha256"]) == (REG_INPUTS, REG_SELECTION)
 
 
 def test_end_to_end_three_columns_fails_with_its_own_exit_code(tmp_path):
@@ -825,11 +875,11 @@ def test_end_to_end_three_columns_fails_with_its_own_exit_code(tmp_path):
     inp = tmp_path / "inputs.json"
     assert _freeze(ar, split, inp) == 0
     out = tmp_path / "audit.json"
-    assert _run(inp, ar, out) == fa.EXIT_FAIL
+    assert _run(inp, ar, out, split) == fa.EXIT_FAIL
     res = json.loads(out.read_text())
     assert res["verdict"] == "FAIL" and res["gate_registered"]["full"]["A"]["argmax"] == ["I:k=3"]
     assert res["gate_registered"]["full"]["B"]["argmax"] == ["I:k=3"]
-    assert _run(inp, ar, tmp_path / "audit_a2.json", gate="a2") == fa.EXIT_FAIL
+    assert _run(inp, ar, tmp_path / "audit_a2.json", split, gate="a2") == fa.EXIT_FAIL
     assert json.loads((tmp_path / "audit_a2.json").read_text())["gate_a2_proposed"]["verdict"] == "FAIL"
     assert fa.EXIT_PASS == 0 and len({fa.EXIT_PASS, fa.EXIT_FAIL, fa.EXIT_ERROR, 1}) == 4
 
@@ -846,21 +896,21 @@ def test_run_refuses_any_input_hash_mismatch_or_missing_file(tmp_path):
     p = ar / rel_json
     orig = p.read_bytes()
     p.write_bytes(orig.replace(b"1.0}", b"2.0}"))
-    assert _run(inp, ar, tmp_path / "o1.json") == fa.EXIT_ERROR
+    assert _run(inp, ar, tmp_path / "o1.json", split) == fa.EXIT_ERROR
     assert not (tmp_path / "o1.json").exists()
     p.write_bytes(orig)
     # (2) a missing depth map
     d = ar / rel_depth
     keep = d.read_bytes()
     d.unlink()
-    assert _run(inp, ar, tmp_path / "o2.json") == fa.EXIT_ERROR
+    assert _run(inp, ar, tmp_path / "o2.json", split) == fa.EXIT_ERROR
     d.write_bytes(keep)
     # (3) an edited inputs file (selection hash no longer matches)
     doc2 = json.loads(inp.read_text())
     doc2["selection"]["rooms"][0]["receivers"][0]["metadata"].pop()
     bad = tmp_path / "inputs_edited.json"
     bad.write_text(json.dumps(doc2))
-    assert _run(bad, ar, tmp_path / "o3.json") == fa.EXIT_ERROR
+    assert _run(bad, ar, tmp_path / "o3.json", split) == fa.EXIT_ERROR
     # (4) a consistent inputs file whose selection the split no longer reproduces
     doc3 = json.loads(inp.read_text())
     doc3["selection"]["rooms"][0]["receivers"][0]["metadata"].pop()
@@ -868,7 +918,12 @@ def test_run_refuses_any_input_hash_mismatch_or_missing_file(tmp_path):
     forged = tmp_path / "inputs_forged.json"
     forged.write_text(json.dumps(doc3))
     assert _run(forged, ar, tmp_path / "o4.json", split) == fa.EXIT_ERROR
-    # sanity: the untouched inputs still run
+    # (5) the CLI refuses every one of them (bound to the registered pair), the untouched one included
+    for i, x in enumerate((bad, forged, inp)):
+        assert _cli(x, ar, tmp_path / f"c{i}.json", split) == fa.EXIT_ERROR
+        assert not (tmp_path / f"c{i}.json").exists()
+    assert not any((tmp_path / f"o{i}.json").exists() for i in range(1, 5))
+    # sanity: the untouched inputs still run (Python API, bound to their own hashes)
     assert _run(inp, ar, tmp_path / "o5.json", split) == fa.EXIT_PASS
 
 
@@ -879,9 +934,11 @@ def test_run_requires_an_explicit_gate_and_both_gates_share_every_number(tmp_pat
     inp = tmp_path / "inputs.json"
     assert _freeze(ar, split, inp) == 0
     missing = tmp_path / "no_gate.json"
-    assert _run(inp, ar, missing, gate=None) == fa.EXIT_ERROR and not missing.exists()
+    assert _cli(inp, ar, missing, split, gate=None) == fa.EXIT_ERROR and not missing.exists()
+    assert _run(inp, ar, missing, split, gate=None) == fa.EXIT_ERROR and not missing.exists()
     bogus = tmp_path / "bogus_gate.json"
-    assert _run(inp, ar, bogus, gate="lenient") == fa.EXIT_ERROR and not bogus.exists()
+    assert _cli(inp, ar, bogus, split, gate="lenient") == fa.EXIT_ERROR and not bogus.exists()
+    assert _run(inp, ar, bogus, split, gate="lenient") == fa.EXIT_ERROR and not bogus.exists()
     out_r, out_a = tmp_path / "reg.json", tmp_path / "a2.json"
     assert _run(inp, ar, out_r, split, gate="registered") == fa.EXIT_FAIL
     assert _run(inp, ar, out_a, split, gate="a2") == fa.EXIT_PASS
@@ -902,7 +959,8 @@ def _RANDOM_SPECS():
 def test_run_refuses_to_overwrite_and_reports_tool_errors(tmp_path):
     out = tmp_path / "exists.json"
     out.write_text("{}")
-    assert _run(tmp_path / "missing_inputs.json", tmp_path, out) == fa.EXIT_ERROR
+    assert _run(tmp_path / "missing_inputs.json", tmp_path, out, tmp_path / "split.json") == fa.EXIT_ERROR
+    assert _cli(tmp_path / "missing_inputs.json", tmp_path, out, tmp_path / "split.json") == fa.EXIT_ERROR
     assert out.read_text() == "{}"
 
 
@@ -1080,7 +1138,8 @@ def test_freeze_and_run_refuse_malformed_depth(tmp_path):
     rec["depth"]["sha256"] = hashlib.sha256((ar / rec["depth"]["path"]).read_bytes()).hexdigest()
     doc["selection_sha256"] = fa.canonical_sha256(doc["selection"])
     (tmp_path / "i2.json").write_text(json.dumps(doc))
-    assert _run(tmp_path / "i2.json", ar, tmp_path / "o.json") == fa.EXIT_ERROR
+    assert _run(tmp_path / "i2.json", ar, tmp_path / "o.json", split) == fa.EXIT_ERROR
+    assert not (tmp_path / "o.json").exists()
 
 
 def test_freeze_refuses_inconsistent_receiver_position(tmp_path):
@@ -1096,7 +1155,6 @@ def test_freeze_refuses_inconsistent_receiver_position(tmp_path):
 # --------------------------------------------------------------------------- #
 # The committed real-data input list (no real data read here: internal consistency only)
 # --------------------------------------------------------------------------- #
-@pytest.mark.skipif(not INPUTS_PATH.exists(), reason="inputs not frozen yet")
 def test_committed_inputs_file_is_internally_consistent():
     doc = json.loads(INPUTS_PATH.read_text())
     assert doc["schema"] == fa.INPUTS_SCHEMA
@@ -1119,3 +1177,316 @@ def test_committed_inputs_file_is_internally_consistent():
         per_cat[room["category"]] = per_cat.get(room["category"], 0) + 1
     assert all(v <= 4 for v in per_cat.values())
     assert set(per_cat) == {c["category"] for c in sel["categories"] if c["rooms_selected"]}
+    assert all(c["rooms_selected"] for c in sel["categories"])          # no empty registered category
+    assert list(per_cat) == [c["category"] for c in sel["categories"]] == REG_CATEGORIES
+
+
+def test_committed_inputs_file_is_the_registered_one():
+    """The registered constants pin the committed inputs file byte for byte (JSON only; no AR file)."""
+    assert fa.REGISTERED_INPUTS_SHA256 == REG_INPUTS
+    assert fa.REGISTERED_SELECTION_SHA256 == REG_SELECTION
+    raw = INPUTS_PATH.read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == fa.REGISTERED_INPUTS_SHA256
+    doc = json.loads(raw)
+    assert doc["selection_sha256"] == fa.REGISTERED_SELECTION_SHA256
+    assert fa.canonical_sha256(doc["selection"]) == fa.REGISTERED_SELECTION_SHA256
+    assert fa.frozen_categories(doc["selection"]) == REG_CATEGORIES
+    assert doc["selection"]["rule"] == fa.RULE_TEXT
+
+
+# --------------------------------------------------------------------------- #
+# Binding of the frozen inputs (Codex code review r1, finding 1)
+# --------------------------------------------------------------------------- #
+def _two_room_inputs(base):
+    """Synthetic AR tree with Alpha_idx_0 and Beta_idx_3 (two categories), frozen."""
+    base.mkdir(parents=True, exist_ok=True)
+    ar = base / "AR"
+    split = write_ar_tree(ar, [ROOMS[0], ROOMS[2]], 0, 0)
+    inp = base / "inputs.json"
+    assert _freeze(ar, split, inp) == 0
+    return ar, split, inp
+
+
+def _forge(src, dst, edit):
+    """A self-consistent forgery: edit the selection, recompute its selection_sha256."""
+    doc = json.loads(Path(src).read_text())
+    edit(doc["selection"])
+    doc["selection_sha256"] = fa.canonical_sha256(doc["selection"])
+    Path(dst).write_text(json.dumps(doc))
+    return dst
+
+
+def _no_scoring(monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError("a refused run must not compute a score")
+
+    for name in ("score_room", "_score_a_receiver", "_score_b_pair", "evaluate_gates"):
+        monkeypatch.setattr(fa, name, boom)
+
+
+def _api(inputs, ar, out, split, **kw):
+    kw.setdefault("gate", "registered")
+    return fa.run_audit(str(inputs), str(ar), str(out), split_path=None if split is None else str(split),
+                        threads=4, **kw)
+
+
+def test_the_binding_defaults_to_the_registered_pair_and_no_cli_flag_changes_it(monkeypatch):
+    for fn in (fa.run_audit, fa.load_inputs):
+        params = inspect.signature(fn).parameters
+        for name, want in (("expected_inputs_sha256", REG_INPUTS), ("expected_selection_sha256", REG_SELECTION)):
+            assert params[name].kind is inspect.Parameter.KEYWORD_ONLY and params[name].default == want, fn
+    sp = inspect.signature(fa.run_audit).parameters["split_path"]
+    assert sp.kind is inspect.Parameter.KEYWORD_ONLY and sp.default is inspect.Parameter.empty
+    sub = next(a for a in fa._parser()._actions if isinstance(a, argparse._SubParsersAction)).choices["run"]
+    assert {o for a in sub._actions for o in a.option_strings} == {
+        "-h", "--help", "--inputs", "--ar-root", "--out", "--split", "--threads", "--gate"}
+    assert {a.dest for a in sub._actions if a.required} == {"inputs", "ar_root", "out", "split", "gate"}
+    # main passes no binding keyword, so run_audit's registered defaults always apply to the CLI
+    seen = []
+
+    def spy(inputs, ar_root, out_path, **kw):
+        seen.append((inputs, ar_root, out_path, kw))
+        return spy.rc
+
+    monkeypatch.setattr(fa, "run_audit", spy)
+    for rc in (fa.EXIT_PASS, fa.EXIT_FAIL):
+        spy.rc = rc
+        argv = ["run", "--inputs", "i.json", "--ar-root", "AR", "--out", "o.json", "--split", "s.json", "--gate", "a2"]
+        assert fa.main(argv) == rc
+    assert seen == [("i.json", "AR", "o.json", {"gate": "a2", "split_path": "s.json", "threads": 16})] * 2
+
+
+def test_inputs_binding_is_registered_only_for_the_registered_pair():
+    b = fa.inputs_binding(REG_INPUTS, REG_SELECTION)
+    assert b["registered"] is True and "NOT" not in b["statement"]
+    assert (b["inputs_sha256"], b["selection_sha256"]) == (REG_INPUTS, REG_SELECTION)
+    other = "0" * 64
+    for pair in ((REG_INPUTS, other), (other, REG_SELECTION), (other, other), (REG_SELECTION, REG_INPUTS)):
+        b = fa.inputs_binding(*pair)
+        assert b["registered"] is False and "NOT the official" in b["statement"], pair
+        assert (b["inputs_sha256"], b["selection_sha256"]) == pair
+        assert (b["registered_inputs_sha256"], b["registered_selection_sha256"]) == (REG_INPUTS, REG_SELECTION)
+
+
+def test_a_self_consistent_forged_subset_is_refused_before_any_score(tmp_path, monkeypatch, capsys):
+    ar, split, inp = _two_room_inputs(tmp_path / "t")
+    forged = _forge(inp, tmp_path / "forged.json",                      # one (receiver, source) pair fewer
+                    lambda sel: sel["rooms"][0]["receivers"][0]["metadata"].pop())
+    dropped = _forge(inp, tmp_path / "dropped.json",                    # a whole room and its category fewer
+                     lambda sel: (sel["rooms"].pop(), sel["categories"].pop()))
+    room_only = _forge(inp, tmp_path / "room_only.json",                # the room fewer, its category kept
+                       lambda sel: sel["rooms"].pop())
+    _no_scoring(monkeypatch)
+    # (1) the CLI, without and with --split: refused, nothing written
+    for i, x in enumerate((forged, dropped, room_only, inp)):
+        for j, sp in enumerate((None, split)):
+            out = tmp_path / f"cli_{i}_{j}.json"
+            assert _cli(x, ar, out, sp) == fa.EXIT_ERROR and not out.exists()
+    err = capsys.readouterr().err
+    assert "--split" in err and "REFUSED" in err and fa.REGISTERED_INPUTS_SHA256 in err
+    # (2) the Python API under its default binding (the registered pair): refused
+    out = tmp_path / "api.json"
+    for x in (forged, dropped, room_only, inp):
+        with pytest.raises(fa.AuditError, match="registered exp43_frame_audit_inputs.json"):
+            _api(x, ar, out, split)
+    # (3) bound to the original file (as the registered pair binds the committed one): the forged bytes
+    with pytest.raises(fa.AuditError, match="inputs file sha256"):
+        _api(forged, ar, out, split, **_self_binding(inp))
+    # (4) bound to the forgery's own hashes: the split + tree re-derivation refuses it
+    for x in (forged, dropped):
+        with pytest.raises(fa.AuditError, match="no longer reproduce"):
+            _api(x, ar, out, split, **_self_binding(x))
+    with pytest.raises(fa.AuditError, match=r"registered categories \['Beta'\] have no room"):
+        _api(room_only, ar, out, split, **_self_binding(room_only))     # refused at load already
+    # (5) both hashes are enforced: right bytes + wrong selection hash; same selection + other bytes
+    with pytest.raises(fa.AuditError, match="selection sha256"):
+        _api(inp, ar, out, split, expected_inputs_sha256=_self_binding(inp)["expected_inputs_sha256"],
+             expected_selection_sha256=_self_binding(forged)["expected_selection_sha256"])
+    reformatted = tmp_path / "reformatted.json"
+    reformatted.write_text(json.dumps(json.loads(inp.read_text()), indent=3))
+    assert json.loads(reformatted.read_text())["selection"] == json.loads(inp.read_text())["selection"]
+    with pytest.raises(fa.AuditError, match="inputs file sha256"):
+        _api(reformatted, ar, out, split, **_self_binding(inp))
+    assert not out.exists()
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "dropped.json", "forged.json", "reformatted.json", "room_only.json", "t"]
+
+
+def test_run_requires_the_split(tmp_path, monkeypatch, capsys):
+    ar, split, inp = _two_room_inputs(tmp_path / "t")
+    _no_scoring(monkeypatch)
+    out = tmp_path / "o.json"
+    assert _cli(inp, ar, out, None) == fa.EXIT_ERROR and not out.exists()
+    assert "the following arguments are required: --split" in capsys.readouterr().err
+    with pytest.raises(fa.AuditError, match="split"):
+        _api(inp, ar, out, None, **_self_binding(inp))
+    with pytest.raises(TypeError):                                       # no default either
+        fa.run_audit(str(inp), str(ar), str(out), gate="registered", **_self_binding(inp))
+    assert not out.exists()
+
+
+def test_a_changed_split_or_tree_is_refused(tmp_path, monkeypatch):
+    ar, split, inp = _two_room_inputs(tmp_path / "t")
+    bind = _self_binding(inp)
+    orig = split.read_bytes()
+    out = tmp_path / "o.json"
+
+    def refused():
+        with pytest.raises(fa.AuditError, match="no longer reproduce"):
+            _api(inp, ar, out, split, **bind)
+        assert not out.exists()
+
+    with monkeypatch.context() as m:
+        _no_scoring(m)
+        # split (1): the same content in other bytes (the frozen selection records the split's sha256)
+        split.write_text(json.dumps(json.loads(orig), indent=4))
+        refused()
+        # split (2): one selected receiver's IR names removed
+        d = json.loads(orig)
+        d["Alpha"]["Alpha_idx_0"] = [n for n in d["Alpha"]["Alpha_idx_0"] if "_R001_" not in n]
+        split.write_text(json.dumps(d))
+        refused()
+        # split (3): one more category (a room of it would be selected)
+        d = json.loads(orig)
+        d["Gamma"] = {"Gamma_idx_2": [_ir(0, 0)]}
+        split.write_text(json.dumps(d))
+        refused()
+        # split (4): a selected room removed
+        d = json.loads(orig)
+        del d["Beta"]
+        split.write_text(json.dumps(d))
+        refused()
+        split.write_bytes(orig)
+        # tree: a new canonical metadata JSON for a taken receiver (every frozen file is untouched)
+        md = ar / "metadata" / "Alpha" / "Alpha_idx_0"
+        src = json.loads((md / _js(0, 0)).read_text())
+        src["src_loc"] = [3.0, 2.0, 1.0]
+        extra = md / _js(99, 0)
+        extra.write_text(json.dumps(src))
+        refused()
+        extra.unlink()
+    # control: split and tree restored -> the run goes through
+    assert _api(inp, ar, out, split, **bind) == fa.EXIT_PASS
+    assert json.loads(out.read_text())["split_reverified"] is True
+
+
+def test_a_newly_present_depth_map_of_a_skipped_receiver_is_refused(tmp_path, monkeypatch):
+    rid = "Alpha_idx_0"
+    first = min(range(8), key=lambda r: hashlib.sha256(f"exp43-frame-audit:{rid}/R{r}".encode()).hexdigest())
+    base = tmp_path / "t"
+    ar = base / "AR"
+    split = _fake_tree(ar, {"Alpha": {rid: dict(receivers=list(range(8)), no_depth=[first], sources=[0, 1])},
+                            "Beta": {"Beta_idx_0": dict(receivers=[0, 1], sources=[0])}})
+    inp = base / "inputs.json"
+    assert _freeze(ar, split, inp) == 0
+    sel = json.loads(inp.read_text())["selection"]
+    assert {"category": "Alpha", "room_id": rid, "receiver": first, "reason": f"no depth map depth_map/Alpha/{rid}/{first}.npy"} in sel["skipped"]
+    _no_scoring(monkeypatch)
+    np.save(ar / "depth_map" / "Alpha" / rid / f"{first}.npy", np.full((H, W), 2.5))
+    out = tmp_path / "o.json"
+    with pytest.raises(fa.AuditError, match="no longer reproduce"):
+        _api(inp, ar, out, split, **_self_binding(inp))
+    assert not out.exists()
+
+
+def test_frozen_categories_refuses_an_empty_or_inconsistent_category():
+    sel = {"categories": [{"category": "A", "n_rooms_in_split": 3, "rooms_selected": ["A_1", "A_2"]},
+                          {"category": "B", "n_rooms_in_split": 1, "rooms_selected": ["B_1"]}],
+           "rooms": [{"category": "A", "room_id": "A_1"}, {"category": "A", "room_id": "A_2"},
+                     {"category": "B", "room_id": "B_1"}]}
+    assert fa.frozen_categories(sel) == ["A", "B"]
+
+    def edited(fn):
+        s = copy.deepcopy(sel)
+        fn(s)
+        return s
+
+    bad = {
+        "no category": edited(lambda s: s.update(categories=[], rooms=[])),
+        "categories missing": edited(lambda s: s.pop("categories")),
+        "zero selected rooms": edited(lambda s: s["categories"].append(
+            {"category": "C", "n_rooms_in_split": 0, "rooms_selected": []})),
+        "every selected room skipped": edited(lambda s: s["rooms"].pop()),
+        "room of an unlisted category": edited(lambda s: s["rooms"].append({"category": "C", "room_id": "C_1"})),
+        "room not selected in its category": edited(lambda s: s["rooms"].append({"category": "B", "room_id": "B_9"})),
+        "duplicate category": edited(lambda s: s["categories"].append(dict(s["categories"][1]))),
+        "duplicate room": edited(lambda s: s["rooms"].append(dict(s["rooms"][0]))),
+        "unsafe name": edited(lambda s: s["categories"][0].update(category="../A")),
+    }
+    for why, s in bad.items():
+        with pytest.raises(fa.AuditError):
+            fa.frozen_categories(s)
+            pytest.fail(why)
+
+
+def test_run_refuses_inputs_with_an_empty_category(tmp_path, monkeypatch):
+    # (1) a category with zero rooms in the split -> zero selected rooms (freeze records it as is)
+    base = tmp_path / "t1"
+    base.mkdir()
+    ar = base / "AR"
+    split = write_ar_tree(ar, [ROOMS[0], ROOMS[2]], 0, 0)
+    d = json.loads(split.read_text())
+    d["Delta"] = {}
+    split.write_text(json.dumps(d))
+    inp = base / "inputs.json"
+    assert _freeze(ar, split, inp) == 0
+    assert {"category": "Delta", "n_rooms_in_split": 0, "rooms_selected": []} in json.loads(inp.read_text())["selection"]["categories"]
+    # (2) a category whose only selected room has no usable receiver (skipped at freeze)
+    base2 = tmp_path / "t2"
+    base2.mkdir()
+    ar2 = base2 / "AR"
+    split2 = write_ar_tree(ar2, [ROOMS[0], ROOMS[2], ROOMS[4]], 0, 0)
+    for f in (ar2 / "depth_map" / "Gamma" / "Gamma_idx_2").iterdir():
+        f.unlink()
+    inp2 = base2 / "inputs.json"
+    assert _freeze(ar2, split2, inp2) == 0
+    sel2 = json.loads(inp2.read_text())["selection"]
+    assert [r["category"] for r in sel2["rooms"]] == ["Alpha", "Beta"] and len(sel2["categories"]) == 3
+    _no_scoring(monkeypatch)
+    for (a, sp, x, why) in ((ar, split, inp, "registered category Delta has zero selected rooms"),
+                            (ar2, split2, inp2, r"registered categories \['Gamma'\] have no room")):
+        out = x.parent / "o.json"
+        with pytest.raises(fa.AuditError, match=why):
+            _api(x, a, out, sp, **_self_binding(x))
+        with pytest.raises(fa.AuditError, match=why):
+            fa.load_inputs(str(x), str(a), **_self_binding(x))
+        assert _cli(x, a, out, sp) == fa.EXIT_ERROR
+        assert not out.exists()
+
+
+def test_every_registered_category_needs_a_scored_room_and_its_loco_check():
+    rooms = scored(0, 0)
+    assert fa.evaluate_gates(rooms, categories=SYN_CATS)["registered"]["verdict"] == "PASS"
+    no_beta = [r for r in rooms if r["category"] != "Beta"]
+    for fn in (fa.evaluate_gates, fa.evaluate_gate, fa.evaluate_gate_a2):
+        with pytest.raises(fa.AuditError, match="Beta"):
+            fn(no_beta, categories=SYN_CATS)                         # a registered category lost its rooms
+        with pytest.raises(TypeError):
+            fn(rooms)                                                # never derived from the rooms
+    with pytest.raises(fa.AuditError, match="Gamma"):
+        fa.evaluate_gates(rooms, categories=["Alpha", "Beta"])      # a room of an unregistered category
+    for cats in ([], None, ["Alpha", "Beta", "Gamma", "Beta"], "Alpha"):
+        with pytest.raises(fa.AuditError):
+            fa.evaluate_gates(rooms, categories=cats)
+    # every registered category receives its leave-out block, in registration order
+    g = fa.evaluate_gates(rooms, categories=["Gamma", "Alpha", "Beta"])
+    for gate in ("registered", "a2"):
+        assert list(g[gate]["loco"]) == ["Gamma", "Alpha", "Beta"]
+        assert list(g[gate]["diagnostics"]["loco_argmax"]) == ["Gamma", "Alpha", "Beta"]
+        assert g[gate]["verdict"] == "PASS"
+
+
+def test_run_refuses_when_a_registered_category_loses_its_rooms(tmp_path, monkeypatch):
+    """A room drop after loading (simulated) can never silently remove a leave-out check."""
+    ar, split, inp = _two_room_inputs(tmp_path / "t")
+    real = fa.load_inputs
+
+    def dropping(*a, **k):
+        doc, sha, rooms = real(*a, **k)
+        return doc, sha, [r for r in rooms if r["category"] != "Beta"]
+
+    monkeypatch.setattr(fa, "load_inputs", dropping)
+    out = tmp_path / "o.json"
+    with pytest.raises(fa.AuditError, match="Beta"):
+        _api(inp, ar, out, split, **_self_binding(inp))
+    assert not out.exists()
