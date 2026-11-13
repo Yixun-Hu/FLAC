@@ -1,0 +1,1 @@
+REFUSED: node id 'src/tests/test_exp43_regression_baseline.py::test_canonical_nodeid_refuses_unbalanced_brackets_or_a_preexisting_token[f.py::t[<EPOCH>]]' already holds the canonical token <EPOCH>
