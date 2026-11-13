@@ -22,6 +22,10 @@
 # its save, inside the training) -> start watcher -> wait -> evidence (+ FULL audit).
 # Never signals a process it did not start; the watcher and the EXIT/INT/TERM cleanup trap
 # terminate only the training's own session (SIGTERM, bounded wait, SIGKILL of that group).
+# The offline W&B run (PL's WandbLogger(save_dir=".") is the read-only run tree, so wandb writes
+# it to $TMPDIR/wandb) is located and copied, verified, to the private $RT/wandb_preserved once
+# the training ends -- on EVERY exit path, before $TMPDIR may be removed; if that fails, $TMPDIR
+# is kept (plan §5.4). A FULL then archives the preserved run to the NAS before its run result.
 # FULL ends TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION with a stable run-result manifest
 # (receipts/run_result_<RUN_ID>.json) from which `exp43_kit.py admit` derives the admission
 # (the experiment-level PASS). Exit: 0 PASS / FULL pending admission | 1 a verdict FAILED | 2 a gate
@@ -70,6 +74,9 @@ unset PYTHONPATH PYTHONSTARTUP PYTHONHOME PYTHONUSERBASE TRANSFORMERS_CACHE HUGG
 export PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 export HF_HOME="$HF_SEALED" HF_HUB_CACHE="$HF_SEALED/hub" HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 RT="$SAVE_ROOT/runtime/$NS"
+WANDB_KEEP="$RT/wandb_preserved"               # the durable, private copy of the offline W&B run
+if [ "$MODE" = FULL ]; then WANDB_PRESERVED_JSON="$RECEIPTS/wandb_preserved_${RUN_ID}.json"
+else WANDB_PRESERVED_JSON="${LOGBASE}_wandb_preserved.json"; fi
 # TMPDIR stays SHORT: torch_shm_manager (file_system sharing, train.py) binds a UNIX socket
 # under it, and a socket path over 108 bytes fails with EINVAL (smoke 2026-11-07 22:22).
 TMPDIR="$(mktemp -d /tmp/exp43.XXXXXX)" || die "mktemp failed"
@@ -129,6 +136,20 @@ LOCK_JSON="${LOGBASE}_gpu_locks.json"
 # children and releases ONLY the locks recorded in LOCK_JSON. Any cleanup failure makes the
 # launcher fail.
 TRAIN_PID=""; WATCH_PID=""; CLEANED=0; INTERRUPTED=""
+# plan §5.4: once the training was spawned, its offline W&B run is LOCATED (exactly one
+# offline-run-* under $TMPDIR/wandb, $WANDB_DIR/wandb, $WANDB_DIR; the train log's run id must be
+# its) and COPIED with re-hash into $WANDB_KEEP before $TMPDIR may go; any failure keeps $TMPDIR.
+TRAIN_SPAWNED=0; WANDB_DONE=0; WANDB_OK=0; KEEP_TMPDIR=0
+preserve_wandb() {
+  WANDB_DONE=1
+  if "$PY" "$KIT" wandb-preserve --search "$TMPDIR/wandb" --search "$WANDB_DIR/wandb" --search "$WANDB_DIR" \
+      --keep-parent "$WANDB_KEEP" --log "$TRAIN_LOG" --out "$WANDB_PRESERVED_JSON"; then
+    WANDB_OK=1
+  else
+    WANDB_OK=0; KEEP_TMPDIR=1
+    echo "W&B PRESERVATION FAILED: $TMPDIR is kept (it may hold the only copy of the offline W&B run)"
+  fi
+}
 cleanup() {
   local rc=$? bad=0
   [ "$CLEANED" = 1 ] && return
@@ -141,6 +162,9 @@ cleanup() {
     "$PY" "$KIT" stop-group --pgid "$TRAIN_PID" --grace 120 || { echo "CLEANUP: training group $TRAIN_PID survived"; bad=1; }
     wait "$TRAIN_PID" 2>/dev/null
   fi
+  if [ "$TRAIN_SPAWNED" = 1 ] && [ "$WANDB_DONE" = 0 ]; then
+    preserve_wandb; [ "$WANDB_OK" = 1 ] || bad=1
+  fi
   if [ -f "$LOCK_JSON" ]; then
     if "$PY" "$KIT" gpu-unlock --lock-json "$LOCK_JSON"; then
       mv "$LOCK_JSON" "${LOCK_JSON%.json}_released.json" || bad=1
@@ -148,7 +172,9 @@ cleanup() {
       echo "CLEANUP: could not release the per-card locks in $LOCK_JSON"; bad=1
     fi
   fi
-  [ -n "$TMPDIR" ] && [ -d "$TMPDIR" ] && rm -rf -- "$TMPDIR"
+  if [ -n "$TMPDIR" ] && [ -d "$TMPDIR" ]; then
+    if [ "$KEEP_TMPDIR" = 1 ]; then echo "CLEANUP: kept $TMPDIR (W&B run not preserved)"; else rm -rf -- "$TMPDIR"; fi
+  fi
   if [ -n "$INTERRUPTED" ]; then
     echo "=== exp_43 RF ${MODE} INTERRUPTED by SIG${INTERRUPTED} $(date '+%Y-%m-%d %H:%M:%S'): FAIL ==="
     exit 130
@@ -184,6 +210,7 @@ PYEOF
 mkdir -p "$EVDIR" || die "cannot create $EVDIR"
 TRAIN_LOG="${LOGBASE}_train.log"
 EVMODE=verbatim; [ "$MODE" = FULL ] && EVMODE=digest
+TRAIN_SPAWNED=1
 ( cd "$RUNTREE" && CUDA_VISIBLE_DEVICES="$LANES" EXP43_EVIDENCE_DIR="$EVDIR" EXP43_EVIDENCE_MODE="$EVMODE" \
     EXP43_PUBLISH="$PUBLISH" EXP43_RUN_ID="$RUN_ID" exec setsid "$PY" "$DRIVER" "${ARGV[@]}" ) > "$TRAIN_LOG" 2>&1 &
 TRAIN_PID=$!
@@ -201,9 +228,11 @@ WATCH_PID=""
 "$PY" "$KIT" stop-group --pgid "$TRAIN_PID" --grace 120 || die "training group $TRAIN_PID survived"
 TRAIN_PID=""
 echo "train rc=${TRAIN_RC} watcher rc=${WATCH_RC}"
+preserve_wandb                                  # SMOKE / DDP_SMOKE / FULL alike (plan §5.4, L4)
 
 # --- verdicts ------------------------------------------------------------------------------ #
 FINAL=0
+[ "$WANDB_OK" = 1 ] || FINAL=1
 if [ "$MODE" = FULL ]; then
   EVOUT="$RECEIPTS/full_evidence_${RUN_ID}.json"
   REF="$RECEIPTS/ddp_smoke_${PLATFORM}_${RUNG}_${EXPECT_SHA}.json"
@@ -211,9 +240,12 @@ if [ "$MODE" = FULL ]; then
   "$PY" "$KIT" evidence --platform "$PLATFORM" --rung "$RUNG" --mode FULL --run-id "$RUN_ID" \
     --save-root "$SAVE_ROOT" --stamp "$TS" --evidence-dir "$EVDIR" --log "$TRAIN_LOG" \
     --check-json "$CHECK_JSON" --receipts "$RECEIPTS" --train-rc "$TRAIN_RC" --watcher-rc "$WATCH_RC" \
-    --reference "$REF" --out "$EVOUT" || FINAL=1
+    --reference "$REF" --wandb-preserved "$WANDB_PRESERVED_JSON" --out "$EVOUT" || FINAL=1
   "$PY" "$KIT" audit --ckpt-dir "$CKPT_DIR" --nas-dir "$NAS_DIR" --evidence "$EVOUT" --run-id "$RUN_ID" \
     --check "$CHECK_JSON" --reference "$REF" --out "$AUDIT" || FINAL=1
+  WANDB_ARCHIVE_JSON="$RECEIPTS/wandb_archive_${RUN_ID}.json"
+  "$PY" "$KIT" wandb-archive --run-id "$RUN_ID" --preserved "$WANDB_PRESERVED_JSON" \
+    --out "$WANDB_ARCHIVE_JSON" || FINAL=1
   # the stable run-result manifest (code-r1 M6): admission resolves every record from it
   cp "$CHECK_JSON" "$RECEIPTS/check_${RUN_ID}.json" || FINAL=1
   # code-r2 NIT: experiment-level PASS is the admission; the launcher's FULL state is this
@@ -221,6 +253,7 @@ if [ "$MODE" = FULL ]; then
   [ "$FINAL" = 0 ] && [ "$TRAIN_RC" = 0 ] && [ "$WATCH_RC" = 0 ] || VERDICT=FAIL
   "$PY" "$KIT" run-result --run-id "$RUN_ID" --sha "$EXPECT_SHA" --verdict "$VERDICT" \
     --check "$RECEIPTS/check_${RUN_ID}.json" --reference "$REF" --evidence "$EVOUT" --audit "$AUDIT" \
+    --wandb-preserved "$WANDB_PRESERVED_JSON" --wandb-archive "$WANDB_ARCHIVE_JSON" \
     --expected-dirpath "$CKPT_DIR" --ckpt-dir "$CKPT_DIR" --runtree "$RUNTREE" \
     --out "$RECEIPTS/run_result_${RUN_ID}.json" || FINAL=1
   echo "next (admission): $PY $REPO/$EXPREL/exp43_kit.py admit --run-result $RECEIPTS/run_result_${RUN_ID}.json --receipts-dir $RECEIPTS --hf-sealed $HF_SEALED --out $REPO/$EXPREL/exp43_RF_admission.json"
@@ -228,7 +261,7 @@ else
   "$PY" "$KIT" evidence --platform "$PLATFORM" --rung "$RUNG" --mode "$MODE" --run-id "$RUN_ID" \
     --save-root "$SAVE_ROOT" --stamp "$TS" --evidence-dir "$EVDIR" --log "$TRAIN_LOG" \
     --check-json "$CHECK_JSON" --receipts "$RECEIPTS" --train-rc "$TRAIN_RC" --watcher-rc "$WATCH_RC" \
-    --out "${LOGBASE}_evidence.json" || FINAL=1
+    --wandb-preserved "$WANDB_PRESERVED_JSON" --out "${LOGBASE}_evidence.json" || FINAL=1
   n_ckpt="$(find "$SAVE_ROOT/exp43_std_aug/$NS" -name '*.ckpt' 2>/dev/null | wc -l)"
   [ "$n_ckpt" = 0 ] || { echo "a smoke wrote ${n_ckpt} checkpoint(s)"; FINAL=1; }
 fi

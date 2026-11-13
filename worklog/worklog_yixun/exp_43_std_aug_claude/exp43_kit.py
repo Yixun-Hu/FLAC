@@ -34,6 +34,7 @@ import os
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -147,6 +148,17 @@ NO_GRAD_PARAMS = frozenset((
     "conditioner.conditioners.context_audio.net.cnn.fc_backup.weight",
     "conditioner.conditioners.context_audio.net.cnn.fc_backup.bias",
 ))
+
+
+# plan §5.4: the offline W&B run of the FULL training is preserved, archived to the NAS and
+# hashed at admission; the pinned extractor turns the ARCHIVED run file into the history CSV
+# (step, train/loss, lr every 100 optimisation steps, F11) that exp_44 reads.
+TRAIN_HISTORY_TOOL = f"{EXPREL}/exp43_train_history.py"
+TRAIN_HISTORY_TOOL_SHA256 = "5186e7853ba6ce0c03904fd47e095e9a3aacda7dc2a83a53ca3d81646461e7aa"
+TRAIN_HISTORY_SCHEMA = "exp43-train-history/1"
+HISTORY_PERIOD = 100                    # train.py log_every_n_steps
+WANDB_RUN_RE = re.compile(r"offline-run-[0-9]{8}_[0-9]{6}-([0-9a-z]+)")
+ARCHIVE_MANIFEST = "ARCHIVE_MANIFEST.json"
 
 
 def scheduled_lr(step):
@@ -1038,6 +1050,8 @@ def receipt_reasons(rec, kind, platform, rung, sha, tree_dig, env_dig, full_proj
             reasons.append(f"{kind} receipt {key} = {rec[key]!r}, need 0")
     if not _is_sha(rec["check_sha256"]):
         reasons.append(f"{kind} receipt check_sha256 is not a sha256")
+    if not _is_sha(rec["wandb_preserved_sha256"]):
+        reasons.append(f"{kind} receipt wandb_preserved_sha256 is not a sha256 (the W&B run was not preserved)")
     argv = rec["argv"]
     if not (isinstance(argv, list) and all(isinstance(x, str) for x in argv)) or recipe_projection(argv) != full_projection:
         reasons.append(f"{kind} receipt argv is not the FULL recipe")
@@ -1068,6 +1082,19 @@ def receipt_stream_reasons(rec, tree, mode, rung):
 # --------------------------------------------------------------------------- #
 # check: every no-GPU gate (plan §4.3)
 # --------------------------------------------------------------------------- #
+def fresh_destination_reasons(mode, run_id, save_root, stamp, receipts_dir, nas_root=NAS_ROOT):
+    """Every place one launch writes is fresh (exp_40 plan D3; plan §5.4): the run namespace and
+    the private W&B keep directory; FULL also the NAS cadence and W&B archive directories and the
+    W&B preserve / archive receipts of this RUN_ID (a rerun takes a new _r<n>)."""
+    ns = namespace(run_id, mode, stamp)
+    paths = [os.path.join(save_root, PROJECT, ns), os.path.join(save_root, "runtime", ns, "wandb_preserved")]
+    if mode == "FULL":
+        paths += [os.path.join(nas_root, run_id), wandb_dest(run_id, nas_root),
+                  os.path.join(receipts_dir, f"wandb_preserved_{run_id}.json"),
+                  os.path.join(receipts_dir, f"wandb_archive_{run_id}.json")]
+    return [f"{p} exists: every launch starts fresh" for p in paths if os.path.lexists(p)]
+
+
 def check(platform, rung, mode, run_id, sha, repo, tree, links, save_root, stamp,
           receipts_dir, hf_sealed, env=None, nas_root=NAS_ROOT):
     """Every no-GPU gate of one launch, from the run tree's own kit: identity, HEAD == EXPECT_SHA
@@ -1131,13 +1158,9 @@ def check(platform, rung, mode, run_id, sha, repo, tree, links, save_root, stamp
     reasons += parsed_argv_reasons(tree, argv, expected_parse(platform, rung, mode, run_id,
                                                               save_root, stamp),
                                    PLATFORMS[platform]["python"])
-    ns_dir = os.path.join(save_root, PROJECT, namespace(run_id, mode, stamp))
-    if os.path.lexists(ns_dir):
-        reasons.append(f"run namespace {ns_dir} exists: every launch starts fresh (plan D3)")
+    reasons += fresh_destination_reasons(mode, run_id, save_root, stamp, receipts_dir, nas_root)
     reasons += disk_reasons(save_root, MIN_FREE_GIB if mode == "FULL" else 5)
     if mode == "FULL":
-        if os.path.lexists(os.path.join(nas_root, run_id)):
-            reasons.append(f"NAS cadence directory {os.path.join(nas_root, run_id)} exists")
         # code-r1 H2: the real-NAS primitive probe, <= 48 h old
         reasons += nas_receipt_reasons(os.path.join(receipts_dir, "nas_capability_a6000.json"),
                                        dest_root=nas_root)
@@ -1807,6 +1830,367 @@ def nas_receipt_reasons(path, dest_root=NAS_ROOT, now=None, max_age_s=48 * 3600,
 
 
 # --------------------------------------------------------------------------- #
+# the offline W&B run (plan §5.4): preserved, archived to the NAS, hashed at admission
+# --------------------------------------------------------------------------- #
+# PL 2.1's WandbLogger defaults to save_dir="." -- the READ-ONLY run tree -- so wandb 0.15.4 falls
+# back to tempfile.gettempdir()/wandb, i.e. the launcher's $TMPDIR, which its cleanup deletes
+# (exp_40's FULL lost its run this way). The launcher therefore copies the run out with
+# ``wandb-preserve`` before any cleanup, and a FULL archives that copy to the NAS with
+# ``wandb-archive`` before its run result; admission re-hashes the archive.
+WANDB_ARCHIVE_KEYS = frozenset(("kind", "run_id", "src_dir", "dest_dir", "run_dir_name", "dirs", "files",
+                                "files_digest", "run_file", "run_file_sha256", "manifest_sha256",
+                                "preserved_receipt_sha256", "t"))
+
+
+def wandb_dest(run_id, nas_root=NAS_ROOT):
+    """The NAS archive directory of RUN_ID's W&B run (a sibling of its 16-checkpoint dir)."""
+    return os.path.join(nas_root, f"{run_id}__wandb")
+
+
+def wandb_tree(run_dir):
+    """``(sorted sub-directories, {relative file: sha256}, run file)`` of one offline W&B run:
+    regular files and directories only (no symlink, no special file) and the top-level
+    ``run-<id>.wandb`` named after the directory."""
+    m = WANDB_RUN_RE.fullmatch(os.path.basename(run_dir))
+    if m is None:
+        raise Refused(f"{run_dir} is not an offline-run-YYYYMMDD_HHMMSS-<id> directory")
+    dirs, files = [], {}
+    for dirpath, dirnames, filenames in os.walk(run_dir):
+        for n in sorted(dirnames + filenames):
+            path = os.path.join(dirpath, n)
+            rel = os.path.relpath(path, run_dir)
+            mode = os.lstat(path).st_mode
+            if stat.S_ISLNK(mode):
+                raise Refused(f"{path} is a symlink")
+            if stat.S_ISDIR(mode):
+                dirs.append(rel)
+            elif stat.S_ISREG(mode):
+                files[rel] = sha256_file(path)
+            else:
+                raise Refused(f"{path} is not a regular file or directory")
+    run_file = f"run-{m.group(1)}.wandb"
+    top = sorted(f for f in files if os.sep not in f and f.endswith(".wandb"))
+    if top != [run_file]:
+        raise Refused(f"{run_dir} holds the run files {top}, not exactly {run_file}")
+    return sorted(dirs), files, run_file
+
+
+def copy_tree_verified(src_dir, dest_dir, dirs, files):
+    """``files`` (relative path -> sha256) of ``src_dir`` into ``dest_dir`` with ``publish_one``
+    per file (staged copy, fsync, re-hash, NOREPLACE rename, directory fsync, source re-hash; an
+    identical file already there is adopted, a different one refused)."""
+    os.makedirs(dest_dir, exist_ok=True)
+    for rel in dirs:
+        os.makedirs(os.path.join(dest_dir, rel), exist_ok=True)
+    for rel, sha in sorted(files.items()):
+        sub, name = os.path.split(rel)
+        publish_one(os.path.join(src_dir, sub), name, os.path.join(dest_dir, sub), known_sha=sha)
+    fsync_path(dest_dir, directory=True)
+
+
+WANDB_PRESERVE_KEYS = frozenset(("kind", "searched", "log_run_ids", "src_dir", "dest_dir", "run_dir_name", "dirs",
+                                 "files", "files_digest", "run_file", "run_file_sha256", "t"))
+_LOG_RUN_ID_RES = (re.compile(r"offline-run-[0-9]{8}_[0-9]{6}-([0-9a-z]+)"),
+                   re.compile(r"Starting a new run with run id ([0-9a-z]+)"))
+
+
+def wandb_candidates(search_dirs):
+    """Every ``offline-run-*`` entry directly under any of ``search_dirs`` (absent dirs skipped),
+    de-duplicated by real path."""
+    seen = {}
+    for d in search_dirs:
+        try:
+            names = sorted(os.listdir(d))
+        except FileNotFoundError:
+            continue
+        except OSError as err:
+            raise Refused(f"W&B search directory {d} unreadable ({err})") from None
+        for n in names:
+            if WANDB_RUN_RE.fullmatch(n):
+                path = os.path.join(d, n)
+                seen.setdefault(os.path.realpath(path), path)
+    return sorted(seen.values())
+
+
+def log_run_ids(log_path):
+    """The W&B run ids the training log names (wandb's "Starting a new run with run id <id>",
+    "wandb sync <...>/offline-run-<ts>-<id>", "Find logs at: ...")."""
+    with open(log_path, errors="replace") as f:
+        text = f.read()
+    return sorted({m.group(1) for rx in _LOG_RUN_ID_RES for m in rx.finditer(text)})
+
+
+def wandb_preserve(search_dirs, keep_parent, log_path):
+    """Preserve THE offline W&B run of one launch (plan §5.4). The run is LOCATED, never assumed:
+    exactly one ``offline-run-*`` directory under ``search_dirs`` (the launcher passes
+    ``$TMPDIR/wandb``, ``$WANDB_DIR/wandb`` and ``$WANDB_DIR``), and every run id the training log
+    names must be that directory's; zero or several candidates are refused. The run is COPIED
+    (never moved) into ``keep_parent`` (exp_43's private runtime root) file by file with re-hash,
+    the copy is re-hashed as a whole, and the receipt is returned. The source is left in place."""
+    cands = wandb_candidates(search_dirs)
+    if len(cands) != 1:
+        raise Refused(f"{len(cands)} offline W&B run directories under {list(search_dirs)}: {cands} "
+                      "(need exactly one)")
+    src = cands[0]
+    if os.path.islink(src) or not os.path.isdir(src):
+        raise Refused(f"{src} is not a real directory")
+    name = os.path.basename(src)
+    wid = WANDB_RUN_RE.fullmatch(name).group(1)
+    ids = log_run_ids(log_path)
+    if ids and ids != [wid]:
+        raise Refused(f"the training log names W&B run(s) {ids}; the only candidate is {wid}")
+    dirs, files, run_file = wandb_tree(src)
+    dest = os.path.join(keep_parent, name)
+    if os.path.lexists(dest):
+        raise Refused(f"{dest} exists; a W&B run is preserved once")
+    copy_tree_verified(src, dest, dirs, files)
+    if wandb_tree(dest)[:2] != (dirs, files):
+        raise Refused(f"the preserved copy {dest} differs from {src}")
+    return {"kind": "exp43_wandb_preserved", "searched": [os.path.abspath(d) for d in search_dirs],
+            "log_run_ids": ids, "src_dir": os.path.realpath(src), "dest_dir": os.path.realpath(dest),
+            "run_dir_name": name, "dirs": dirs, "files": files, "files_digest": digest_obj(files),
+            "run_file": run_file, "run_file_sha256": files[run_file], "t": time.time()}
+
+
+def _tree_record_reasons(rec, what):
+    """The (run_dir_name, dirs, files, files_digest, run_file, run_file_sha256, t) part shared by
+    the preserve and the archive receipt: internally consistent."""
+    r = []
+    m = WANDB_RUN_RE.fullmatch(rec["run_dir_name"]) if isinstance(rec["run_dir_name"], str) else None
+    files = rec["files"]
+    files_ok = isinstance(files, dict) and bool(files) and all(isinstance(k, str) and _is_sha(v)
+                                                                for k, v in files.items())
+    for ok, msg in ((m is not None, f"run_dir_name {rec['run_dir_name']!r} is not an offline run"),
+                    (isinstance(rec["dirs"], list) and all(isinstance(x, str) for x in rec["dirs"])
+                     and rec["dirs"] == sorted(rec["dirs"]), "dirs is not a sorted list of paths"),
+                    (files_ok, "files is not a non-empty {path: sha256}"),
+                    (files_ok and rec["files_digest"] == digest_obj(files), "files_digest != digest(files)"),
+                    (m is not None and rec["run_file"] == f"run-{m.group(1)}.wandb", "run_file is not run-<id>.wandb"),
+                    (files_ok and [f for f in files if os.sep not in f and f.endswith(".wandb")] == [rec["run_file"]],
+                     "files do not hold exactly one top-level run file"),
+                    (files_ok and files.get(rec["run_file"]) == rec["run_file_sha256"],
+                     "run_file_sha256 != files[run_file]"),
+                    (isinstance(rec["t"], (int, float)) and not isinstance(rec["t"], bool)
+                     and math.isfinite(rec["t"]), "t is not a finite time")):
+        if not ok:
+            r.append(f"{what}: {msg}")
+    return r
+
+
+def _tree_rehash_reasons(path, rec, what):
+    """The directory ``path`` (named ``run_dir_name``) re-hashes to exactly the record's tree."""
+    if not isinstance(path, str) or os.path.basename(path) != rec["run_dir_name"]:
+        return [f"{what}: {path!r} is not the {rec['run_dir_name']} directory"]
+    try:
+        got = wandb_tree(path)
+    except Refused as err:
+        return [f"{what}: {err}"]
+    if got[0] != rec["dirs"] or got[1] != rec["files"]:
+        diff = sorted(set(got[1]) ^ set(rec["files"])) or sorted(k for k in got[1] if got[1][k] != rec["files"].get(k))
+        return [f"{what}: {path} does not re-hash to the recorded tree (differs at {diff[:5]})"]
+    return []
+
+
+def wandb_preserved_reasons(path, rehash=True):
+    """The preserve receipt: exact schema, consistent, and (``rehash``) its durable copy re-hashes
+    to exactly the recorded tree. Returns (reasons, record or None)."""
+    try:
+        rec = read_json(path)
+    except (OSError, ValueError) as err:
+        return [f"W&B preserve receipt {path} unreadable ({err})"], None
+    if not isinstance(rec, dict) or set(rec) != WANDB_PRESERVE_KEYS:
+        return [f"W&B preserve receipt {path} does not have the exact schema"], None
+    r = _tree_record_reasons(rec, "W&B preserve receipt")
+    if rec["kind"] != "exp43_wandb_preserved":
+        r.append("W&B preserve receipt: kind is not exp43_wandb_preserved")
+    m = WANDB_RUN_RE.fullmatch(rec["run_dir_name"]) if isinstance(rec["run_dir_name"], str) else None
+    if not (isinstance(rec["log_run_ids"], list) and m is not None and rec["log_run_ids"] in ([], [m.group(1)])):
+        r.append(f"W&B preserve receipt: the log named runs {rec['log_run_ids']!r}, not this one")
+    if not (isinstance(rec["dest_dir"], str) and os.path.isabs(rec["dest_dir"])
+            and isinstance(rec["src_dir"], str) and os.path.isabs(rec["src_dir"]) and rec["src_dir"] != rec["dest_dir"]
+            and isinstance(rec["searched"], list) and rec["searched"]):
+        r.append("W&B preserve receipt: src_dir / dest_dir / searched are not as recorded by wandb-preserve")
+    if r or not rehash:
+        return r, (rec if not r else None)
+    r += _tree_rehash_reasons(rec["dest_dir"], rec, "the preserved W&B run")
+    return r, (rec if not r else None)
+
+
+def wandb_archive_dir_reasons(dest_dir, man):
+    """The NAS archive holds EXACTLY the manifest's run directory (its directories and files, each
+    re-hashing to the manifest) and the manifest -- nothing else (no partial copy, no symlink)."""
+    try:
+        top = sorted(os.listdir(dest_dir))
+    except OSError as err:
+        return [f"W&B archive {dest_dir} unreadable ({err})"]
+    want_top = sorted([str(man.get("run_dir_name")), ARCHIVE_MANIFEST])
+    if top != want_top:
+        return [f"W&B archive {dest_dir} holds {top}, not exactly {want_top}"]
+    try:
+        dirs, files, _ = wandb_tree(os.path.join(dest_dir, man["run_dir_name"]))
+    except Refused as err:
+        return [f"W&B archive: {err}"]
+    r = []
+    if dirs != man.get("dirs"):
+        r.append(f"W&B archive directories {dirs} != the manifest's")
+    want = man.get("files") if isinstance(man.get("files"), dict) else {}
+    if set(files) != set(want):
+        r.append(f"W&B archive files differ from the manifest: {sorted(set(files) ^ set(want))[:5]}")
+    for rel in sorted(set(files) & set(want)):
+        if files[rel] != want[rel]:
+            r.append(f"W&B archive {rel} does not re-hash to its manifest sha256")
+    return r
+
+
+def wandb_archive(run_id, preserved_path, nas_root=NAS_ROOT):
+    """Archive the PRESERVED offline W&B run (its receipt is re-validated and its copy re-hashed
+    first) to ``wandb_dest(run_id)``: ``<run dir>/...`` file by file (resumable: identical files are
+    adopted, different ones refused) + an O_EXCL ``ARCHIVE_MANIFEST.json`` (``run_id``,
+    ``run_dir_name``, ``dirs``, ``files``); then the whole archive is re-hashed. Returns the receipt."""
+    if not run_id_ok(run_id):
+        raise Refused(f"run id {run_id!r} does not match {RUN_ID_RE.pattern}")
+    pr, pre = wandb_preserved_reasons(preserved_path, rehash=True)
+    if pr:
+        raise Refused("; ".join(pr))
+    src, name, dirs, files = pre["dest_dir"], pre["run_dir_name"], pre["dirs"], pre["files"]
+    dest_dir = wandb_dest(run_id, nas_root)
+    man = {"run_id": run_id, "run_dir_name": name, "dirs": dirs, "files": files}
+    man_path = os.path.join(dest_dir, ARCHIVE_MANIFEST)
+    if os.path.lexists(dest_dir):
+        others = sorted(set(os.listdir(dest_dir)) - {name, ARCHIVE_MANIFEST})
+        if others:
+            raise Refused(f"{dest_dir} holds {others}: not this run's archive")
+        if os.path.lexists(man_path) and read_json(man_path) != man:
+            raise Refused(f"{man_path} records another W&B run")
+    copy_tree_verified(src, os.path.join(dest_dir, name), dirs, files)
+    if not os.path.lexists(man_path):
+        create_exclusive(man_path, man)
+    r = wandb_archive_dir_reasons(dest_dir, man)
+    if r:
+        raise Refused("; ".join(r))
+    return {"kind": "exp43_wandb_archive", "run_id": run_id, "src_dir": src, "dest_dir": dest_dir,
+            "run_dir_name": name, "dirs": dirs, "files": files, "files_digest": digest_obj(files),
+            "run_file": pre["run_file"], "run_file_sha256": pre["run_file_sha256"],
+            "manifest_sha256": sha256_file(man_path), "preserved_receipt_sha256": sha256_file(preserved_path),
+            "t": time.time()}
+
+
+def wandb_archive_reasons(path, run_id, nas_root=NAS_ROOT, rehash=True):
+    """The W&B archive receipt (exact schema, internally consistent, of THIS RUN_ID at its NAS
+    destination) and -- ``rehash`` -- the archive itself: the manifest re-hashes to the receipt and
+    records exactly the receipt's tree, the NAS tree is exactly that tree, every file re-hashing,
+    and the LOCAL preserved copy still re-hashes to it too. Returns (reasons, record or None)."""
+    try:
+        rec = read_json(path)
+    except (OSError, ValueError) as err:
+        return [f"W&B archive receipt {path} unreadable ({err})"], None
+    if not isinstance(rec, dict) or set(rec) != WANDB_ARCHIVE_KEYS:
+        return [f"W&B archive receipt {path} does not have the exact schema"], None
+    r = _tree_record_reasons(rec, "W&B archive receipt")
+    files = rec["files"]
+    for ok, msg in ((rec["kind"] == "exp43_wandb_archive", "kind is not exp43_wandb_archive"),
+                    (rec["run_id"] == run_id, f"run_id {rec['run_id']!r} != {run_id!r}"),
+                    (rec["dest_dir"] == wandb_dest(run_id, nas_root), f"dest_dir is not {wandb_dest(run_id, nas_root)}"),
+                    (_is_sha(rec["manifest_sha256"]) and _is_sha(rec["preserved_receipt_sha256"]),
+                     "manifest_sha256 / preserved_receipt_sha256 are not sha256s"),
+                    (isinstance(rec["src_dir"], str) and os.path.isabs(rec["src_dir"]), "src_dir is not absolute")):
+        if not ok:
+            r.append(f"W&B archive receipt: {msg}")
+    if r or not rehash:
+        return r, (rec if not r else None)
+    man_path = os.path.join(rec["dest_dir"], ARCHIVE_MANIFEST)
+    man = {"run_id": rec["run_id"], "run_dir_name": rec["run_dir_name"], "dirs": rec["dirs"], "files": files}
+    try:
+        if sha256_file(man_path) != rec["manifest_sha256"] or read_json(man_path) != man:
+            r.append(f"{man_path} is not the receipt's archive manifest")
+    except (OSError, ValueError) as err:
+        r.append(f"{man_path} unreadable ({err})")
+    r += wandb_archive_dir_reasons(rec["dest_dir"], man)
+    r += _tree_rehash_reasons(rec["src_dir"], rec, "the preserved W&B run (local copy)")
+    return r, (rec if not r else None)
+
+
+# --------------------------------------------------------------------------- #
+# the training-loss history (plan §5.4): the pinned extractor over the ARCHIVED run file
+# --------------------------------------------------------------------------- #
+TRAIN_HISTORY_KEYS = frozenset(("tool", "tool_sha256", "csv", "csv_sha256", "sidecar", "sidecar_sha256",
+                                "run_file_sha256", "rows"))
+
+
+def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+    """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+    offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+    (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+    cadence check passed). Returns the binding record (paths + sha256s)."""
+    tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+    if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+        raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+    out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                           f"{uuid.uuid4().hex[:6]}")
+    os.makedirs(out_dir)
+    csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+    side_path = os.path.join(out_dir, "exp43_train_history.json")
+    cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+           "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+    rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+    if rc != 0:
+        raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                      f"{(err or out).strip()[-600:]}")
+    return {"tool": TRAIN_HISTORY_TOOL, "tool_sha256": sha256_file(tool), "csv": csv_path,
+            "csv_sha256": sha256_file(csv_path), "sidecar": side_path, "sidecar_sha256": sha256_file(side_path),
+            "run_file_sha256": read_json(side_path).get("run_file_sha256"),
+            "rows": read_json(side_path).get("row_count")}
+
+
+def train_history_reasons(h, wandb_run_file_sha256, rehash=True):
+    """The history binding: exact schema; the pinned tool; and (``rehash``) the CSV + sidecar at
+    their recorded paths re-hash, the sidecar is the pinned tool's complete, clean-cadence,
+    finite extraction of THE archived run file (its sha256) to 40000 steps, and the CSV is its
+    ``step,train/loss,lr`` table of exactly ENDPOINT / 100 rows at steps 99, 199, ..., 39999."""
+    if not isinstance(h, dict) or set(h) != TRAIN_HISTORY_KEYS:
+        return [f"train_history keys {sorted(h) if isinstance(h, dict) else h!r} != {sorted(TRAIN_HISTORY_KEYS)}"]
+    rows_want = ENDPOINT // HISTORY_PERIOD
+    r = []
+    for ok, msg in ((h["tool"] == TRAIN_HISTORY_TOOL and h["tool_sha256"] == TRAIN_HISTORY_TOOL_SHA256,
+                     "the history tool is not the pinned extractor"),
+                    (all(isinstance(h[k], str) and os.path.isabs(h[k]) for k in ("csv", "sidecar")),
+                     "csv / sidecar are not absolute paths"),
+                    (all(_is_sha(h[k]) for k in ("csv_sha256", "sidecar_sha256")), "csv / sidecar sha256 malformed"),
+                    (h["run_file_sha256"] == wandb_run_file_sha256, "the history is not of the archived run file"),
+                    (_int(h["rows"]) and h["rows"] == rows_want, f"rows {h['rows']!r} != {rows_want}")):
+        if not ok:
+            r.append(f"train_history: {msg}")
+    if r or not rehash:
+        return r
+    try:
+        csv_sha, side_sha = sha256_file(h["csv"]), sha256_file(h["sidecar"])
+        side = read_json(h["sidecar"])
+        with open(h["csv"], newline="") as f:
+            lines = f.read().split("\n")
+    except (OSError, ValueError) as err:
+        return [f"train_history files unreadable ({err})"]
+    if (csv_sha, side_sha) != (h["csv_sha256"], h["sidecar_sha256"]):
+        return ["train_history CSV / sidecar do not re-hash to the admitted sha256"]
+    cad = side.get("cadence") if isinstance(side, dict) else None
+    want = {"schema": TRAIN_HISTORY_SCHEMA, "run_file_sha256": wandb_run_file_sha256, "row_count": rows_want,
+            "expected_max_steps": ENDPOINT, "first_step": HISTORY_PERIOD - 1, "last_step": ENDPOINT - 1,
+            "nonfinite": {"train/loss": [], "lr": []}}
+    for key, val in want.items():
+        if not isinstance(side, dict) or side.get(key) != val:
+            r.append(f"train_history sidecar {key} = {side.get(key) if isinstance(side, dict) else None!r}, need {val!r}")
+    if not (isinstance(side, dict) and (side.get("tool") or {}).get("sha256") == TRAIN_HISTORY_TOOL_SHA256
+            and isinstance(cad, dict) and cad.get("ok") is True
+            and (side.get("parse") or {}).get("complete") is True
+            and ((side.get("parse") or {}).get("exit_record") or {}).get("present") is True
+            and side.get("csv") == {"path": h["csv"], "sha256": h["csv_sha256"], "rows": rows_want}):
+        r.append("train_history sidecar is not the pinned tool's complete, clean-cadence extraction of this CSV")
+    if lines[:1] != ["step,train/loss,lr"] or lines[-1:] != [""] or len(lines) != rows_want + 2 or [
+            ln.split(",")[0] for ln in lines[1:-1]] != [str(s) for s in range(HISTORY_PERIOD - 1, ENDPOINT, HISTORY_PERIOD)]:
+        r.append(f"train_history CSV is not the step,train/loss,lr table of steps 99..{ENDPOINT - 1}")
+    return r
+
+
+# --------------------------------------------------------------------------- #
 # end audit / admission (plan §4.6)
 # --------------------------------------------------------------------------- #
 def checkpoint_state_reasons(ck, arm_cfg, expected_dirpath, wrapper=None):
@@ -1933,7 +2317,7 @@ def load_checkpoint_once(path):
 EVIDENCE_KEYS = frozenset((
     "verdict", "kind", "platform", "rung", "mode", "run_id", "stamp", "sha", "tree_digest",
     "env_digest", "recipe_projection", "argv", "train_rc", "watcher_rc", "publisher_rc",
-    "reference_sha256", "evidence", "fit_start", "summaries", "check_sha256"))
+    "reference_sha256", "evidence", "fit_start", "summaries", "check_sha256", "wandb_preserved_sha256"))
 
 
 def _is_sha(x, n=64):
@@ -1972,7 +2356,7 @@ def full_evidence_reasons(path, run_id, check_path=None, reference_path=None, re
         r.append("FULL evidence sha is not a 40-hex commit")
     if not (isinstance(rec["stamp"], str) and re.fullmatch(r"\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d", rec["stamp"])):
         r.append(f"FULL evidence stamp {rec['stamp']!r}")
-    for key in ("tree_digest", "env_digest", "reference_sha256", "check_sha256"):
+    for key in ("tree_digest", "env_digest", "reference_sha256", "check_sha256", "wandb_preserved_sha256"):
         if not _is_sha(rec[key]):
             r.append(f"FULL evidence {key} is not a sha256")
     argv = rec["argv"]
@@ -2105,17 +2489,18 @@ def nas_run_dir_reasons(nas_dir, shas):
 
 RUN_RESULT_KEYS = frozenset(("kind", "run_id", "platform", "rung", "mode", "sha", "verdict",
                              "files", "expected_dirpath", "ckpt_dir", "nas_dir", "runtree", "t"))
-RUN_RESULT_FILES = ("check", "reference", "evidence", "audit")
+RUN_RESULT_FILES = ("check", "reference", "evidence", "audit", "wandb_preserved", "wandb_archive")
 
 
 def run_result(run_id, sha, verdict, files, expected_dirpath, ckpt_dir, runtree, nas_root=NAS_ROOT):
     """The launcher's stable FULL run-result manifest (code-r1 M6): names + sha256 of the
-    check, reference, evidence and audit records; the training-time checkpoint dirpath."""
+    check, reference, evidence, audit, W&B preserve and W&B archive records; the training-time
+    checkpoint dirpath."""
     if not run_id_ok(run_id):
         raise Refused(f"run id {run_id!r}")
     if sorted(files) != sorted(RUN_RESULT_FILES):
         raise Refused(f"run result files {sorted(files)} != {sorted(RUN_RESULT_FILES)}")
-    return {"kind": "exp40_run_result", "run_id": run_id, "platform": PLATFORM, "rung": RUNG,
+    return {"kind": "exp43_run_result", "run_id": run_id, "platform": PLATFORM, "rung": RUNG,
             "mode": "FULL", "sha": sha, "verdict": verdict,
             "files": {k: {"name": os.path.basename(p), "sha256": sha256_file(p)} for k, p in files.items()},
             "expected_dirpath": expected_dirpath, "ckpt_dir": ckpt_dir,
@@ -2126,9 +2511,9 @@ def resolve_run_result(path, receipts_dir):
     """Read a run-result manifest and resolve every named record in ``receipts_dir`` by name,
     verifying its sha256."""
     rr = read_json(path)
-    if not isinstance(rr, dict) or set(rr) != RUN_RESULT_KEYS or rr["kind"] != "exp40_run_result" \
+    if not isinstance(rr, dict) or set(rr) != RUN_RESULT_KEYS or rr["kind"] != "exp43_run_result" \
             or rr["mode"] != "FULL" or sorted(rr["files"]) != sorted(RUN_RESULT_FILES):
-        raise Refused(f"{path} is not an exp_40 FULL run-result manifest")
+        raise Refused(f"{path} is not an exp_43 FULL run-result manifest")
     if not run_id_ok(rr["run_id"]) or (rr["platform"], rr["rung"]) != (PLATFORM, RUNG):
         raise Refused(f"run result names {rr['run_id']!r} on {rr['platform']!r} / {rr['rung']!r}, not an "
                       f"exp_43 {PLATFORM} {RUNG} run")
@@ -2275,13 +2660,15 @@ HISTORICAL = {"exp17_acousticrooms_snapshot": "unknown", "exp17_dinov3_revision_
 
 def admit(run_result_path, receipts_dir, repo, note="", strict_load=True, nas_root=NAS_ROOT,
           tree_parent=None, tree_builder=build_admission_tree, state_fn=admission_state_subprocess,
-          hf_sealed=None):
+          hf_sealed=None, history_dir=None, history_fn=train_history_subprocess):
     """Admission (plan §4.6; code-r1 B6, code-r2 H2): every identity field is DERIVED from
     validated records -- the run result, the strict FULL evidence (bound to its check record
     and its DDP_SMOKE reference), the audit bound to that evidence; all 16 NAS
-    checkpoints are re-hashed; the offset recomputation, the arm config and the strict-load
-    wrapper come from an immutable tree at the TRAINING commit whose archive reproduces the
-    evidence's run-tree digest. The only caller input is a free-text note."""
+    checkpoints are re-hashed; the offset + flip recomputation, the arm config and the
+    strict-load wrapper come from an immutable tree at the TRAINING commit whose archive
+    reproduces the evidence's run-tree digest; the NAS W&B archive (bound by the run result) is
+    re-hashed and the pinned extractor turns its run file into the history CSV, both bound by
+    sha256 (plan §5.4). The only caller inputs are a free-text note and where the history goes."""
     if not isinstance(note, str):
         raise Refused("the admission note must be a string")
     if not hf_sealed:                                        # code-r3 B1
@@ -2312,6 +2699,18 @@ def admit(run_result_path, receipts_dir, repo, note="", strict_load=True, nas_ro
     reasons = nas_run_dir_reasons(nas_dir, shas)
     if reasons:
         raise Refused("; ".join(reasons))
+    pr, pre = wandb_preserved_reasons(files["wandb_preserved"], rehash=True)
+    wr, wa = wandb_archive_reasons(files["wandb_archive"], run_id, nas_root, rehash=True)
+    if pr or wr:
+        raise Refused("; ".join(pr + wr))
+    pre_sha = sha256_file(files["wandb_preserved"])
+    if not (ev["wandb_preserved_sha256"] == wa["preserved_receipt_sha256"] == pre_sha
+            and wa["src_dir"] == pre["dest_dir"] and wa["files"] == pre["files"]):
+        raise Refused("the FULL evidence, the W&B preserve receipt and the W&B archive do not name one run")
+    hist = history_fn(os.path.join(wa["dest_dir"], wa["run_dir_name"]), history_dir or receipts_dir, run_id)
+    hr = train_history_reasons(hist, wa["run_file_sha256"], rehash=True)
+    if hr:
+        raise Refused("; ".join(hr))
     final = ckpt_name(ENDPOINT)
     st = state_fn(tree, os.path.join(nas_dir, final), rr["expected_dirpath"], strict_load=strict_load,
                   hf_sealed=hf_sealed)
@@ -2325,7 +2724,7 @@ def admit(run_result_path, receipts_dir, repo, note="", strict_load=True, nas_ro
     ca_r = current_assets_reasons(current)
     if ca_r:
         raise Refused("admission assets: " + "; ".join(ca_r))
-    return {"kind": "exp40_admission", "admitted": True, "arm": "C16", "run_id": run_id,
+    return {"kind": "exp43_admission", "admitted": True, "arm": "RF", "run_id": run_id,
             "platform": rr["platform"], "rung": rr["rung"], "train_sha": ev["sha"],
             "runtree_digest": ev["tree_digest"], "env_digest": ev["env_digest"], "nas_dir": nas_dir,
             "checkpoints": dict(shas), "manifest_sha256": sha256_file(os.path.join(nas_dir, "MANIFEST.sha256")),
@@ -2336,7 +2735,13 @@ def admit(run_result_path, receipts_dir, repo, note="", strict_load=True, nas_ro
             "full_evidence_sha256": ev_sha, "check_sha256": ev["check_sha256"],
             "audit_sha256": sha256_file(files["audit"]), "historical": dict(HISTORICAL),
             "current_assets": current, "trajectory_equivalence_claim_allowed": False, "note": note,
-            "t": time.time()}
+            "wandb_archive": {"receipt_sha256": sha256_file(files["wandb_archive"]),
+                              "preserved_receipt_sha256": pre_sha, "preserved_dir": pre["dest_dir"],
+                              "dest_dir": wa["dest_dir"],
+                              "run_dir_name": wa["run_dir_name"], "files_digest": wa["files_digest"],
+                              "n_files": len(wa["files"]), "manifest_sha256": wa["manifest_sha256"],
+                              "run_file_sha256": wa["run_file_sha256"]},
+            "train_history": hist, "t": time.time()}
 
 
 def ckpt_name(step):
@@ -2353,14 +2758,18 @@ ADMISSION_KEYS = frozenset((
     "env_digest", "nas_dir", "checkpoints", "manifest_sha256", "ckpt_path", "sha256", "bytes",
     "global_step", "model_config", "model_config_sha256", "embedded_config_sha256",
     "ema_inventory_sha256", "strict_load", "full_evidence_sha256", "check_sha256", "audit_sha256",
-    "historical", "current_assets", "trajectory_equivalence_claim_allowed", "note", "t"))
+    "historical", "current_assets", "trajectory_equivalence_claim_allowed", "note", "wandb_archive",
+    "train_history", "t"))
+WANDB_BINDING_KEYS = frozenset(("receipt_sha256", "preserved_receipt_sha256", "preserved_dir", "dest_dir",
+                                "run_dir_name", "files_digest", "n_files", "manifest_sha256", "run_file_sha256"))
 
 
 def admission_reasons(path, nas_root=NAS_ROOT, rehash="final"):
     """The ONE admission validator (code-r1 B6/B10), shared by the evaluation driver, collect,
     figure and table publication. ``rehash``: "final" re-hashes the 40k checkpoint, "all" also
-    re-hashes every cadence checkpoint and MANIFEST.sha256 and rejects extra/partial files,
-    None checks the record only. Returns (reasons, record or None, sha256 of the file)."""
+    re-hashes every cadence checkpoint and MANIFEST.sha256 (rejecting extra / partial files), the
+    whole NAS W&B archive (via its manifest) and the history CSV + sidecar; None checks the record
+    only. Returns (reasons, record or None, sha256 of the file)."""
     try:
         rec = read_json(path)
         file_sha = sha256_file(path)
@@ -2374,8 +2783,8 @@ def admission_reasons(path, nas_root=NAS_ROOT, rehash="final"):
     def need(cond, msg):
         if not cond:
             r.append(msg)
-    need(rec["kind"] == "exp40_admission" and rec["admitted"] is True and rec["arm"] == "C16",
-         "not an exp_40 C16 admission")
+    need(rec["kind"] == "exp43_admission" and rec["admitted"] is True and rec["arm"] == "RF",
+         "not an exp_43 RF admission")
     need(run_id_ok(rec["run_id"]) and rec["platform"] == PLATFORM and rec["rung"] == RUNG,
          f"run_id {rec['run_id']!r} / platform / rung inconsistent")
     need(isinstance(rec["train_sha"], str) and _HEX40.fullmatch(rec["train_sha"]) is not None,
@@ -2401,6 +2810,15 @@ def admission_reasons(path, nas_root=NAS_ROOT, rehash="final"):
     need(rec["historical"] == HISTORICAL, "historical is not the fixed exp_17 provenance record")
     r += current_assets_reasons(rec["current_assets"])
     need(isinstance(rec["note"], str), "note must be a string")
+    wb = rec["wandb_archive"]
+    wb_ok = isinstance(wb, dict) and set(wb) == WANDB_BINDING_KEYS
+    need(wb_ok and wb["dest_dir"] == wandb_dest(str(rec["run_id"]), nas_root)
+         and isinstance(wb["run_dir_name"], str) and WANDB_RUN_RE.fullmatch(wb["run_dir_name"]) is not None
+         and all(_is_sha(wb[k]) for k in ("receipt_sha256", "preserved_receipt_sha256", "files_digest",
+                                          "manifest_sha256", "run_file_sha256"))
+         and isinstance(wb["preserved_dir"], str) and os.path.basename(wb["preserved_dir"]) == wb["run_dir_name"]
+         and _int(wb["n_files"]) and wb["n_files"] > 0, "wandb_archive is not the exact W&B archive binding")
+    r += train_history_reasons(rec["train_history"], wb.get("run_file_sha256") if wb_ok else None, rehash=False)
     need(isinstance(rec["t"], (int, float)) and not isinstance(rec["t"], bool) and math.isfinite(rec["t"])
          and 0 < rec["t"] <= time.time() + CLOCK_SKEW_S, "admission time t is not a finite, non-future time")
     if r or rehash is None:
@@ -2418,6 +2836,22 @@ def admission_reasons(path, nas_root=NAS_ROOT, rehash="final"):
             for name, want in sorted(ck.items()):
                 if sha256_file(os.path.join(rec["nas_dir"], name)) != want:
                     r.append(f"NAS {name} no longer hashes to its admitted sha256")
+        man_path = os.path.join(wb["dest_dir"], ARCHIVE_MANIFEST)
+        try:
+            man = read_json(man_path)
+            man_sha = sha256_file(man_path)
+        except (OSError, ValueError) as err:
+            r.append(f"W&B archive manifest {man_path} unreadable ({err})")
+        else:
+            if man_sha != wb["manifest_sha256"] or not isinstance(man, dict) or man.get("run_id") != rec["run_id"] \
+                    or man.get("run_dir_name") != wb["run_dir_name"] or not isinstance(man.get("files"), dict) \
+                    or digest_obj(man["files"]) != wb["files_digest"] or len(man["files"]) != wb["n_files"] \
+                    or man["files"].get(f"run-{WANDB_RUN_RE.fullmatch(wb['run_dir_name']).group(1)}.wandb") \
+                    != wb["run_file_sha256"]:
+                r.append("the NAS W&B archive manifest changed since admission")
+            else:
+                r += wandb_archive_dir_reasons(wb["dest_dir"], man)
+        r += train_history_reasons(rec["train_history"], wb["run_file_sha256"], rehash=True)
     elif rehash == "final":
         if not os.path.isfile(rec["ckpt_path"]) or sha256_file(rec["ckpt_path"]) != rec["sha256"]:
             r.append(f"{rec['ckpt_path']} does not re-hash to the admitted {rec['sha256']}")
@@ -2537,6 +2971,7 @@ def main(argv=None):
     e.add_argument("--train-rc", type=int, required=True)
     e.add_argument("--watcher-rc", type=int, required=True); e.add_argument("--out", required=True)
     e.add_argument("--reference"); e.add_argument("--publisher-rc", type=int, default=0)
+    e.add_argument("--wandb-preserved", required=True, help="the launch's W&B preserve receipt")
     ps = sub.add_parser("publish-saved"); ps.add_argument("--path", required=True)
     ps.add_argument("--run-id", required=True); ps.add_argument("--dest-root", required=True)
     np_ = sub.add_parser("nas-probe"); np_.add_argument("--dest-root", default=NAS_ROOT)
@@ -2552,7 +2987,7 @@ def main(argv=None):
     rr_ = sub.add_parser("run-result"); rr_.add_argument("--run-id", required=True)
     rr_.add_argument("--sha", required=True); rr_.add_argument("--verdict", required=True)
     for k in RUN_RESULT_FILES:
-        rr_.add_argument(f"--{k}", required=True)
+        rr_.add_argument(f"--{k.replace('_', '-')}", dest=k, required=True)
     rr_.add_argument("--expected-dirpath", required=True); rr_.add_argument("--ckpt-dir", required=True)
     rr_.add_argument("--runtree", required=True); rr_.add_argument("--out", required=True)
     st_ = sub.add_parser("admission-state"); st_.add_argument("--ckpt", required=True)
@@ -2563,7 +2998,14 @@ def main(argv=None):
     d = sub.add_parser("admit"); d.add_argument("--run-result", required=True)
     d.add_argument("--receipts-dir", required=True); d.add_argument("--note", default="")
     d.add_argument("--hf-sealed", required=True)
+    d.add_argument("--history-dir", help="where the history CSV's fresh directory goes (default: --receipts-dir)")
     d.add_argument("--out", required=True)
+    wp = sub.add_parser("wandb-preserve"); wp.add_argument("--search", action="append", required=True)
+    wp.add_argument("--keep-parent", required=True); wp.add_argument("--log", required=True)
+    wp.add_argument("--out", required=True)
+    wa_ = sub.add_parser("wandb-archive"); wa_.add_argument("--run-id", required=True)
+    wa_.add_argument("--preserved", required=True); wa_.add_argument("--dest-root", default=NAS_ROOT)
+    wa_.add_argument("--out", required=True)
     m = sub.add_parser("ar-manifest"); m.add_argument("--ar-root", required=True)
     m.add_argument("--split", action="append", required=True); m.add_argument("--out", required=True)
     m.add_argument("--workers", type=int, default=4)
@@ -2643,6 +3085,7 @@ def main(argv=None):
                 raise Refused("FULL evidence needs --reference (the DDP_SMOKE receipt)")
             reasons = evidence_reasons(recs, summaries, text, args.mode, args.rung, steps,
                                        expected, fx, reference)
+            reasons += wandb_preserved_reasons(args.wandb_preserved, rehash=True)[0]     # plan §5.4 / L4
             argv_ = chk.get("argv") or []
             rec = {"verdict": "PASS" if not reasons and args.train_rc == 0
                    and args.watcher_rc == 0 and args.publisher_rc == 0 else "FAIL",
@@ -2655,6 +3098,8 @@ def main(argv=None):
                    "publisher_rc": args.publisher_rc,
                    "reference_sha256": sha256_file(args.reference) if args.reference else None,
                    "check_sha256": sha256_file(args.check_json),
+                   "wandb_preserved_sha256": (sha256_file(args.wandb_preserved)
+                                              if os.path.isfile(args.wandb_preserved) else None),
                    "evidence": {"verdict": "PASS" if not reasons else "FAIL", "reasons": reasons},
                    "fit_start": {str(r): next((x for x in recs.get(r, []) if x.get("kind") == "fit_start"), None)
                                  for r in range(world)},
@@ -2714,7 +3159,8 @@ def main(argv=None):
         if args.cmd == "admit":
             if os.path.lexists(args.out):
                 raise Refused(f"{args.out} exists; an admission record is written once")
-            rec = admit(args.run_result, args.receipts_dir, ROOT, note=args.note, hf_sealed=args.hf_sealed)
+            rec = admit(args.run_result, args.receipts_dir, ROOT, note=args.note, hf_sealed=args.hf_sealed,
+                        history_dir=args.history_dir)
             tmp = f"{args.out}.candidate-{os.getpid()}"
             atomic_write_json(tmp, rec)
             reasons, _, _ = admission_reasons(tmp, rehash="all")
@@ -2725,6 +3171,27 @@ def main(argv=None):
             rename_noreplace(tmp, args.out)
             fsync_path(os.path.dirname(os.path.abspath(args.out)), directory=True)
             print(f"ADMITTED {rec['sha256']} -> {args.out}")
+            return 0
+        if args.cmd == "wandb-preserve":
+            if os.path.lexists(args.out):
+                raise Refused(f"{args.out} exists; the W&B preserve receipt is written once")
+            rec = wandb_preserve(args.search, args.keep_parent, args.log)
+            atomic_write_json(args.out, rec)
+            r, _ = wandb_preserved_reasons(args.out, rehash=True)
+            if r:
+                raise Refused("the W&B preserve receipt fails its own validator: " + "; ".join(r))
+            print(f"W&B PRESERVED {rec['run_dir_name']} ({len(rec['files'])} files) -> {rec['dest_dir']}; "
+                  f"receipt {args.out}")
+            return 0
+        if args.cmd == "wandb-archive":
+            if os.path.lexists(args.out):
+                raise Refused(f"{args.out} exists; the W&B archive receipt is written once")
+            rec = wandb_archive(args.run_id, args.preserved, nas_root=args.dest_root)
+            atomic_write_json(args.out, rec)
+            r, _ = wandb_archive_reasons(args.out, args.run_id, args.dest_root, rehash=True)
+            if r:
+                raise Refused("the W&B archive receipt fails its own validator: " + "; ".join(r))
+            print(f"W&B ARCHIVED {len(rec['files'])} files -> {rec['dest_dir']}; receipt {args.out}")
             return 0
         if args.cmd == "gpu-lock":
             token, paths = acquire_gpu_locks(args.handshake_dir, args.uuids.split(","),

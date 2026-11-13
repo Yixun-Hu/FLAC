@@ -1261,17 +1261,22 @@ def _assets(hub="/sealed"):
     return kit.current_assets(hub, [os.path.join(snap, "model.safetensors"), os.path.join(snap, "config.json")])
 
 
-def _admission(tmp_path, **over):
+def _admission(tmp_path, wfx, **over):
+    """An exact admission record over a scratch NAS: 16 cadence files + MANIFEST, and a copy of
+    the module's REAL W&B archive (+ its real history CSV binding, plan §5.4)."""
+    import shutil
     run_id = RID
     nas = tmp_path / "nas" / run_id
     nas.mkdir(parents=True)
+    dest = kit.wandb_dest(run_id, str(tmp_path / "nas"))
+    shutil.copytree(wfx["archive"]["dest_dir"], dest)
     ck = {}
     for name in kit.EXPECTED_CKPTS:
         (nas / name).write_bytes(name.encode())
         ck[name] = hashlib.sha256(name.encode()).hexdigest()
     kit.write_manifest(str(nas / "MANIFEST.sha256"), ck)
     final = kit.ckpt_name(kit.ENDPOINT)
-    rec = {"kind": "exp40_admission", "admitted": True, "arm": "C16", "run_id": run_id,
+    rec = {"kind": "exp43_admission", "admitted": True, "arm": "RF", "run_id": run_id,
            "platform": "a6000", "rung": "2x32", "train_sha": "a" * 40, "runtree_digest": "1" * 64,
            "env_digest": "2" * 64, "nas_dir": str(nas), "checkpoints": ck,
            "manifest_sha256": kit.sha256_file(str(nas / "MANIFEST.sha256")),
@@ -1280,7 +1285,8 @@ def _admission(tmp_path, **over):
            "embedded_config_sha256": "3" * 64, "ema_inventory_sha256": "4" * 64,
            "strict_load": True, "full_evidence_sha256": "5" * 64, "check_sha256": "6" * 64,
            "audit_sha256": "7" * 64, "historical": dict(kit.HISTORICAL), "current_assets": _assets(),
-           "trajectory_equivalence_claim_allowed": False, "note": "", "t": 1.0}
+           "trajectory_equivalence_claim_allowed": False, "note": "", "t": 1.0,
+           "wandb_archive": dict(wfx["binding"], dest_dir=dest), "train_history": dict(wfx["history"])}
     rec.update(over)
     path = tmp_path / "admission.json"
     kit.atomic_write_json(str(path), rec)
@@ -1294,8 +1300,8 @@ def test_ckpt_names_are_the_lightning_epoch_step_names():
     assert len(kit.EXPECTED_CKPTS) == 16
 
 
-def test_admission_validator_accepts_the_exact_record_and_rehashes(tmp_path):
-    path, rec, nas = _admission(tmp_path)
+def test_admission_validator_accepts_the_exact_record_and_rehashes(tmp_path, wandb_fx):
+    path, rec, nas = _admission(tmp_path, wandb_fx)
     for mode in (None, "final", "all"):
         reasons, got, sha = kit.admission_reasons(path, nas_root=str(tmp_path / "nas"), rehash=mode)
         assert reasons == [] and got == rec and sha == kit.sha256_file(path), (mode, reasons)
@@ -1306,15 +1312,16 @@ def test_admission_validator_accepts_the_exact_record_and_rehashes(tmp_path):
     ("platform", "neuronic"), ("rung", "8x8"), ("train_sha", "a" * 39), ("sha256", "0" * 64),
     ("ckpt_path", "/elsewhere/epoch=8-step=40000.ckpt"), ("global_step", 40000.0), ("global_step", True),
     ("bytes", 0), ("model_config", "x.json"), ("strict_load", False), ("audit_sha256", "Z" * 64),
-    ("trajectory_equivalence_claim_allowed", None), ("note", None), ("t", True)])
-def test_admission_validator_rejects_every_field_mutation(tmp_path, key, val):
-    path, rec, nas = _admission(tmp_path, **{key: val})
+    ("trajectory_equivalence_claim_allowed", None), ("note", None), ("t", True), ("arm", "C16"),
+    ("kind", "exp40_admission"), ("wandb_archive", None), ("train_history", None)])
+def test_admission_validator_rejects_every_field_mutation(tmp_path, wandb_fx, key, val):
+    path, rec, nas = _admission(tmp_path, wandb_fx, **{key: val})
     reasons, got, _ = kit.admission_reasons(path, nas_root=str(tmp_path / "nas"), rehash=None)
     assert reasons and got is None
 
 
-def test_admission_validator_rejects_schema_and_nas_mutations(tmp_path):
-    path, rec, nas = _admission(tmp_path)
+def test_admission_validator_rejects_schema_and_nas_mutations(tmp_path, wandb_fx):
+    path, rec, nas = _admission(tmp_path, wandb_fx)
     root = str(tmp_path / "nas")
     kit.atomic_write_json(path, {**rec, "extra": 1})
     assert kit.admission_reasons(path, nas_root=root)[0]
@@ -1538,11 +1545,12 @@ def _summary(r, e, steps, published):
 
 
 _SMOKE = {}
+_REAL_EXPECTED_STREAM = kit.expected_stream          # never the monkeypatched stand-in (no -k artefact)
 
 
 def _real_smoke_stream():
     if "s" not in _SMOKE:
-        _SMOKE["s"] = kit.expected_stream(kit.ROOT, kit.SMOKE_STEPS["DDP_SMOKE"], range(2), 32, verbatim=False)
+        _SMOKE["s"] = _REAL_EXPECTED_STREAM(kit.ROOT, kit.SMOKE_STEPS["DDP_SMOKE"], range(2), 32, verbatim=False)
     return _SMOKE["s"]
 
 
@@ -1556,7 +1564,7 @@ def _streams(full_stream):
     return lambda tree, steps, *a, **k: full_stream if steps == kit.ENDPOINT else _real_smoke_stream()
 
 
-def _full_records(tmp_path, stream, run_id=RID, smoke=None):
+def _full_records(tmp_path, stream, run_id=RID, smoke=None, preserved_sha="8" * 64):
     """The exact producer shapes: the check record, the DDP_SMOKE reference receipt and the
     FULL evidence of a 2x32 A6000 run, bound by sha256."""
     sha = "b" * 40
@@ -1575,7 +1583,8 @@ def _full_records(tmp_path, stream, run_id=RID, smoke=None):
            "env_digest": "2" * 64, "recipe_projection": kit.recipe_projection(sargv), "argv": sargv,
            "train_rc": 0, "watcher_rc": 0, "publisher_rc": 0, "reference_sha256": None,
            "evidence": {"verdict": "PASS", "reasons": []}, "fit_start": fits,
-           "summaries": {str(r): _summary(r, kst[r], 30, 0) for r in range(2)}, "check_sha256": "3" * 64}
+           "summaries": {str(r): _summary(r, kst[r], 30, 0) for r in range(2)}, "check_sha256": "3" * 64,
+           "wandb_preserved_sha256": "9" * 64}
     kit.atomic_write_json(str(rec_dir / "ref.json"), ref)
     ev = {"verdict": "PASS", "kind": "full_evidence", "platform": "a6000", "rung": "2x32", "mode": "FULL",
           "run_id": run_id, "stamp": "2026-11-08_01-00-00", "sha": sha, "tree_digest": "1" * 64,
@@ -1584,7 +1593,7 @@ def _full_records(tmp_path, stream, run_id=RID, smoke=None):
           "reference_sha256": kit.sha256_file(str(rec_dir / "ref.json")),
           "evidence": {"verdict": "PASS", "reasons": []}, "fit_start": fits,
           "summaries": {str(r): _summary(r, stream[r], 40000, 16 if r == 0 else 0) for r in range(2)},
-          "check_sha256": kit.sha256_file(str(rec_dir / "check.json"))}
+          "check_sha256": kit.sha256_file(str(rec_dir / "check.json")), "wandb_preserved_sha256": preserved_sha}
     kit.atomic_write_json(str(rec_dir / "ev.json"), ev)
     return rec_dir, ev
 
@@ -1600,6 +1609,8 @@ def test_the_reference_receipt_validator_is_exact(tmp_path, full_stream, smoke_s
         (lambda x: x.pop("publisher_rc"), "exact schema"), (lambda x: x.update(extra=1), "exact schema"),
         (lambda x: x.update(mode="FULL"), "mode"), (lambda x: x.update(run_id="exp43_RF_neuronic_2x32"), "run_id"),
         (lambda x: x.update(stamp=""), "stamp"), (lambda x: x.update(publisher_rc=1), "publisher_rc"),
+        (lambda x: x.update(wandb_preserved_sha256=None), "wandb_preserved_sha256"),
+        (lambda x: x.pop("wandb_preserved_sha256"), "exact schema"),
         (lambda x: x.update(reference_sha256="0" * 64), "reference_sha256"),
         (lambda x: x["argv"].__setitem__(x["argv"].index("--max-steps") + 1, "29"), "--max-steps"),
         (lambda x: x["fit_start"]["1"].pop("gpu_uuid"), "fit_start keys"),
@@ -1692,6 +1703,8 @@ def test_full_evidence_validator_accepts_the_bound_record(tmp_path, full_stream,
     (lambda e: e.update(reference_sha256="0" * 64), "reference receipt is not the one"),
     (lambda e: e.update(check_sha256="0" * 64), "check record is not the one"),
     (lambda e: e.update(extra=1), "exact schema"), (lambda e: e.pop("stamp"), "exact schema"),
+    (lambda e: e.update(wandb_preserved_sha256="x" * 64), "wandb_preserved_sha256"),
+    (lambda e: e.pop("wandb_preserved_sha256"), "exact schema"),
     (lambda e: e.update(stamp="x"), "stamp"),
     (lambda e: e["fit_start"]["0"].pop("gpu_uuid"), "fit_start keys"),
     (lambda e: e["fit_start"]["1"].pop("batchnorm_modules"), "fit_start keys"),
@@ -1773,8 +1786,24 @@ def _tiny_full_run(tmp_path, tiny_ckpt, monkeypatch, full_stream):
     nas_root = os.path.realpath(str(tmp_path / "nas"))
     for n in kit.EXPECTED_CKPTS:
         kit.publish_pass(str(ckdir), run_id, dest_root=nas_root, only=[n])
-    d, ev = _full_records(tmp_path, full_stream, run_id)
+    # plan §5.4: the launch's offline W&B run, preserved from $TMPDIR and archived to the NAS
+    stage = tmp_path / "tmpdir" / "wandb"
+    stage.mkdir(parents=True)
+    _write_wandb_run(stage)
+    (tmp_path / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+    (tmp_path / "receipts").mkdir(exist_ok=True)
+    pre = str(tmp_path / "receipts" / "wandb_preserved.json")
+    kit.atomic_write_json(pre, kit.wandb_preserve([str(stage)], str(tmp_path / "keep"), str(tmp_path / "train.log")))
+    arc = str(tmp_path / "receipts" / "wandb_archive.json")
+    kit.atomic_write_json(arc, kit.wandb_archive(run_id, pre, nas_root=nas_root))
+    d, ev = _full_records(tmp_path, full_stream, run_id, preserved_sha=kit.sha256_file(pre))
     return tree, ckdir, nas_root, d, ev
+
+
+def _rr_files(d):
+    return {"check": str(d / "check.json"), "reference": str(d / "ref.json"), "evidence": str(d / "ev.json"),
+            "audit": str(d / "audit.json"), "wandb_preserved": str(d / "wandb_preserved.json"),
+            "wandb_archive": str(d / "wandb_archive.json")}
 
 
 def test_full_audit_and_derived_admission_end_to_end(tmp_path, tiny_ckpt, monkeypatch, full_stream, sealed_hub):
@@ -1784,15 +1813,34 @@ def test_full_audit_and_derived_admission_end_to_end(tmp_path, tiny_ckpt, monkey
                   expected_dirpath="/ck", check_path=str(d / "check.json"), reference_path=str(d / "ref.json"))
     assert v["verdict"] == "PASS", v["reasons"]
     kit.atomic_write_json(str(d / "audit.json"), v)
-    rr = kit.run_result(ev["run_id"], ev["sha"], "TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION", {"check": str(d / "check.json"), "reference": str(d / "ref.json"),
-                                                         "evidence": str(d / "ev.json"), "audit": str(d / "audit.json")},
+    rr = kit.run_result(ev["run_id"], ev["sha"], "TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION", _rr_files(d),
                         "/ck", str(ckdir), str(tree), nas_root=nas_root)
     kit.atomic_write_json(str(d / "run_result.json"), rr)
     rec = kit.admit(str(d / "run_result.json"), str(d), str(_REPO), note="test", nas_root=nas_root,
                     **_inject(tree, tiny_ckpt[2], sealed_hub))
     assert set(rec) == kit.ADMISSION_KEYS
+    assert (rec["kind"], rec["arm"]) == ("exp43_admission", "RF")
     assert (rec["train_sha"], rec["runtree_digest"], rec["env_digest"]) == (ev["sha"], "1" * 64, "2" * 64)
+    wa = kit.read_json(str(d / "wandb_archive.json"))
+    assert rec["wandb_archive"]["dest_dir"] == kit.wandb_dest(RID, nas_root) == wa["dest_dir"]
+    assert rec["wandb_archive"]["run_file_sha256"] == wa["run_file_sha256"] == rec["train_history"]["run_file_sha256"]
+    assert rec["wandb_archive"]["preserved_receipt_sha256"] == ev["wandb_preserved_sha256"]
+    h = rec["train_history"]
+    assert h["rows"] == 400 and os.path.dirname(h["csv"]).startswith(str(d / f"train_history_{RID}__"))
+    assert open(h["csv"]).read().splitlines()[:2] == ["step,train/loss,lr", f"99,{2.0 / (1 + 99 / 1000)!r},5e-05"]
     kit.atomic_write_json(str(tmp_path / "admission.json"), rec)
+    assert kit.admission_reasons(str(tmp_path / "admission.json"), nas_root=nas_root, rehash="all")[0] == []
+    # every bound W&B / history byte, mutated one at a time, is refused by the "all" re-hash
+    for p in sorted(Path(wa["dest_dir"]).rglob("*")) + [Path(h["csv"]), Path(h["sidecar"])]:
+        if not p.is_file():
+            continue
+        os.chmod(p, 0o644)
+        old = p.read_bytes()
+        p.write_bytes(old + b" ")
+        got = kit.admission_reasons(str(tmp_path / "admission.json"), nas_root=nas_root, rehash="all")[0]
+        assert got, p
+        assert kit.admission_reasons(str(tmp_path / "admission.json"), nas_root=nas_root, rehash="final")[0] == []
+        p.write_bytes(old)
     assert kit.admission_reasons(str(tmp_path / "admission.json"), nas_root=nas_root, rehash="all")[0] == []
     # every NAS checkpoint, mutated one at a time, blocks admission
     for n in kit.EXPECTED_CKPTS:
@@ -1814,8 +1862,7 @@ def test_admission_refuses_unbound_or_altered_records(tmp_path, tiny_ckpt, monke
     v = kit.audit(str(ckdir), str(tree), nas_dir=nas, evidence=str(d / "ev.json"), run_id=ev["run_id"],
                   expected_dirpath="/ck", check_path=str(d / "check.json"), reference_path=str(d / "ref.json"))
     kit.atomic_write_json(str(d / "audit.json"), v)
-    files = {"check": str(d / "check.json"), "reference": str(d / "ref.json"), "evidence": str(d / "ev.json"),
-             "audit": str(d / "audit.json")}
+    files = _rr_files(d)
     rr = kit.run_result(ev["run_id"], ev["sha"], "TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION", files, "/ck",
                         str(ckdir), str(tree), nas_root=nas_root)
     kit.atomic_write_json(str(d / "rr.json"), rr)
@@ -1996,10 +2043,594 @@ def test_admit_requires_a_valid_sealed_hub(tmp_path):
     ("hf_sealed_hub", "relative/hub", "hf_sealed_hub"), ("dinov3_resolved", ["/elsewhere/model.safetensors"], "dinov3_resolved"),
     ("t", time.time() + 3600, "non-future"), ("t", float("nan"), "non-future"), ("t", 0, "non-future"),
 ])
-def test_admission_validator_checks_provenance_fields(tmp_path, key, val, needle):
+def test_admission_validator_checks_provenance_fields(tmp_path, wandb_fx, key, val, needle):
     if key in kit.CURRENT_ASSET_KEYS:
-        path, rec, nas = _admission(tmp_path, current_assets={**_assets(), key: val})
+        path, rec, nas = _admission(tmp_path, wandb_fx, current_assets={**_assets(), key: val})
     else:
-        path, rec, nas = _admission(tmp_path, **{key: val})
+        path, rec, nas = _admission(tmp_path, wandb_fx, **{key: val})
     reasons, got, _ = kit.admission_reasons(path, nas_root=str(tmp_path / "nas"), rehash=None)
     assert got is None and any(needle in x for x in reasons), (needle, reasons)
+
+
+# --------------------------------------------------------------------------- #
+# exp_43 6d: the offline W&B run (preserve on every exit path, NAS archive), the history CSV,
+# the RF admission, the leftover gate (plan §5.1, §5.4, §6 "additional red-first tests")
+# --------------------------------------------------------------------------- #
+W_ID = "abc12345"
+
+
+def _write_wandb_run(parent, steps=range(99, 40000, 100), run_id=W_ID, exit_record=True,
+                     stamp="20261113_010000"):
+    """A small offline W&B run written by the INSTALLED wandb's own datastore writer, shaped like
+    PL's WandbLogger of the 40k recipe (``trainer/global_step`` 99, 199, ..., 39999), plus the
+    usual files/ logs/ tmp/code/ layout."""
+    from wandb.proto import wandb_internal_pb2 as pb
+    from wandb.sdk.internal import datastore
+    d = Path(parent) / f"offline-run-{stamp}-{run_id}"
+    (d / "files").mkdir(parents=True)
+    (d / "logs").mkdir()
+    (d / "tmp" / "code").mkdir(parents=True)
+    (d / "files" / "wandb-summary.json").write_text('{"train/loss": 0.4}')
+    (d / "logs" / "debug.log").write_text("debug\n")
+    ds = datastore.DataStore()
+    ds.open_for_write(str(d / f"run-{run_id}.wandb"))
+    r = pb.Record()
+    r.header.SetInParent()
+    ds.write(r)
+    r = pb.Record()
+    r.run.run_id = run_id
+    ds.write(r)
+    for i, step in enumerate(steps):
+        r = pb.Record()
+        for k, v in (("train/loss", 2.0 / (1 + step / 1000)), ("train/lr", 5e-5), ("trainer/global_step", step),
+                     ("_step", i)):
+            it = r.history.item.add()
+            it.key, it.value_json = k, json.dumps(v)
+        r.history.step.num = i
+        ds.write(r)
+    if exit_record:
+        r = pb.Record()
+        r.exit.exit_code, r.exit.runtime = 0, 10
+        ds.write(r)
+    r = pb.Record()
+    r.footer.SetInParent()
+    ds.write(r)
+    ds.close()
+    return d
+
+
+@pytest.fixture(scope="module")
+def wandb_fx(tmp_path_factory):
+    """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+    archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+    base = tmp_path_factory.mktemp("wandb_fx")
+    stage = base / "tmpdir" / "wandb"
+    stage.mkdir(parents=True)
+    _write_wandb_run(stage)
+    (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+    pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+    pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+    kit.atomic_write_json(pre_path, pre)
+    arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+    kit.atomic_write_json(arc_path, arc)
+    (base / "history").mkdir()
+    hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+    binding = {"receipt_sha256": kit.sha256_file(arc_path), "preserved_receipt_sha256": kit.sha256_file(pre_path),
+               "preserved_dir": pre["dest_dir"], "dest_dir": arc["dest_dir"], "run_dir_name": arc["run_dir_name"],
+               "files_digest": arc["files_digest"], "n_files": len(arc["files"]),
+               "manifest_sha256": arc["manifest_sha256"], "run_file_sha256": arc["run_file_sha256"]}
+    return {"base": base, "stage": stage, "preserved": pre, "preserved_path": pre_path, "archive": arc,
+            "archive_path": arc_path, "history": hist, "binding": binding, "nas_root": str(base / "nas")}
+
+
+def _stage(tmp_path, n=1, run_ids=(W_ID, "zzz99999"), real=False):
+    """A fake ``$TMPDIR/wandb`` with ``n`` offline runs (plain bytes unless ``real``)."""
+    stage = tmp_path / "tmpdir" / "wandb"
+    stage.mkdir(parents=True)
+    for i in range(n):
+        if real:
+            _write_wandb_run(stage, run_id=run_ids[i], steps=range(99, 400, 100))
+            continue
+        d = stage / f"offline-run-20261113_01000{i}-{run_ids[i]}"
+        (d / "files").mkdir(parents=True)
+        (d / "tmp" / "code").mkdir(parents=True)
+        (d / f"run-{run_ids[i]}.wandb").write_bytes(b"W&B" + bytes(range(256)) * 9)
+        (d / "files" / "config.yaml").write_text("a: 1\n")
+    log = tmp_path / "train.log"
+    log.write_text(f"wandb: Starting a new run with run id {run_ids[0]}.\n")
+    return stage, log
+
+
+def test_wandb_preserve_locates_exactly_one_run_and_copies_it_verified(tmp_path):
+    stage, log = _stage(tmp_path)
+    src = stage / f"offline-run-20261113_010000-{W_ID}"
+    before = {p: p.read_bytes() for p in src.rglob("*") if p.is_file()}
+    rec = kit.wandb_preserve([str(stage), str(tmp_path / "absent")], str(tmp_path / "keep"), str(log))
+    assert set(rec) == kit.WANDB_PRESERVE_KEYS and rec["kind"] == "exp43_wandb_preserved"
+    assert rec["dest_dir"] == os.path.realpath(str(tmp_path / "keep" / src.name)) and rec["log_run_ids"] == [W_ID]
+    assert rec["run_file"] == f"run-{W_ID}.wandb" and rec["dirs"] == ["files", "tmp", "tmp/code"]
+    assert rec["run_file_sha256"] == hashlib.sha256((src / rec["run_file"]).read_bytes()).hexdigest()
+    assert {p: p.read_bytes() for p in src.rglob("*") if p.is_file()} == before          # the source is untouched
+    assert Path(rec["dest_dir"], "tmp", "code").is_dir()
+    kit.atomic_write_json(str(tmp_path / "pre.json"), rec)
+    assert kit.wandb_preserved_reasons(str(tmp_path / "pre.json")) == ([], rec)
+    with pytest.raises(kit.Refused, match="preserved once"):
+        kit.wandb_preserve([str(stage)], str(tmp_path / "keep"), str(log))
+    # a second search path that aliases the same run counts once
+    os.symlink(str(stage), str(tmp_path / "alias"))
+    assert kit.wandb_candidates([str(stage), str(tmp_path / "alias")]) == [str(src)]
+
+
+@pytest.mark.parametrize("case,needle", [
+    ("zero", "0 offline W&B run"), ("two", "2 offline W&B run"), ("two_dirs", "2 offline W&B run"),
+    ("log_names_another", "names W&B run"), ("symlink_inside", "symlink"), ("two_run_files", "run files"),
+    ("no_run_file", "run files"), ("run_dir_is_a_symlink", "not a real directory")])
+def test_wandb_preserve_is_fail_closed(tmp_path, case, needle):
+    stage, log = _stage(tmp_path, n=2 if case == "two" else (0 if case == "zero" else 1))
+    src = stage / f"offline-run-20261113_010000-{W_ID}"
+    search = [str(stage)]
+    if case == "two_dirs":                                         # one in $TMPDIR/wandb, one in $WANDB_DIR
+        other = tmp_path / "wandb_dir"
+        other.mkdir()
+        os.rename(str(stage / src.name), str(other / src.name))
+        (stage / "offline-run-20261113_020000-zzz99999").mkdir()
+        search.append(str(other))
+    elif case == "log_names_another":
+        log.write_text("wandb: wandb sync /tmp/exp43.x/wandb/offline-run-20261113_020000-zzz99999\n")
+    elif case == "symlink_inside":
+        os.symlink("/etc/hostname", str(src / "files" / "link"))
+    elif case == "two_run_files":
+        (src / "run-other.wandb").write_bytes(b"x")
+    elif case == "no_run_file":
+        (src / f"run-{W_ID}.wandb").unlink()
+    elif case == "run_dir_is_a_symlink":
+        real = tmp_path / "real_run"
+        os.rename(str(src), str(real))
+        os.symlink(str(real), str(src))
+    with pytest.raises(kit.Refused, match=needle):
+        kit.wandb_preserve(search, str(tmp_path / "keep"), str(log))
+    assert not (tmp_path / "keep").exists() or not any((tmp_path / "keep").iterdir())
+
+
+def test_wandb_preserved_receipt_and_copy_mutations_are_refused(tmp_path):
+    stage, log = _stage(tmp_path)
+    rec = kit.wandb_preserve([str(stage)], str(tmp_path / "keep"), str(log))
+    path = str(tmp_path / "pre.json")
+    for key, val in [("kind", "exp40_wandb"), ("run_file_sha256", "0" * 64), ("files_digest", "0" * 64),
+                     ("run_dir_name", "offline-run-x"), ("dirs", ["tmp", "files"]), ("log_run_ids", ["zzz99999"]),
+                     ("dest_dir", "relative/dir"), ("t", True), ("files", {}), ("run_file", "run-zzz.wandb")]:
+        kit.atomic_write_json(path, {**rec, key: val})
+        assert kit.wandb_preserved_reasons(path)[0], key
+    kit.atomic_write_json(path, {**rec, "extra": 1})
+    assert any("exact schema" in x for x in kit.wandb_preserved_reasons(path)[0])
+    kit.atomic_write_json(path, rec)
+    copy = Path(rec["dest_dir"])
+    for mutate in (lambda: (copy / "files" / "config.yaml").write_text("a: 2\n"),
+                   lambda: (copy / "files" / "extra.txt").write_text("x"),
+                   lambda: (copy / f"run-{W_ID}.wandb").unlink()):
+        snapshot = {p: p.read_bytes() for p in copy.rglob("*") if p.is_file()}
+        mutate()
+        assert kit.wandb_preserved_reasons(path)[0]
+        for p in copy.rglob("*"):
+            if p.is_file() and p not in snapshot:
+                p.unlink()
+        for p, b in snapshot.items():
+            p.write_bytes(b)
+        assert kit.wandb_preserved_reasons(path)[0] == []
+
+
+def test_wandb_archive_rehashes_and_every_mutation_is_refused(tmp_path):
+    stage, log = _stage(tmp_path)
+    pre = str(tmp_path / "pre.json")
+    kit.atomic_write_json(pre, kit.wandb_preserve([str(stage)], str(tmp_path / "keep"), str(log)))
+    nas = str(tmp_path / "nas")
+    rec = kit.wandb_archive(RID, pre, nas_root=nas)
+    assert set(rec) == kit.WANDB_ARCHIVE_KEYS and rec["dest_dir"] == os.path.join(nas, f"{RID}__wandb")
+    assert sorted(os.listdir(rec["dest_dir"])) == sorted([kit.ARCHIVE_MANIFEST, rec["run_dir_name"]])
+    assert rec["preserved_receipt_sha256"] == kit.sha256_file(pre)
+    path = str(tmp_path / "arc.json")
+    kit.atomic_write_json(path, rec)
+    assert kit.wandb_archive_reasons(path, RID, nas) == ([], rec)
+    assert kit.wandb_archive(RID, pre, nas_root=nas)["files"] == rec["files"]        # resumable / idempotent
+    assert kit.wandb_archive_reasons(path, RID + "_r1", nas)[0]                      # another RUN_ID
+    for key, val in [("dest_dir", "/elsewhere"), ("manifest_sha256", "0" * 64), ("run_file_sha256", "1" * 64),
+                     ("preserved_receipt_sha256", "x"), ("src_dir", "rel"), ("kind", "wandb")]:
+        kit.atomic_write_json(path, {**rec, key: val})
+        assert kit.wandb_archive_reasons(path, RID, nas)[0], key
+    kit.atomic_write_json(path, rec)
+    run = Path(rec["dest_dir"], rec["run_dir_name"])
+    man = Path(rec["dest_dir"], kit.ARCHIVE_MANIFEST)
+    local = Path(rec["src_dir"])
+    for target in (run / f"run-{W_ID}.wandb", run / "files" / "config.yaml", man, local / f"run-{W_ID}.wandb"):
+        os.chmod(target, 0o644)
+        old = target.read_bytes()
+        target.write_bytes(old + b"!")
+        assert kit.wandb_archive_reasons(path, RID, nas)[0], target
+        target.write_bytes(old)
+    for extra in (run / "files" / ".config.yaml.partial-1-x", Path(rec["dest_dir"], "stray")):
+        extra.write_text("x")
+        assert kit.wandb_archive_reasons(path, RID, nas)[0], extra
+        extra.unlink()
+    assert kit.wandb_archive_reasons(path, RID, nas)[0] == []
+    # a destination that records another run is never overwritten
+    stage2, log2 = _stage(tmp_path / "b", run_ids=("zzz99999", W_ID))
+    pre2 = str(tmp_path / "pre2.json")
+    kit.atomic_write_json(pre2, kit.wandb_preserve([str(stage2)], str(tmp_path / "keep2"), str(log2)))
+    with pytest.raises(kit.Refused, match="not this run's archive|records another"):
+        kit.wandb_archive(RID, pre2, nas_root=nas)
+
+
+def test_wandb_cli_is_write_once(tmp_path):
+    stage, log = _stage(tmp_path)
+    out = str(tmp_path / "pre.json")
+    args = ["wandb-preserve", "--search", str(stage), "--keep-parent", str(tmp_path / "keep"), "--log", str(log),
+            "--out", out]
+    assert kit.main(args) == 0 and kit.wandb_preserved_reasons(out)[0] == []
+    assert kit.main(args) == 2                                                   # receipt exists
+    arc = str(tmp_path / "arc.json")
+    aargs = ["wandb-archive", "--run-id", RID, "--preserved", out, "--dest-root", str(tmp_path / "nas"), "--out", arc]
+    assert kit.main(aargs) == 0 and kit.wandb_archive_reasons(arc, RID, str(tmp_path / "nas"))[0] == []
+    assert kit.main(aargs) == 2
+    assert kit.main(["wandb-archive", "--run-id", "exp40_C16_a6000_2x32", "--preserved", out, "--dest-root",
+                     str(tmp_path / "nas2"), "--out", str(tmp_path / "x.json")]) == 2
+
+
+def test_the_history_tool_is_pinned_and_bound_by_its_sidecar(wandb_fx):
+    tool = _REPO / kit.TRAIN_HISTORY_TOOL
+    assert hashlib.sha256(tool.read_bytes()).hexdigest() == kit.TRAIN_HISTORY_TOOL_SHA256
+    h = wandb_fx["history"]
+    assert set(h) == kit.TRAIN_HISTORY_KEYS and h["rows"] == 400
+    assert h["run_file_sha256"] == wandb_fx["archive"]["run_file_sha256"]
+    assert kit.train_history_reasons(h, wandb_fx["archive"]["run_file_sha256"]) == []
+    side = kit.read_json(h["sidecar"])
+    assert side["run_dir"] == os.path.realpath(os.path.join(wandb_fx["archive"]["dest_dir"], wandb_fx["archive"]["run_dir_name"]))
+    assert side["cadence"]["ok"] is True and side["tool"]["sha256"] == kit.TRAIN_HISTORY_TOOL_SHA256
+    assert kit.train_history_reasons(h, "0" * 64)                                     # another run file
+    for key, val in [("tool", "x.py"), ("tool_sha256", "0" * 64), ("rows", 399), ("rows", True),
+                     ("csv", "rel.csv"), ("csv_sha256", "z")]:
+        assert kit.train_history_reasons({**h, key: val}, h["run_file_sha256"], rehash=False), key
+    assert kit.train_history_reasons({**h, "extra": 1}, h["run_file_sha256"], rehash=False)
+
+
+def test_history_csv_and_sidecar_mutations_are_refused(tmp_path, wandb_fx):
+    import shutil
+    d = tmp_path / "h"
+    shutil.copytree(os.path.dirname(wandb_fx["history"]["csv"]), str(d))
+    h = dict(wandb_fx["history"], csv=str(d / "exp43_train_history.csv"), sidecar=str(d / "exp43_train_history.json"))
+    side = kit.read_json(h["sidecar"])
+    side["csv"]["path"] = h["csv"]
+    kit.atomic_write_json(h["sidecar"], side)
+    h["sidecar_sha256"] = kit.sha256_file(h["sidecar"])
+    assert kit.train_history_reasons(h, h["run_file_sha256"]) == []
+    for target in (h["csv"], h["sidecar"]):
+        os.chmod(target, 0o644)
+        old = open(target, "rb").read()
+        open(target, "wb").write(old.replace(b"99,", b"98,", 1) if target == h["csv"] else old + b" ")
+        assert any("re-hash" in x for x in kit.train_history_reasons(h, h["run_file_sha256"])), target
+        open(target, "wb").write(old)
+    for key, val in [("cadence", {"ok": False}), ("row_count", 399), ("nonfinite", {"train/loss": [99], "lr": []}),
+                     ("expected_max_steps", None), ("schema", "x"), ("run_file_sha256", "0" * 64)]:
+        kit.atomic_write_json(h["sidecar"], {**side, key: val})
+        bad = dict(h, sidecar_sha256=kit.sha256_file(h["sidecar"]))
+        assert kit.train_history_reasons(bad, h["run_file_sha256"]), key
+    kit.atomic_write_json(h["sidecar"], side)
+    open(h["csv"], "a").write("40099,1.0,5e-05\n")                         # a row beyond the cadence
+    side2 = dict(side, csv=dict(side["csv"], sha256=kit.sha256_file(h["csv"])))
+    kit.atomic_write_json(h["sidecar"], side2)
+    bad = dict(h, csv_sha256=kit.sha256_file(h["csv"]), sidecar_sha256=kit.sha256_file(h["sidecar"]))
+    assert any("CSV" in x for x in kit.train_history_reasons(bad, h["run_file_sha256"]))
+
+
+@pytest.mark.parametrize("case,needle", [
+    ("pin", "pinned history extractor"), ("cadence_gap", "exited 3"), ("no_exit_record", "exited 2"),
+    ("stub_rc0_bogus", None)])
+def test_train_history_subprocess_is_fail_closed(tmp_path, monkeypatch, case, needle):
+    parent = tmp_path / "run"
+    parent.mkdir()
+    steps = [s for s in range(99, 40000, 100) if s != 20099] if case == "cadence_gap" else range(99, 40000, 100)
+    run_dir = _write_wandb_run(parent, steps=steps, exit_record=case != "no_exit_record")
+    (tmp_path / "out").mkdir()
+    if case == "pin":
+        monkeypatch.setattr(kit, "TRAIN_HISTORY_TOOL_SHA256", "0" * 64)
+    if case == "stub_rc0_bogus":                                   # a stub tool (pinned to ITS bytes) exit 0
+        root = tmp_path / "stubroot"
+        stub = root / kit.TRAIN_HISTORY_TOOL
+        stub.parent.mkdir(parents=True)
+        stub.write_text("import sys, json\na = sys.argv\n"
+                        "open(a[a.index('--out-csv') + 1], 'w').write('step,train/loss,lr\\n99,1.0,5e-05\\n')\n"
+                        "json.dump({'run_file_sha256': 'x', 'row_count': 400}, open(a[a.index('--out-json') + 1], 'w'))\n")
+        monkeypatch.setattr(kit, "TRAIN_HISTORY_TOOL_SHA256", hashlib.sha256(stub.read_bytes()).hexdigest())
+        h = kit.train_history_subprocess(str(run_dir), str(tmp_path / "out"), RID, tool_root=str(root))
+        assert kit.train_history_reasons(h, "0" * 64), h                       # the binding catches the stub
+        return
+    with pytest.raises(kit.Refused, match=needle):
+        kit.train_history_subprocess(str(run_dir), str(tmp_path / "out"), RID)
+
+
+def test_admission_refuses_every_unbound_wandb_or_history_artefact(tmp_path, tiny_ckpt, monkeypatch, full_stream,
+                                                                   sealed_hub):
+    tree, ckdir, nas_root, d, ev = _tiny_full_run(tmp_path, tiny_ckpt, monkeypatch, full_stream)
+    nas = os.path.join(nas_root, ev["run_id"])
+    v = kit.audit(str(ckdir), str(tree), nas_dir=nas, evidence=str(d / "ev.json"), run_id=ev["run_id"],
+                  expected_dirpath="/ck", check_path=str(d / "check.json"), reference_path=str(d / "ref.json"))
+    kit.atomic_write_json(str(d / "audit.json"), v)
+    rr = kit.run_result(ev["run_id"], ev["sha"], "TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION", _rr_files(d), "/ck",
+                        str(ckdir), str(tree), nas_root=nas_root)
+    assert rr["kind"] == "exp43_run_result" and sorted(rr["files"]) == sorted(kit.RUN_RESULT_FILES)
+    kit.atomic_write_json(str(d / "rr.json"), rr)
+
+    def admit():
+        return kit.admit(str(d / "rr.json"), str(d), str(_REPO), nas_root=nas_root, **_inject(tree, tiny_ckpt[2], sealed_hub))
+    wa = kit.read_json(str(d / "wandb_archive.json"))
+    pre = kit.read_json(str(d / "wandb_preserved.json"))
+    # the NAS archive and the LOCAL preserved copy: every file, mutated one at a time
+    for root in (Path(wa["dest_dir"]), Path(pre["dest_dir"])):
+        for p in sorted(x for x in root.rglob("*") if x.is_file()):
+            os.chmod(p, 0o644)
+            old = p.read_bytes()
+            p.write_bytes(old + b"#")
+            with pytest.raises(kit.Refused):
+                admit()
+            p.write_bytes(old)
+    # the receipts bound by the run result (sha256)
+    for name in ("wandb_preserved.json", "wandb_archive.json"):
+        old = (d / name).read_bytes()
+        (d / name).write_bytes(old.replace(b'"t": ', b'"t":  '))
+        with pytest.raises(kit.Refused, match="not the recorded bytes"):
+            admit()
+        (d / name).write_bytes(old)
+    # the FULL evidence must name the same preserve receipt
+    evr, aur = kit.read_json(str(d / "ev.json")), kit.read_json(str(d / "audit.json"))
+    kit.atomic_write_json(str(d / "ev.json"), {**evr, "wandb_preserved_sha256": "7" * 64})
+    kit.atomic_write_json(str(d / "audit.json"), {**aur, "full_evidence_sha256": kit.sha256_file(str(d / "ev.json"))})
+    rr2 = kit.run_result(ev["run_id"], ev["sha"], "TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION", _rr_files(d), "/ck",
+                         str(ckdir), str(tree), nas_root=nas_root)
+    kit.atomic_write_json(str(d / "rr.json"), rr2)
+    with pytest.raises(kit.Refused, match="do not name one run"):
+        admit()
+    kit.atomic_write_json(str(d / "ev.json"), evr)
+    kit.atomic_write_json(str(d / "audit.json"), aur)
+    kit.atomic_write_json(str(d / "rr.json"), rr)
+    # the pinned extractor
+    monkeypatch.setattr(kit, "TRAIN_HISTORY_TOOL_SHA256", "0" * 64)
+    with pytest.raises(kit.Refused, match="pinned history extractor"):
+        admit()
+    monkeypatch.undo()
+
+
+def test_run_result_names_the_wandb_receipts_and_rejects_exp40_kinds(tmp_path):
+    files = {k: str(tmp_path / f"{k}.json") for k in kit.RUN_RESULT_FILES}
+    for p in files.values():
+        Path(p).write_text("{}")
+    assert kit.RUN_RESULT_FILES == ("check", "reference", "evidence", "audit", "wandb_preserved", "wandb_archive")
+    rr = kit.run_result(RID, "b" * 40, "TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION", files, "/ck", "/ck", "/t")
+    kit.atomic_write_json(str(tmp_path / "rr.json"), rr)
+    assert kit.resolve_run_result(str(tmp_path / "rr.json"), str(tmp_path))[1] == files
+    kit.atomic_write_json(str(tmp_path / "rr.json"), {**rr, "kind": "exp40_run_result"})
+    with pytest.raises(kit.Refused, match="exp_43 FULL run-result"):
+        kit.resolve_run_result(str(tmp_path / "rr.json"), str(tmp_path))
+    with pytest.raises(kit.Refused):
+        kit.run_result(RID, "b" * 40, "x", {k: v for k, v in files.items() if k != "wandb_archive"}, "/ck", "/ck", "/t")
+    assert kit.main(["run-result", "--run-id", RID, "--sha", "b" * 40, "--verdict",
+                     "TRAINING_AUDIT_COMPLETE_PENDING_ADMISSION", "--expected-dirpath", "/ck", "--ckpt-dir", "/ck",
+                     "--runtree", "/t", "--out", str(tmp_path / "rr2.json"),
+                     *sum(([f"--{k.replace('_', '-')}", v] for k, v in files.items()), [])]) == 0
+
+
+def test_fresh_destination_reasons(tmp_path):
+    save, rec, nas = str(tmp_path / "save"), str(tmp_path / "receipts"), str(tmp_path / "nas")
+    assert kit.fresh_destination_reasons("FULL", RID, save, "", rec, nas) == []
+    targets = [os.path.join(save, kit.PROJECT, RID), os.path.join(save, "runtime", RID, "wandb_preserved"),
+               os.path.join(nas, RID), kit.wandb_dest(RID, nas),
+               os.path.join(rec, f"wandb_preserved_{RID}.json"), os.path.join(rec, f"wandb_archive_{RID}.json")]
+    for t in targets:
+        os.makedirs(os.path.dirname(t), exist_ok=True)
+        Path(t).write_text("x")
+        assert any(t in x for x in kit.fresh_destination_reasons("FULL", RID, save, "", rec, nas)), t
+        os.unlink(t)
+    ns = kit.namespace(RID, "SMOKE", STAMP)
+    os.makedirs(os.path.join(save, "runtime", ns, "wandb_preserved"))
+    assert kit.fresh_destination_reasons("SMOKE", RID, save, STAMP, rec, nas)
+
+
+def _smoke_cli_inputs(tmp_path, preserved):
+    recs, sums, log, exp = _evidence(steps=kit.SMOKE_STEPS["SMOKE"], world=1)
+    evdir = tmp_path / "ev"
+    evdir.mkdir()
+    with open(evdir / "rank0.jsonl", "w") as f:
+        for row in recs[0]:
+            f.write(json.dumps(row) + "\n")
+    kit.atomic_write_json(str(evdir / "rank0.summary.json"), sums[0])
+    (tmp_path / "train.log").write_text(log)
+    check = {"sha": "b" * 40, "tree_digest": "1" * 64, "env_digest": "2" * 64,
+             "argv": kit.train_argv("a6000", "2x32", "SMOKE", RID, "/s", STAMP)}
+    kit.atomic_write_json(str(tmp_path / "check.json"), check)
+    return ["evidence", "--platform", "a6000", "--rung", "2x32", "--mode", "SMOKE", "--run-id", RID,
+            "--save-root", "/s", "--stamp", STAMP, "--evidence-dir", str(evdir), "--log", str(tmp_path / "train.log"),
+            "--check-json", str(tmp_path / "check.json"), "--receipts", str(tmp_path / "receipts"),
+            "--train-rc", "0", "--watcher-rc", "0", "--wandb-preserved", preserved, "--out", str(tmp_path / "out.json")]
+
+
+def test_smoke_evidence_cli_requires_the_preserved_wandb_run(tmp_path, wandb_fx):
+    """plan §8 L4: a SMOKE / DDP_SMOKE proves the W&B preservation path before the FULL run."""
+    args = _smoke_cli_inputs(tmp_path, wandb_fx["preserved_path"])
+    assert kit.main(args) == 0
+    out = kit.read_json(str(tmp_path / "out.json"))
+    assert out["verdict"] == "PASS" and out["wandb_preserved_sha256"] == kit.sha256_file(wandb_fx["preserved_path"])
+    os.unlink(str(tmp_path / "out.json"))
+    args[args.index("--wandb-preserved") + 1] = str(tmp_path / "missing.json")
+    assert kit.main(args) == 1
+    out = kit.read_json(str(tmp_path / "out.json"))
+    assert out["verdict"] == "FAIL" and out["wandb_preserved_sha256"] is None
+    assert any("W&B preserve receipt" in x for x in out["evidence"]["reasons"])
+    with pytest.raises(SystemExit):
+        kit.main([a for a in args if a not in ("--wandb-preserved", str(tmp_path / "missing.json"))])
+
+
+def _launcher_cleanup_script(tmp_path, n_runs, log_id=W_ID):
+    """The launcher's cleanup block, extracted VERBATIM, under a real kit, after a 'spawned'
+    training whose offline W&B run sits in $TMPDIR/wandb (as PL's save_dir='.' fallback puts it)."""
+    text = (_EXP / "exp43_train_local.sh").read_text()
+    block = text[text.index("TRAIN_PID=\"\"; WATCH_PID=\"\""):text.index('"$PY" "$KIT" gpu-lock')]
+    fake = tmp_path / "fakekit.py"
+    fake.write_text(
+        "import sys\nimport importlib.util\n"
+        "spec = importlib.util.spec_from_file_location('k', %r)\n" % str(_EXP / "exp43_kit.py") +
+        "k = importlib.util.module_from_spec(spec); spec.loader.exec_module(k)\n"
+        "sys.exit(k.main(sys.argv[1:]))\n")
+    tmpdir = tmp_path / "tmpdir"
+    stage = tmpdir / "wandb"
+    stage.mkdir(parents=True)
+    for i in range(n_runs):
+        _write_wandb_run(stage, run_id=[W_ID, "zzz99999"][i], steps=range(99, 400, 100), stamp=f"2026111{i}_010000")
+    (tmp_path / "train.log").write_text(f"wandb: Starting a new run with run id {log_id}.\n")
+    hs = tmp_path / "hs"
+    hs.mkdir()
+    script = tmp_path / "launcher.sh"
+    script.write_text(
+        "set -uo pipefail\n"
+        f"PY={sys.executable}; KIT={fake}; MODE=FULL; TMPDIR={tmpdir}\n"
+        f"LOCK_JSON={tmp_path / 'locks.json'}; TRAIN_LOG={tmp_path / 'train.log'}\n"
+        f"WANDB_DIR={tmp_path / 'rt' / 'wandb'}; WANDB_KEEP={tmp_path / 'rt' / 'wandb_preserved'}\n"
+        f"WANDB_PRESERVED_JSON={tmp_path / 'wandb_preserved.json'}\n"
+        "die() { echo \"REFUSED: $*\"; exit 2; }\n" + block +
+        f"\"$PY\" \"$KIT\" gpu-lock --uuids {U0} --handshake-dir {hs} --payload-json '{{}}' --out \"$LOCK_JSON\" || die lock\n"
+        "TRAIN_SPAWNED=1\n( exec setsid sleep 300 ) &\nTRAIN_PID=$!\n"
+        f"echo $TRAIN_PID > {tmp_path / 'pid'}\n"
+        "wait \"$TRAIN_PID\"\n")
+    proc = subprocess.Popen(["bash", str(script)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    for _ in range(200):
+        if (tmp_path / "pid").exists() and (hs / f"GPU_LOCK_{U0}").exists():
+            break
+        time.sleep(0.1)
+    time.sleep(0.3)
+    proc.send_signal(signal.SIGTERM)
+    out, _ = proc.communicate(timeout=120)
+    return proc, out, tmpdir, hs
+
+
+def test_launcher_preserves_the_wandb_run_on_an_interrupt_before_removing_tmpdir(tmp_path):
+    proc, out, tmpdir, hs = _launcher_cleanup_script(tmp_path, n_runs=1)
+    assert proc.returncode == 130 and "INTERRUPTED by SIGTERM" in out, out
+    rec = kit.read_json(str(tmp_path / "wandb_preserved.json"))
+    assert kit.wandb_preserved_reasons(str(tmp_path / "wandb_preserved.json"))[0] == []
+    assert rec["dest_dir"].startswith(str(tmp_path / "rt" / "wandb_preserved")) and rec["log_run_ids"] == [W_ID]
+    assert not tmpdir.exists()                                   # removed only AFTER the verified copy
+    assert not (hs / f"GPU_LOCK_{U0}").exists()
+
+
+@pytest.mark.parametrize("n_runs,log_id", [(0, W_ID), (2, W_ID), (1, "zzz99999")])
+def test_launcher_keeps_tmpdir_when_the_wandb_run_cannot_be_preserved(tmp_path, n_runs, log_id):
+    proc, out, tmpdir, hs = _launcher_cleanup_script(tmp_path, n_runs=n_runs, log_id=log_id)
+    assert proc.returncode == 130, out
+    assert "W&B PRESERVATION FAILED" in out and f"CLEANUP: kept {tmpdir}" in out, out
+    assert tmpdir.is_dir() and len(list((tmpdir / "wandb").iterdir())) == n_runs   # nothing deleted
+    assert not (tmp_path / "wandb_preserved.json").exists()
+    assert not (hs / f"GPU_LOCK_{U0}").exists()
+
+
+def test_launcher_wires_the_wandb_preservation_into_every_mode():
+    text = _LAUNCHER.read_text()
+    main = text[text.index("# --- spawn:"):]
+    assert main.index("TRAIN_SPAWNED=1") < main.index("exec setsid")
+    stop = main.index('"$PY" "$KIT" stop-group --pgid "$TRAIN_PID" --grace 120 || die')
+    assert stop < main.index("\npreserve_wandb") < main.index("# --- verdicts")
+    assert '[ "$WANDB_OK" = 1 ] || FINAL=1' in main
+    assert main.count('--wandb-preserved "$WANDB_PRESERVED_JSON"') == 3            # 2 evidence calls + run result
+    assert '"$PY" "$KIT" wandb-archive --run-id "$RUN_ID" --preserved "$WANDB_PRESERVED_JSON"' in main
+    assert '--wandb-archive "$WANDB_ARCHIVE_JSON"' in main
+    assert main.index("wandb-archive --run-id") < main.index('"$PY" "$KIT" run-result')
+    cleanup = text[text.index("cleanup() {"):text.index("on_signal() {")]
+    assert cleanup.index("stop-group") < cleanup.index("preserve_wandb") < cleanup.index("rm -rf")
+    assert 'if [ "$KEEP_TMPDIR" = 1 ]' in cleanup
+    pres = text[text.index("preserve_wandb() {"):text.index("cleanup() {")]
+    for s_ in ('--search "$TMPDIR/wandb"', '--search "$WANDB_DIR/wandb"', '--search "$WANDB_DIR"',
+               '--keep-parent "$WANDB_KEEP"', '--log "$TRAIN_LOG"', "KEEP_TMPDIR=1"):
+        assert s_ in pres, s_
+    assert 'WANDB_KEEP="$RT/wandb_preserved"' in text
+    assert 'WANDB_PRESERVED_JSON="$RECEIPTS/wandb_preserved_${RUN_ID}.json"' in text
+
+
+# --- the leftover gate (plan §5.1): no exp_40 / neuronic / quantisation semantics survive ---------- #
+LEFTOVER_TOKENS = ("exp40", "C16", "offset_step", "quantize", "neuronic", "sbatch")
+# (file, exact string literal) -> why it may name exp_40; every other occurrence fails the gate
+LEFTOVER_ALLOWLIST = {
+    ("exp43_kit.py", "src/tests/fixtures/exp40_yaw_aug_enabled_golden.json"):
+        "the E1 golden of the reference YAW draws (exp_15 / exp_17 pins): RF's offsets must EQUAL it (§2.3)",
+    ("exp43_kit.py", "~/.exp40_cards.lock"):
+        "the A6000 card flock, SHARED ON PURPOSE across exp_40 / exp_42 / exp_43 (plan §5.1)",
+    ("exp43_train_local.sh", '"$HOME/.exp40_cards.lock"'):
+        "the same shared card flock, taken by the launcher (plan §5.1)",
+}
+
+
+def _python_semantic_strings(path):
+    """Every NAME and every non-docstring STRING token of a Python file (comments dropped)."""
+    import ast
+    import io
+    import tokenize
+    src = path.read_text()
+    docs = set()
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)) and node.body:
+            first = node.body[0]
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
+                docs.add(first.value.lineno)
+    out = []
+    for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+        if tok.type == tokenize.NAME or (tok.type == tokenize.STRING and tok.start[0] not in docs):
+            out.append(tok.string)
+        elif tok.type not in (tokenize.COMMENT, tokenize.STRING, tokenize.NL, tokenize.NEWLINE, tokenize.INDENT,
+                              tokenize.DEDENT, tokenize.ENCODING, tokenize.ENDMARKER, tokenize.OP, tokenize.NUMBER):
+            out.append(tok.string)
+    return out
+
+
+def _bash_semantic_words(path):
+    """Every whitespace-separated word of a bash script with comments dropped (full-line and
+    trailing ``# ...`` outside quotes)."""
+    words = []
+    for line in path.read_text().splitlines():
+        code, quote = [], None
+        for i, ch in enumerate(line):
+            if quote:
+                quote = None if ch == quote else quote
+            elif ch in "\"'":
+                quote = ch
+            elif ch == "#" and (i == 0 or line[i - 1] in " \t") and not line[max(0, i - 1):i + 2].startswith("$#"):
+                break
+            code.append(ch)
+        words += "".join(code).split()
+    return words
+
+
+def _leftovers(name, units):
+    bad = []
+    for u in units:
+        for t in LEFTOVER_TOKENS:
+            hit = t in u if t == "C16" else t in u.lower()
+            if hit and not any(f == name and lit in u for (f, lit) in LEFTOVER_ALLOWLIST):
+                bad.append((t, u))
+    return bad
+
+
+def test_leftover_gate_finds_no_exp40_semantics_outside_the_allowlist():
+    assert _leftovers("exp43_kit.py", _python_semantic_strings(_EXP / "exp43_kit.py")) == []
+    assert _leftovers("exp43_evidence_driver.py", _python_semantic_strings(_EXP / "exp43_evidence_driver.py")) == []
+    assert _leftovers("exp43_train_local.sh", _bash_semantic_words(_EXP / "exp43_train_local.sh")) == []
+    for (name, lit), why in LEFTOVER_ALLOWLIST.items():
+        text = (_EXP / name).read_text()
+        assert lit in text and why, (name, lit)                     # every allowance is still needed
+
+
+def test_leftover_gate_catches_a_planted_leftover(tmp_path):
+    py = tmp_path / "exp43_kit.py"
+    py.write_text('"""exp40 in a docstring is prose."""\n# exp40 in a comment too\nX = "FLAC_exp40_C16"\n'
+                  'def f():\n    """offset_step prose"""\n    return quantize_yaw_offsets\n')
+    got = {t for t, _ in _leftovers("exp43_kit.py", _python_semantic_strings(py))}
+    assert got == {"exp40", "C16", "quantize"}
+    sh = tmp_path / "exp43_train_local.sh"
+    sh.write_text('# exp40 header comment\nKIT="$RUNTREE/exp40_kit.py"  # neuronic note\necho "sbatch" # x\n'
+                  'CARDS_LOCK="$HOME/.exp40_cards.lock"\n')
+    got = {t for t, _ in _leftovers("exp43_train_local.sh", _bash_semantic_words(sh))}
+    assert got == {"exp40", "sbatch"}
