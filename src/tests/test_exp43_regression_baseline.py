@@ -776,3 +776,322 @@ def test_changed_subtest_count_fails_the_comparison(tmp_path, git_ok):
     wt2, j2, lg2 = _new_run(tmp_path)
     rc2, rep = _compare(tmp_path, base, wt2, j2, lg2)
     assert rc2 == 1 and any("subtests" in r for r in rep["reasons"])
+
+
+# --------------------------------------------------------------------------- #
+# node-id canonicalisation at compare time (found on the real L2 run: 17 parametrised ids embed the
+# absolute worktree path, 1 embeds the wall clock). Only the text inside the parametrisation brackets
+# is canonicalised, symmetrically, each side with its own worktree root.
+# --------------------------------------------------------------------------- #
+COMMITTED_BASELINE = _REPO / "worklog/worklog_yixun/exp_43_std_aug_claude/exp43_regression_baseline.json"
+MESSAGE_RULES_SHA256 = "09268be54b832c29768cd02b83637f286078575e97a34abaac26f7fb5f23706c"
+NODEID_RULES_SHA256 = "135c47b35d0559d5e505c8ebf94ef0449ac6037acbfddf3a1543f2c12d11bec8"
+PA = "src/tests/test_alpha.py::"
+NEW_KW = dict(hexaddr="0x55aa11223344", pid="777", secs="9.87", line="40", tmpn="5")
+
+
+def _extra_run(tmp_path, name, wt, extra, secs="3.21", **kw):
+    """scenario() plus extra nodes ``(classname, test name, outcome)``, outcome passed / failed / skipped."""
+    cases, summary, _final = scenario(wt, secs=secs, **kw)
+    n = {"passed": 0, "failed": 0, "skipped": 0}
+    for cls, tname, outcome in extra:
+        nid = cls.replace(".", "/") + ".py::" + tname
+        n[outcome] += 1
+        if outcome == "failed":
+            cases = cases + [(cls, tname, (F("AssertionError: p", "x\n\nsrc/tests/test_alpha.py:7: AssertionError"),))]
+            summary = summary + [f"FAILED {nid} - AssertionError: p"]
+        elif outcome == "skipped":
+            cases = cases + [(cls, tname, (S("run absent"),))]
+        else:
+            cases = cases + [(cls, tname, ())]
+            summary = summary + [f"PASSED {nid}"]
+    summary = [x.replace("SKIPPED [1]", f"SKIPPED [{1 + n['skipped']}]") for x in summary]
+    final = (f"{1 + n['failed']} failed, {2 + n['passed']} passed, {1 + n['skipped']} skipped, 1 xfailed, "
+             f"1 xpassed, 1 error in {secs}s (0:00:03)")
+    return write_junit(tmp_path / f"{name}.xml", cases), write_log(tmp_path / f"{name}.log", summary, final)
+
+
+def _canon_runs(tmp_path, base_extra, new_extra, new_link=False, new_embed_real=False):
+    """A baseline recorded in wt_base and a new run in wt_new (optionally passed as a symlink); the
+    extra nodes are ``fn(root) -> [(classname, name, outcome)]`` with the root each run embeds."""
+    wb = _worktree(tmp_path / "wt_base")
+    j, lg = _extra_run(tmp_path, "base", wb, base_extra(wb))
+    rc, base = _record(tmp_path, wb, j, lg)
+    assert rc == 0
+    wn = _worktree(tmp_path / "wt_new")
+    arg = wn
+    if new_link:
+        arg = tmp_path / "wt_new_link"
+        arg.symlink_to(wn)
+    embed = wn if (new_embed_real or not new_link) else arg
+    j2, lg2 = _extra_run(tmp_path, "new", arg, new_extra(embed), **NEW_KW)
+    return base, wb, wn, arg, j2, lg2
+
+
+def _path_node(root, rel="src/tests/test_alpha.py", outcome="passed"):
+    return (A, f"test_path[{root}/{rel}]", outcome)
+
+
+@pytest.mark.parametrize("nodeid, roots, expected", [
+    # (a) this run's own worktree root -> <REPO>, only as a whole path
+    ("f.py::t[/x/repo/a.py]", ["/x/repo"], "f.py::t[<REPO>/a.py]"),
+    ("f.py::t[/x/repo]", ["/x/repo"], "f.py::t[<REPO>]"),
+    ("f.py::t[k=/x/repo/a, /x/repo]", ["/x/repo"], "f.py::t[k=<REPO>/a, <REPO>]"),
+    ("f.py::t[/x/repo2/a.py]", ["/x/repo"], "f.py::t[/x/repo2/a.py]"),          # shares a prefix only
+    ("f.py::t[/x/repo.bak/a]", ["/x/repo"], "f.py::t[/x/repo.bak/a]"),
+    ("f.py::t[/x/repo-old/a]", ["/x/repo"], "f.py::t[/x/repo-old/a]"),
+    ("f.py::t[/y/x/repo/a]", ["/x/repo"], "f.py::t[/y/x/repo/a]"),              # a deeper path
+    ("f.py::t[a/x/repo/a]", ["/x/repo"], "f.py::t[a/x/repo/a]"),                # a relative path
+    ("f.py::t[1-/x/repo/a]", ["/x/repo"], "f.py::t[1-/x/repo/a]"),              # '-' is no start boundary
+    ("f.py::t[/b/root/a]", ["/a/root"], "f.py::t[/b/root/a]"),                  # another run's root
+    ("f.py::t[/x/repo/sub/a]", ["/x/repo", "/x/repo/sub"], "f.py::t[<REPO>/a]"),  # longest first
+    ("f.py::t[/x/re.po+(1)/a]", ["/x/re.po+(1)"], "f.py::t[<REPO>/a]"),         # the root is literal
+    ("f.py::t[/x/reXpo+(1)/a]", ["/x/re.po+(1)"], "f.py::t[/x/reXpo+(1)/a]"),
+    ("f.py::t[/x/run-1794553485.5/a]", ["/x/run-1794553485.5"], "f.py::t[<REPO>/a]"),  # roots before epochs
+    # (b) an epoch-like float -> <EPOCH>
+    ("f.py::t[t-1794553485.4892116-non-future]", [], "f.py::t[t-<EPOCH>-non-future]"),
+    ("f.py::t[123456789.0]", [], "f.py::t[<EPOCH>]"),
+    ("f.py::t[a1794553485.5]", [], "f.py::t[a<EPOCH>]"),
+    ("f.py::t[12345678.9]", [], "f.py::t[12345678.9]"),                        # 8 integer digits
+    ("f.py::t[1794553485]", [], "f.py::t[1794553485]"),                        # no fraction
+    ("f.py::t[1794553485.]", [], "f.py::t[1794553485.]"),
+    ("f.py::t[1.1794553485.5]", [], "f.py::t[1.1794553485.5]"),                # bounded by a dot
+    ("f.py::t[1794553485.5.1]", [], "f.py::t[1794553485.5.1]"),
+    ("f.py::t[2.109375]", [], "f.py::t[2.109375]"),
+    ("f.py::C::t[p::q[1794553485.5]]", [], "f.py::C::t[p::q[<EPOCH>]]"),
+    # text outside the brackets is never touched
+    ("/x/repo/f.py::t[/x/repo/a]", ["/x/repo"], "/x/repo/f.py::t[<REPO>/a]"),
+    ("d/1794553485.4892116/f.py::t", [], "d/1794553485.4892116/f.py::t"),
+    ("d/1794553485.4892116/f.py::t[1794553485.4892116]", [], "d/1794553485.4892116/f.py::t[<EPOCH>]"),
+    ("/x/repo/f.py::t", ["/x/repo"], "/x/repo/f.py::t"),
+    ("src/tests/test_a.py", ["/x/repo"], "src/tests/test_a.py"),
+])
+def test_canonical_nodeid_rules(nodeid, roots, expected):
+    assert rb.canonical_nodeid(nodeid, roots) == expected
+
+
+@pytest.mark.parametrize("nodeid", ["f.py::t[abc", "f.py::t[<EPOCH>]", "f.py::t[<REPO>/a]", "f.py::t[x<REPO>]"])
+def test_canonical_nodeid_refuses_unbalanced_brackets_or_a_preexisting_token(nodeid):
+    with pytest.raises(rb.Refusal):
+        rb.canonical_nodeid(nodeid, ["/x/repo"])
+
+
+def test_nodeid_rule_set_is_described_and_hashed():
+    d = rb.nodeid_rules_description()
+    assert [r["name"] for r in d["rules"]] == ["nodeid_repo_root", "nodeid_epoch"]
+    assert all(r["pattern"] and r["replacement"] and r["description"] for r in d["rules"])
+    assert d["scope"] and d["guards"]
+    assert rb.nodeid_rules_sha256() == hashlib.sha256(json.dumps(d, sort_keys=True).encode()).hexdigest()
+    assert rb.nodeid_rules_sha256() == NODEID_RULES_SHA256          # any change to the rules is visible
+
+
+def test_message_rules_and_the_committed_baseline_are_unchanged():
+    assert rb.rules_sha256() == MESSAGE_RULES_SHA256
+    b = rb._load_baseline(COMMITTED_BASELINE, SHA)
+    assert b["content_sha256"] == rb.content_sha256(b) and b["normalisation"]["rules_sha256"] == MESSAGE_RULES_SHA256
+    roots = rb.baseline_repo_roots(b)
+    assert roots == ["/home/yixunhu/codespace/exp-43-baseline-6a51f741"]
+    canon, rewritten = rb.canonicalise_nodes(b["nodes"], roots, "baseline")
+    assert len(canon) == len(b["nodes"]) == 6966 and len(rewritten) == 18
+    assert sum(c.endswith("[t-<EPOCH>-non-future]") for c in rewritten.values()) == 1
+    assert sum("[<REPO>/" in c for c in rewritten.values()) == 17
+
+
+def test_worktree_path_param_ids_from_two_roots_compare_equal(tmp_path, git_ok):
+    base, wb, wn, arg, j, lg = _canon_runs(tmp_path, lambda r: [_path_node(r), (A, f"test_root[{r}]", "passed")],
+                                           lambda r: [_path_node(r), (A, f"test_root[{r}]", "passed")])
+    rc, rep = _compare(tmp_path, base, arg, j, lg)
+    assert rc == 0 and rep["verdict"] == "PASS" and rep["reasons"] == []
+    assert rep["removed_nodes"] == [] and rep["added_nodes"] == []
+    assert rep["schema"] == "exp43-regression-compare/2"
+    nc = rep["node_id_canonicalisation"]
+    assert nc["canonicalised"] == [
+        {"canonical": PA + "test_path[<REPO>/src/tests/test_alpha.py]",
+         "baseline": PA + f"test_path[{wb}/src/tests/test_alpha.py]",
+         "new": PA + f"test_path[{wn}/src/tests/test_alpha.py]"},
+        {"canonical": PA + "test_root[<REPO>]", "baseline": PA + f"test_root[{wb}]", "new": PA + f"test_root[{wn}]"}]
+    assert nc["roots"] == {"baseline": [str(wb)], "new": [str(wn)]}
+
+
+@pytest.mark.parametrize("embed_real", [False, True])
+def test_new_run_worktree_as_given_and_its_realpath_are_both_canonicalised(tmp_path, git_ok, embed_real):
+    base, wb, wn, arg, j, lg = _canon_runs(tmp_path, lambda r: [_path_node(r)], lambda r: [_path_node(r)],
+                                           new_link=True, new_embed_real=embed_real)
+    rc, rep = _compare(tmp_path, base, arg, j, lg)
+    assert rc == 0 and rep["verdict"] == "PASS"
+    assert rep["node_id_canonicalisation"]["roots"]["new"] == sorted([str(arg), str(wn)])
+
+
+def test_epoch_float_param_ids_compare_equal(tmp_path, git_ok):
+    base, wb, wn, arg, j, lg = _canon_runs(
+        tmp_path, lambda r: [(A, "test_t[t-1794553485.4892116-non-future]", "passed")],
+        lambda r: [(A, "test_t[t-1794562367.1640806-non-future]", "passed")])
+    rc, rep = _compare(tmp_path, base, arg, j, lg)
+    assert rc == 0 and rep["verdict"] == "PASS"
+    assert rep["node_id_canonicalisation"]["canonicalised"] == [
+        {"canonical": PA + "test_t[t-<EPOCH>-non-future]", "baseline": PA + "test_t[t-1794553485.4892116-non-future]",
+         "new": PA + "test_t[t-1794562367.1640806-non-future]"}]
+
+
+def test_the_other_runs_root_is_not_canonicalised(tmp_path, git_ok):
+    """The new run embeds the BASELINE's root: only each run's own root is a token, so this differs."""
+    base, wb, wn, arg, j, lg = _canon_runs(tmp_path, lambda r: [_path_node(r)],
+                                           lambda r: [_path_node(tmp_path / "wt_base")])
+    rc, rep = _compare(tmp_path, base, arg, j, lg)
+    assert rc == 1
+    assert rep["removed_nodes"] == [PA + "test_path[<REPO>/src/tests/test_alpha.py]"]
+    assert rep["added_nodes"] == [PA + f"test_path[{wb}/src/tests/test_alpha.py]"]
+
+
+def test_a_path_that_only_shares_the_roots_prefix_is_not_canonicalised(tmp_path, git_ok):
+    base, wb, wn, arg, j, lg = _canon_runs(tmp_path, lambda r: [(A, f"test_path[{r}2/a.py]", "passed")],
+                                           lambda r: [(A, f"test_path[{r}2/a.py]", "passed")])
+    rc, rep = _compare(tmp_path, base, arg, j, lg)
+    assert rc == 1 and rep["removed_nodes"] == [PA + f"test_path[{wb}2/a.py]"]
+    assert rep["node_id_canonicalisation"]["canonicalised"] == []
+
+
+@pytest.mark.parametrize("base_name, new_name", [
+    ("test_path[{r}/src/a.py]", "test_path[{r}/src/b.py]"),                 # a different relative file
+    ("test_t[17945534.5]", "test_t[17945535.5]"),                           # 8 integer digits: no epoch
+    ("test_t[1794553485]", "test_t[1794562367]"),                           # no fraction: no epoch
+    ("test_t[1.5]", "test_t[2.5]"),
+    ("test_t[a-1794553485.5]", "test_t[b-1794553485.5]"),                   # text next to an epoch
+])
+def test_a_real_difference_inside_the_brackets_still_fails(tmp_path, git_ok, base_name, new_name):
+    base, wb, wn, arg, j, lg = _canon_runs(tmp_path, lambda r: [(A, base_name.format(r=r), "passed")],
+                                           lambda r: [(A, new_name.format(r=r), "passed")])
+    rc, rep = _compare(tmp_path, base, arg, j, lg)
+    assert rc == 1 and len(rep["removed_nodes"]) == 1 and len(rep["added_nodes"]) == 1
+
+
+@pytest.mark.parametrize("side, names", [
+    ("new", ["test_t[1794553485.1]", "test_t[1794553486.2]"]),
+    ("baseline", ["test_t[1794553485.1]", "test_t[1794553486.2]"]),
+    ("new", ["test_path[{link}/a]", "test_path[{real}/a]"]),
+])
+def test_a_canonical_id_collision_is_refused(tmp_path, git_ok, side, names, capsys):
+    def ex(r):
+        return [(A, n.format(link=tmp_path / "wt_new_link", real=tmp_path / "wt_new"), "passed") for n in names]
+    base, wb, wn, arg, j, lg = _canon_runs(tmp_path, ex if side == "baseline" else (lambda r: []),
+                                           ex if side == "new" else (lambda r: []), new_link=True)
+    rc, rep = _compare(tmp_path, base, arg, j, lg)
+    assert rc == 2 and rep is None and not (tmp_path / "cmp.json").exists()
+    assert "collide" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("side", ["new", "baseline"])
+def test_a_node_id_already_holding_a_token_is_refused(tmp_path, git_ok, side, capsys):
+    ex = lambda r: [(A, "test_tok[<EPOCH>]", "passed")]  # noqa: E731
+    base, wb, wn, arg, j, lg = _canon_runs(tmp_path, ex if side == "baseline" else (lambda r: []),
+                                           ex if side == "new" else (lambda r: []))
+    rc, rep = _compare(tmp_path, base, arg, j, lg)
+    assert rc == 2 and rep is None and "<EPOCH>" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("base_out, new_out, reason", [
+    ("passed", "failed", "pass -> fail: {n} (passed -> failed)"),
+    ("failed", "passed", "pre-existing failed changed: {n} (failed -> passed)"),
+])
+def test_an_outcome_change_on_a_canonicalised_node_is_still_caught(tmp_path, git_ok, base_out, new_out, reason):
+    base, wb, wn, arg, j, lg = _canon_runs(
+        tmp_path, lambda r: [_path_node(r, outcome=base_out), (A, "test_t[1794553485.5]", "passed")],
+        lambda r: [_path_node(r, outcome=new_out), (A, "test_t[1794562367.5]", "passed")])
+    rc, rep = _compare(tmp_path, base, arg, j, lg)
+    n = PA + "test_path[<REPO>/src/tests/test_alpha.py]"
+    assert rc == 1 and rep["reasons"] == [reason.format(n=n)]
+    assert rep["removed_nodes"] == [] and rep["added_nodes"] == []
+
+
+def test_the_report_lists_every_canonicalised_node_and_the_rule_set(tmp_path, git_ok):
+    base, wb, wn, arg, j, lg = _canon_runs(
+        tmp_path, lambda r: [_path_node(r), (A, "test_t[t-1794553485.4892116-x]", "passed")],
+        lambda r: [_path_node(r), (A, "test_t[t-1794562367.1640806-x]", "passed"),
+                   ("src.tests.test_new", "test_n[1794562367.9892623]", "passed")])
+    rc, rep = _compare(tmp_path, base, arg, j, lg, "--new-test-file", "src/tests/test_new.py")
+    assert rc == 0 and rep["verdict"] == "PASS"
+    assert rep["added_nodes"] == ["src/tests/test_new.py::test_n[<EPOCH>]"]
+    nc = rep["node_id_canonicalisation"]
+    assert nc["canonicalised"] == [
+        {"canonical": PA + "test_path[<REPO>/src/tests/test_alpha.py]",
+         "baseline": PA + f"test_path[{wb}/src/tests/test_alpha.py]",
+         "new": PA + f"test_path[{wn}/src/tests/test_alpha.py]"},
+        {"canonical": PA + "test_t[t-<EPOCH>-x]", "baseline": PA + "test_t[t-1794553485.4892116-x]",
+         "new": PA + "test_t[t-1794562367.1640806-x]"},
+        {"canonical": "src/tests/test_new.py::test_n[<EPOCH>]", "baseline": None,
+         "new": "src/tests/test_new.py::test_n[1794562367.9892623]"}]
+    assert nc["counts"] == {"baseline_ids_rewritten": 2, "new_ids_rewritten": 3, "pairs": 2}
+    d = rb.nodeid_rules_description()
+    assert nc["rules"] == d["rules"] and nc["scope"] == d["scope"] and nc["guards"] == d["guards"]
+    assert nc["rules_sha256"] == rb.nodeid_rules_sha256()
+    # the message-normalisation rule set is reported elsewhere and is not part of this one
+    assert "ansi" not in json.dumps(nc["rules"])
+
+
+def test_declarations_name_canonical_ids_and_raw_spellings_are_refused(tmp_path, git_ok):
+    base, wb, wn, arg, j, lg = _canon_runs(
+        tmp_path, lambda r: [_path_node(r)],
+        lambda r: [_path_node(r), ("src.tests.test_new", "test_opt[1794562367.5]", "skipped")])
+    canon = PA + "test_path[<REPO>/src/tests/test_alpha.py]"
+    skip = "src/tests/test_new.py::test_opt[<EPOCH>]"
+    nf = ["--new-test-file", "src/tests/test_new.py"]
+    rc, rep = _compare(tmp_path, base, arg, j, lg, *nf, "--edited-node", canon, "--allow-new-skip", skip)
+    assert rc == 0 and rep["edited_nodes"] == {canon: {"baseline": "passed", "new": "passed", "ok": True}}
+    assert rep["allowed_new_skips"] == {skip: "run absent"}
+    for k, extra in enumerate([["--edited-node", PA + f"test_path[{wn}/src/tests/test_alpha.py]"],
+                               ["--edited-node", PA + f"test_path[{wb}/src/tests/test_alpha.py]"],
+                               ["--allow-new-skip", "src/tests/test_new.py::test_opt[1794562367.5]"]]):
+        rc2, rep2 = _compare(tmp_path, base, arg, j, lg, *nf, *extra, out_name=f"cmp_raw{k}.json")
+        assert rc2 == 2 and rep2 is None
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda rec: rec["normalisation"]["roots"].__setitem__("<REPO>", []),
+    lambda rec: rec["normalisation"]["roots"].pop("<REPO>"),
+    lambda rec: rec["normalisation"]["roots"].__setitem__("<REPO>", ["relative/root"]),
+    lambda rec: rec.__setitem__("worktree", "/somewhere/else"),
+])
+def test_a_baseline_whose_recorded_root_is_unusable_is_refused(tmp_path, git_ok, mutate):
+    base, wb, wn, arg, j, lg = _canon_runs(tmp_path, lambda r: [_path_node(r)], lambda r: [_path_node(r)])
+    rec = json.loads(base.read_text())
+    mutate(rec)
+    rec["content_sha256"] = rb.content_sha256(rec)
+    base.write_text(json.dumps(rec))
+    rc, rep = _compare(tmp_path, base, arg, j, lg)
+    assert rc == 2 and rep is None
+
+
+def test_the_baselines_recorded_realpath_root_is_canonicalised(tmp_path, git_ok):
+    """A baseline recorded through a symlinked worktree: its recorded <REPO> roots hold both spellings."""
+    real = _worktree(tmp_path / "wt_base_real")
+    link = tmp_path / "wt_base_link"
+    link.symlink_to(real)
+    j, lg = _extra_run(tmp_path, "base", link, [_path_node(real), (A, f"test_l[{link}/x]", "passed")])
+    rc, base = _record(tmp_path, link, j, lg)
+    assert rc == 0
+    wn = _worktree(tmp_path / "wt_new")
+    j2, lg2 = _extra_run(tmp_path, "new", wn, [_path_node(wn), (A, f"test_l[{wn}/x]", "passed")], **NEW_KW)
+    rc, rep = _compare(tmp_path, base, wn, j2, lg2)
+    assert rc == 0 and rep["verdict"] == "PASS"
+    assert rep["node_id_canonicalisation"]["roots"]["baseline"] == sorted([str(link), str(real)])
+    assert rep["node_id_canonicalisation"]["counts"]["pairs"] == 2
+
+
+@pytest.mark.parametrize("roots", [[""], ["/"], ["relative/root"], ["/x/repo/"], ["/x/repo", "rel"]])
+def test_an_unusable_root_is_refused(roots):
+    with pytest.raises(rb.Refusal, match="unusable"):
+        rb.canonical_nodeid("f.py::t[/x/repo/a]", roots)
+
+
+@pytest.mark.parametrize("rec", [
+    {"worktree": "rel", "normalisation": {"roots": {"<REPO>": ["rel"]}}},
+    {"worktree": "/x/repo/", "normalisation": {"roots": {"<REPO>": ["/x/repo/"]}}},
+    {"worktree": "/x/repo", "normalisation": {"roots": {"<REPO>": "/x/repo"}}},
+    {"worktree": "/x/repo", "normalisation": {"roots": []}},
+    {"worktree": "/x/repo"},
+])
+def test_baseline_repo_roots_requires_usable_recorded_roots(rec):
+    with pytest.raises(rb.Refusal, match="usable"):
+        rb.baseline_repo_roots(rec)
+    assert rb.baseline_repo_roots({"worktree": "/x/repo", "normalisation": {"roots": {"<REPO>": ["/y", "/x/repo"]}}}) \
+        == ["/x/repo", "/y"]

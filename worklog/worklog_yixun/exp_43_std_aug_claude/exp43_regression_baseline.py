@@ -50,6 +50,28 @@ sha256 is stored in every record and ``compare`` refuses a baseline made with ot
   whitespace        trailing whitespace of every line and of the text removed
 Skip and xfail reasons are normalised the same way.
 
+Node-id canonicalisation (``compare`` only; records keep the literal ids). A parametrised id can embed
+the worktree path (found: the 17 ``test_exp35_phase_ii_cli`` file ids) or the wall clock (found:
+``test_exp40_kit`` ``t-<time.time()>-non-future``), so the same node gets another id in another
+worktree or at another time. Before comparing, every node id of BOTH runs is canonicalised, each run
+with its own root, by ``nodeid_rules_description()`` (stored with its sha256 in the report):
+  scope             only the text between the id's first '[' and its final ']'; the file / class /
+                    function part is never changed
+  nodeid_repo_root  the run's OWN worktree root -> <REPO>: the baseline's as recorded in
+                    normalisation.roots['<REPO>'] (its worktree as given and its realpath), the new
+                    run's --worktree as given and its realpath; longest first; only as a whole path
+                    (start of the bracket text or a path-stop character other than '/' before it, its
+                    end, '/' or a path-stop character after it); never the other run's root
+  nodeid_epoch      >= 9 integer digits '.' >= 1 fraction digit, no digit or dot adjacent -> <EPOCH>
+Nothing else is canonicalised, and there is no override. Refused (exit 2, nothing written): two
+distinct ids of one run with the same canonical id; a run id already holding <REPO> / <EPOCH> in its
+brackets; a '[' without a final ']'; a baseline whose recorded worktree is not among its recorded
+absolute <REPO> roots; a declared --edited-node / --allow-new-skip that a rule would change (declare
+the canonical id, e.g. ``f.py::t[<REPO>/x.py]``). The report (schema /2) lists every rewritten id as
+{canonical, baseline original, new original}, the roots used, the rules and their sha256; its
+removed / added / failure / edited / skip keys are canonical ids (``new_failures`` keeps the new
+run's literal ids).
+
 compare verdict PASS iff all of: no baseline node is missing; every node not in the baseline belongs
 to a declared ``--new-test-file`` (which must be absent from the baseline and collect >= 1 node);
 every baseline node except the declared ``--edited-node`` s keeps its outcome, and failures / errors
@@ -72,7 +94,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 SCHEMA = "exp43-regression-baseline/1"
-COMPARE_SCHEMA = "exp43-regression-compare/1"
+COMPARE_SCHEMA = "exp43-regression-compare/2"     # /2: adds node_id_canonicalisation; ids are canonical
 OUTCOMES = ("passed", "failed", "error", "skipped", "xfailed", "xpassed")
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 _PATH_STOP = r"\s/'\":,;()\[\]{}<>=|*?"
@@ -214,6 +236,120 @@ def resolve_nodeid(classname, name, worktree):
     if classname == "" and i != len(parts):
         raise Refusal(f"collection-level report {name!r} does not name a module")
     return "::".join(["/".join(parts[:i]) + ".py", *parts[i:], *tail])
+
+
+# --------------------------------------------------------------------------- #
+# node-id canonicalisation (compare only; never stored in a baseline record)
+# --------------------------------------------------------------------------- #
+_NID_BEFORE = r"\s'\":,;()\[\]{}=|*?"           # path-stop characters that may precede a whole path
+_NID_AFTER = r"\s/'\":,;()\[\]{}=|*?"           # ... and that may follow one ('/' included)
+_NODEID_ROOT = r"(?<![^" + _NID_BEFORE + r"])(?:{roots})(?![^" + _NID_AFTER + r"])"
+_NODEID_EPOCH = r"(?<![0-9.])[0-9]{9,}\.[0-9]+(?![0-9.])"
+_NODEID_TOKENS = ("<REPO>", "<EPOCH>")
+_NODEID_RULES = [
+    ("nodeid_repo_root", _NODEID_ROOT, "<REPO>",
+     "this run's OWN worktree root -> <REPO> (never the other run's): the baseline's as recorded in its "
+     "normalisation.roots['<REPO>'] (its worktree as given and its realpath), the new run's --worktree as "
+     "given and its realpath; {roots} = those roots regex-escaped, longest first, joined by '|'; only as a "
+     "whole path: preceded by the start of the bracket text or a path-stop character other than '/', "
+     "followed by its end, '/' or another path-stop character; applied first"),
+    ("nodeid_epoch", _NODEID_EPOCH, "<EPOCH>",
+     "an epoch-like float -> <EPOCH>: >= 9 integer digits, a dot, >= 1 fraction digit, with no digit or "
+     "dot immediately before or after it; applied after nodeid_repo_root"),
+]
+_NODEID_SCOPE = ("only the text between a node id's first '[' and its final ']' (pytest's parametrisation id); "
+                 "the file / class / function part is never changed; a node id without '[' is unchanged")
+_NODEID_GUARDS = [
+    "a node id holding '[' whose text does not end with ']' -> refused",
+    "a run's node id whose bracket text already holds <REPO> or <EPOCH> -> refused",
+    "two distinct node ids of one run with the same canonical id -> refused",
+    "a baseline whose recorded worktree is not one of its recorded absolute normalisation.roots['<REPO>'] -> refused",
+    "a declared --edited-node / --allow-new-skip that a rule would change under either run's roots -> refused "
+    "(declarations name canonical ids)",
+]
+_EPOCH_RX = re.compile(_NODEID_EPOCH)
+
+
+def nodeid_rules_description():
+    return {"scope": _NODEID_SCOPE, "guards": list(_NODEID_GUARDS),
+            "rules": [{"name": n, "pattern": p, "replacement": r, "description": d} for n, p, r, d in _NODEID_RULES]}
+
+
+def nodeid_rules_sha256():
+    return hashlib.sha256(json.dumps(nodeid_rules_description(), sort_keys=True).encode()).hexdigest()
+
+
+def _is_root(p):
+    return isinstance(p, str) and os.path.isabs(p) and p != "/" and not p.endswith("/")
+
+
+def _split_params(nodeid):
+    """(head, bracket text) — the bracket text is None for a node id without '['."""
+    head, sep, rest = nodeid.partition("[")
+    if not sep:
+        return nodeid, None
+    if not rest.endswith("]"):
+        raise Refusal(f"node id {nodeid!r}: its parametrisation does not end with ']'")
+    return head, rest[:-1]
+
+
+def _apply_nodeid_rules(text, repo_roots):
+    roots = sorted(set(repo_roots), key=lambda p: (-len(p), p))
+    if not all(_is_root(p) for p in roots):
+        raise Refusal(f"unusable worktree root(s) for node-id canonicalisation: {roots}")
+    if roots:
+        rx = re.compile(_NODEID_ROOT.replace("{roots}", "|".join(re.escape(p) for p in roots)))
+        text = rx.sub("<REPO>", text)
+    return _EPOCH_RX.sub("<EPOCH>", text)
+
+
+def canonical_nodeid(nodeid, repo_roots):
+    """The rules of ``nodeid_rules_description()`` applied to the bracket text of one run's node id."""
+    head, params = _split_params(nodeid)
+    if params is None:
+        return nodeid
+    for tok in _NODEID_TOKENS:
+        if tok in params:
+            raise Refusal(f"node id {nodeid!r} already holds the canonical token {tok}")
+    return f"{head}[{_apply_nodeid_rules(params, repo_roots)}]"
+
+
+def canonicalise_nodes(nodes, repo_roots, side):
+    """{canonical id: record}, {original id: canonical id} for the ids the rules changed; refuses when two
+    distinct ids of the run share a canonical id."""
+    canon, origin, rewritten = {}, {}, {}
+    for nid in sorted(nodes):
+        c = canonical_nodeid(nid, repo_roots)
+        if c in origin:
+            raise Refusal(f"{side} node ids {origin[c]!r} and {nid!r} collide on the canonical id {c!r}")
+        origin[c], canon[c] = nid, nodes[nid]
+        if c != nid:
+            rewritten[nid] = c
+    return canon, rewritten
+
+
+def baseline_repo_roots(b):
+    """The baseline's own worktree root(s), as recorded for its message normalisation."""
+    try:
+        roots = b["normalisation"]["roots"]["<REPO>"]
+    except (KeyError, TypeError):
+        roots = None
+    if not isinstance(roots, list) or not roots or not all(_is_root(p) for p in roots):
+        raise Refusal(f"baseline records no usable worktree root in normalisation.roots['<REPO>']: {roots!r}")
+    if b.get("worktree") not in roots:
+        raise Refusal(f"baseline worktree {b.get('worktree')!r} is not among its recorded <REPO> roots {roots}")
+    return sorted(set(roots))
+
+
+def _check_declared_canonical(nodeid, roots_by_side):
+    head, params = _split_params(nodeid)
+    if params is None:
+        return
+    for side, roots in roots_by_side.items():
+        c = _apply_nodeid_rules(params, roots)
+        if c != params:
+            raise Refusal(f"declared node id {nodeid!r} is not canonical (under the {side} root it reads "
+                          f"{head}[{c}]); declare the canonical id")
 
 
 # --------------------------------------------------------------------------- #
@@ -651,13 +787,24 @@ def cmd_compare(a):
             raise Refusal(f"--allow-new-skip {n} is not in a declared new test file")
     base = _load_baseline(a.baseline, a.commit)
     wt = os.path.abspath(a.worktree)
+    roots = {"baseline": baseline_repo_roots(base), "new": path_roots(wt)["<REPO>"]}
+    for n in a.edited_node + a.allow_new_skip:
+        _check_declared_canonical(n, roots)
     new = parse_run(a.junit, a.terminal_log, wt)
-    res = compare(base, new, new_files, set(a.edited_node), set(a.allow_new_skip))
+    bn, b_rw = canonicalise_nodes(base["nodes"], roots["baseline"], "baseline")
+    nn, n_rw = canonicalise_nodes(new["nodes"], roots["new"], "new run")
+    res = compare({**base, "nodes": bn}, {**new, "nodes": nn}, new_files, set(a.edited_node), set(a.allow_new_skip))
+    b_of, n_of = {c: o for o, c in b_rw.items()}, {c: o for o, c in n_rw.items()}
+    pairs = [{"canonical": c, "baseline": b_of.get(c), "new": n_of.get(c)} for c in sorted(set(b_of) | set(n_of))]
+    canon_rep = {**nodeid_rules_description(), "rules_sha256": nodeid_rules_sha256(), "roots": roots,
+                 "canonicalised": pairs,
+                 "counts": {"baseline_ids_rewritten": len(b_rw), "new_ids_rewritten": len(n_rw),
+                            "pairs": sum(1 for p in pairs if p["baseline"] and p["new"])}}
     try:
         head = _git_head(wt)
     except (OSError, subprocess.CalledProcessError):
         head = None
-    rep = {"schema": COMPARE_SCHEMA, **res,
+    rep = {"schema": COMPARE_SCHEMA, **res, "node_id_canonicalisation": canon_rep,
            "baseline": {"path": os.path.abspath(a.baseline), "sha256": _sha256(a.baseline),
                         "commit": base["commit"], "content_sha256": base["content_sha256"],
                         "totals": base["totals"], "collection_count": base["collection_count"]},
@@ -671,6 +818,8 @@ def cmd_compare(a):
            "tool": _tool_block()}
     _write_new(a.out, rep)
     print(f"verdict {rep['verdict']}" + "".join(f"\n  - {r}" for r in rep["reasons"]))
+    print(f"node ids canonicalised: baseline {len(b_rw)}, new {len(n_rw)}, pairs {canon_rep['counts']['pairs']} "
+          f"(node-id rules sha256 {canon_rep['rules_sha256']})")
     return 0 if rep["verdict"] == "PASS" else 1
 
 
