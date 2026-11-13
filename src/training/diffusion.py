@@ -29,6 +29,7 @@ from ..data.yaw_rotation import (
     rotate_scene_metadata,
 )
 from ..data.yaw_offset_step import check_yaw_offset_step, quantize_yaw_offsets
+from ..data.yaw_mirror import check_mirror_metadata, draw_mirror_flips, mirror_scene_metadata
 from ..inference.sampling import get_alphas_sigmas, sample, sample_discrete_euler, sample_flow_pingpong, truncated_logistic_normal_rescaled, DistributionShift, sample_timesteps_logsnr
 from ..models.diffusion import ConditionedDiffusionModelWrapper
 from .losses import MSELoss, MultiLoss
@@ -209,7 +210,9 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             canonicalize_img_w: int = 512,
             are_lambda: tp.Optional[float] = None,
             are_anchor: tp.Optional[dict] = None,
-            yaw_aug_offset_step: tp.Optional[int] = None
+            yaw_aug_offset_step: tp.Optional[int] = None,
+            *,
+            yaw_aug_flip: bool = False
     ):
         super().__init__()
 
@@ -288,6 +291,22 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             except ValueError as err:
                 raise ValueError(f"yaw_aug_offset_step: {err}") from None
         self.yaw_aug_offset_step = yaw_aug_offset_step
+        # exp_43: the horizontal mirror flip (p = 1/2) after the roll. KEYWORD-ONLY, so no
+        # positional caller can ever reach it. Literal bool only (1 / "true" refused); True is
+        # refused on a disabled arm (a silent no-op) and with an offset_step (out of scope:
+        # the flip arm is the continuous roll). The fa_invariant / canonicalize exclusions
+        # above cover it through yaw_aug_enabled.
+        if not isinstance(yaw_aug_flip, bool):
+            raise ValueError(f"yaw_aug_flip must be a bool, got {yaw_aug_flip!r}")
+        if yaw_aug_flip and not yaw_aug_enabled:
+            raise ValueError(
+                "yaw_aug_flip=True requires yaw_aug_enabled=True (a flip on a disabled arm "
+                "would be a silent no-op)")
+        if yaw_aug_flip and yaw_aug_offset_step is not None:
+            raise ValueError(
+                f"yaw_aug_flip=True with yaw_aug_offset_step={yaw_aug_offset_step!r} is out of "
+                "scope for exp_43 (the flip arm is the continuous full-circle roll)")
+        self.yaw_aug_flip = yaw_aug_flip
 
         # exp_25: deepest-column yaw canonicalization of every step's metadata
         # (plan_depth_canon.md v7 §2.2; _canonicalize_batch). Off by default. The
@@ -479,6 +498,8 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         line = f"yaw_aug ENABLED img_w={self.yaw_aug_img_w} seed={self.yaw_aug_seed}"
         if self.yaw_aug_offset_step is not None:
             line += f" offset_step={self.yaw_aug_offset_step}"
+        if self.yaw_aug_flip:   # exp_43: the flip arm is a different whole line too
+            line += " flip=0.5"
         print(line, flush=True)
 
     @rank_zero_only
@@ -727,6 +748,14 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         ``scene`` are not rotated: a rigid yaw of the whole scene leaves the
         impulse response unchanged, which is exactly what makes the rotated
         conditioning + unchanged target a valid training pair.
+
+        exp_43 (``yaw_aug_flip``): AFTER the unchanged offset draw and rotation, one
+        fair bit per sample is drawn from the SAME generator (so the offsets are
+        exactly the flip-absent draws) and every sample whose bit is 1 is mirrored
+        across ``y = 0`` by ``mirror_scene_metadata`` (UniFuse's order: roll, then
+        flip). Every rotated sample is first checked against the mirror's input
+        contract, so a malformed sample is refused whatever its bit. Flip absent: no
+        extra draw, no extra check, the exp_15 / exp_40 path.
         """
         self._check_yaw_aug_metadata(metadata)
 
@@ -738,9 +767,22 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         if self.yaw_aug_offset_step is not None:   # exp_40: snap DOWN onto the grid
             offsets = quantize_yaw_offsets(offsets, self.yaw_aug_img_w, self.yaw_aug_offset_step)
         angles = offsets_to_radians(offsets, self.yaw_aug_img_w)
-        return [
+        rotated = [
             rotate_scene_metadata(md, alpha, self.yaw_aug_img_w)
             for md, alpha in zip(metadata, angles)
+        ]
+        if not self.yaw_aug_flip:
+            return rotated
+
+        for i, md in enumerate(rotated):
+            try:
+                check_mirror_metadata(md, self.yaw_aug_img_w)
+            except ValueError as err:
+                raise ValueError(f"yaw_aug: metadata[{i}]: {err}") from err
+        flips = draw_mirror_flips(len(rotated), generator).tolist()
+        return [
+            mirror_scene_metadata(md, self.yaw_aug_img_w) if bit == 1 else md
+            for md, bit in zip(rotated, flips)
         ]
 
     def _compute_conditioning(self, metadata):

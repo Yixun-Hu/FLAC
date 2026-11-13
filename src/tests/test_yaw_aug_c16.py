@@ -309,9 +309,15 @@ def test_wrapper_refuses_bad_offset_step(step):
 
 
 def test_offset_step_is_the_last_constructor_parameter():
+    """No positional caller shifts. exp_43 (plan §3.3, F12; the one disclosed edit of this
+    file): its ``yaw_aug_flip`` follows as KEYWORD-ONLY, so the protected statement now reads:
+    ``yaw_aug_offset_step`` is the last positional-or-keyword parameter and ``yaw_aug_flip``
+    is keyword-only."""
     import inspect
-    params = list(inspect.signature(tdiff.DiffusionCondTrainingWrapper.__init__).parameters)
-    assert params[-1] == "yaw_aug_offset_step"
+    params = inspect.signature(tdiff.DiffusionCondTrainingWrapper.__init__).parameters
+    positional = [n for n, p in params.items() if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD]
+    assert positional[-1] == "yaw_aug_offset_step"
+    assert params["yaw_aug_flip"].kind is inspect.Parameter.KEYWORD_ONLY
 
 
 @pytest.mark.parametrize("extra,line", [
