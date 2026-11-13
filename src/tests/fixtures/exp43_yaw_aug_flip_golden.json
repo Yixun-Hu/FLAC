@@ -1,0 +1,6164 @@
+{
+ "_meta": {
+  "capture_tool": "src/tests/exp43_yaw_aug_flip_golden_capture.py",
+  "capture_tool_sha256": "637ff582e5d6e63fdbb67aa6b177565298596412185967924b375be58b4057b7",
+  "experiment": "exp_43",
+  "flip_block": {
+   "flip": true
+  },
+  "harness_tool": "src/tests/exp40_yaw_aug_golden_capture.py",
+  "harness_tool_sha256": "61544f39119cd7f4610313388948155054cac23ad1f1527114d966926b339a05",
+  "master_seed": 20261107,
+  "purpose": "yaw_aug FLIP-path regression golden (training.yaw_aug.flip=true): a pin against drift of the flip path, NOT an equivalence claim",
+  "python": "3.10.20",
+  "real_steps": [
+   0,
+   1,
+   2,
+   3,
+   1000,
+   2499,
+   2500,
+   39999
+  ],
+  "record_sha256": "03e9a9e2fbae608d74c76a3588637d6758ba32c39bc8afd8785a5fadd26a5cf0",
+  "rungs": {
+   "2x32": [
+    2,
+    32
+   ],
+   "8x8": [
+    8,
+    8
+   ]
+  },
+  "source": {
+   "closure_sha256": {
+    "src/data/yaw_mirror.py": "09796bf11e8c69309de4b75f06fe731d30c1035be17f034347373f34cfb436a3",
+    "src/data/yaw_offset_step.py": "8aaf8322f4533da1d4e979440b23fb8d947206ffd2987d3a83b3b81de0ca543a",
+    "src/data/yaw_rotation.py": "69205176de577351c1ac128a1b1dc95387478a35dd62d1f4ef4170db9a8c5e1a",
+    "src/training/diffusion.py": "a7afa6fed60c02ca4f348e185fe399e77f103f01385d5c9698a05755c1047c98",
+    "src/training/factory.py": "f91dfaac64a43e6007edb426bd990e8bcaaf6a01b6fba62a516d2feabf2832e0"
+   },
+   "kind": "commit",
+   "sha": "1e0f3d8cef2ab641ee4bd814454047b5daf39570",
+   "source_tree_digest": "2168d9100394ea1f065fd911b81b5285ab84817ea2bd63d1c396192f4a14ca64"
+  },
+  "tiny_cases": [
+   [
+    0,
+    0
+   ],
+   [
+    7,
+    0
+   ],
+   [
+    7,
+    1
+   ],
+   [
+    2500,
+    3
+   ]
+  ],
+  "torch": "2.7.0+cu126",
+  "yaw_seed": 42
+ },
+ "record": {
+  "real": {
+   "augmented_probe_2x32_step2500_rank1": [
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "ceae73d8dcee2faffa737493dab3c48b284c3b453e0dd2a1755b89e1d8666650",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "e30e15dbfbfb0e78a6b6ab622befbfb720c5a7cd7aee252fb1932a633e117eab",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "290781f11a811a5eea5e77a7c1e3febbf5778790d45169c2d0cfefd7ed1b5968",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "798b28084c85eb50d1c18f395440fc3d0c31c88724b1364897c807af23910cb5",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "aa6ed65fe64e4c226c926832ec950d2f1f0bb45a06660f776d99b5fa249dda1c",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "a77391671e234a494794bb42471699b258b061f04aad6cbaf93f67fc082f21ef",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "43dc2a8854f063a51876fb558267d6c990388dcae22cac423a0915330baf30ca",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "210058c01cd73f4dfd3cbfe9daa963f104b56d80dd6a4d7a444c503779f320f8",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "ace1510bb089e23953cfa9277248083971820116d4e63707a906c63dd03ff417",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "2cda6c6e9cd454f90016c2b81277c1d61a1c4ce200482e0384433667a96c2e57",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "e01dee0a978d0a19c8df030eb3bbc7974abd4c2df3032d62772cd644eb0a780f",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "4ce7b0556f28377d2700806cbdd5247a1d1faedcfeb5b9e83747f5a29d0b40e1",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "bd6669b03f9a9fa817870e3a8264b1cc7c3ff445d480f334675b172c8542a4fe",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "64ad827a711e785ffe98f5ff31c7c627706db21b66e57c93d3abfad15617ee71",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "c9fafc8397a07e501bb849858be6689cdff0aad988992970b27a44aa02d4e99c",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "fbf0b9e10beac3915a9440b0a401c637507c84b66595788aaebc81558f0ee1e3",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "0b385f7ce015b34a0c3ccc6567a2c4a23d236ab77205d8072b19c880e88aaff0",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "41c423400131b8f344afbd158f94dfee2b53c2e0201f067b6af00be3c7b75d72",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "fae2390322d1061d3d79dacfda3681384f3a4055bfd968813b2f1b104ef9f30b",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "2ac70c1eee358171ee7aaed57044a1382176de371e30d3602fff5185ca4ff943",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "0f9550665e9a99b118513c598a5c93dff2d3275ee2ad6d83414c6a9e3a8e931a",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "06c20efe92921d3fd63afd25394da207ca01f60376da05d0755620f6f5a811a2",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "1a1333607c79c214fcfc7bcfc60ef80023b53a6f0897ae1b67637047dc182f60",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "519c230434058602881429996c42dc7521d4e6f380ab16fbacdca052dec54848",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "16f35090be2b3ec847a456d0e309a0065aa1fc7d321f6a5baa21ec1d1936403a",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "b9ea2584b25dcf5575f88ee99b73add3f0776546e6acec14683eddb2b356ed6f",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "96eaf8a0bf48be7d8369ebe82eb1ea514b21d4d94d4e1bd1554833a141fea9d8",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "7c83df82380eaa43034223f4474d2094cd8d7f228281d03963e4105cd38e06b8",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "812f31a0a517d4ce59943b3dd15797c31421c2659f4a532953dfa5f8c2451651",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "28d063a67705890bf13414bbfa82d39dc92164f111c652e83ea86a886dafaaaf",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "4c1717814bc35ffa9d940a76320d17561190ca541459c4138549d1aeb9e30512",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "154f3e3c7361907cacb107ef04520e4adb0562906feb5641b701da01f4957883",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "7ec1722491d9add6dfcd70ef5e85ee8f4d2dea3b46853d1d91c0d6195dd464eb",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "1c57c3c1cf4dd757683d3fd32e688f0721d3137a11decb3a5369e95d83077fde",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "d0972da094676b19d2e124ce449152ee8a620aa85f9cff0ddad1f9c9c1e043bc",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "fac6768446558a0f3638866d5221ef7cc55405733edfbe03bbc11a32730069c2",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "c0d8c2a7619389e67c447015c64d2fb71b7da5d4826ca06f4a2a97a31cb0b38d",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "9e42c8bcf55a236b80c201c342e33c4043090cf57a0476d2b8f70166a2d00bab",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "4bf8e2d639a5003ba0d642663bcec4a2bac773cba44d328ff3369440289a728e",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "fcad2730071d5aaccd4d588a7d6b1b8eff84ce2450c1f3a72ac215d3524a1567",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "80ff31c8a2ac43e46dca2f23df4611d05f15b8b77d8a7f223a9faf192d19af44",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "f32d3fab950a7ec92e3c0186728ea4117d73ef57f36a3d42c6606a86b4f5b762",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "77a6d34bf165086697a30c358796f3af1b74c68098b214d619bd573802dfbd17",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "cec3b0cff02f6fc5fa1e040714173fb48fb7401e7f40ade962a79679b7fdf3eb",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "83ebd82308eb235c1ed7a9db99936e908e84f0c13558a431fd587e6f37c4830d",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "5ac7e99d197dac27993203fc768269673f471a1d9aa4622303908d1ba8906fdd",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "663caefeeb0cbc59e61b0efad4dc1f59ce87b3e13c3cfccd88bd1ec784ac4ce2",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "61438642f934ce2a30ac66e0108dec80acaacfba9eb7e9cdc294f94481a26b89",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "6c6200c4996edcd9714702cbbf1ff9d77c31069f02c93aebd08a072015eeebe7",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "d5568fb94c837c36c30abf9bf5c661e976705f3ec41112b36681174d6335738f",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "c8d159665dffcbc2835787046d817519b2dc6c329c64b151ce10e26782002613",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "4ad222f8b2d4928193024cebadedd915ff33d379e5f7f534a7631d471f835379",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "afa86777c11f3d805e2dd76e81eb111f3510f890ee258c946bcfe340295a7ee8",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "da1829577e8f92b2be8e32fcbc71037586fa52136f5c1036414d46c52694efe6",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "65f651f952e35807290c88fffc2445cf1ed6a12248e20d28549638c0cc3ad1e9",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "308da1b87b0a4134a9f91c6c86697157478486073ff787df10d64537f68d4cb2",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "c8a48af7ed3d4bb890221b520a2c82360827e9a213b87039aa5217d4c4865450",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "82ed7118b7a946f446ba140fc1ff490ab0a98e4bf24c82210d1b124b3bb2d64c",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "80542bf4dd93b137f1d9f9a40a873730b235be74e1dd9da3d797367f0abbfc24",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "557c90e5a9ecda58238eecff3aefb68b61299d814710a2d8779aadb9dc9dac97",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "c3e4f4e5e430f3ac8d111e74912fd49eea7d8627fdbc4b59db8eb06283fce70f",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "0e9e79c3d1431a238997c4a154ad6888acff16b27b5ca672ded74b8a0b92e7a5",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "1d75916515ff6a6f5f153009ec0a24088d6b63fec7d19c53f91500bee7dc7bcb",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "9a826e59dc8c2a7a110cc48e56be588e90004340701fcbfb7190abdf72ef57c6",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "ea9c08e88fa1bb6324e677b10e01b908be9eb165465ef2023040b0144512feda",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "5548febb71c8ecc9577bc8dd03a9a27324c640bc1b66f7475374f137110ea652",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "8424fa2b1b6b3e7033ab8d07d97c6566de4174871d1ae71dbb1a16b9a642b014",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "29d185dd82ff13aacb14f1be22a5e2463447525dfc4cba42715bb84710f4c10c",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "25a9269ceee9ab89c1c53a6d558d2179a27318570bf069366cd44c0e7307106c",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "9c4df07b0bac4703e32f2f1bf0d6d18caa5f7a32840e407d991c3de53a97cfaa",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "41853e21408f35160ec211d22d19e43575e8a1997f25bdb4dc54bf14cce6033f",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "5c693e7731fdf20202d040fc5cae45753f3baea37d54f03f3ee0bd5f78b764c9",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "11f8e693a49dc6f985ba1258577d5de4212808af9f460f53eff2a7a92be3409b",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "43986afff38e44cb72cbff33dfcf32c1d7aaab3056f01c743d0fbf20acbbf510",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "827ec8be72dd48be2e5f42e2ff97b926866dfb4e8afde755b43553e10454e48b",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "3b4799c529b7a60e9d32daef0c6705100f0290dcc50d1be2fbac08093914be1f",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "c47f8dd964921daba4d19c7146ad97f10f26c1dc4ad837f3150757a746f679e0",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "b54eca08a35f32aa2bf51de29ac28779a9d923d003a691172e16227cb530f73b",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "ff55fba2c1446f8a3b3eb94f6edf71ef4325ca222a128043315928c8cd0ee329",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "a526d23e504f8d23359f156bc18d44994e6f2d343644df9b436da9de4efefb23",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "e3a884993556f74b3593e775594c69ff43e357d12a77695960c053d6db65dc5e",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "e82f431c6e6a18b9d1284ee6fb02b280cabeaf2c2610af6e294b309c31fcac02",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "b9d25c7c400b8382b348736c2c7e9cf3d80d998542f1c24e9387bcf655cb2f4a",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "0c392b23588eb3516ecc98c7c980807241ba358f836d5e2ebcd820ff780fcd86",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "86f6199d3b7cccd04238a4b437b41b3dae32ea4bc4c0b4bdf8749f22bf68d4d9",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "27e5f19f972629000df8d805557e4eac29a19d67da2285beaf73d6c998cfc514",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "3444ddb28d516bab431ebc9e783ede87790cdf89e54cf20e64f23fbd44b2db1f",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "63db73cd15eba5a2193df3072779a21a57e92c72a5262ac3a9bafe9093d1cf43",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "fbb532e279de8ebceedac358ba370fdb25f354c636c348fc6816ab4b6e13a533",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "a438ffb639f2510bba779ecc6d682af1e36241454a7356e05c4b08e7919691ec",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "08c276506f827dfc35fd517dec018ca2350313b628c86092276df94fb2125592",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "e69e9595cd10718d956daa410ef80c8ca760f03942bd30f2daa4f952975f72d6",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "c150bb87541d9f82621e0dedad58570d12d7a363695e8aadde275cdc6146ba71",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "d597989a46d6d13fa73b23c5678c3b1b925ace4be32ae957774ac851da00155e",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "adec098303bc058e21946b76ed5e7457d9a9819f8364e5a46126c724d07ec850",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "3a37f7abae40bbf0828973785b0abf42af2c9a24ab6cf3a88cc6da4bed2731d8",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "f4d961fa1d9ad2c9d7e80fab7df0a5a2b089541b2aef139930b6f65bd6333e3d",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "6a147f37a09c04eaf4dccfd1bce67263c70045204c9f5b8ad2da9feab901bff7",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "b5e1c219b1a5785c7eb221530a0eb8abcf997035a8dd5d94df6c424ce316a0f8",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "004af6cb18a5446aa79a2075d8973d71e64d277579609ed6522759f48eca1cf9",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "d4fe5a35d37c3147fa52e2a2c1cefd51e1470957d8017da7a3fd4c0b8d1f3cd4",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "b63048c3b4c4ace43cd72749b77300f954e5ec86fde25d4fe4bd66dce525246b",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "a3ad7c767f9b0a94bf5d0fca7a5719fcd49590506f64d8e440b85a158b517432",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "103914c9b8b714d1644e9a768c0a053499a3b128493ea8c08ec070420f18a4ed",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "cdc75b569cebfb9b1efa6913f3b61a399d306e18f949304b0fdb26573ec5d4e8",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "a9acea0099d49d8b9a906a4f0ac8db996e185e7c7821889a3a72c3a0ecc781ba",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "a5eb076306dedd3e05a796aa04e26f80213632f01fa326e235b2fdfb96a8a8d4",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "6485d75a2c5457494f3555b15999efe440e9261d0bfd8d61e17663a2c0665dba",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "153acaf3063d83faa2e61db8cc25524a2435306d42361274e62c6b4108f80af6",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "a2876ac05f4ee10e13df4c9dbcc6a995da98ffcf174fc1a52bcd367b8f5ce2f6",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "a2021926c82c91178d37ab49b3129bb453e8f263ed35d8921b36e3e14a7d7c26",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "a1db3f15d85d2903b789a5b0ae4be19bbcdb93be612b114839a9b449cbabadff",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "ae7c30be1f53989a88f925b78af139d99e4530187d36e37402b2f945601caa6c",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "53727448822f048ab70ebbbc2251217976b43f6ab9d689b887162f1b9340a7ab",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "ce03f87130fca2db18cc0db503465fc98e7631392883cbef228750894b22a6c7",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "26a5f92c6722b5eff331d32a500a4cb54d4c53c4cb575dcddc0620fcc14c09d4",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "5b99f85aeda0f176a7377feeca19db8862db8ff7b6eaabfa270cf2beccbdd2d6",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "a291203660a5f140e93e01ab7b58434e3c3a9ac42dc85c81794cd689d7d38fbe",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "ca0dbde7d713b6fd7f6a9f439e79b6db599957d77ee62170546fd70ab2e859dd",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "6ad55a6adb0b6df4b700b35bc996b85717969975bfc5a5782c7d29597d745240",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "dcfe25ac1372cd2baa5089a9b487614e021cb281a873a145d461039508181e61",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "e1eefb482cb610dbd4410a7b6bae0074445e4f7fd1e4e015748fbb0a01cc8770",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "834e531b227b3e1bb91f607a9ea06d7c991da2d53b90ab1f025446e35854fe8e",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "ffbb238389bc2a942edf255aed64c25e1d348316d6c81ddc9409333a88077ff6",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "c9024723963d05e251e8fb315e99b8b1065829d138d8154f65dea67e3c310833",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "48205ed0058716a57bc9ae2d7a3e577c240f4730537e403e03f5db4e23226743",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "a97dabd7215c7004a6990d848dfd44d1ce6679ee092623a85c882cbb24f055b1",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "467e08656aa76f75a3f0bbf7224ba4c7ae65320a5fdb9d983390ad2740dbe710",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "cf7956aabc69646b10421d17fa662fa8f4d3a5d4aec15582cafbcc3f12b6da59",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "8e2cf3019f6df3e2cc8a32cea591d056ea003a4b27289fd14e6f702b86f2c188",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "d78c9c7bb52f01954c338ed87875602eaacaac37f689667002cc20f4e7b1ac71",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "1fec67fea2b367d6917c1ec6a9703304b9357916df0d11a6823cf27113423163",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "20309fd28d2f5ffaa8b6f29f4e47c02f5a38451e6e7b3367c57a68cb424af5bc",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "248ca9d1ce5924833fdb2f5deacb632a350af8b4737ea50aab919baed535197a",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "fe25bfdc0b7a02709656201e1d0b1d34df8b71430b2df9d38fc2c4a358445bf3",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "7c94bd52e0ed7b8603eca367369e93588403a9df102d0815f13a958c028c1958",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "331e7b2489a4d8d587a7168a3fb143a4c6b4cbf4bd5a4dcef26b344f87a1d7a0",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "eda04f7189fef718572004526408d0bb728fc8d6721f9478094d145d6bfd89e1",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "c84fbd2355dc472512b1954967579a0555aba594307172ba38ed81de8f426b12",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "380aff8dc567f9dba8794ae6403e22d2afd35ffb09c77521cb0d119e2d3a5187",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "8127b3270c3349cbf3d97f1328b661b3176c77c1794f5703de47d2e8a618d7ae",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "587503249a62c2e2abf89603aa77e2e30cc0a116cb8b39b6a6694157ec0ee8ac",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "68fd28b18f507d39226b0f803e3f6d74ec082a3c17c95b7dab26d03c199f3a13",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "1bdfead1f546056f757bb385d4b4e2f99d1e42fb85732809b19cc213c6d31e91",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "f160c401363f4bf892b3f2c57ad2007b24687f083f4788d8bf048e47d2693d88",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "bf8b9f16fd8490f81211f637375accbcfcdc4f53b09dfa140205435faa2ce891",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "ea8d30c6784efe370c5e7f70b325ea2275caef3ba409f56558f878b0ead6e136",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "55a8ce3f7df5ce36dc4040382aa2d9740545310e4d2b9d00215a03c9fbee8697",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "798fd657198b4718f8041ae2a2346ea0827288404e50882dedae7fefdd839587",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "863b981c46626f10cf00aa809173e4a576685c61901747d5b8184e75f08a24ff",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "a4de424b5bf09ddfdb675e4f573aa57e7c77677a874a509317e5be9f8537b029",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "bf83c0a8270c67946a65ec1030a62a16cca697786496c3bfbfb50a715ad8dc00",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "8392a44528e85eaec955d060c8ccf33f12d047bc9128892f84c6860cfac43bf7",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "249babb5e7ec6a151b20bb28e1b44bbb5f69d4e0ec3072dea8dc08208d714fd6",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "311ea9363be040fd65880cecb526e25d359c8b89270353f9c67aacbf60ae3199",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "147a0e3d01e43c9ddee64773dd06e0f06f2d782062fd62952d3c295b0c344d0e",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "398bbbe4a50b8051460877e0dc526cc63ed6e20b9407c1f2592ce2949dcfb762",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "da7e6140c118baa3c1c973db512c9546d0490a5ae28f21e5509ac85a27caa09e",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "cf868d2bfb8b0ab9dc3602e7ba0a6a89c767442d9f947c38199dfcbfdd6c55ee",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "427cd8aadf971d0d211727795945527d7b551e703148fdba94a7fa4b7ab81ec1",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "91d6811d4c332658c6a9f7636bd447f1ef0fe637577360326d8f7bcdc362bf4f",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "9ecdd720610b428de4cb5a0055f642e5e540aafaa360f0cc9e328b803ed83bb1",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "848066708999b45bc6db4f3babed9eaeb6f5b8b1065d3b79a7183c50b446328a",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "08b7eec81334f86b6e84ca9c3dd1a2a0d23110a67ef22cd296848460a529f4f6",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "e96821b0325de2b6e6d558be914fd1519cac5b70140dd0da30b08188e4401f4e",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "5ef14a0901a53ea9656be73d026ca686d1f6c1e67a1f129bd56a856f896dea4a",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "28d427dd4216f0c9c3a3cb633dae985ff8799e1a107545ea837ab46b6664e4b2",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "037b3665d73b41c8f7d8c74a1386040c1c77fc8718f01c0a29c81c1539449260",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "a796c96248f2660d53dd6ee2a8eee8ff6e5d62a00006f14082e503f374ac3166",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "f4ca3366a67b463af25b7018aab2b9c2760083b68709788101cf22058944864f",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "8a1d6cb07e19345ceba89149d9cbbdf10b019a3d8cfb47a8436dd9e7ec2016c2",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "3dd3c8f05ef770cb3d836e92e2824aa2147c32b3f343b4404afba397f6f9ddec",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "4d2dca0a92abff77e94af84d29226993cdcf529e1d376653901ecd01461c5cec",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "01cb995f80c1376f3a392b5481bc692f3f6624eaf4fd27cd91f3d5402f474769",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "f2c68ff4faeb79c253b8a8e2bfeb0888e0873f088d94cb28e46f41f6e2be0bdf",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "de8ef7869c5fadf2311401d82b37e25a5af1459bf2a434a27a963a2785b3d015",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "0c611c2432574986cd08d5055bd76ce141bd9be6e4717ed7f741caeb3bc890e6",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "5e9a2133bd74e734c9351d982159bb802ecfad6993ec796c05b05bebfb2b6c02",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "1f5ef3f4ec1de55451e371289a2414aec3697684363d7159a676d5c87ed13c4e",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "53602e395ca214d953f83fc03263386583f94333b193bba0913d909cd2119acc",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "89ccb430cdcdfe908a7c4bf154c21c647043f00f859844c153529a7fddba5dec",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "18f9b00ed41b10311bbf6efa66acb3c91f2afc81df427b129e9eee970a018607",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "70eb8996bc0b94e136f4f7036bea7ce603e67f3cc438b00b67df57e38387e417",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "b3324ee8ca76b6333d85d83c259868a84f4491802643afecbb9fc902e501008e",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "ce314159dea28c20ae1664441cb7d839f56518d06c5d7abedad046e07216d1d8",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "04d947110dc3df169c1a7db793218a0b8e004beb797607ab51ca7f953e971459",
+      "shape": [
+       3
+      ]
+     }
+    },
+    {
+     "context_audio": {
+      "dtype": "torch.float32",
+      "sha256": "a295e794c37f1e0972ce3c2687cc0dda18e2fc482184d2e4cc417208504e192b",
+      "shape": [
+       2,
+       8
+      ]
+     },
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "9ecd2dc04130ee4a7c2498e8f60d3fa93a97801136c7f948b8f4c1eaab84ab2d",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "context_poses_vit": {
+      "dtype": "torch.float32",
+      "sha256": "241a796a19ff526b534780cae0f4b16edbb923aad46fefcb01a53afb257181ab",
+      "shape": [
+       2,
+       3
+      ]
+     },
+     "depth": {
+      "dtype": "torch.float32",
+      "sha256": "5117d20d4ea20ff3b359986ecee518b2ec893ff614638d03130efab2cb487564",
+      "shape": [
+       3,
+       2,
+       512
+      ]
+     },
+     "padding_mask": {
+      "dtype": "torch.float32",
+      "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+      "shape": [
+       64
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "6d088456e869a1d79c80948bd0d43fdc60f14f9bf16f84bcd05895d7eddb7691",
+      "shape": [
+       3
+      ]
+     },
+     "source_vit": {
+      "dtype": "torch.float32",
+      "sha256": "8f6fb9810f9d02ffd322ef68b9074350b55e76b798841462b655f3764c08cf07",
+      "shape": [
+       3
+      ]
+     }
+    }
+   ],
+   "global_rng_untouched": true,
+   "per_step": {
+    "2x32": {
+     "0": [
+      {
+       "applied": [
+        1,
+        5,
+        6,
+        7,
+        9,
+        10,
+        13,
+        14,
+        15,
+        17,
+        18,
+        21,
+        24,
+        26,
+        28,
+        29,
+        30
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0
+       ],
+       "offsets": [
+        499,
+        150,
+        436,
+        429,
+        266,
+        387,
+        200,
+        261,
+        55,
+        143,
+        190,
+        170,
+        156,
+        319,
+        459,
+        452,
+        224,
+        492,
+        471,
+        479,
+        504,
+        156,
+        41,
+        487,
+        171,
+        23,
+        280,
+        196,
+        117,
+        261,
+        378,
+        220
+       ]
+      },
+      {
+       "applied": [
+        1,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        13,
+        14,
+        16,
+        17,
+        19,
+        21,
+        23,
+        24,
+        26,
+        28,
+        29,
+        31
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        79,
+        409,
+        72,
+        262,
+        73,
+        221,
+        107,
+        281,
+        431,
+        70,
+        485,
+        144,
+        111,
+        490,
+        506,
+        89,
+        248,
+        195,
+        237,
+        202,
+        58,
+        189,
+        432,
+        318,
+        168,
+        217,
+        30,
+        372,
+        398,
+        455,
+        328,
+        29
+       ]
+      }
+     ],
+     "1": [
+      {
+       "applied": [
+        1,
+        5,
+        6,
+        9,
+        11,
+        16,
+        18,
+        20,
+        26,
+        28,
+        29,
+        30
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0
+       ],
+       "offsets": [
+        85,
+        396,
+        252,
+        73,
+        385,
+        488,
+        108,
+        173,
+        43,
+        187,
+        466,
+        237,
+        367,
+        51,
+        189,
+        88,
+        106,
+        91,
+        185,
+        267,
+        51,
+        457,
+        359,
+        199,
+        273,
+        167,
+        399,
+        377,
+        421,
+        498,
+        151,
+        281
+       ]
+      },
+      {
+       "applied": [
+        4,
+        6,
+        7,
+        8,
+        10,
+        12,
+        13,
+        16,
+        17,
+        18,
+        20,
+        21,
+        24,
+        31
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+       ],
+       "offsets": [
+        349,
+        219,
+        309,
+        450,
+        68,
+        266,
+        12,
+        371,
+        11,
+        281,
+        167,
+        26,
+        334,
+        457,
+        312,
+        445,
+        489,
+        481,
+        458,
+        204,
+        166,
+        466,
+        365,
+        137,
+        465,
+        242,
+        469,
+        244,
+        173,
+        30,
+        448,
+        50
+       ]
+      }
+     ],
+     "1000": [
+      {
+       "applied": [
+        0,
+        1,
+        2,
+        9,
+        10,
+        11,
+        17,
+        18,
+        20,
+        23,
+        24,
+        25,
+        26,
+        28,
+        29,
+        31
+       ],
+       "flips": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        347,
+        395,
+        485,
+        150,
+        476,
+        238,
+        346,
+        286,
+        38,
+        4,
+        198,
+        425,
+        60,
+        168,
+        25,
+        66,
+        356,
+        428,
+        449,
+        505,
+        90,
+        294,
+        9,
+        97,
+        320,
+        422,
+        10,
+        113,
+        306,
+        9,
+        365,
+        161
+       ]
+      },
+      {
+       "applied": [
+        0,
+        3,
+        6,
+        7,
+        8,
+        9,
+        12,
+        13,
+        14,
+        16,
+        19,
+        24,
+        25,
+        26,
+        29
+       ],
+       "flips": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+       ],
+       "offsets": [
+        239,
+        341,
+        380,
+        52,
+        91,
+        81,
+        306,
+        405,
+        447,
+        271,
+        217,
+        294,
+        65,
+        506,
+        290,
+        405,
+        251,
+        147,
+        326,
+        314,
+        398,
+        46,
+        431,
+        424,
+        424,
+        33,
+        350,
+        348,
+        501,
+        213,
+        497,
+        509
+       ]
+      }
+     ],
+     "2": [
+      {
+       "applied": [
+        0,
+        1,
+        2,
+        3,
+        5,
+        6,
+        10,
+        11,
+        15,
+        19,
+        20,
+        22,
+        23,
+        25,
+        26,
+        28,
+        29,
+        30
+       ],
+       "flips": [
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0
+       ],
+       "offsets": [
+        384,
+        484,
+        314,
+        31,
+        257,
+        253,
+        507,
+        108,
+        320,
+        154,
+        369,
+        333,
+        116,
+        140,
+        58,
+        191,
+        507,
+        393,
+        20,
+        176,
+        415,
+        251,
+        418,
+        270,
+        92,
+        492,
+        10,
+        346,
+        393,
+        436,
+        382,
+        264
+       ]
+      },
+      {
+       "applied": [
+        2,
+        3,
+        5,
+        8,
+        9,
+        11,
+        17,
+        19,
+        21,
+        22,
+        23,
+        24,
+        25,
+        27,
+        30,
+        31
+       ],
+       "flips": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1
+       ],
+       "offsets": [
+        16,
+        263,
+        263,
+        454,
+        299,
+        318,
+        211,
+        380,
+        420,
+        21,
+        74,
+        367,
+        203,
+        336,
+        291,
+        483,
+        125,
+        423,
+        496,
+        235,
+        44,
+        316,
+        56,
+        281,
+        317,
+        136,
+        435,
+        187,
+        247,
+        134,
+        86,
+        53
+       ]
+      }
+     ],
+     "2499": [
+      {
+       "applied": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        11,
+        12,
+        13,
+        16,
+        17,
+        18,
+        19,
+        23,
+        24,
+        26,
+        28,
+        29,
+        31
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        465,
+        319,
+        489,
+        443,
+        305,
+        163,
+        322,
+        137,
+        489,
+        422,
+        301,
+        62,
+        291,
+        140,
+        422,
+        58,
+        19,
+        257,
+        193,
+        9,
+        141,
+        433,
+        498,
+        0,
+        79,
+        124,
+        124,
+        315,
+        245,
+        264,
+        408,
+        322
+       ]
+      },
+      {
+       "applied": [
+        2,
+        3,
+        4,
+        6,
+        7,
+        8,
+        9,
+        11,
+        13,
+        17,
+        18,
+        19,
+        20,
+        22,
+        23,
+        25,
+        30
+       ],
+       "flips": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        114,
+        270,
+        263,
+        376,
+        391,
+        242,
+        227,
+        126,
+        290,
+        482,
+        24,
+        499,
+        343,
+        273,
+        396,
+        26,
+        275,
+        271,
+        24,
+        387,
+        27,
+        393,
+        351,
+        339,
+        345,
+        151,
+        128,
+        370,
+        356,
+        119,
+        151,
+        362
+       ]
+      }
+     ],
+     "2500": [
+      {
+       "applied": [
+        1,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        12,
+        13,
+        15,
+        16,
+        17,
+        20,
+        21,
+        22,
+        23,
+        24,
+        26,
+        27,
+        28
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+       ],
+       "offsets": [
+        334,
+        462,
+        105,
+        6,
+        310,
+        475,
+        179,
+        453,
+        165,
+        227,
+        402,
+        510,
+        213,
+        137,
+        124,
+        392,
+        297,
+        371,
+        8,
+        337,
+        366,
+        280,
+        486,
+        21,
+        477,
+        503,
+        186,
+        204,
+        490,
+        4,
+        1,
+        507
+       ]
+      },
+      {
+       "applied": [
+        0,
+        3,
+        4,
+        5,
+        6,
+        11,
+        12,
+        15,
+        16,
+        18,
+        19,
+        22,
+        23,
+        25,
+        29,
+        30
+       ],
+       "flips": [
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0
+       ],
+       "offsets": [
+        364,
+        290,
+        435,
+        193,
+        41,
+        437,
+        316,
+        127,
+        91,
+        120,
+        362,
+        464,
+        500,
+        284,
+        312,
+        64,
+        428,
+        379,
+        355,
+        130,
+        338,
+        320,
+        432,
+        288,
+        130,
+        294,
+        503,
+        510,
+        214,
+        25,
+        377,
+        50
+       ]
+      }
+     ],
+     "3": [
+      {
+       "applied": [
+        1,
+        2,
+        3,
+        5,
+        9,
+        10,
+        12,
+        14,
+        16,
+        17,
+        19,
+        20,
+        28,
+        29,
+        31
+       ],
+       "flips": [
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        175,
+        464,
+        92,
+        390,
+        430,
+        438,
+        476,
+        341,
+        203,
+        391,
+        88,
+        340,
+        42,
+        373,
+        60,
+        476,
+        25,
+        279,
+        86,
+        17,
+        295,
+        304,
+        194,
+        195,
+        494,
+        380,
+        239,
+        24,
+        190,
+        355,
+        300,
+        179
+       ]
+      },
+      {
+       "applied": [
+        0,
+        1,
+        2,
+        6,
+        7,
+        10,
+        14,
+        16,
+        17,
+        19,
+        23,
+        26,
+        28,
+        29,
+        31
+       ],
+       "flips": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        194,
+        506,
+        395,
+        225,
+        326,
+        1,
+        316,
+        504,
+        239,
+        201,
+        369,
+        4,
+        63,
+        347,
+        281,
+        158,
+        360,
+        50,
+        365,
+        165,
+        140,
+        404,
+        357,
+        365,
+        224,
+        266,
+        259,
+        451,
+        179,
+        275,
+        103,
+        429
+       ]
+      }
+     ],
+     "39999": [
+      {
+       "applied": [
+        1,
+        5,
+        6,
+        7,
+        9,
+        13,
+        15,
+        17,
+        24,
+        28,
+        31
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1
+       ],
+       "offsets": [
+        318,
+        143,
+        25,
+        476,
+        214,
+        117,
+        391,
+        198,
+        284,
+        292,
+        210,
+        2,
+        302,
+        352,
+        288,
+        448,
+        467,
+        62,
+        158,
+        497,
+        62,
+        331,
+        26,
+        316,
+        84,
+        223,
+        439,
+        157,
+        121,
+        111,
+        73,
+        479
+       ]
+      },
+      {
+       "applied": [
+        1,
+        5,
+        7,
+        10,
+        11,
+        12,
+        15,
+        17,
+        18,
+        20,
+        21,
+        23,
+        25,
+        26,
+        27,
+        30,
+        31
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1
+       ],
+       "offsets": [
+        15,
+        235,
+        290,
+        461,
+        301,
+        300,
+        117,
+        234,
+        174,
+        175,
+        177,
+        255,
+        18,
+        46,
+        131,
+        194,
+        280,
+        99,
+        197,
+        235,
+        276,
+        60,
+        237,
+        377,
+        265,
+        315,
+        214,
+        260,
+        441,
+        434,
+        401,
+        108
+       ]
+      }
+     ]
+    },
+    "8x8": {
+     "0": [
+      {
+       "applied": [
+        0,
+        1,
+        5,
+        6
+       ],
+       "flips": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0
+       ],
+       "offsets": [
+        499,
+        150,
+        436,
+        429,
+        266,
+        387,
+        200,
+        261
+       ]
+      },
+      {
+       "applied": [
+        0,
+        2,
+        4,
+        7
+       ],
+       "flips": [
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1
+       ],
+       "offsets": [
+        79,
+        409,
+        72,
+        262,
+        73,
+        221,
+        107,
+        281
+       ]
+      },
+      {
+       "applied": [
+        5
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+       ],
+       "offsets": [
+        253,
+        414,
+        45,
+        59,
+        146,
+        330,
+        252,
+        425
+       ]
+      },
+      {
+       "applied": [
+        5
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+       ],
+       "offsets": [
+        423,
+        390,
+        119,
+        47,
+        53,
+        13,
+        235,
+        258
+       ]
+      },
+      {
+       "applied": [
+        1,
+        2,
+        3,
+        6
+       ],
+       "flips": [
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        90,
+        85,
+        484,
+        338,
+        213,
+        78,
+        365,
+        329
+       ]
+      },
+      {
+       "applied": [
+        1,
+        2,
+        3
+       ],
+       "flips": [
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0
+       ],
+       "offsets": [
+        124,
+        290,
+        295,
+        502,
+        405,
+        107,
+        317,
+        334
+       ]
+      },
+      {
+       "applied": [
+        3,
+        5
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0
+       ],
+       "offsets": [
+        60,
+        428,
+        176,
+        92,
+        36,
+        257,
+        173,
+        128
+       ]
+      },
+      {
+       "applied": [
+        1,
+        3,
+        5
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0
+       ],
+       "offsets": [
+        251,
+        168,
+        345,
+        304,
+        443,
+        484,
+        0,
+        75
+       ]
+      }
+     ],
+     "1": [
+      {
+       "applied": [
+        0,
+        1,
+        3,
+        4,
+        5,
+        6
+       ],
+       "flips": [
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0
+       ],
+       "offsets": [
+        85,
+        396,
+        252,
+        73,
+        385,
+        488,
+        108,
+        173
+       ]
+      },
+      {
+       "applied": [
+        0,
+        1,
+        2,
+        5,
+        7
+       ],
+       "flips": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        349,
+        219,
+        309,
+        450,
+        68,
+        266,
+        12,
+        371
+       ]
+      },
+      {
+       "applied": [
+        0,
+        1,
+        2,
+        3,
+        5,
+        7
+       ],
+       "flips": [
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        198,
+        245,
+        155,
+        198,
+        321,
+        167,
+        13,
+        490
+       ]
+      },
+      {
+       "applied": [
+        1,
+        2,
+        5,
+        7
+       ],
+       "flips": [
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        323,
+        399,
+        144,
+        158,
+        386,
+        280,
+        381,
+        135
+       ]
+      },
+      {
+       "applied": [
+        0,
+        1,
+        6
+       ],
+       "flips": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        399,
+        494,
+        86,
+        121,
+        208,
+        137,
+        306,
+        193
+       ]
+      },
+      {
+       "applied": [
+        3,
+        5,
+        6
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0
+       ],
+       "offsets": [
+        197,
+        80,
+        51,
+        352,
+        399,
+        496,
+        73,
+        2
+       ]
+      },
+      {
+       "applied": [
+        0,
+        4,
+        5,
+        7
+       ],
+       "flips": [
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        357,
+        54,
+        224,
+        54,
+        208,
+        369,
+        138,
+        400
+       ]
+      },
+      {
+       "applied": [
+        3,
+        4,
+        6,
+        7
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1
+       ],
+       "offsets": [
+        314,
+        346,
+        412,
+        299,
+        252,
+        433,
+        309,
+        485
+       ]
+      }
+     ],
+     "1000": [
+      {
+       "applied": [
+        3,
+        6
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        347,
+        395,
+        485,
+        150,
+        476,
+        238,
+        346,
+        286
+       ]
+      },
+      {
+       "applied": [
+        0,
+        1,
+        2,
+        4,
+        7
+       ],
+       "flips": [
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1
+       ],
+       "offsets": [
+        239,
+        341,
+        380,
+        52,
+        91,
+        81,
+        306,
+        405
+       ]
+      },
+      {
+       "applied": [
+        3,
+        5,
+        7
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        35,
+        92,
+        350,
+        343,
+        328,
+        20,
+        251,
+        168
+       ]
+      },
+      {
+       "applied": [
+        0,
+        1,
+        2,
+        7
+       ],
+       "flips": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+       ],
+       "offsets": [
+        449,
+        162,
+        234,
+        469,
+        355,
+        461,
+        285,
+        336
+       ]
+      },
+      {
+       "applied": [
+        0,
+        1,
+        5,
+        7
+       ],
+       "flips": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        449,
+        452,
+        342,
+        253,
+        437,
+        108,
+        321,
+        356
+       ]
+      },
+      {
+       "applied": [
+        0,
+        1,
+        3,
+        6
+       ],
+       "flips": [
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        501,
+        441,
+        117,
+        501,
+        97,
+        421,
+        107,
+        349
+       ]
+      },
+      {
+       "applied": [
+        5,
+        6
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0
+       ],
+       "offsets": [
+        50,
+        11,
+        511,
+        312,
+        391,
+        405,
+        76,
+        494
+       ]
+      },
+      {
+       "applied": [
+        0,
+        3,
+        4,
+        6
+       ],
+       "flips": [
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        128,
+        345,
+        224,
+        289,
+        62,
+        266,
+        273,
+        2
+       ]
+      }
+     ],
+     "2": [
+      {
+       "applied": [
+        2,
+        3,
+        7
+       ],
+       "flips": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1
+       ],
+       "offsets": [
+        384,
+        484,
+        314,
+        31,
+        257,
+        253,
+        507,
+        108
+       ]
+      },
+      {
+       "applied": [
+        1,
+        3,
+        4,
+        6,
+        7
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1
+       ],
+       "offsets": [
+        16,
+        263,
+        263,
+        454,
+        299,
+        318,
+        211,
+        380
+       ]
+      },
+      {
+       "applied": [
+        1,
+        5
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+       ],
+       "offsets": [
+        55,
+        20,
+        451,
+        471,
+        36,
+        312,
+        467,
+        50
+       ]
+      },
+      {
+       "applied": [
+        4,
+        5,
+        7
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        127,
+        340,
+        98,
+        364,
+        421,
+        114,
+        496,
+        93
+       ]
+      },
+      {
+       "applied": [
+        4,
+        5
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0
+       ],
+       "offsets": [
+        108,
+        455,
+        67,
+        164,
+        260,
+        13,
+        285,
+        299
+       ]
+      },
+      {
+       "applied": [
+        0,
+        6
+       ],
+       "flips": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        302,
+        263,
+        213,
+        110,
+        330,
+        155,
+        147,
+        114
+       ]
+      },
+      {
+       "applied": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+       ],
+       "flips": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+       ],
+       "offsets": [
+        106,
+        11,
+        414,
+        36,
+        320,
+        2,
+        318,
+        407
+       ]
+      },
+      {
+       "applied": [
+        0,
+        2
+       ],
+       "flips": [
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "offsets": [
+        37,
+        21,
+        410,
+        321,
+        92,
+        240,
+        422,
+        94
+       ]
+      }
+     ],
+     "2499": [
+      {
+       "applied": [
+        0,
+        2,
+        4
+       ],
+       "flips": [
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0
+       ],
+       "offsets": [
+        465,
+        319,
+        489,
+        443,
+        305,
+        163,
+        322,
+        137
+       ]
+      },
+      {
+       "applied": [
+        3,
+        4,
+        5
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0
+       ],
+       "offsets": [
+        114,
+        270,
+        263,
+        376,
+        391,
+        242,
+        227,
+        126
+       ]
+      },
+      {
+       "applied": [
+        0,
+        2,
+        4,
+        6,
+        7
+       ],
+       "flips": [
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1
+       ],
+       "offsets": [
+        169,
+        302,
+        326,
+        7,
+        285,
+        261,
+        209,
+        273
+       ]
+      },
+      {
+       "applied": [
+        3,
+        4,
+        6,
+        7
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1
+       ],
+       "offsets": [
+        339,
+        143,
+        1,
+        264,
+        4,
+        306,
+        409,
+        374
+       ]
+      },
+      {
+       "applied": [
+        3,
+        4,
+        7
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1
+       ],
+       "offsets": [
+        463,
+        416,
+        250,
+        229,
+        320,
+        419,
+        24,
+        194
+       ]
+      },
+      {
+       "applied": [
+        0,
+        4
+       ],
+       "flips": [
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+       ],
+       "offsets": [
+        238,
+        489,
+        7,
+        358,
+        224,
+        163,
+        259,
+        454
+       ]
+      },
+      {
+       "applied": [
+        1,
+        6
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        260,
+        135,
+        283,
+        286,
+        190,
+        62,
+        13,
+        178
+       ]
+      },
+      {
+       "applied": [
+        0,
+        3,
+        6
+       ],
+       "flips": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        491,
+        335,
+        493,
+        214,
+        192,
+        160,
+        40,
+        85
+       ]
+      }
+     ],
+     "2500": [
+      {
+       "applied": [
+        0,
+        1,
+        4,
+        5
+       ],
+       "flips": [
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0
+       ],
+       "offsets": [
+        334,
+        462,
+        105,
+        6,
+        310,
+        475,
+        179,
+        453
+       ]
+      },
+      {
+       "applied": [
+        0
+       ],
+       "flips": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "offsets": [
+        364,
+        290,
+        435,
+        193,
+        41,
+        437,
+        316,
+        127
+       ]
+      },
+      {
+       "applied": [
+        0,
+        3,
+        4,
+        5
+       ],
+       "flips": [
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0
+       ],
+       "offsets": [
+        125,
+        289,
+        115,
+        459,
+        117,
+        332,
+        431,
+        93
+       ]
+      },
+      {
+       "applied": [
+        1,
+        2,
+        3,
+        6
+       ],
+       "flips": [
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        203,
+        386,
+        27,
+        460,
+        0,
+        378,
+        0,
+        227
+       ]
+      },
+      {
+       "applied": [
+        0,
+        1,
+        5,
+        6
+       ],
+       "flips": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0
+       ],
+       "offsets": [
+        270,
+        165,
+        210,
+        64,
+        106,
+        467,
+        446,
+        99
+       ]
+      },
+      {
+       "applied": [
+        0,
+        1,
+        5,
+        6,
+        7
+       ],
+       "flips": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1
+       ],
+       "offsets": [
+        299,
+        66,
+        23,
+        462,
+        172,
+        359,
+        80,
+        386
+       ]
+      },
+      {
+       "applied": [
+        1,
+        4,
+        6
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        157,
+        464,
+        497,
+        30,
+        214,
+        484,
+        359,
+        352
+       ]
+      },
+      {
+       "applied": [
+        1,
+        5,
+        7
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        500,
+        188,
+        394,
+        191,
+        222,
+        50,
+        127,
+        116
+       ]
+      }
+     ],
+     "3": [
+      {
+       "applied": [
+        0,
+        1,
+        5
+       ],
+       "flips": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+       ],
+       "offsets": [
+        175,
+        464,
+        92,
+        390,
+        430,
+        438,
+        476,
+        341
+       ]
+      },
+      {
+       "applied": [
+        0,
+        1,
+        2,
+        4,
+        5,
+        6
+       ],
+       "flips": [
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0
+       ],
+       "offsets": [
+        194,
+        506,
+        395,
+        225,
+        326,
+        1,
+        316,
+        504
+       ]
+      },
+      {
+       "applied": [
+        5,
+        6
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0
+       ],
+       "offsets": [
+        50,
+        424,
+        216,
+        195,
+        30,
+        319,
+        407,
+        510
+       ]
+      },
+      {
+       "applied": [
+        0,
+        3,
+        4,
+        6
+       ],
+       "flips": [
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        103,
+        12,
+        323,
+        355,
+        186,
+        84,
+        426,
+        130
+       ]
+      },
+      {
+       "applied": [
+        4,
+        7
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1
+       ],
+       "offsets": [
+        261,
+        412,
+        419,
+        45,
+        255,
+        332,
+        179,
+        74
+       ]
+      },
+      {
+       "applied": [
+        2,
+        3,
+        4,
+        5,
+        7
+       ],
+       "flips": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1
+       ],
+       "offsets": [
+        481,
+        126,
+        19,
+        473,
+        355,
+        260,
+        499,
+        510
+       ]
+      },
+      {
+       "applied": [
+        0,
+        2,
+        3
+       ],
+       "flips": [
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0
+       ],
+       "offsets": [
+        494,
+        10,
+        470,
+        224,
+        312,
+        258,
+        94,
+        34
+       ]
+      },
+      {
+       "applied": [
+        1,
+        4
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+       ],
+       "offsets": [
+        14,
+        19,
+        50,
+        252,
+        227,
+        31,
+        120,
+        95
+       ]
+      }
+     ],
+     "39999": [
+      {
+       "applied": [],
+       "flips": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "offsets": [
+        318,
+        143,
+        25,
+        476,
+        214,
+        117,
+        391,
+        198
+       ]
+      },
+      {
+       "applied": [
+        1,
+        2,
+        3,
+        6
+       ],
+       "flips": [
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        15,
+        235,
+        290,
+        461,
+        301,
+        300,
+        117,
+        234
+       ]
+      },
+      {
+       "applied": [
+        1,
+        4,
+        5,
+        6,
+        7
+       ],
+       "flips": [
+        0,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1
+       ],
+       "offsets": [
+        311,
+        141,
+        168,
+        315,
+        303,
+        68,
+        201,
+        362
+       ]
+      },
+      {
+       "applied": [
+        2,
+        3,
+        6
+       ],
+       "flips": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        435,
+        72,
+        324,
+        89,
+        477,
+        430,
+        98,
+        465
+       ]
+      },
+      {
+       "applied": [
+        4,
+        7
+       ],
+       "flips": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1
+       ],
+       "offsets": [
+        386,
+        383,
+        472,
+        211,
+        105,
+        176,
+        8,
+        260
+       ]
+      },
+      {
+       "applied": [
+        1,
+        2,
+        5,
+        6,
+        7
+       ],
+       "flips": [
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1
+       ],
+       "offsets": [
+        106,
+        459,
+        118,
+        255,
+        140,
+        262,
+        13,
+        117
+       ]
+      },
+      {
+       "applied": [
+        2,
+        4,
+        6
+       ],
+       "flips": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0
+       ],
+       "offsets": [
+        179,
+        23,
+        39,
+        88,
+        298,
+        231,
+        167,
+        371
+       ]
+      },
+      {
+       "applied": [
+        2,
+        4,
+        5,
+        6,
+        7
+       ],
+       "flips": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1
+       ],
+       "offsets": [
+        373,
+        225,
+        101,
+        494,
+        354,
+        12,
+        475,
+        104
+       ]
+      }
+     ]
+    }
+   },
+   "totals": {
+    "flipped": 475,
+    "samples": 1024
+   }
+  },
+  "tiny": {
+   "step0_rank0": {
+    "alpha_hex": [
+     "0x1.2d97c7f3321d2p+0",
+     "0x1.2d97c7f3321d2p+1",
+     "0x1.921fb54442d18p+0",
+     "0x1.46b9c347764a4p+2"
+    ],
+    "applied": [
+     1,
+     3
+    ],
+    "conditioning": {
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "0c5fadd4751bf2638c7aac183be6ae98b4c4f640b618b89c93479cbd9917a5d4",
+      "shape": [
+       4,
+       2,
+       32
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "d3c67831800c5ff26618137fef0c6272bff8c70f95c60089a504a50fee27eb07",
+      "shape": [
+       4,
+       1,
+       32
+      ]
+     }
+    },
+    "flips": [
+     0,
+     1,
+     0,
+     1
+    ],
+    "loss_hex": "0x1.1406600000000p+1",
+    "metadata_into_conditioner": [
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "20c6e35e3e872e6919db4bb1c9282018b562c8feaccb6f84b48cf4f295201512",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "ca8434a3f6c9f38c8820ee098d6cb8257f3f4c6c70ae7689ff76bbd10d7c6fb7",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "880ab7a00ebad423d1395526043a2c3079b65ceb77833a7750bec60e5d0c8f98",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "4bc34f5c9a8ce916dc13d9f0631bcbe0945645ba733aa2e0e072388583ce2fb1",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "5ed3d56267bcd40d5f3b290dcecd2538a59833ec29e706128dd9a0c1f94c6ae9",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "a7afc3feada2339f24238add5a68c1c721f555447c0a8c0d669ddb02991622d6",
+       "shape": [
+        3
+       ]
+      }
+     },
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "185773ddbdf9f9f16935d3407ede2ff632e838a080563f94e6ec87930ad8c7b2",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "7550e2520359f8b586053129893190a10a634b0c3c6888f85cb8a3958a95068a",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "e1f95673d02efd4e6e3628c1c8ec1338c7a69f7c6c67e4b437da7aa47340a9fa",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "b13778ce877e47dfc43dcc1f315b1ff6cc9af3e16669c33b85a581e0470550ca",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "aead7bb057682994833fbe6e2e870f1e79ec0d6c8bed0b741be8c18890e8c270",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "4b6977b9fd891dea39d5592dd37ae5b9c9ccfc792884533e33417f7a72ee9b9f",
+       "shape": [
+        3
+       ]
+      }
+     },
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "525054372526810ecb278c5870cf2127a7661d6ecfe14d60a378b885679f6fe7",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "84cd203d09461019b9e19dbf8e228823665b3d63ca9d428dfc3cd9ff09c1cd8c",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "891219783a21f37abbdc63ba39d2a936957a764feb9ddec6eb492968cd0192ee",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "c770891456227f71663947319071624b514f197cd2c283bbbfaeb4678a7cbbfd",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "4e57c1fc6cd1dcfbb823bc4d73b06523230d980523c190b9ac6c46fdd7defbac",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "026a8e66c5595e05b50d6e3adf0c50ad9b5e515b25f4b00f6354b9027e3451bd",
+       "shape": [
+        3
+       ]
+      }
+     },
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "e1ea2b8047d87fc1a03700d5b0a06671cb21e274ddf29495c640a46af5a3520d",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "90f71e24121b102f12ce045f5ef858e8c052ec2ca00758ed36510fc97785f2b2",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "20510bbfb99a09d65de98fccf9fbb40e46ee69827dafe0638817c807973748c9",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "96e796a7a8a9939e5473e189824100e787705d3c47f0c5ca32df4a2e27834b91",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "8460910b6f1a30da7ca79f60fbf1368a738b5d25b0e7569014312f7f65438acb",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "b74b27eedb748d0469d062dec379cc5a06af0ac4468b957c84ac97e4f21432bb",
+       "shape": [
+        3
+       ]
+      }
+     }
+    ],
+    "offsets": [
+     3,
+     6,
+     4,
+     13
+    ],
+    "rng_after": "2dc4719ae042f5956c769f51cc4911ce2860ec910656dbf2dac8e7525534f3bd",
+    "rng_before": "4c74aad83a2b7a29615db679db1a4623b465342e722bd9680722448c63b01a7a"
+   },
+   "step2500_rank3": {
+    "alpha_hex": [
+     "0x1.1475cc9eedf00p+2",
+     "0x1.921fb54442d18p-1",
+     "0x1.1475cc9eedf00p+2",
+     "0x1.2d97c7f3321d2p+2"
+    ],
+    "applied": [
+     3
+    ],
+    "conditioning": {
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "0e56cc577cae9cb14efb165771907134763aeb2c2b84345d599a885b91aacc48",
+      "shape": [
+       4,
+       2,
+       32
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "0d85f8c3216a6235837bfe7e8f5ddb36dd962102d3a4a3416eea32783a1b5b9a",
+      "shape": [
+       4,
+       1,
+       32
+      ]
+     }
+    },
+    "flips": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "loss_hex": "0x1.1406600000000p+1",
+    "metadata_into_conditioner": [
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "20c6e35e3e872e6919db4bb1c9282018b562c8feaccb6f84b48cf4f295201512",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "aead4a09d26de8ac01fde4ba6bbb19b064a3112993f7f04c31ab10a0cd3c7b56",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "6932ce9796f37eca7974a5fed94d3d80e60651f673985651eb77aee2d869f9a5",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "64644fa94e6778e6c99c59cc956182682149f7813314ac1b240dd0edefa4a8cc",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "13eda624c143c9025c8339759dc9971ee12c63f07d41d2eaf6d19f1c81d31e87",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "6d7accf0272712ed8c9fcd08518f795e49f1dbf3da61fcb085904ac05e76be69",
+       "shape": [
+        3
+       ]
+      }
+     },
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "185773ddbdf9f9f16935d3407ede2ff632e838a080563f94e6ec87930ad8c7b2",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "0d5f192cac079087ef75206eb04b7421c6e39469c05c9157e6e6cc03dde45f97",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "b89fdde93c312e67e3172add567f85d4e77dba4239bf4d8a4216ee7e4358c8d7",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "2ed117a529f67581b9dd1d5fb6e386ad99361667ee57cb32c813ec9ff3e78047",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "ac7894f109d3e0de1a53ba3efecda41124a4da5b54d050c184604b710fa7d73a",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "47db0e91bddc5504a3d49fb9e0afebe1df25d2cfa29b11200cb752c0b8bddc4e",
+       "shape": [
+        3
+       ]
+      }
+     },
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "525054372526810ecb278c5870cf2127a7661d6ecfe14d60a378b885679f6fe7",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "34474cf5ddc37cab43974a742c30da53ee00828215201a0db96ad43237d6e0f8",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "4fa6a6805094b0b9e4715881837d7fff3cc5ac777fa605f37e88d2a053abbe70",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "e41c19d29c20f23358fcc761ffd3a779a1f49d07e8a2f16e5bc287a6d1d141f1",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "03ef65e7071bee163a85f3ba63f311fa73208dc301cbf82f41ffa36ad13db0c1",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "b7b46669fa2a931235106db720793eac2e8a381f9e47ecc29006522b2580d088",
+       "shape": [
+        3
+       ]
+      }
+     },
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "e1ea2b8047d87fc1a03700d5b0a06671cb21e274ddf29495c640a46af5a3520d",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "3e6feff840005aea1740f0abd12767479688dc30715edcc2344197670c564f92",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "f2ec2c3ae6ea73d8c863c7a08638ebad732cd736c11e40a7a0cb96c9759dd1e2",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "c31dcab6ba1dd1246c2d6a74ea864430834063190d55146510b28de67dbe18d9",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "f649d849055887c94195aafee6f49fefd120219d9e56986efd6e2995f1151423",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "e1fd7a60e907f2d8b4b14d65e6f3b85852d5bd5b99fa73b4a53a6776406c3195",
+       "shape": [
+        3
+       ]
+      }
+     }
+    ],
+    "offsets": [
+     11,
+     2,
+     11,
+     12
+    ],
+    "rng_after": "2dc4719ae042f5956c769f51cc4911ce2860ec910656dbf2dac8e7525534f3bd",
+    "rng_before": "4c74aad83a2b7a29615db679db1a4623b465342e722bd9680722448c63b01a7a"
+   },
+   "step7_rank0": {
+    "alpha_hex": [
+     "0x1.5fdbbe9bba775p+2",
+     "0x1.46b9c347764a4p+2",
+     "0x0.0p+0",
+     "0x1.921fb54442d18p-2"
+    ],
+    "applied": [
+     3
+    ],
+    "conditioning": {
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "bc7b6fad93e807208c979d954f78f454db8dd1ccae8c0d8e6e2e7e289fd00151",
+      "shape": [
+       4,
+       2,
+       32
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "c7a4b48777c7a05402ee589c6867124d98fc3394a88c427b2583a954c2cd9665",
+      "shape": [
+       4,
+       1,
+       32
+      ]
+     }
+    },
+    "flips": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "loss_hex": "0x1.1406600000000p+1",
+    "metadata_into_conditioner": [
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "20c6e35e3e872e6919db4bb1c9282018b562c8feaccb6f84b48cf4f295201512",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "51c53114d63d3c738c40cf7a52917114dbb465e3ac45e20ef1579222e037ec28",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "4ce880f003a98c3a19957075002b832cbc9d3c9fa8de68fe07aef5edd26d5ac6",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "633974db4f724689c3342bb5889f5831c24c055ef41310eb276c91c803f1c239",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "9790ede5caae0da8eaf6caed6e0d4a27e3807ec42185f9d0ae08cd7aa5b9ebd7",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "a8f5668d3d812f113750a55de02aa96ca7f147b0a2de782de127839c55146624",
+       "shape": [
+        3
+       ]
+      }
+     },
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "185773ddbdf9f9f16935d3407ede2ff632e838a080563f94e6ec87930ad8c7b2",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "f4650010b327dfaa210f0ae20333057896ccf1a8d9fd3c516e534d571a74f478",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "9955698eb33d083d4ec31e6ca312933695b492d16df459e71b14ab9b9a5bc611",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "41040dc01dd874ad2fde018d91d98a2779a1cb6ba4bc1c7f103b43759b30478d",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "a3b6271a2bd73a9736bf4821915f7935956cab2fef3821af48eae25f7dea401d",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "e15e1f23d130bd4bb64c3e6476908c625fc505f96ab591d8b7a274cab0f9add9",
+       "shape": [
+        3
+       ]
+      }
+     },
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "525054372526810ecb278c5870cf2127a7661d6ecfe14d60a378b885679f6fe7",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "bdaefa92f180aa91ccde0c1bcf02aef50672d67eb6a9d6a72133522736fcd369",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "fe5a3b80975400af2deedba6b9d5fe4a9ed2b68a25f3effee3b62816e93cd6fb",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "7cd060f17cddc826821f9c7167201a245008502db2344752b28fc7660695b4d8",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "7ff22261e96325d741f94b4d8238f8149df138b0b3e7d47ab0e708ac856b5a96",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "ef2373c88919c6cf1872e5e00c88b7f700992bd0ea382811554dffb2c074bd8b",
+       "shape": [
+        3
+       ]
+      }
+     },
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "e1ea2b8047d87fc1a03700d5b0a06671cb21e274ddf29495c640a46af5a3520d",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "3d8344289904d7f16d5c4336763409bfc5f0421a43f25895efcd4876c5f28257",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "5eed013dbbc13243fee015a8d972ed9d0be2099fad77f6882a4e087efb73dfe4",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "0ff3355ee65749a956cea5cb2320e5b32071b72328ed4fd481df4f092a1a7b62",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "d518b332a92ef3350ec13c3965004d6a77cf07288c91481f1eef4e96ed4e4954",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "a45c74ce914618f66050edd4700c0d7bde2dc350abae1f519a0f3707041d238d",
+       "shape": [
+        3
+       ]
+      }
+     }
+    ],
+    "offsets": [
+     14,
+     13,
+     0,
+     1
+    ],
+    "rng_after": "2dc4719ae042f5956c769f51cc4911ce2860ec910656dbf2dac8e7525534f3bd",
+    "rng_before": "4c74aad83a2b7a29615db679db1a4623b465342e722bd9680722448c63b01a7a"
+   },
+   "step7_rank1": {
+    "alpha_hex": [
+     "0x1.921fb54442d18p-1",
+     "0x0.0p+0",
+     "0x1.921fb54442d18p+1",
+     "0x1.921fb54442d18p+0"
+    ],
+    "applied": [
+     0,
+     2,
+     3
+    ],
+    "conditioning": {
+     "context_poses": {
+      "dtype": "torch.float32",
+      "sha256": "f128bc66978c297359d4c8457f9c2d03a709cf328d4eb2908890b462c3285f82",
+      "shape": [
+       4,
+       2,
+       32
+      ]
+     },
+     "source": {
+      "dtype": "torch.float32",
+      "sha256": "82df2de8fdfab7453769d60084aad4380eeb92c500f0fe039c440613ad746d18",
+      "shape": [
+       4,
+       1,
+       32
+      ]
+     }
+    },
+    "flips": [
+     1,
+     0,
+     1,
+     1
+    ],
+    "loss_hex": "0x1.1406600000000p+1",
+    "metadata_into_conditioner": [
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "20c6e35e3e872e6919db4bb1c9282018b562c8feaccb6f84b48cf4f295201512",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "f9697e63e615b7f34f2f91977b16f67095c233a83967557e9790cbd83a8a8849",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "82579be72b2dcf57166f5bba8f42e05be0d7ebef22ed04468323cf5fc68367a7",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "931d617bbcb524f79d1e56341281b348fc666eae15f143c7ee5b9739c86056a3",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "5ec4004dd5045d68a781de0a0788a520a7444532a6381aedc033e52e06bbc92e",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "abbe82fe2cf12e4968ab054a97cf812ebe9837e2c8faaf663c47b45b9442e6bc",
+       "shape": [
+        3
+       ]
+      }
+     },
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "185773ddbdf9f9f16935d3407ede2ff632e838a080563f94e6ec87930ad8c7b2",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "cbabfcc1c1ca947935c014edc3ce71dce0db13030369ac513a7477635cde3c1c",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "31f99a29660d7727250bb0f19acb8b06b94d50eca4e592d30ecafe21856c7fea",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "564ed0a0391b787b17c6375d9507acbd237f767232c6ec1dd456b284c8cb7fe4",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "2a505f7114160ecc4a20b3d6a9dda2265853b9a43e93d222adace77b07f8d559",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "19062b2ad8ac61ae2e094140cbf85e298e5ef65a7e3b8ed1982d5bb3213035e9",
+       "shape": [
+        3
+       ]
+      }
+     },
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "525054372526810ecb278c5870cf2127a7661d6ecfe14d60a378b885679f6fe7",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "31041db1cb55338392bdab7027eefa83fe1f45b288f0f59404c507321b848db0",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "5fc5ee763973308e7e97d28bae49b3924d65a411ff0cb50ecc68b42f7a817d4d",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "d7337badaf457671e30b71f9853eeeb2d14c1b10a41b3753fbf89f0c7aa27bb5",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "f2d8947d40cbd0d5b7c5a539f0d0abe6acb5ecb29a8b08409505d7aab44508ab",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "97fa0a6c01743f400de43f35795954a690f3ac124b0d1212b26e012c579e9502",
+       "shape": [
+        3
+       ]
+      }
+     },
+     {
+      "context_audio": {
+       "dtype": "torch.float32",
+       "sha256": "e1ea2b8047d87fc1a03700d5b0a06671cb21e274ddf29495c640a46af5a3520d",
+       "shape": [
+        2,
+        8
+       ]
+      },
+      "context_poses": {
+       "dtype": "torch.float32",
+       "sha256": "705cb10466cba1a52ac10aab3a2d924026b03b51dc8e060d2fb35074d67dcb70",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "context_poses_vit": {
+       "dtype": "torch.float32",
+       "sha256": "55a3ce88c375f429d91e55f804d227a8d745f6659456deb55211084ddd61a912",
+       "shape": [
+        2,
+        3
+       ]
+      },
+      "depth": {
+       "dtype": "torch.float32",
+       "sha256": "a1a47a46c822e485d9698a4994ed50d2874ffd74c45c0eceebb996599edd7d21",
+       "shape": [
+        3,
+        4,
+        16
+       ]
+      },
+      "padding_mask": {
+       "dtype": "torch.float32",
+       "sha256": "2f20cd03c9cd392a406c56232b0ff93a15f6d6d7da79086bfa14f55d4a4031b0",
+       "shape": [
+        64
+       ]
+      },
+      "source": {
+       "dtype": "torch.float32",
+       "sha256": "2730e973a9dcc33a0ad7e323f12c96f9b4c8925b1e73f050e1d39c9bc2b2d9b4",
+       "shape": [
+        3
+       ]
+      },
+      "source_vit": {
+       "dtype": "torch.float32",
+       "sha256": "8a9cd3f077f2f4ce6308062a3553d7b11601422c6333f12e5dd42c2f54b4aa3d",
+       "shape": [
+        3
+       ]
+      }
+     }
+    ],
+    "offsets": [
+     2,
+     0,
+     8,
+     4
+    ],
+    "rng_after": "2dc4719ae042f5956c769f51cc4911ce2860ec910656dbf2dac8e7525534f3bd",
+    "rng_before": "4c74aad83a2b7a29615db679db1a4623b465342e722bd9680722448c63b01a7a"
+   }
+  }
+ }
+}
