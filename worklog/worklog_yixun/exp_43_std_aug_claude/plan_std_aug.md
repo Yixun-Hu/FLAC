@@ -401,3 +401,11 @@ Disclosed consequences:
 
 **Unchanged.** The estimand (§1), the evaluation cells and protocol flags (§5.2), every gate of §8, the acceptance criteria of §9, the review cap.
 
+
+### A4 — estimand wording: the table values are item-weighted, not per-scene means — **PROPOSED 2026-11-13 ~07:45 EST, NOT approved**
+
+§1 calls the estimand "Per-scene-mean EDT, C50, T60, R@1, R@5, R@10". The evaluator's flat `metrics` block — the quantity read by `gen_model_comparison.py`, by the exp_40 kit, by this kit's `collect` and by every table given so far — is the mean over the 6,337 unseen items (item-weighted), not the mean of the ten per-scene values (exp_40 C16, K = 8, seed 42: T60 8.2575 flat vs 7.3050 per-scene mean). The OrbitRIR B-F @ 40k files carry no `by_scene` block, so a per-scene-mean table could not include the OrbitRIR row.
+
+- **Proposed:** the estimand of §1 and §5.2 is the item-weighted flat `metrics` value per seed, then mean ± sample SD over seeds 42–46; the table footer says so (implemented in commit 8b). Nothing in the code changes.
+- **Alternative:** per-scene means from `by_scene` for RF / YAW / P1 / C16 as a second table, without an OrbitRIR row (new code, inside the remaining review rounds).
+- Decision: Yixun's. Until then the kit keeps the item-weighted values, which match `model_comparison.md`.
