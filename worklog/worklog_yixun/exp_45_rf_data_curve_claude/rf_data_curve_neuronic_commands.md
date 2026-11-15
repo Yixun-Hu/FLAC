@@ -20,6 +20,23 @@ partition's MaxTime before any owner record. After the child exits, the FULL mov
 `lightning_logs/version_0/hparams.yaml` (its gate checks that the CSV logger was selected).
 
 ```bash
+# L1 (plan r3 §5; Codex code r2 finding 14), before X is frozen: the SAME full CPU suite on the merged tree M and on
+#    both parents' worktrees, three CPU Slurm jobs (node-local tmp), then the two-parent node policy; the parent
+#    worktrees are detached checkouts of exp_38's merged tip and of exp_43's training pin
+PY=/n/fs/gatrdp/envs/flac/bin/python; E=worklog/worklog_yixun/exp_45_rf_data_curve_claude
+M=/n/fs/gatrdp/codespace/exp-45-rf-data-curve; L1=$M/$E/l1
+P38=/n/fs/gatrdp/codespace/exp-45-l1-parent-3593f34c; P43=/n/fs/gatrdp/codespace/exp-45-l1-parent-4a7e3b3a
+git -C $M worktree add --detach $P38 3593f34cad4e6e4415a572e93d16ee83465f8ae8
+git -C $M worktree add --detach $P43 4a7e3b3a948388434bc102b8bd7e7aba94648d71
+for P in $P38 $P43; do ln -s "$(readlink -f $M/AcousticRooms)" $P/AcousticRooms; ln -s "$(readlink -f $M/weights/FLAC/VAE.safetensors)" $P/weights/FLAC/VAE.safetensors; done
+mkdir -p $L1
+SUITE="env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 TMPDIR=/tmp $PY -I -m pytest -q -p no:cacheprovider src/tests"
+sbatch --partition=all --cpus-per-task=8 --mem=32G --time=04:00:00 --output=$L1/merged_%j.log --wrap "cd $M && $SUITE --junitxml=$L1/merged.junit.xml"
+sbatch --partition=all --cpus-per-task=8 --mem=32G --time=04:00:00 --output=$L1/parent_3593f34c_%j.log --wrap "cd $P38 && $SUITE --junitxml=$L1/parent_3593f34c.junit.xml"
+sbatch --partition=all --cpus-per-task=8 --mem=32G --time=04:00:00 --output=$L1/parent_4a7e3b3a_%j.log --wrap "cd $P43 && $SUITE --junitxml=$L1/parent_4a7e3b3a.junit.xml"
+#    once the three jobs ended: exit 0 = the policy passes (inherited failures and the three tie-audit tests only)
+$PY $E/exp45_regression_compare.py --merged $L1/merged.junit.xml --exp38 $L1/parent_3593f34c.junit.xml --exp43 $L1/parent_4a7e3b3a.junit.xml --merged-root $M --exp38-root $P38 --exp43-root $P43 --out $L1/regression_compare.json
+
 Y=<the pushed records commit Y (E0 PASS at X)>
 # 0. a clean launch checkout at Y (once; never commit in it while jobs are queued or running)
 cd /n/fs/gatrdp/codespace/FLAC && git fetch origin exp-45-rf-data-curve
@@ -81,19 +98,20 @@ test ! -e $DST/$RUN && rsync -a --partial --exclude .exp38_tools neuronic:$SRC/ 
 #    commit R45 (the launch checkout stays at Y), and the GENERATOR root G = the neuronic main checkout, where every
 #    older row resolves (plan N6; its checkout is never moved -- the evidence is copied in, identical-or-absent).
 G=/n/fs/gatrdp/codespace/FLAC
+B=/n/fs/gatrdp/codespace/exp-45-build
 R45=<the pushed exp_45 results commit, subject "exp_45 results publication ...", full 40-hex>
 git -C $G fetch origin exp-45-rf-data-curve exp-38-data-efficiency     # objects + remote refs only
 git -C $G merge-base --is-ancestor $Y $R45                              # the results build on the launch records Y
-git -C $G worktree add --detach /n/fs/gatrdp/codespace/exp-45-build $R45
-cd /n/fs/gatrdp/codespace/exp-45-build
+git -C $G worktree add --detach $B $R45
+cd $B
 test "$(git rev-parse HEAD)" = "$R45" && test -z "$(git status --porcelain --untracked-files=no)"
 $PY $E/exp45_collect.py verify                      # B: the MD names the JSON's sha256; every manifest file re-hashes
 $PY $E/exp45_collect.py materialise --dest $G       # B -> G byte for byte (+ the kit / configs / refs the rows need)
 $PY $E/exp45_collect.py verify --root $G            # G: the same sha256 check on the copies
-# 5a. regeneration #1 (all six exp_45 rows must populate); the table is copied into B and committed + pushed from B
-#     on Yixun's go (N6)
-$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G
-cp $G/worklog/worklog_yixun/model_comparison.md worklog/worklog_yixun/model_comparison.md
+# 5a. regeneration #1 (all six exp_45 rows must populate): the evidence is read from G, the table is written into B
+#     (--out; Codex code r2 finding 1: main's tracked table is never written) and committed + pushed from B on
+#     Yixun's go (N6)
+$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G --out $B/worklog/worklog_yixun/model_comparison.md
 # 5b. after exp_38 step 4's results bundle is pushed on exp-38-data-efficiency (it descends from exp_38's pushed D7-A
 #     records commit e5a012fa): fetch it, import it (isolated offline adapter; every file sha256-hashed into the
 #     sealed import record and copied into G, re-hashed after the copy), build (re-extracts B38 and re-verifies the
@@ -103,5 +121,5 @@ git -C $G fetch origin exp-38-data-efficiency
 git -C $G merge-base --is-ancestor e5a012fa62705627104bcd9892643edab07aa1e7 $B38
 $PY $E/exp45_table.py import-exp38 --commit $B38 --generator-root $G
 $PY $E/exp45_table.py build --exp38-commit $B38
-$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G
+$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G --out $B/worklog/worklog_yixun/model_comparison.md
 ```

@@ -176,6 +176,20 @@ def test_a_generator_root_materialised_from_the_checkout_resolves_the_exp45_rows
     assert ok, probs
 
 
+def test_the_generator_writes_its_table_to_out_never_into_the_evidence_root(tmp_path, monkeypatch):
+    """Codex code r2 finding 1: --repo-root selects the EVIDENCE only; --out selects the table, so the L8
+    regenerations read the neuronic main checkout and write the table into the build checkout B."""
+    root = tmp_path / "main_checkout"
+    (root / "worklog" / "worklog_yixun").mkdir(parents=True)
+    table = root / "worklog" / "worklog_yixun" / "model_comparison.md"
+    table.write_text("main's tracked table\n")
+    out = tmp_path / "B" / "worklog" / "worklog_yixun" / "model_comparison.md"
+    out.parent.mkdir(parents=True)
+    monkeypatch.setattr(gen, "ROWS", [])
+    assert gen.main(["--repo-root", str(root), "--out", str(out)]) == 0
+    assert table.read_text() == "main's tracked table\n" and out.read_text().startswith("# Model comparison")
+
+
 def test_round_gate_publishes_only_complete_pairs_at_one_pin(tmp_path):
     label = gen.EXP45_LABELS["025"]
     rendered = [{"label": label, "K": 8, "line": "| ok |", "contract": "exp45"},

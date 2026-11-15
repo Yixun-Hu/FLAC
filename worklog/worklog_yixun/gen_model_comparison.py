@@ -1331,12 +1331,18 @@ def main(argv=None):
     ap.add_argument("--allow-partial-exp11", action="store_true",
                     help="write the table even when an exp_11 update covers only one K; the "
                          "affected rows still render WITHHELD, never as numbers.")
+    ap.add_argument("--out", default=None,
+                    help="write the table HERE instead of under --repo-root (exp_45 L8, Codex code r2 "
+                         "finding 1: read the evidence from the main checkout, write the table into "
+                         "a separate build checkout); the regression check compares with this file.")
     # argv=None means "the real command line" (argparse reads sys.argv[1:]).
     # Passing [] here made --repo-root unreachable from the shell: the flag
     # parsed, then main() threw the arguments away and used the default.
     args = ap.parse_args(argv)
     paths = repo_paths(args.repo_root)
     root, out_path, validator = paths["root"], paths["out"], paths["validator"]
+    if args.out:
+        out_path = os.path.realpath(args.out)
 
     evidence_ready = exp10_evidence_present(root)
     lines = [

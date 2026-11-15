@@ -38,14 +38,17 @@ SHEETS = {
         # verify into the generator root, fetch the exp_38 bundle descending from its pushed records commit e5a012fa
         "G=/n/fs/gatrdp/codespace/FLAC", "git -C $G fetch origin exp-45-rf-data-curve exp-38-data-efficiency",
         "git -C $G merge-base --is-ancestor $Y $R45",
-        "git -C $G worktree add --detach /n/fs/gatrdp/codespace/exp-45-build $R45",
+        "git -C $G worktree add --detach $B $R45",
         'test "$(git rev-parse HEAD)" = "$R45"', "$PY $E/exp45_collect.py verify",
         "$PY $E/exp45_collect.py materialise --dest $G", "$PY $E/exp45_collect.py verify --root $G",
         "git -C $G fetch origin exp-38-data-efficiency",
         "git -C $G merge-base --is-ancestor e5a012fa62705627104bcd9892643edab07aa1e7 $B38",
         "$PY $E/exp45_table.py import-exp38 --commit $B38 --generator-root $G",
         "$PY $E/exp45_table.py build --exp38-commit $B38",
-        "$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G"],
+        "$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G --out $B/worklog/worklog_yixun/model_comparison.md",
+        # L1 (Codex code r2 finding 14): the two-parent comparison with all three junit inputs and checkout roots
+        "$PY $E/exp45_regression_compare.py --merged $L1/merged.junit.xml --exp38 $L1/parent_3593f34c.junit.xml "
+        "--exp43 $L1/parent_4a7e3b3a.junit.xml --merged-root $M --exp38-root $P38 --exp43-root $P43"],
 }
 
 
@@ -74,7 +77,7 @@ def test_l8_makes_the_published_evidence_available_and_verified_before_any_use()
     b = _blocks("rf_data_curve_neuronic_commands.md")
     l8 = b[b.index("G=/n/fs/gatrdp/codespace/FLAC"):]
     order = ["git -C $G fetch origin exp-45-rf-data-curve exp-38-data-efficiency", "git -C $G merge-base --is-ancestor $Y $R45",
-             "git -C $G worktree add --detach /n/fs/gatrdp/codespace/exp-45-build $R45", "$PY $E/exp45_collect.py verify  ",
+             "git -C $G worktree add --detach $B $R45", "$PY $E/exp45_collect.py verify  ",
              "$PY $E/exp45_collect.py materialise --dest $G", "$PY $E/exp45_collect.py verify --root $G",
              "$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G", "git -C $G fetch origin exp-38-data-efficiency",
              "git -C $G merge-base --is-ancestor e5a012fa62705627104bcd9892643edab07aa1e7 $B38",
@@ -96,6 +99,82 @@ def test_l8_makes_the_published_evidence_available_and_verified_before_any_use()
            "cd ~/codespace/exp-45-publish\npython $E/exp45_collect.py verify     # the publication worktree",
            "git add -f $E/rf_data_curve_results.{json,md}", 'git commit -m "exp_45 results publication']
     assert [a6.index(c) for c in seq] == sorted(a6.index(c) for c in seq)
+
+
+MAIN = "/n/fs/gatrdp/codespace/FLAC"            # the plan-N6 main checkout (the generator root G)
+# the only command forms either sheet may run against MAIN: they read it, add .git worktree / fetch metadata, or
+# write UNTRACKED files only (the materialisers refuse a tracked destination); everything else that names MAIN, or
+# runs with MAIN as its cwd, is a write path into main's tracked tree and fails this test
+MAIN_FORMS = (r"G=/n/fs/gatrdp/codespace/FLAC",
+              r"SRC=/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve/\$RUN",   # read by the L7 rsync
+              r"cd /n/fs/gatrdp/codespace/FLAC && git fetch origin exp-45-rf-data-curve",
+              r"git worktree add --detach /n/fs/gatrdp/codespace/exp-45-launch \$Y",
+              r'ln -s "\$\(readlink -f /n/fs/gatrdp/codespace/FLAC/[\w/.]+\)" [\w/.]+',
+              r"git -C \$G fetch origin [\w. -]+", r"git -C \$G merge-base --is-ancestor \S+ \S+",
+              r"git -C \$G worktree add --detach \$B \$R45",
+              r"\$PY \$E/exp45_collect\.py materialise --dest \$G(\s+#.*)?",
+              r"\$PY \$E/exp45_collect\.py verify --root \$G(\s+#.*)?",
+              r"\$PY \$E/exp45_table\.py import-exp38 --commit \$B38 --generator-root \$G(\s+#.*)?",
+              r"\$PY worklog/worklog_yixun/gen_model_comparison\.py --repo-root \$G --out \$B/worklog/worklog_yixun/"
+              r"model_comparison\.md(\s+#.*)?")
+
+
+def _commands(text):
+    """Every command of a sheet's bash blocks (continuations joined, comments and blank lines dropped)."""
+    out = []
+    for block in re.findall(r"```bash\n(.*?)\n```", text, flags=re.S):
+        buf = ""
+        for ln in block.split("\n"):
+            s = ln.strip()
+            if not buf and (not s or s.startswith("#")):
+                continue
+            buf = (buf + " " + s) if buf else s
+            if buf.endswith("\\"):
+                buf = buf[:-1].rstrip()
+                continue
+            out.append(re.sub(r"\s+#\s.*$", "", buf))          # an inline comment is not part of the command
+            buf = ""
+    return out
+
+
+@pytest.mark.parametrize("name", sorted(SHEETS))
+def test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout(name):
+    """Codex code r2 finding 1: neither regeneration writes main's tracked table (the generator reads its evidence
+    from G and writes its table to B via --out), and every other command touching the plan-N6 main checkout is a
+    registered read-only / metadata / untracked-only form -- none moves, edits, commits or copies into G."""
+    cwd_main = False                                     # is MAIN the shell's working directory?
+    for cmd in _commands(open(os.path.join(EXP, name)).read()):
+        if cmd.startswith("cd "):
+            cwd_main = cmd.split()[1] == MAIN
+        if MAIN in cmd or "$G" in cmd or "${G}" in cmd or cwd_main:
+            assert any(re.fullmatch(f, cmd) for f in MAIN_FORMS), f"{name}: {cmd}"
+        if "gen_model_comparison.py" in cmd:
+            assert "--out $B/" in cmd and "--out $G" not in cmd, cmd
+
+
+def test_the_l1_comparison_command_is_complete():
+    """Codex code r2 finding 14: the neuronic sheet runs the registered L1 -- the same full CPU suite on the merged tree
+    and on both parents' worktrees (at exp_38's tip and exp_43's pin), then exp45_regression_compare.py with the three
+    junit inputs and all three checkout roots."""
+    b = _blocks("rf_data_curve_neuronic_commands.md")
+    assert re.search(r"git -C \$M worktree add --detach \$P38 3593f34cad4e6e4415a572e93d16ee83465f8ae8", b)
+    assert re.search(r"git -C \$M worktree add --detach \$P43 4a7e3b3a948388434bc102b8bd7e7aba94648d71", b)
+    runs = re.findall(r"--junitxml=\$L1/(\S+)\.junit\.xml", b)
+    assert sorted(runs) == ["merged", "parent_3593f34c", "parent_4a7e3b3a"]
+    cmp = [c for c in _commands(open(os.path.join(EXP, "rf_data_curve_neuronic_commands.md")).read())
+           if "exp45_regression_compare.py" in c]
+    assert len(cmp) == 1
+    args = cmp[0].split()
+    for flag, val in (("--merged", "$L1/merged.junit.xml"), ("--exp38", "$L1/parent_3593f34c.junit.xml"),
+                      ("--exp43", "$L1/parent_4a7e3b3a.junit.xml"), ("--merged-root", "$M"), ("--exp38-root", "$P38"),
+                      ("--exp43-root", "$P43")):
+        assert args[args.index(flag) + 1] == val, flag
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("rc_sheet", os.path.join(EXP, "exp45_regression_compare.py"))
+    rc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rc)
+    tail = args[args.index("$E/exp45_regression_compare.py") + 1:]
+    assert rc.main(tail) == 2                            # parsed (the placeholder inputs are unreadable: exit 2)
 
 
 def _blocks(name):
