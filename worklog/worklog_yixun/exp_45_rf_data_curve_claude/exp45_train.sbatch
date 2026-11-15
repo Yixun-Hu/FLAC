@@ -54,11 +54,13 @@ main() {
   local ARGS=(--platform neuronic --run "$RUN" --backend "$ATTN_BACKEND" --expect-python "$ENV_PREFIX/bin/python"
               --expect-flash-version "${EXPECT_FLASH_VERSION:-}")
   [ "$ALLOW" = 1 ] && ARGS+=(--allow-nonmatched-rung)
+  # -B (Codex code r2 finding 13): the supervisor imports the reused exp_38 tools from exp_38's folder; it writes no
+  # bytecode, so a launch checkout never acquires __pycache__ files there
   if [ "$DRY" = 1 ]; then
     [ -n "${EXP38_DRY_SAVE_ROOT:-}" ] && ARGS+=(--dry-save-root "$EXP38_DRY_SAVE_ROOT")
-    exec "$PY" "$REPO/$EXP/exp45_supervise.py" --mode DRY_RUN "${ARGS[@]}"
+    exec "$PY" -B "$REPO/$EXP/exp45_supervise.py" --mode DRY_RUN "${ARGS[@]}"
   fi
-  exec "$PY" "$REPO/$EXP/exp45_supervise.py" --mode "$MODE" "${ARGS[@]}" --expect-sha "$EXPECT_SHA" \
+  exec "$PY" -B "$REPO/$EXP/exp45_supervise.py" --mode "$MODE" "${ARGS[@]}" --expect-sha "$EXPECT_SHA" \
     --token "$TOKEN" --save-dir "$SD"
 }
 
