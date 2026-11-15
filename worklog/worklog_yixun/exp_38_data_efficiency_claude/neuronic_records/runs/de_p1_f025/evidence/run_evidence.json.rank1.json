@@ -1,0 +1,402 @@
+{
+ "accumulate_grad_batches": 1,
+ "batchnorm_nonsync_modules": 0,
+ "checkpoint_calls": [
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  },
+  {
+   "use_reentrant": false
+  }
+ ],
+ "conditioner_calls": [
+  [
+   32,
+   null
+  ]
+ ],
+ "flash_attn_func_set": true,
+ "flash_calls": 48,
+ "global_step_at_fit_start": 0,
+ "global_step_recorded": 1,
+ "gradient_clip_val": 0.0,
+ "local_rank": 1,
+ "max_steps": 40000,
+ "micro_batch": 32,
+ "n_state_tensors": 1279,
+ "num_nodes": 1,
+ "precision": "bf16-mixed",
+ "rank": 1,
+ "rng_at_fit_start": {
+  "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+  "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+  "torch_cpu": "5feb54a46230d321d888e9b43cf5a57492665f199e4377408d79ee460e36679c",
+  "torch_cuda": "aefdce03def94ffed42159e55677ec20e91200e1981f25b1f271b6fd99c3c263"
+ },
+ "sdpa_calls": 0,
+ "sobol": {
+  "dimension": 1,
+  "num_generated": 0,
+  "scramble": true,
+  "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+ },
+ "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95",
+ "strategy": "DDPStrategy",
+ "syncbn_modules": 20,
+ "vit_ckpt_wrapped_layers": 12,
+ "world_size": 2
+}

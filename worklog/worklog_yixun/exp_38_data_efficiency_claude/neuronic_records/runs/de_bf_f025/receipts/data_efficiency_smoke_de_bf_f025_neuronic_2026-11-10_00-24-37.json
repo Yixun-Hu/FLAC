@@ -1,0 +1,2860 @@
+{
+ "argv_projection": [
+  "train.py",
+  "--model-config",
+  "worklog/worklog_yixun/exp_38_data_efficiency_claude/FLAC_AR_BF_cap32.json",
+  "--dataset-config",
+  "src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json",
+  "--pretransform-ckpt-path",
+  "weights/FLAC/VAE.safetensors",
+  "--batch-size",
+  "32",
+  "--accum-batches",
+  "1",
+  "--num-workers",
+  "6",
+  "--seed",
+  "42",
+  "--num-gpus",
+  "2",
+  "--num-nodes",
+  "1",
+  "--strategy",
+  "ddp_find_unused_parameters_true",
+  "--sync-batchnorm",
+  "true",
+  "--precision",
+  "bf16-mixed",
+  "--val-every",
+  "-1",
+  "--gradient-clip-val",
+  "0.0",
+  "--logger",
+  "none"
+ ],
+ "backend": "flash",
+ "checkpoints_written": 0,
+ "closure_sha256": "31142c792b76e29d43b715c7bd955adf0e184292543ea3b7987bafaafabf6694",
+ "dataset_config_sha256": "7ac8243f94cf9abc652e1a667c51263436041ea7a1fb0e8ed868c7e07fae7a21",
+ "env_receipt_sha256": "84b50471d34db234999e23f6b29ab6d9ae44eb5a0a3baa05e0083aa3c5ee87db",
+ "evidence": {
+  "0": {
+   "accumulate_grad_batches": 1,
+   "batchnorm_nonsync_modules": 0,
+   "checkpoint_calls": [
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    }
+   ],
+   "conditioner_calls": [
+    [
+     32,
+     null
+    ],
+    [
+     32,
+     [
+      "source_vit",
+      "context_poses_vit"
+     ]
+    ],
+    [
+     32,
+     [
+      "source_vit",
+      "context_poses_vit"
+     ]
+    ],
+    [
+     32,
+     [
+      "source_vit",
+      "context_poses_vit"
+     ]
+    ]
+   ],
+   "flash_attn_func_set": true,
+   "flash_calls": 48,
+   "global_step_at_fit_start": 0,
+   "global_step_recorded": 1,
+   "gradient_clip_val": 0.0,
+   "local_rank": 0,
+   "max_steps": 30,
+   "micro_batch": 32,
+   "n_state_tensors": 1279,
+   "num_nodes": 1,
+   "precision": "bf16-mixed",
+   "rank": 0,
+   "rng_at_fit_start": {
+    "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+    "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+    "torch_cpu": "5feb54a46230d321d888e9b43cf5a57492665f199e4377408d79ee460e36679c",
+    "torch_cuda": "aefdce03def94ffed42159e55677ec20e91200e1981f25b1f271b6fd99c3c263"
+   },
+   "sdpa_calls": 0,
+   "sobol": {
+    "dimension": 1,
+    "num_generated": 0,
+    "scramble": true,
+    "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+   },
+   "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95",
+   "strategy": "DDPStrategy",
+   "syncbn_modules": 20,
+   "vit_ckpt_wrapped_layers": 12,
+   "world_size": 2
+  },
+  "1": {
+   "accumulate_grad_batches": 1,
+   "batchnorm_nonsync_modules": 0,
+   "checkpoint_calls": [
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    },
+    {
+     "use_reentrant": false
+    }
+   ],
+   "conditioner_calls": [
+    [
+     32,
+     null
+    ],
+    [
+     32,
+     [
+      "source_vit",
+      "context_poses_vit"
+     ]
+    ],
+    [
+     32,
+     [
+      "source_vit",
+      "context_poses_vit"
+     ]
+    ],
+    [
+     32,
+     [
+      "source_vit",
+      "context_poses_vit"
+     ]
+    ]
+   ],
+   "flash_attn_func_set": true,
+   "flash_calls": 48,
+   "global_step_at_fit_start": 0,
+   "global_step_recorded": 1,
+   "gradient_clip_val": 0.0,
+   "local_rank": 1,
+   "max_steps": 30,
+   "micro_batch": 32,
+   "n_state_tensors": 1279,
+   "num_nodes": 1,
+   "precision": "bf16-mixed",
+   "rank": 1,
+   "rng_at_fit_start": {
+    "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+    "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+    "torch_cpu": "5feb54a46230d321d888e9b43cf5a57492665f199e4377408d79ee460e36679c",
+    "torch_cuda": "aefdce03def94ffed42159e55677ec20e91200e1981f25b1f271b6fd99c3c263"
+   },
+   "sdpa_calls": 0,
+   "sobol": {
+    "dimension": 1,
+    "num_generated": 0,
+    "scramble": true,
+    "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+   },
+   "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95",
+   "strategy": "DDPStrategy",
+   "syncbn_modules": 20,
+   "vit_ckpt_wrapped_layers": 12,
+   "world_size": 2
+  }
+ },
+ "evidence_gate": "PASS",
+ "finished_at": "2026-11-10T00:31:06-0500",
+ "gpus": [
+  [
+   "GPU-1d2f11e4-1f97-5881-9b65-67c9f217ef01",
+   "NVIDIA L40"
+  ],
+  [
+   "GPU-9e9eec76-50cb-c5c1-062e-aecb809cb1b8",
+   "NVIDIA L40"
+  ]
+ ],
+ "head": "df84993724666bc4d972a8c177b5e9ada7bfbecd",
+ "launched_at": "2026-11-10T00:26:09-0500",
+ "log": "/n/fs/gatrdp/codespace/exp-38-campaign/worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_2026-11-10_00-24-37_de_bf_f025_neuronic_SMOKE_train.log",
+ "log_gate": "PASS",
+ "log_sha256": "48655947c4289dda8bf1a3b5f5f017c1efa527d1fb1d66f34f7e4e0b258a6ab4",
+ "mode": "SMOKE_DDP",
+ "model_config_sha256": "f75781b46ce0128e77831d70a53a5d5c6c3d60b4f5a690e0380e48a482f1e8cc",
+ "platform": "neuronic",
+ "rc": 0,
+ "run": "de_bf_f025",
+ "schema": 1,
+ "snapshot_dir": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_bf_f025_smoke/.exp38_tools",
+ "snapshot_sha256": "5f90fb2abebc8ac5e0030f3c7937d4fcabf5166b21981fc9bfacaacbb2113211",
+ "split_sha256": "ce33f34f74b055d98a576c5aa5398d058c698d4cce9049e9648bcf3edf27122d",
+ "subset_audit_sha256": "7f43f8ea972016e74afb359e2523d9aa204090a18f4d23e8d08f7505b3a3686a",
+ "verdict": "PASS"
+}

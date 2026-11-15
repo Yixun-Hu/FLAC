@@ -1,0 +1,14 @@
+{
+ "at": "2026-11-12T02:12:57-0500",
+ "full_job": "4206624",
+ "moved_from": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_p1_f025/lightning_logs",
+ "reason": "exp38_registry.check_run_dir refused this foreign entry at the FULL's end audit",
+ "reseal_job": "4224563",
+ "run": "de_p1_f025",
+ "sha256": {
+  "version_0/hparams.yaml": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+  "version_0/metrics.csv": "19254e92908d4fe5bd14a2b13bb2ed91310ea117bb3dbe02647ed967f3f145f5"
+ },
+ "tool": "/n/fs/gatrdp/codespace/_sessions/exp40_c16_runner/jobs/exp38_reseal.py",
+ "tool_sha256": "98a3704ba0e370402d89a29e16b434f90bf8a03fbd32a998c55ebd30c496b692"
+}

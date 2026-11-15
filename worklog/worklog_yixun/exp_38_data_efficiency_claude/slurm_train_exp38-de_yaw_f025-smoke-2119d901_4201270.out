@@ -1,0 +1,1 @@
+EXP38 LAUNCH REFUSED: DINOv3 snapshot files ['.gitattributes', 'LICENSE.md', 'README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']
