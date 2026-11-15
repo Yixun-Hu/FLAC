@@ -749,6 +749,54 @@ def test_neuronic_links_are_validated_by_content(tmp_path, monkeypatch):
     assert any("stray.py" in p for p in probs) and any("import shadow" in p for p in probs)
 
 
+PAUSED_WRITER = """
+import json, os, sys, time
+sys.path.insert(0, sys.argv[2])
+import exp45_registry as reg
+reg.env_problems = lambda: []
+reg.env_snapshot = lambda platform: {k: k for k in reg.ENV_RECEIPT_KEYS}
+real_replace = os.replace
+
+def paused_replace(src, dst):                         # the first publication pauses with its temp file on disk
+    print("PAUSED " + os.path.basename(src), flush=True)
+    time.sleep(120)
+    return real_replace(src, dst)
+os.replace = paused_replace
+reg.ensure_env_receipt("neuronic", repo=sys.argv[1])
+"""
+
+
+def test_the_real_hygiene_gate_tolerates_a_live_writers_receipt_temp_file_only(tmp_path, monkeypatch):
+    """Codex code r2 finding 11: while another SMOKE publishes the environment receipt (it holds the receipt lock, its
+    temp file .rf_data_curve_env_receipt_neuronic.json.sha256.tmp.<pid> on disk), the REAL check_untracked of an
+    arriving SMOKE passes; once that writer is dead (lock free) the same temp file is refused as stale, by name."""
+    import signal
+    monkeypatch.setenv("PYTHONNOUSERSITE", "1")
+    root = _git_tree(tmp_path)
+    data = tmp_path / "AR"
+    data.mkdir()
+    (root / "AcousticRooms").symlink_to(data)
+    (root / reg.VAE_PATH).symlink_to(os.path.realpath(os.path.join(REPO, reg.VAE_PATH)))
+    (root / reg.EXP_DIR).mkdir(parents=True)
+    assert reg.check_untracked("neuronic", str(root)) == []
+    child = subprocess.Popen([sys.executable, "-I", "-c", PAUSED_WRITER, str(root), EXP], stdout=subprocess.PIPE,
+                             text=True)
+    try:
+        line = child.stdout.readline().strip()
+        assert line.startswith("PAUSED .rf_data_curve_env_receipt_neuronic.json"), line
+        tmp_name = line.split()[1]
+        assert os.path.exists(root / reg.EXP_DIR / tmp_name)
+        assert reg.check_untracked("neuronic", str(root)) == []               # a live writer's temp file
+    finally:
+        child.send_signal(signal.SIGKILL)
+        child.wait(timeout=30)
+    assert os.path.exists(root / reg.EXP_DIR / tmp_name)                      # the killed writer's leftover
+    probs = reg.check_untracked("neuronic", str(root))
+    assert len(probs) == 1 and tmp_name in probs[0] and "stale" in probs[0], probs
+    (root / reg.EXP_DIR / ".rf_data_curve_env_receipt_neuronic.json.tmp.junk").write_text("x")
+    assert any(".tmp.junk" in p for p in reg.check_untracked("neuronic", str(root)))   # only the kit's exact pattern
+
+
 @pytest.mark.skipif(not all(os.path.exists(t) for t in reg.A6000_LINK_TARGETS.values()), reason="A6000 box only")
 def test_a6000_links_need_the_registered_targets(tmp_path, monkeypatch):
     monkeypatch.setenv("PYTHONNOUSERSITE", "1")
