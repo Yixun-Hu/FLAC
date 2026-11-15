@@ -446,7 +446,8 @@ def test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools(tmp_path):
     """Codex code r2 finding 13: the importing driver (the supervisor the sbatch execs) runs with bytecode writing
     disabled, so a fresh launch checkout never acquires __pycache__ files under exp_38's folder. The dry-run hook
     imports the reused exp_38 tools; with PYTHONPYCACHEPREFIX pointed at a scratch dir, any bytecode Python would
-    have written lands there instead of in the repo -- and none for exp_38's folder may appear."""
+    have written lands there instead of in the repo -- and none for exp_38's folder may appear (the supervisor's own
+    probe subprocesses, which import no exp_38 tool, may still cache stdlib bytecode there)."""
     prefix = tmp_path / "pycache_prefix"
     env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN="exp45_RFf025_l40_2x32", MODE="FULL",
                EXPECT_SHA="a" * 40, EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
@@ -456,7 +457,7 @@ def test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools(tmp_path):
     assert r.returncode == 0, r.stderr[-2000:]
     written = [os.path.join(d, f) for d, _, fs in os.walk(prefix) for f in fs] if prefix.exists() else []
     assert not [w for w in written if "exp_38_data_efficiency_claude" in w], written[:5]
-    assert not written, written[:5]                       # -B: nothing at all
+    assert not [w for w in written if "/worklog/worklog_yixun/" in w], written[:5]      # nor of any kit / tool folder
     lines = open(SBATCH).read().split("\n")
     execs = [ln for ln in lines if ln.strip().startswith("exec ")]
     assert len(execs) == 2 and all('exec "$PY" -B ' in ln for ln in execs), execs
