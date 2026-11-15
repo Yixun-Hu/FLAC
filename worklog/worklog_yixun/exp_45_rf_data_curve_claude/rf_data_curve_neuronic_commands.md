@@ -40,9 +40,12 @@ $PY $E38/exp38_content_manifest.py --verify $E38/data_efficiency_ar_content_mani
 
 RUNS="exp45_RFf025_l40_2x32 exp45_RFf050_l40_2x32 exp45_RFf075_l40_2x32"
 
-# 1. (L5) per run: the production-topology SMOKE first (30 steps, 2 x L40, no checkpoint; the first one writes the
-#    sealed neuronic environment receipt). Check: ONE RF banner line, the loader length 1,148 / 2,276 / 3,413 in the
-#    progress bar, finite loss, backend flash, lightning_logs/version_0/hparams.yaml only; note the s/step.
+# 1. (L5) per run: the production-topology SMOKE first (30 steps, 2 x L40, no checkpoint). The three may run at once:
+#    the first to start writes the sealed neuronic environment receipt under its exclusive lock
+#    ($E/.rf_data_curve_env_receipt.lock) and every SMOKE re-checks it under the same lock (exact equality, or it
+#    refuses), so no ordering is needed (Codex code r1 finding 14). Check: ONE RF banner line, the loader length
+#    1,148 / 2,276 / 3,413 in the progress bar, finite loss, backend flash, lightning_logs/version_0/hparams.yaml
+#    only; note the s/step.
 for RUN in $RUNS; do
   $PY $E/exp45_submit_neuronic.py submit --run $RUN --mode SMOKE --time 01:00:00 --dry-run   # inspect
   $PY $E/exp45_submit_neuronic.py submit --run $RUN --mode SMOKE --time 01:00:00

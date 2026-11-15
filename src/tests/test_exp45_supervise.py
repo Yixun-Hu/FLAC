@@ -758,3 +758,59 @@ def test_nothing_rewrites_the_launch_record_after_the_commit_marker(tmp_path, mo
     assert reg.sha256_file(str(rd / cm["launch_record"])) == cm["launch_record_sha256"]
     reg.check_training_receipt(run, str(rd), closure=tr.CLOSURE, e0_sha=digests["e0"], platform="a6000")
     assert list(json.load(open(nas / reg.STORAGE_LEDGER))["reservations"]) == [run]
+
+
+# ------------------------------------------------------------------ the first SMOKEs and the environment receipt (finding 14)
+def test_three_concurrent_first_smokes_create_exactly_one_environment_receipt(tmp_path, monkeypatch):
+    """Codex code r1 finding 14: the neuronic sheet submits the three SMOKEs together, so up to three jobs may find no
+    environment receipt at once. Its creation is serialised under an exclusive lock: exactly one job writes the sealed
+    receipt, the others re-check it under the same lock -- all three pass with the one receipt's sha256 and the
+    receipt is written ONCE (the snapshot takes 0.5 s, so every job has seen "no receipt" before the first write;
+    unserialised, identical snapshots would be published two or three times over each other)."""
+    import multiprocessing as mp
+    reg = sv.reg
+    (tmp_path / reg.EXP_DIR).mkdir(parents=True)
+    monkeypatch.setattr(reg, "REPO", str(tmp_path))
+    monkeypatch.setattr(sv, "git", lambda *args, repo=None: "f" * 40 if args[0] == "rev-parse" else "")
+    monkeypatch.setattr(reg, "check_untracked", lambda platform, repo=None: [])
+    monkeypatch.setattr(reg, "env_problems", lambda: [])
+    monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": "c" * 64})
+    snap = {k: k for k in reg.ENV_RECEIPT_KEYS}
+    snap.update(schema=1, platform="neuronic", packages={"torch": "2.1.0"})
+
+    def slow_snapshot(platform):
+        time.sleep(0.5)
+        return json.loads(json.dumps(snap))
+    monkeypatch.setattr(reg, "env_snapshot", slow_snapshot)
+    writes, real_write = tmp_path / "receipt_writes.log", reg.write_sealed
+
+    def counted_write(path, rec):                      # one O_APPEND line per write of the receipt, fork-safe
+        if path == reg._abs(reg.env_receipt_rel("neuronic")):
+            fd = os.open(str(writes), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+            os.write(fd, f"{os.getpid()}\n".encode())
+            os.close(fd)
+        return real_write(path, rec)
+    monkeypatch.setattr(reg, "write_sealed", counted_write)
+    ctx = mp.get_context("fork")
+    barrier, q = ctx.Barrier(3), ctx.Queue()
+
+    def first_smoke(i):
+        a = sv.parse(["--platform", "neuronic", "--mode", "SMOKE", "--run", reg.required_runs()[i], "--expect-sha",
+                      "f" * 40, "--token", str(i) * 32, "--save-dir", "/x"])
+        barrier.wait()
+        try:
+            q.put((i, "ok", sv.campaign_gates(a, "neuronic")[1]))
+        except BaseException as err:                       # noqa: BLE001 -- reported to the parent
+            q.put((i, "error", repr(err)))
+    procs = [ctx.Process(target=first_smoke, args=(i,)) for i in range(3)]
+    for p in procs:
+        p.start()
+    got = sorted(q.get(timeout=120) for _ in procs)
+    for p in procs:
+        p.join(timeout=60)
+    assert len(writes.read_text().split()) == 1, writes.read_text()       # created exactly once
+    assert [g[1] for g in got] == ["ok"] * 3, got
+    _, digest = reg.read_sealed(reg._abs(reg.env_receipt_rel("neuronic")), reg.ENV_RECEIPT_KEYS)
+    assert {g[2] for g in got} == {digest}
+    assert reg.UNTRACKED_RECORDS.match(reg.ENV_RECEIPT_LOCK)     # the lock file is a registered record name
+

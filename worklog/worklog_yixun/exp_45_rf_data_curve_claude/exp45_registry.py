@@ -1359,7 +1359,7 @@ ENV_PREFIXES = ("NCCL_", "TORCH", "PYTORCH_", "CUBLAS", "CUDNN", "PL_", "LIGHTNI
 # kit itself writes into its own folder (Codex code r2 HIGH 10)
 UNTRACKED_RECORDS = re.compile(r"^" + re.escape(EXP_DIR) + r"/(rf_data_curve_[^/]+\.(json|sha256|log|out|md|txt\.gz)"
                                r"|at_launch_[^/]+\.json|eval_logs/rf_data_curve_[^/]+\.log|slurm_train_[^/]+\.out"
-                               r"|exp45_neuronic_submissions\.log|\.collect\.lock)$")
+                               r"|exp45_neuronic_submissions\.log|\.collect\.lock|\.rf_data_curve_env_receipt\.lock)$")
 IMPORTABLE = (".py", ".pyc", ".pyo", ".so", ".pyd", ".pth", ".egg-link", ".egg-info", ".dist-info")
 
 
@@ -1593,6 +1593,22 @@ def env_receipt(platform, write=False, repo=None):
             diff.append({k: (pk0.get(k), pk1.get(k)) for k in set(pk0) | set(pk1) if pk0.get(k) != pk1.get(k)})
         raise GateError(f"environment drift vs the campaign receipt: {diff}")
     return {"env_receipt": path, "sha256": digest}
+
+
+ENV_RECEIPT_LOCK = f"{EXP_DIR}/.rf_data_curve_env_receipt.lock"
+
+
+def ensure_env_receipt(platform, repo=None):
+    """The campaign's environment receipt, created at most once when several first SMOKEs start together (Codex code
+    r1 finding 14): under an exclusive lock beside it, the first caller writes the sealed receipt (write-once) and
+    every caller -- that one included -- then checks it against its own environment (exact equality, else
+    GateError). A dead holder's lock is released by the kernel."""
+    import fcntl
+    with open(_abs(ENV_RECEIPT_LOCK, repo), "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if not os.path.exists(_abs(env_receipt_rel(platform), repo)):
+            env_receipt(platform, write=True, repo=repo)
+        return env_receipt(platform, repo=repo)
 
 
 def env_receipt_sha(platform, repo=None):

@@ -403,9 +403,9 @@ def campaign_gates(a, platform):
     probs = reg.check_untracked(platform)
     if probs:
         raise Refused("campaign tree: " + "; ".join(probs))
-    if platform == "neuronic" and a.mode == "SMOKE" and not os.path.exists(reg._abs(reg.env_receipt_rel(platform))):
-        reg.env_receipt(platform, write=True)
-    env = reg.env_receipt(platform)
+    # the first SMOKE(s) create the neuronic environment receipt -- serialised under its lock, since the sheet submits
+    # the three SMOKEs together (Codex code r1 finding 14); every other launch only checks it
+    env = reg.ensure_env_receipt(platform) if platform == "neuronic" and a.mode == "SMOKE" else reg.env_receipt(platform)
     return head, env["sha256"], reg.closure_digest()["closure_sha256"]
 
 
