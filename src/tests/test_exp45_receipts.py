@@ -474,6 +474,7 @@ def test_a_consistent_sdpa_training_chain_is_refused_at_admission(tree, monkeypa
     with pytest.raises(reg.GateError, match="flash"):
         reg.check_training_receipt("exp45_RFf050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"],
                                    platform="a6000")
+    monkeypatch.setattr(reg, "env_receipt_sha", lambda platform, repo=None: ENV_SHA)   # the SMOKE helper's receipt
     _smoke(tree, backend="sdpa")
     with pytest.raises(reg.GateError, match="flash"):
         reg.check_smoke_receipt("exp45_RFf025_l40_2x32", "a6000", "sdpa", HEAD, A6000_GPUS, repo=str(tree))
