@@ -34,8 +34,7 @@ OUT_JSON = f"{reg.EXP_DIR}/rf_data_curve_results.json"
 OUT_MD = f"{reg.EXP_DIR}/rf_data_curve_results.md"
 LOCK = f"{reg.EXP_DIR}/.collect.lock"
 SHOW = ("EDT", "C50", "T60", "FD", "RIR_to_GT_RIR_R@1")
-MODELS = {"p1": "FLAC (P1)", "yaw": "Yaw-Aug FLAC (YAW)", "bf": "OrbitRIR (B-F)",
-          "p1_bridge": "FLAC (P1) platform bridge (exp_38)"}
+MODELS = {"p1": "FLAC (P1)", "yaw": "Yaw-Aug FLAC (YAW)", "bf": "OrbitRIR (B-F)", "rf": "Roll + Flip (RF)"}
 FRAC_LABEL = {"025": "25 %", "050": "50 %", "075": "75 %", "100": "100 %"}
 
 
@@ -92,7 +91,7 @@ def run_block(run, campaign, validate=None):
     problems = [x for c in cells for x in validate(c)]
     if problems:
         return {}, problems, {}
-    model = "p1_bridge" if arm == "p1" else arm
+    model = arm
     farm = os.path.dirname(ev._abs(cells[0]["ckpt_link"]))
     platform = json.load(open(os.path.join(farm, reg.TRAINING_RECEIPT)))["platform"]
     if platform != reg.TRAINING_PLATFORM:
@@ -115,7 +114,7 @@ def render(rows, pending):
     for K in (8, 1):
         out += [f"## K = {K}" + (" (headline)" if K == 8 else ""), "",
                 "| model | data | " + " | ".join(SHOW) + " | source |", "|---|---|" + "---|" * len(SHOW) + "---|"]
-        for model in ("p1", "yaw", "bf", "p1_bridge"):
+        for model in ("p1", "yaw", "bf", "rf"):
             for frac in ("025", "050", "075", "100"):
                 key = (model, frac, K)
                 if key in rows:
@@ -123,8 +122,7 @@ def render(rows, pending):
                     mark = RETRIEVAL_MARK if rows[key].get("retrieval_evaluator") == "exp_14" else ""
                     cells = [f"{st[m][0]:.3f} ± {st[m][1]:.3f}" + (mark if m in ev.RETRIEVAL_KEYS else "") for m in SHOW]
                     out.append(f"| {MODELS[model]} | {FRAC_LABEL[frac]} | " + " | ".join(cells) + f" | {rows[key]['source']} |")
-                elif (model in ("yaw", "bf") and frac != "100") or (model == "p1_bridge" and frac == "025"
-                                                                     and "de_p1_f025" in reg.campaign_runs()):
+                elif model == "rf" and frac != "100":
                     out.append(f"| {MODELS[model]} | {FRAC_LABEL[frac]} | " + " | ".join(["PENDING"] * len(SHOW)) + " | — |")
         out.append("")
     if any(v.get("retrieval_evaluator") == "exp_14" for v in rows.values()):
@@ -166,8 +164,7 @@ def collect(bridge=None):
                                                       "eval_snapshot_sha256", "sha256")},
                 "artifacts": ev.campaign_artifacts(campaign), "runs": {}}
     pending = []
-    runs = reg.campaign_runs() + (["de_p1_f025"] if bridge and "de_p1_f025" not in reg.campaign_runs() else [])
-    for run in runs:
+    for run in reg.campaign_runs():
         r, probs, arts = run_block(run, campaign)
         rows.update(r)
         pending += probs

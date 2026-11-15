@@ -1,0 +1,14 @@
+HEAD 19edadffb6a0ce661b53daed867fb5e5658554cc tracked-clean=no host neu312.neuronic.cs.princeton.edu start 2026-11-14T21:33:36-05:00
+cmd: pytest -q src/tests/test_exp45_registry.py -x -k three_rf_runs\ or\ one_rung\ or\ rf_config\ or\ e0_reference\ or\ rf_block\ or\ argv 
+
+==================================== ERRORS ====================================
+______________ ERROR collecting src/tests/test_exp45_registry.py _______________
+src/tests/test_exp45_registry.py:524: in <module>
+    ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+E   AttributeError: module 'exp45_registry' has no attribute 'RF_BANNER'. Did you mean: 'YAW_BANNER'?
+=========================== short test summary info ============================
+ERROR src/tests/test_exp45_registry.py - AttributeError: module 'exp45_regist...
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.29s
+EXIT 2 end 2026-11-14T21:33:36-05:00

@@ -31,7 +31,7 @@ main() {
 
   local RUN="${RUN:-}" MODE="${MODE:-}" EXPECT_SHA="${EXPECT_SHA:-}" TOKEN="${EXP38_TOKEN:-}"
   local ATTN_BACKEND="${ATTN_BACKEND:-flash}" ALLOW="${ALLOW_NONMATCHED_RUNG:-0}" SD="${SAVE_DIR:-}"
-  [[ "$RUN" =~ ^de_(yaw|bf)_f(025|050|075)(_r8x8)?$|^de_p1_f025$ ]] || die "RUN '${RUN}' is not a registered exp_38 run id"
+  [[ "$RUN" =~ ^exp45_RFf(025|050|075)_l40_2x32$ ]] || die "RUN '${RUN}' is not a registered exp_45 run id"
   case "$MODE" in SMOKE|FULL) ;; *) die "MODE must be SMOKE|FULL";; esac
   [[ "$TOKEN" =~ ^[0-9a-f]{32}$ ]] || die "EXP38_TOKEN must be the submission's 32-hex intent token"
   case "$ATTN_BACKEND" in flash|sdpa) ;; *) die "ATTN_BACKEND must be flash|sdpa" ;; esac

@@ -6,12 +6,12 @@ plan_rf_data_curve.md r3 §3.2. exp_38's tools and artifacts are reused READ-ONL
 (``EXP38_DIR``): its registry (imported by its two tools), the subset audit + content manifest, the 68
 reference cells and the sealed E0a decision.
 
-Every launch path (the A6000 launcher, the neuronic sbatch + submitter, the eval driver)
-asks THIS module for the run's config, dataset config, argv, chunk plan, expected
-checkpoint names and gates, so the six runs cannot drift between platforms
-(plan_data_efficiency.md §6-§7, §10 item 4).
+Every launch path (the neuronic sbatch + submitter, the eval driver) asks THIS module for the run's
+config, dataset config, argv, expected checkpoint names and gates. Exactly three runs exist: exp_43's RF
+arm (full-circle roll + mirror flip p = 1/2) at exp_38's 25 / 50 / 75 % subsets on neuronic 2 x L40 x 32
+(plan_rf_data_curve.md r3 §2, §3.2; exp_38: plan_data_efficiency.md §6-§7, §10 item 4).
 
-Pure functions on top; a small CLI at the bottom (``python exp38_registry.py -h``). torch is
+Pure functions on top; a small CLI at the bottom (``python exp45_registry.py -h``). torch is
 imported lazily (only ``audit-ckpt`` and the chunk-plan probe need it), so ``dry-run`` and
 ``check`` run in a plain interpreter.
 
@@ -61,7 +61,9 @@ VIT_REPO_DIR = "models--facebook--dinov3-vits16-pretrain-lvd1689m"
 VIT_REV = "114c1379950215c8b35dfcd4e90a5c251dde0d32"
 VIT_FILES = {"config.json": "9481247be9f95a134a5599402b4bfc838eecdf9a7fffbf4debd1c70ec213898b",
              "model.safetensors": "4610ad75edef83e75afdebf162d148dc628045ea6cbb83d67d4708c709c4f91d"}
-YAW_BANNER = "yaw_aug ENABLED img_w=512 seed=42"
+YAW_BANNER = "yaw_aug ENABLED img_w=512 seed=42"            # exp_15's YAW line: never in an exp_45 log
+# exp_43's RF line: printed ONCE, by rank 0 (diffusion.py _print_yaw_aug_banner is rank_zero_only; plan F1)
+RF_BANNER = "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"
 FLASH_MISSING = "flash_attn not installed"
 OVERLAY_MESSAGE = "exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA"
 FIT_END = "`Trainer.fit` stopped: `max_steps={n}` reached."
@@ -84,34 +86,38 @@ FRACS = {
             "n_items": 218463, "steps_per_epoch": 3413},
 }
 
-BF_BASE_CONFIG = "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json"
-BF_BASE_SHA256 = "3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328"
 ARMS = {
-    # the YAW 100 % checkpoint ac1f2603... embeds exactly this file (plan §3)
-    "yaw": {"config": "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json",
-            "config_sha256": "b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004",
-            "cond_method": "vanilla", "banner": YAW_BANNER, "min_free_mib": 12288, "required": True},
-    # B-F: FLAC_AR_BF.json + training.frame_avg_max_fwd_samples = per-rank micro (plan §5)
-    "bf": {"config": None, "config_sha256": None,
-           "cond_method": "fa_invariant", "banner": None, "min_free_mib": 21900, "required": True},
-    # optional platform bridge (plan §6, D2): dc_van's config byte-for-byte
-    "p1": {"config": "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json",
-           "config_sha256": "733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8",
-           "cond_method": "vanilla", "banner": None, "min_free_mib": 12288, "required": False},
+    # exp_43's RF arm, its config used in place and unchanged (sha256 at 4a7e3b3a; plan F1): exp_15's YAW config
+    # + exactly training.yaw_aug.flip = true
+    "rf": {"config": "worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json",
+           "config_sha256": "d6a02ddebdc37c3844038898cc4888b4562e1d9d6669dd52ef021e221ac5086d",
+           "cond_method": "vanilla", "banner": RF_BANNER, "min_free_mib": 12288, "required": True},
 }
-RUNGS = {"2x32": {"ngpu": 2, "micro": 32, "default": True},
-         "8x8": {"ngpu": 8, "micro": 8, "default": False}}
+RF_YAW_AUG = {"enabled": True, "img_w": 512, "seed": 42, "flip": True}
+# exp_38's E0 reference configs (E0a / E0d: P1, E0b: B-F 100 %, E0c: YAW 100 %): read by the E0 cells, never
+# launchable training arms (plan r3 §3.2)
+E0_CONFIGS = {
+    "bvp1": {"config": "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json",
+             "config_sha256": "733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8"},
+    "bf_base": {"config": "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json",
+                "config_sha256": "3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328"},
+    "yaw": {"config": "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json",
+            "config_sha256": "b14caae27afec2c53c38bea6e2574a48aa94bc86848ab17afae94cadf694b004"},
+}
+RUNGS = {"2x32": {"ngpu": 2, "micro": 32, "default": True}}
 PLATFORMS = {
     "a6000": {"rungs": ("2x32",), "launcher": "python",
               "save_root": "/media/diskstation/yixunhu/FLAC/checkpoints/exp45_rf_data_curve"},
-    "neuronic": {"rungs": ("2x32", "8x8"), "launcher": "torchrun",
+    "neuronic": {"rungs": ("2x32",), "launcher": "torchrun",
                  "save_root": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve"},
 }
-OPTIONAL_RUNS = (("p1", "025"),)
+OPTIONAL_RUNS = ()
 
 
 # seed-42 initial wrapper state (exp38_init_digest.py on the CPU == the in-process evidence of the
-# GPU-0 smokes, 2026-11-07; identical for YAW, B-F and P1 -- their .model sections are equal)
+# GPU-0 smokes, 2026-11-07; identical for YAW, B-F and P1 -- their .model sections are equal). exp_45's
+# REGISTERED PREDICTION for RF is the same value (plan r3 §3.2: the flip adds no state tensor and no RNG draw at
+# construction); verified fail-closed by exp45_init_digest.py (L3) and the SMOKE evidence
 INIT_STATE_SHA256 = "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
 INIT_SOBOL_SHA256 = "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
 FLASH_VERSION = "2.7.4.post1"
@@ -121,9 +127,7 @@ SYMLINK_ALLOWLIST = {"a6000": {"AcousticRooms": "/media/diskstation/yixunhu/FLAC
                                "weights/AGREE": "/home/yixunhu/codespace/FLAC/weights/AGREE",
                                "weights/FLAC/VAE.safetensors": "/home/yixunhu/codespace/FLAC/weights/FLAC/VAE.safetensors",
                                "weights/FLAC/VAE.ckpt": "/home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt"}}
-EXTERNAL_CONFIGS = ("worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json",
-                    "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json",
-                    "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json")
+EXTERNAL_CONFIGS = (ARMS["rf"]["config"],) + tuple(v["config"] for v in E0_CONFIGS.values())
 SHADOW_NAMES = ("sitecustomize.py", "usercustomize.py", "flash_attn", "flash_attn.py")
 
 
@@ -152,37 +156,34 @@ def canonical(obj):
 def run_id(arm, tag, rung="2x32"):
     if arm not in ARMS or tag not in FRACS or rung not in RUNGS:
         raise GateError(f"unknown run ({arm!r}, {tag!r}, {rung!r})")
-    return f"de_{arm}_f{tag}" + ("" if rung == "2x32" else f"_r{rung}")
+    return f"exp45_{arm.upper()}f{tag}_l40_{rung}"
 
 
 def required_runs(rung="2x32"):
-    return [run_id(a, t, rung) for a in ("yaw", "bf") for t in ("025", "050", "075")]
+    return [run_id("rf", t, rung) for t in ("025", "050", "075")]
 
 
 def all_runs(rung="2x32"):
-    return required_runs(rung) + ([run_id(a, t, rung) for a, t in OPTIONAL_RUNS] if rung == "2x32" else [])
+    return required_runs(rung)
 
 
-# the launchable matrix (Codex code r1 HIGH 3): the six primary runs and the P1 bridge at 2x32, and the
-# six primary runs on the opt-in 8x8 sensitivity rung -- nothing else (no P1 f050 / f075, no bridge 8x8)
-REGISTERED_RUNS = frozenset(all_runs("2x32") + required_runs("8x8"))
-# D2 (Yixun, 2026-11-08): ALL exp_38 trainings run on neuronic 2 x L40 x 32; the P1 f025 platform bridge is
-# then mandatory (plan §13 D2-b/c). FULL refuses on any other platform; the collector admits only runs
-# trained here and requires the bridge.
+# the launchable matrix: exactly the three RF runs (plan r3 §2, §3.2) -- no P1 bridge, no 8x8, no _r suffix
+REGISTERED_RUNS = frozenset(required_runs("2x32"))
+# D1 (Yixun, 2026-11-14): exp_45 trains on neuronic 2 x L40 x 32 (exp_38's D2). FULL refuses elsewhere.
 TRAINING_PLATFORM = "neuronic"
 
 
 def campaign_runs():
-    """The runs the campaign must train and evaluate: the six primary runs (+ the bridge off this box)."""
-    return required_runs("2x32") + ([run_id("p1", "025")] if TRAINING_PLATFORM != "a6000" else [])
-_RUN_RE = re.compile(r"^de_(yaw|bf|p1)_f(025|050|075)(?:_r(8x8))?$")
+    """The runs the campaign must train and evaluate: the three RF runs."""
+    return required_runs("2x32")
+_RUN_RE = re.compile(r"^exp45_RFf(025|050|075)_l40_2x32$")
 
 
 def parse_run_id(run):
-    m = _RUN_RE.match(run or "")
+    m = _RUN_RE.match(run if isinstance(run, str) else "")
     if not m or run not in REGISTERED_RUNS:
-        raise GateError(f"not a registered exp_38 run id: {run!r}")
-    return m.group(1), m.group(2), m.group(3) or "2x32"
+        raise GateError(f"not a registered exp_45 run id: {run!r}")
+    return "rf", m.group(1), "2x32"
 
 
 def check_rung(platform, rung, allow_nonmatched=False):
@@ -197,50 +198,22 @@ def check_rung(platform, rung, allow_nonmatched=False):
 
 
 # ---------------------------------------------------------------- configs
-def derive_bf_config_text(base_text, cap):
-    """FLAC_AR_BF.json + exactly ``training.frame_avg_max_fwd_samples = cap`` (appended last)."""
-    if isinstance(cap, bool) or not isinstance(cap, int) or cap < 1:
-        raise GateError(f"cap must be a positive int, got {cap!r}")
-    cfg = json.loads(base_text, object_pairs_hook=collections.OrderedDict)
-    if "frame_avg_max_fwd_samples" in cfg["training"]:
-        raise GateError("the base B-F config already declares a chunk cap")
-    cfg["training"]["frame_avg_max_fwd_samples"] = cap
-    return json.dumps(cfg, indent=4) + "\n"
-
-
-def bf_config_rel(micro):
-    return f"{EXP38_DIR}/FLAC_AR_BF_cap{micro}.json"
-
-
 def model_config_rel(arm, rung):
-    return bf_config_rel(RUNGS[rung]["micro"]) if arm == "bf" else ARMS[arm]["config"]
+    return ARMS[arm]["config"]
 
 
 def chunk_plan(arm, rung):
-    """Announcement 06 record. B-F: cap = per-rank micro -> one angle per orbit forward."""
-    if ARMS[arm]["cond_method"] != "fa_invariant":
-        return None
-    micro = RUNGS[rung]["micro"]
-    cap = micro
-    per_chunk = max(1, cap // micro)
-    return {"frame_avg_max_fwd_samples": cap, "per_rank_micro_batch": micro, "orbit_size": 4,
-            "nonzero_angles": 3, "angles_per_chunk": per_chunk,
-            "shared_rope_draws": 0 if per_chunk == 1 else per_chunk,
-            "equals": "legacy per-angle loop (B-F 100 %)"}
+    """Announcement 06 record: the RF arm runs no frame-averaged conditioning, so there is no chunk plan."""
+    if ARMS[arm]["cond_method"] != "vanilla":
+        raise GateError(f"arm {arm}: only vanilla-conditioned arms are registered")
+    return None
 
 
 def check_config(arm, rung, repo=None):
     """Verify the arm's config file on disk; return its parsed dict."""
     rel = model_config_rel(arm, rung)
     path = _abs(rel, repo)
-    if arm == "bf":
-        base = _abs(BF_BASE_CONFIG, repo)
-        if sha256_file(base) != BF_BASE_SHA256:
-            raise GateError(f"{BF_BASE_CONFIG} is not the B-F 100 % config")
-        want = derive_bf_config_text(open(base).read(), RUNGS[rung]["micro"])
-        if open(path).read() != want:
-            raise GateError(f"{rel} is not FLAC_AR_BF.json + the cap-{RUNGS[rung]['micro']} key")
-    elif sha256_file(path) != ARMS[arm]["config_sha256"]:
+    if sha256_file(path) != ARMS[arm]["config_sha256"]:
         raise GateError(f"{rel} sha256 is not the pinned {ARMS[arm]['config_sha256'][:12]}")
     cfg = json.load(open(path))
     tr = cfg["training"]
@@ -251,15 +224,10 @@ def check_config(arm, rung, repo=None):
         raise GateError(f"{rel}: img_w 512 and use_ema true required")
     if tr.get("cond_method", "vanilla") != ARMS[arm]["cond_method"]:
         raise GateError(f"{rel}: cond_method {tr.get('cond_method')!r} != {ARMS[arm]['cond_method']}")
-    if arm == "yaw" and tr.get("yaw_aug") != {"enabled": True, "img_w": 512, "seed": 42}:
-        raise GateError(f"{rel}: training.yaw_aug is not the registered block")
-    if arm != "yaw" and "yaw_aug" in tr:
-        raise GateError(f"{rel}: unexpected yaw_aug")
-    if arm == "bf":
-        if tr.get("frame_avg_angles") != [0.0, 90.0, 180.0, 270.0]:
-            raise GateError(f"{rel}: frame_avg_angles must be the C4 orbit")
-        if tr.get("frame_avg_max_fwd_samples") != chunk_plan(arm, rung)["frame_avg_max_fwd_samples"]:
-            raise GateError(f"{rel}: chunk cap != per-rank micro-batch")
+    if canonical(tr.get("yaw_aug")) != canonical(RF_YAW_AUG):                    # type-strict (1 is not True)
+        raise GateError(f"{rel}: training.yaw_aug is not the registered RF block {RF_YAW_AUG}")
+    if any(k.startswith("frame_avg") for k in tr):
+        raise GateError(f"{rel}: unexpected frame-averaging keys")
     opt = tr.get("optimizer_configs", {}).get("diffusion", {})
     if opt.get("optimizer") != {"type": "AdamW", "config": {"lr": 5e-05, "betas": [0.9, 0.999], "weight_decay": 0.001}} \
             or opt.get("scheduler") != {"type": "InverseLR", "config": {"inv_gamma": 1000000, "power": 0.5, "warmup": 0.99}}:
@@ -741,6 +709,7 @@ _FOUND = re.compile(r"Found (\d+) files in (\d+) subfolders")
 _MEMBER = re.compile(r"Initializing distributed: GLOBAL_RANK: (\d+), MEMBER: (\d+)/(\d+)")
 _STEP = re.compile(r"Epoch \d+:\s+\d+%\|[^|]*\|\s*([1-9]\d*)/\d+")
 _LOSS = re.compile(r"train/loss=([^,\]\s]+)")
+_EPOCH_TOTAL = re.compile(r"Epoch \d+:\s+\d+%\|[^|]*\|\s*\d+/(\d+)")      # the loader length per epoch
 
 
 def log_lines(text):
@@ -787,13 +756,19 @@ def log_gate(text, run, phase, backend, ngpu, n_items=None, max_steps=MAX_STEPS,
             problems.append(f"DDP members {sorted(members)} != {sorted(want)}")
     elif any(_MEMBER.search(line) for line in lines):
         problems.append("a single-rank run initialised distributed")
+    # exactly ONE RF banner line (rank 0 only, plan F1), before the first step; no other arm's yaw_aug line
     banner = ARMS[arm]["banner"]
-    if banner:
-        idx = [i for i, line in enumerate(lines) if line.strip() == banner]
-        if not idx or (step_i is not None and idx[0] > step_i):
-            problems.append(f"banner {banner!r} missing or after the first step")
-    elif any(YAW_BANNER.split(" img_w")[0] in line for line in lines):
-        problems.append("a non-YAW run printed the yaw_aug banner")
+    idx = [i for i, line in enumerate(lines) if line.strip() == banner]
+    if len(idx) != 1 or (step_i is not None and idx[0] > step_i):
+        problems.append(f"banner {banner!r}: {len(idx)} line(s); exactly one, before the first step")
+    other = sorted({line.strip() for line in lines if "yaw_aug ENABLED" in line and line.strip() != banner})
+    if other:
+        problems.append(f"another arm's yaw_aug banner {other[:2]} (exp_15 YAW / exp_40 C16)")
+    # the loader length, observed from the progress bar's per-epoch step count (plan r3 §5 L5, evidence wording)
+    totals = sorted({int(m.group(1)) for m in map(_EPOCH_TOTAL.search, lines) if m})
+    if step_i is not None and totals != [FRACS[tag]["steps_per_epoch"]]:
+        problems.append(f"progress-bar steps per epoch {totals} != the {tag} loader length "
+                        f"{FRACS[tag]['steps_per_epoch']}")
     missing = [line for line in lines if FLASH_MISSING in line]
     if backend == "flash" and missing:
         problems.append("ATTN_BACKEND=flash but the log says flash_attn is not installed")
@@ -965,7 +940,7 @@ EXP38_READONLY = (f"{EXP38_DIR}/exp38_registry.py", f"{EXP38_DIR}/exp38_subset_a
                   f"{EXP38_DIR}/exp38_content_manifest.py", SUBSET_AUDIT, SUBSET_AUDIT + ".sha256",
                   AR_CONTENT_MANIFEST, REF_MANIFEST, *(f"{REF_DIR}/{r}" for r in ref_set()),
                   E0A_DECISION, E0A_DECISION + ".sha256")
-EXTERNAL_CONFIGS = EXTERNAL_CONFIGS + tuple(bf_config_rel(m) for m in (32, 8)) + EXP38_READONLY
+EXTERNAL_CONFIGS = EXTERNAL_CONFIGS + EXP38_READONLY
 
 
 def _git_out(repo, *args):

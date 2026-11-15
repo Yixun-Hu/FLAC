@@ -5,10 +5,10 @@ Codex code r1 HIGH 6).
 
 Run on the neuronic login node from the exp-38 checkout (HEAD pushed, tracked tree clean):
 
-    exp38_submit_neuronic.py submit    --run de_yaw_f025 --mode SMOKE --time 01:00:00 [--dry-run]
-    exp38_submit_neuronic.py submit    --run de_yaw_f025 --mode FULL  --time 3-00:00:00 [--dry-run]
-    exp38_submit_neuronic.py reconcile --run de_yaw_f025 --mode FULL      # after an interrupted submit
-    exp38_submit_neuronic.py abandon   --run de_yaw_f025 --mode FULL      # only once the job is proven gone
+    exp38_submit_neuronic.py submit    --run exp45_RFf025_l40_2x32 --mode SMOKE --time 01:00:00 [--dry-run]
+    exp38_submit_neuronic.py submit    --run exp45_RFf025_l40_2x32 --mode FULL  --time 3-00:00:00 [--dry-run]
+    exp38_submit_neuronic.py reconcile --run exp45_RFf025_l40_2x32 --mode FULL      # after an interrupted submit
+    exp38_submit_neuronic.py abandon   --run exp45_RFf025_l40_2x32 --mode FULL      # only once the job is proven gone
 
 Ownership: ONE stable owner record per (run, mode), ``<save root>/.exp38_owners/<run>__<MODE>/``,
 created atomically (``mkdir``) with ``intent.json`` (state "submitting") BEFORE ``sbatch``; the job id

@@ -182,12 +182,12 @@ def test_the_record_is_rewritten_atomically(tmp_path):
 
 # ------------------------------------------------------------------ CLI and gates
 @pytest.mark.parametrize("argv", [
-    ["--platform", "a6000", "--mode", "FULL", "--run", "de_yaw_f025", "--dry-save-root", "/x"],
-    ["--platform", "a6000", "--mode", "SMOKE", "--run", "de_yaw_f025", "--lockdir", "/x"],
-    ["--platform", "neuronic", "--mode", "SMOKE_DDP", "--run", "de_yaw_f025"],
-    ["--platform", "neuronic", "--mode", "FULL", "--run", "de_yaw_f025", "--save-dir", "/x"],
-    ["--platform", "neuronic", "--mode", "FULL", "--run", "de_yaw_f025", "--token", "xyz", "--save-dir", "/x"],
-    ["--platform", "a6000", "--mode", "SMOKE", "--run", "de_yaw_f025", "--smoke-steps", "500"],
+    ["--platform", "a6000", "--mode", "FULL", "--run", "exp45_RFf025_l40_2x32", "--dry-save-root", "/x"],
+    ["--platform", "a6000", "--mode", "SMOKE", "--run", "exp45_RFf025_l40_2x32", "--lockdir", "/x"],
+    ["--platform", "neuronic", "--mode", "SMOKE_DDP", "--run", "exp45_RFf025_l40_2x32"],
+    ["--platform", "neuronic", "--mode", "FULL", "--run", "exp45_RFf025_l40_2x32", "--save-dir", "/x"],
+    ["--platform", "neuronic", "--mode", "FULL", "--run", "exp45_RFf025_l40_2x32", "--token", "xyz", "--save-dir", "/x"],
+    ["--platform", "a6000", "--mode", "SMOKE", "--run", "exp45_RFf025_l40_2x32", "--smoke-steps", "500"],
 ])
 def test_cli_refusals(argv):
     with pytest.raises(SystemExit):
@@ -195,8 +195,8 @@ def test_cli_refusals(argv):
 
 
 def test_unregistered_runs_are_refused_before_any_work(capsys):
-    assert sv.main(["--platform", "a6000", "--mode", "DRY_RUN", "--run", "de_p1_f050"]) == sv.EXIT_GATE
-    assert "not a registered exp_38 run id" in capsys.readouterr().err
+    assert sv.main(["--platform", "a6000", "--mode", "DRY_RUN", "--run", "de_yaw_f025"]) == sv.EXIT_GATE   # exp_38's id
+    assert "not a registered exp_45 run id" in capsys.readouterr().err
 
 
 ROWS = [["0", "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "48000", "NVIDIA RTX A6000"],
@@ -367,7 +367,7 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import test_exp45_receipts as tr
     reg = sv.reg
-    run = "de_bf_f025"
+    run = "exp45_RFf025_l40_2x32"
     monkeypatch.setattr(reg, "REPO", str(tmp_path))
     monkeypatch.setattr(reg, "TRAINING_PLATFORM", "a6000")     # exercise the local lifecycle (D2 itself: below)
     (tmp_path / reg.EXP_DIR).mkdir(parents=True)
@@ -375,7 +375,7 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
     (tmp_path / "nas").mkdir()
     monkeypatch.setitem(sv.SNAPSHOT_ROOT, "a6000", str(tmp_path / "snaps"))
     gpus = sorted([u, "NVIDIA RTX A6000"] for u in reg.A6000_UUIDS)
-    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("bf", "025", "2x32", PY, {"argv": []}, {}))
+    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("rf", "025", "2x32", PY, {"argv": []}, {}))
     monkeypatch.setattr(sv, "campaign_gates", lambda a, p: ("f" * 40, "d" * 64, "c" * 64))
     monkeypatch.setattr(sv, "lock_cards", lambda cards, lockdir: [])
     monkeypatch.setattr(sv, "a6000_gpu_gate", lambda *x: gpus)
@@ -462,7 +462,7 @@ def test_a_failed_full_run_keeps_its_crash_marker(tmp_path, monkeypatch, mode, a
     assert code == want and (rd / ".exp38_lock").is_dir() and "finished_at" in rec
     assert rec["status"] != "COMPLETE" and len(calls) == (2 if mode == "ok" else 1) and calls[-1] == ("commits", [])
     with pytest.raises(sv.reg.GateError):
-        sv.reg.check_run_dir(str(rd), "de_bf_f025", 0)          # never relaunched into: archive first
+        sv.reg.check_run_dir(str(rd), "exp45_RFf025_l40_2x32", 0)          # never relaunched into: archive first
 
 
 @pytest.mark.parametrize("audit_ok,want", [(True, 0), (False, sv.EXIT_END)])
@@ -540,9 +540,9 @@ def test_an_exception_after_spawn_stops_our_group(tmp_path, monkeypatch, where):
 
 
 def test_d2_full_refuses_off_the_training_platform(monkeypatch):
-    """Yixun 2026-11-08: all exp_38 trainings run on neuronic; a FULL on this box refuses before any work."""
+    """D1 (exp_45) / D2 (exp_38): every training runs on neuronic; a FULL on this box refuses before any work."""
     assert sv.reg.TRAINING_PLATFORM == "neuronic"
-    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("bf", "025", "2x32", PY, {}, {}))
-    a = sv.parse(["--platform", "a6000", "--mode", "FULL", "--run", "de_bf_f025", "--expect-sha", "f" * 40])
+    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("rf", "025", "2x32", PY, {}, {}))
+    a = sv.parse(["--platform", "a6000", "--mode", "FULL", "--run", "exp45_RFf025_l40_2x32", "--expect-sha", "f" * 40])
     with pytest.raises(sv.Refused, match="D2"):
         sv.mode_campaign(a, "a6000")

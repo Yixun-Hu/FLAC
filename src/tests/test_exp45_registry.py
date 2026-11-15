@@ -1,7 +1,8 @@
 """exp_45 — the run registry (worklog/.../exp_45_rf_data_curve_claude/exp45_registry.py), forked from exp_38's
 test_exp38_registry.py (round B); every edit is named in its commit (plan_rf_data_curve.md r3 §3.3).
 
-Executable statement of plan_data_efficiency.md §6-§7 and §10 item 4: the six runs' configs,
+Executable statement of plan_rf_data_curve.md r3 §2-§3.2 (exp_38: plan_data_efficiency.md §6-§7, §10 item 4):
+the three RF runs' configs,
 dataset configs, argv, chunk plan, checkpoint names, run-dir states, checkpoint audit and
 log gates. CPU-only; synthetic checkpoints and logs.
 """
@@ -27,17 +28,19 @@ def _load(name):
 
 reg = _load("exp45_registry")
 
-# dc_van_f025's at-launch argv (exp-14-data-curve:worklog/worklog_yixun/exp_14_data_curve/
-# at_launch_dc_van_f025_20260916T190832-1836418.txt), with its kit-local config path.
-DC_VAN_F025_ARGV = (
-    "python train.py --model-config /home/yixunhu/codespace/cylindrical-dinov3/worklog/worklog_yixun/"
-    "exp_14_data_curve_claude/configs/FLAC_AR_exp14_vanS.json --dataset-config "
-    "src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json --pretransform-ckpt-path "
-    "weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 "
-    "--seed 42 --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --logger none "
-    "--checkpoint-every 2500 --name dc_van_f025 --experiment-name dc_van_f025 --save-dir "
-    "/media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025 --run-contract-json "
-    "/media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/run_contract.json")
+RF = {t: f"exp45_RFf{t}_l40_2x32" for t in ("025", "050", "075")}
+# plan r3 fact F2: exp_38's de_yaw_f025 FULL argv on neuronic, verbatim (cmd of
+# at_launch_de_yaw_f025_neuronic_FULL_2026-11-09_18-01-10.json without the torchrun prefix)
+DE_YAW_F025_RD = "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f025"
+DE_YAW_F025_ARGV = [
+    "train.py", "--model-config", "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json",
+    "--dataset-config", "src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json",
+    "--pretransform-ckpt-path", "weights/FLAC/VAE.safetensors", "--max-steps", "40000", "--batch-size", "32",
+    "--accum-batches", "1", "--num-workers", "6", "--seed", "42", "--num-gpus", "2", "--num-nodes", "1",
+    "--strategy", "ddp_find_unused_parameters_true", "--sync-batchnorm", "true", "--precision", "bf16-mixed",
+    "--val-every", "-1", "--gradient-clip-val", "0.0", "--logger", "none", "--checkpoint-every", "2500",
+    "--name", "de_yaw_f025", "--experiment-name", "de_yaw_f025", "--save-dir", DE_YAW_F025_RD,
+    "--evidence-json", DE_YAW_F025_RD + "/evidence/run_evidence.json"]
 
 
 def _opt(argv, flag):
@@ -45,129 +48,73 @@ def _opt(argv, flag):
 
 
 # ------------------------------------------------------------------ runs and rungs
-def test_required_runs_are_the_six_and_the_bridge_is_optional():
-    assert reg.required_runs() == ["de_yaw_f025", "de_yaw_f050", "de_yaw_f075",
-                                   "de_bf_f025", "de_bf_f050", "de_bf_f075"]
-    assert reg.all_runs()[-1] == "de_p1_f025"
-    assert reg.run_id("bf", "050", "8x8") == "de_bf_f050_r8x8"
-    assert reg.parse_run_id("de_bf_f050_r8x8") == ("bf", "050", "8x8")
-    for bad in ("dc_van_f025", "de_bf_f100", "de_bf_f025_r2x32", "de_cyl_f025", ""):
+def test_the_registry_imports_and_registers_exactly_the_three_rf_runs():
+    """plan r3 §3.2: exactly three runs; no P1 bridge, no 8x8 rung, no _r suffix (import-time construction)."""
+    assert reg.required_runs() == reg.all_runs() == reg.campaign_runs() == [RF["025"], RF["050"], RF["075"]]
+    assert reg.REGISTERED_RUNS == frozenset(RF.values()) and reg.OPTIONAL_RUNS == ()
+    assert sorted(reg.ARMS) == ["rf"] and sorted(reg.RUNGS) == ["2x32"]
+    for t, run in RF.items():
+        assert reg.parse_run_id(run) == ("rf", t, "2x32") and reg.run_id("rf", t) == run
+    for bad in ("de_yaw_f025", "de_bf_f025", "de_p1_f025", "exp45_RFf100_l40_2x32", "exp45_RFf025_l40_8x8",
+                "exp45_RFf025_l40_2x32_r8x8", "exp45_YAWf025_l40_2x32", "exp45_RFf025_a6000_2x32", "", None):
         with pytest.raises(reg.GateError):
             reg.parse_run_id(bad)
 
 
-def test_rungs_keep_eff_and_syncbn_batch_64_and_8x8_is_opt_in():
-    for r in reg.RUNGS.values():
-        assert r["ngpu"] * r["micro"] == 64
-    assert reg.check_rung("a6000", "2x32")["micro"] == 32
-    with pytest.raises(reg.GateError):
-        reg.check_rung("a6000", "8x8", allow_nonmatched=True)      # not on this box
-    with pytest.raises(reg.GateError):
-        reg.check_rung("neuronic", "8x8")                          # opt-in only
-    assert reg.check_rung("neuronic", "8x8", allow_nonmatched=True)["micro"] == 8
+def test_the_one_rung_keeps_eff_and_syncbn_batch_64():
+    assert reg.RUNGS == {"2x32": {"ngpu": 2, "micro": 32, "default": True}}
+    assert reg.check_rung("a6000", "2x32")["micro"] == reg.check_rung("neuronic", "2x32")["micro"] == 32
+    for platform in ("a6000", "neuronic"):
+        with pytest.raises(reg.GateError):
+            reg.check_rung(platform, "8x8", allow_nonmatched=True)
+        assert reg.PLATFORMS[platform]["rungs"] == ("2x32",)
+    assert reg.PLATFORMS["neuronic"]["save_root"] == "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve"
+    assert reg.PLATFORMS["a6000"]["save_root"] == "/media/diskstation/yixunhu/FLAC/checkpoints/exp45_rf_data_curve"
+    assert reg.CAMPAIGN_ROOT == {"a6000": "/home/yixunhu/codespace/exp-45-campaign"}
 
 
 # ------------------------------------------------------------------ configs
-@pytest.mark.parametrize("micro", [32, 8])
-def test_committed_bf_configs_are_the_base_plus_exactly_the_cap(micro):
-    base_text = open(os.path.join(REPO, reg.BF_BASE_CONFIG)).read()
-    path = os.path.join(REPO, reg.bf_config_rel(micro))
-    assert open(path).read() == reg.derive_bf_config_text(base_text, micro)
-    base, got = json.loads(base_text), json.load(open(path))
-    assert got["training"].pop("frame_avg_max_fwd_samples") == micro
-    assert got == base
+def test_the_rf_config_is_exp15s_yaw_config_plus_only_the_flip():
+    """plan r3 F1: the RF config (sha d6a02dde…) differs from exp_15's YAW config only in training.yaw_aug.flip."""
+    rf = json.load(open(os.path.join(REPO, reg.ARMS["rf"]["config"])))
+    yaw = json.load(open(os.path.join(REPO, reg.E0_CONFIGS["yaw"]["config"])))
+    assert reg.sha256_file(os.path.join(REPO, reg.ARMS["rf"]["config"])) == \
+        "d6a02ddebdc37c3844038898cc4888b4562e1d9d6669dd52ef021e221ac5086d"
+    assert rf["training"]["yaw_aug"].pop("flip") is True and rf == yaw
+    assert reg.check_config("rf", "2x32")["training"]["yaw_aug"] == reg.RF_YAW_AUG
+    assert reg.chunk_plan("rf", "2x32") is None                 # no frame averaging: no chunk plan
 
 
-def test_bf_base_is_the_b_f_100_percent_config():
-    assert reg.sha256_file(os.path.join(REPO, reg.BF_BASE_CONFIG)) == reg.BF_BASE_SHA256
+def test_the_e0_reference_configs_are_pinned_and_not_launchable():
+    for name, c in reg.E0_CONFIGS.items():
+        assert reg.sha256_file(os.path.join(REPO, c["config"])) == c["config_sha256"], name
+        assert c["config"] in reg.EXTERNAL_CONFIGS
+    assert not set(reg.E0_CONFIGS) & set(reg.ARMS)
+    yaw = json.load(open(os.path.join(REPO, reg.E0_CONFIGS["yaw"]["config"])))
+    p1 = json.load(open(os.path.join(REPO, reg.E0_CONFIGS["bvp1"]["config"])))
+    assert yaw["training"].pop("yaw_aug") == {"enabled": True, "img_w": 512, "seed": 42} and yaw == p1
 
 
-@pytest.mark.parametrize("arm,rung", [("yaw", "2x32"), ("bf", "2x32"), ("bf", "8x8"), ("p1", "2x32")])
-def test_check_config_accepts_the_registered_arm_configs(arm, rung):
-    cfg = reg.check_config(arm, rung)
-    assert cfg["training"].get("cond_method", "vanilla") == reg.ARMS[arm]["cond_method"]
-
-
-def test_yaw_config_is_bvp1_plus_only_the_yaw_aug_block():
-    yaw = json.load(open(os.path.join(REPO, reg.ARMS["yaw"]["config"])))
-    p1 = json.load(open(os.path.join(REPO, reg.ARMS["p1"]["config"])))
-    assert yaw["training"].pop("yaw_aug") == {"enabled": True, "img_w": 512, "seed": 42}
-    assert yaw == p1
-
-
-def test_check_config_refuses_a_tampered_bf_config(tmp_path):
+@pytest.mark.parametrize("name,mutate", [
+    ("flip off", lambda tr: tr["yaw_aug"].update(flip=False)), ("flip int", lambda tr: tr["yaw_aug"].update(flip=1)),
+    ("no flip", lambda tr: tr["yaw_aug"].pop("flip")), ("seed", lambda tr: tr["yaw_aug"].update(seed=7)),
+    ("img_w", lambda tr: tr["yaw_aug"].update(img_w=256)), ("disabled", lambda tr: tr["yaw_aug"].update(enabled=False)),
+    ("c16 grid", lambda tr: tr["yaw_aug"].update(offset_step=32)), ("no yaw_aug", lambda tr: tr.pop("yaw_aug")),
+    ("fa cond", lambda tr: tr.update(cond_method="fa_invariant")), ("fa angles", lambda tr: tr.update(frame_avg_angles=[0.0])),
+    ("canonicalize", lambda tr: tr.update(canonicalize={"enabled": True})), ("ema", lambda tr: tr.update(use_ema=False)),
+])
+def test_check_config_refuses_every_rf_block_mutation(tmp_path, monkeypatch, name, mutate):
+    rel = reg.ARMS["rf"]["config"]
     root = tmp_path / "repo"
-    for rel in (reg.BF_BASE_CONFIG, reg.bf_config_rel(32)):
-        (root / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
-        (root / rel).write_text(open(os.path.join(REPO, rel)).read())
-    reg.check_config("bf", "2x32", repo=str(root))
-    bad = json.loads((root / reg.bf_config_rel(32)).read_text())
-    bad["training"]["frame_avg_max_fwd_samples"] = 64
-    (root / reg.bf_config_rel(32)).write_text(json.dumps(bad, indent=4) + "\n")
-    with pytest.raises(reg.GateError):
-        reg.check_config("bf", "2x32", repo=str(root))
-
-
-def test_the_factory_hands_the_cap_to_the_wrapper():
-    from src.training.factory import _parse_frame_avg_cap_config
-    cfg = json.load(open(os.path.join(REPO, reg.bf_config_rel(32))))
-    assert _parse_frame_avg_cap_config(cfg["training"]) == {"frame_avg_max_fwd_samples": 32}
-
-
-def test_derive_refuses_bad_caps_and_a_base_that_already_has_one():
-    base_text = open(os.path.join(REPO, reg.BF_BASE_CONFIG)).read()
-    for cap in (0, -1, True, 32.0, "32"):
-        with pytest.raises(reg.GateError):
-            reg.derive_bf_config_text(base_text, cap)
-    with pytest.raises(reg.GateError):
-        reg.derive_bf_config_text(reg.derive_bf_config_text(base_text, 32), 32)
-
-
-# ------------------------------------------------------------------ chunk plan (announcement 06)
-@pytest.mark.parametrize("rung", ["2x32", "8x8"])
-def test_bf_chunk_plan_is_one_angle_per_forward(rung):
-    plan = reg.chunk_plan("bf", rung)
-    assert plan["frame_avg_max_fwd_samples"] == reg.RUNGS[rung]["micro"]
-    assert plan["angles_per_chunk"] == 1 and plan["shared_rope_draws"] == 0
-    assert reg.chunk_plan("yaw", rung) is None
-
-
-@pytest.mark.parametrize("batch", [32, 8])
-def test_batched_orbit_at_cap_equal_batch_issues_the_per_angle_loops_calls(batch):
-    """With cap == per-rank batch the batched orbit makes exactly the legacy loop's conditioner
-    calls (one per non-zero angle, B samples each, ascending angle order) and the same sum."""
-    import torch
-    from src.data import yaw_rotation as yr
-
-    class Spy:
-        def __init__(self):
-            self.calls = []
-
-        def __call__(self, mds, device, only_ids=None):
-            self.calls.append([float(m["source_vit"][0]) for m in mds])
-            out = torch.stack([m["source_vit"] for m in mds]).sum(-1, keepdim=True)
-            return {"source_vit": [out, None]}
-
-    def md(i):
-        depth = torch.zeros(3, 4, 512)
-        depth[0, :, i % 512] = 1.0
-        return {"depth": depth, "source_vit": torch.tensor([1.0 + i, 2.0, 0.5])}
-
-    mds = [md(i) for i in range(batch)]
-    base = {"source_vit": [torch.zeros(batch, 1), None]}
-    angles = (0.0, 90.0, 180.0, 270.0)
-    spy_b, spy_l = Spy(), Spy()
-    got = yr._orbit_average_batched(spy_b, mds, base, ["source_vit"], angles, 512, "cpu",
-                                    cap=batch, cap_is_explicit=True)
-    ref = yr._orbit_average_loop(spy_l, mds, base, ["source_vit"], angles, 512, "cpu")
-    assert len(spy_b.calls) == 3 and all(len(c) == batch for c in spy_b.calls)
-    assert spy_b.calls == spy_l.calls
-    assert torch.equal(got["source_vit"], ref["source_vit"])
-    # the default cap (64) at micro 32 would share two angles in one forward -- the reason for the key
-    if batch == 32:
-        spy_d = Spy()
-        yr._orbit_average_batched(spy_d, mds, base, ["source_vit"], angles, 512, "cpu")
-        assert [len(c) for c in spy_d.calls] == [64, 32]
+    (root / os.path.dirname(rel)).mkdir(parents=True)
+    cfg = json.load(open(os.path.join(REPO, rel)))
+    mutate(cfg["training"])
+    (root / rel).write_text(json.dumps(cfg, indent=4))
+    with pytest.raises(reg.GateError):                          # the sha pin first ...
+        reg.check_config("rf", "2x32", repo=str(root))
+    monkeypatch.setitem(reg.ARMS["rf"], "config_sha256", reg.sha256_file(str(root / rel)))
+    with pytest.raises(reg.GateError):                          # ... and the block check behind it
+        reg.check_config("rf", "2x32", repo=str(root))
 
 
 # ------------------------------------------------------------------ subsets
@@ -210,10 +157,10 @@ def _touch(d, names):
 
 def test_run_dir_fresh_and_complete_states_only(tmp_path):
     """No resume state exists (Codex code r1 HIGH 2): a run dir is fresh (0) or complete (40,000)."""
-    run = "de_bf_f025"
+    run = RF["025"]
     assert reg.check_run_dir(str(tmp_path / "absent"), run, 0)["state"] == "fresh"
     d = tmp_path / "rd"
-    _touch(d, ["at_launch_de_bf_f025_x.json"])
+    _touch(d, [f"at_launch_{run}_x.json"])
     assert reg.check_run_dir(str(d), run, 0)["state"] == "fresh"
     _touch(d, ["epoch=2-step=2500.ckpt"])
     with pytest.raises(reg.GateError):
@@ -246,20 +193,16 @@ def test_run_dir_fresh_and_complete_states_only(tmp_path):
         reg.check_run_dir(str(d4), run, 0)                      # a torn write is foreign
 
 
-def test_d2_campaign_is_six_runs_plus_the_mandatory_bridge(monkeypatch):
+def test_d2_campaign_is_the_three_rf_runs(monkeypatch):
     assert reg.TRAINING_PLATFORM == "neuronic"
-    assert reg.campaign_runs() == ["de_yaw_f025", "de_yaw_f050", "de_yaw_f075", "de_bf_f025", "de_bf_f050",
-                                   "de_bf_f075", "de_p1_f025"]
-    assert all(r in reg.REGISTERED_RUNS for r in reg.campaign_runs())
+    assert reg.campaign_runs() == list(RF.values()) and all(r in reg.REGISTERED_RUNS for r in reg.campaign_runs())
     monkeypatch.setattr(reg, "TRAINING_PLATFORM", "a6000")
-    assert reg.campaign_runs() == reg.required_runs()            # the bridge is only needed off this box
+    assert reg.campaign_runs() == reg.required_runs()            # no bridge run on any platform
 
 
 def test_only_the_registered_matrix_is_launchable():
-    """Codex code r1 HIGH 3: P1 only at f025 / 2x32; the 8x8 rung only for the six primary runs."""
-    assert sorted(reg.REGISTERED_RUNS) == sorted(reg.all_runs("2x32") + reg.required_runs("8x8"))
-    for bad in ("de_p1_f050", "de_p1_f075", "de_p1_f025_r8x8", "de_p1_f050_r8x8", "de_yaw_f100",
-                "de_bf_f025_r4x16", "de_bf_f025 ", "", None):
+    assert sorted(reg.REGISTERED_RUNS) == sorted(reg.all_runs("2x32"))
+    for bad in ("de_p1_f025", "de_yaw_f025", "exp45_RFf025_l40_2x32 ", "exp45_RFf100_l40_2x32", "", None):
         with pytest.raises(reg.GateError):
             reg.parse_run_id(bad)
         with pytest.raises(reg.GateError):
@@ -267,46 +210,39 @@ def test_only_the_registered_matrix_is_launchable():
 
 
 # ------------------------------------------------------------------ argv
-def test_a6000_argv_is_dc_vans_argv_with_only_the_registered_differences():
-    got = reg.build_train_argv("de_p1_f025", "a6000")
-    ref = shlex.split(DC_VAN_F025_ARGV)[1:]
-    ref = ref[:ref.index("--run-contract-json")]
-    swap = {"--model-config": reg.ARMS["p1"]["config"],
-            "--name": "de_p1_f025", "--experiment-name": "de_p1_f025",
-            "--save-dir": "/media/diskstation/yixunhu/FLAC/checkpoints/exp45_rf_data_curve/de_p1_f025"}
-    for flag, value in swap.items():
-        ref[ref.index(flag) + 1] = value
-    ref += ["--evidence-json", swap["--save-dir"] + "/evidence/run_evidence.json"]
-    i = ref.index("--strategy")
-    ref[i:i] = ["--num-nodes", "1"]
-    i = ref.index("--logger")
-    ref[i:i] = ["--precision", "bf16-mixed", "--val-every", "-1", "--gradient-clip-val", "0.0"]
-    assert got == ref
+@pytest.mark.parametrize("tag", ["025", "050", "075"])
+def test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions(tag):
+    """plan r3 §2 argv rule: F2 with exactly --model-config (RF), the fraction's dataset config, --name /
+    --experiment-name = run id, --save-dir / --evidence-json under the exp_45 save root -- nothing else."""
+    run = RF[tag]
+    rd = f"/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve/{run}"
+    want = list(DE_YAW_F025_ARGV)
+    for flag, value in (("--model-config", reg.ARMS["rf"]["config"]), ("--dataset-config", reg.FRACS[tag]["dataset_config"]),
+                        ("--name", run), ("--experiment-name", run), ("--save-dir", rd),
+                        ("--evidence-json", rd + "/evidence/run_evidence.json")):
+        want[want.index(flag) + 1] = value
+    got = reg.build_train_argv(run, "neuronic")
+    assert got == want
+    diff = {got[i - 1] for i in range(1, len(got)) if got[i] != DE_YAW_F025_ARGV[i]}
+    assert diff <= {"--model-config", "--dataset-config", "--name", "--experiment-name", "--save-dir", "--evidence-json"}
+    proj, proj38 = reg.argv_projection(got), reg.argv_projection(DE_YAW_F025_ARGV)
+    assert len(proj) == len(proj38) and proj[:2] == ["train.py", "--model-config"]
+    assert [i for i, (x, y) in enumerate(zip(proj, proj38)) if x != y] == ([2] if tag == "025" else [2, 4])
 
 
-@pytest.mark.parametrize("run", ["de_yaw_f025", "de_yaw_f050", "de_yaw_f075",
-                                 "de_bf_f025", "de_bf_f050", "de_bf_f075"])
+@pytest.mark.parametrize("run", sorted(RF.values()))
 def test_argv_per_run(run):
     arm, tag, _ = reg.parse_run_id(run)
     argv = reg.build_train_argv(run, "a6000")
-    assert _opt(argv, "--model-config") == (reg.ARMS["yaw"]["config"] if arm == "yaw"
-                                            else reg.bf_config_rel(32))
+    assert _opt(argv, "--model-config") == reg.ARMS["rf"]["config"]
     assert _opt(argv, "--dataset-config") == reg.FRACS[tag]["dataset_config"]
     assert (_opt(argv, "--batch-size"), _opt(argv, "--num-gpus"), _opt(argv, "--accum-batches")) == ("32", "2", "1")
     assert (_opt(argv, "--sync-batchnorm"), _opt(argv, "--precision"), _opt(argv, "--seed")) == ("true", "bf16-mixed", "42")
-    assert (_opt(argv, "--max-steps"), _opt(argv, "--checkpoint-every")) == ("40000", "2500")
+    assert (_opt(argv, "--max-steps"), _opt(argv, "--checkpoint-every"), _opt(argv, "--logger")) == ("40000", "2500", "none")
     assert "--ckpt-path" not in argv and not any("exp14_" in a for a in argv)
     n = reg.build_train_argv(run, "neuronic")
     assert _opt(n, "--save-dir") == f"/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve/{run}"
     assert [a for a in n if not a.startswith("/n/")] == [a for a in argv if not a.startswith("/media/")]
-
-
-def test_8x8_argv_needs_the_opt_in_and_uses_cap_8():
-    with pytest.raises(reg.GateError):
-        reg.build_train_argv("de_bf_f025_r8x8", "neuronic")
-    argv = reg.build_train_argv("de_bf_f025_r8x8", "neuronic", allow_nonmatched=True)
-    assert (_opt(argv, "--batch-size"), _opt(argv, "--num-gpus")) == ("8", "8")
-    assert _opt(argv, "--model-config") == reg.bf_config_rel(8)
 
 
 def test_there_is_no_resume_argv(capsys):
@@ -316,24 +252,24 @@ def test_there_is_no_resume_argv(capsys):
     for run in reg.all_runs():
         assert "--ckpt-path" not in reg.build_train_argv(run, "neuronic")
     with pytest.raises(SystemExit):
-        reg._cli(["argv", "de_bf_f050", "--platform", "neuronic", "--resume-step", "10000"])
+        reg._cli(["argv", RF["050"], "--platform", "neuronic", "--resume-step", "10000"])
     with pytest.raises(SystemExit):
-        reg._cli(["run-dir-check", "/x", "--run", "de_bf_f050", "--state", "10000"])
+        reg._cli(["run-dir-check", "/x", "--run", RF["050"], "--state", "10000"])
 
 
 def test_smoke_argv_single_rank_and_ddp():
-    argv = reg.build_smoke_argv("de_bf_f025", 20, "/tmp/x")
+    argv = reg.build_smoke_argv(RF["025"], 20, "/tmp/x")
     assert (_opt(argv, "--num-gpus"), _opt(argv, "--batch-size"), _opt(argv, "--max-steps")) == ("1", "32", "20")
     assert "--sync-batchnorm" not in argv and _opt(argv, "--checkpoint-every") == "1000000"
-    ddp = reg.build_smoke_argv("de_bf_f025", 30, "/tmp/smk/de_bf_f025_x", ddp=True)
-    full = reg.build_train_argv("de_bf_f025", "a6000")
+    ddp = reg.build_smoke_argv(RF["025"], 30, f"/tmp/smk/{RF['025']}_x", ddp=True)
+    full = reg.build_train_argv(RF["025"], "a6000")
     diff = {i for i, (a, b) in enumerate(zip(ddp, full)) if a != b}
     assert len(ddp) == len(full) and {ddp[i - 1] for i in diff} == {"--max-steps", "--checkpoint-every",
                                                                      "--save-dir", "--name", "--experiment-name",
                                                                      "--evidence-json"}
     assert (_opt(ddp, "--max-steps"), _opt(ddp, "--checkpoint-every")) == ("30", "1000000")
     with pytest.raises(reg.GateError):
-        reg.build_smoke_argv("de_bf_f025", 500, "/tmp/x")
+        reg.build_smoke_argv(RF["025"], 500, "/tmp/x")
 
 
 # ------------------------------------------------------------------ checkpoint audit (exact schemas, Codex code r1 HIGH 1)
@@ -428,7 +364,7 @@ def _mutations():
         "global_step": _set(("global_step",), 37500), "global_step type": _set(("global_step",), 40000.0),
         "epoch": _set(("epoch",), 33), "pl version": _set(("pytorch-lightning_version",), "2.2.0"),
         "extra top key": _set(("hyper_parameters",), {}), "missing top key": _set(("loops",), _DEL),
-        "model_config": _set(("model_config",), json.load(open(os.path.join(REPO, reg.ARMS["p1"]["config"])))),
+        "model_config": _set(("model_config",), json.load(open(os.path.join(REPO, reg.E0_CONFIGS["yaw"]["config"])))),
         "EMA missing": _set(("state_dict", "diffusion_ema.ema_model.w"), _DEL),
         "EMA shape": _set(("state_dict", "diffusion_ema.ema_model.w"), torch.zeros(3)),
         "EMA step": _set(("state_dict", "diffusion_ema.step"), torch.tensor([1])),
@@ -474,7 +410,7 @@ def _mutations():
 
 
 def test_audit_ckpt_pass_and_every_schema_mutation(tmp_path):
-    run, step = "de_yaw_f025", 40000
+    run, step = RF["025"], 40000
     good = tmp_path / reg.ckpt_name(step, "025")
     _fake_ckpt(str(good), run, step)
     out = reg.audit_ckpt(str(good), run, step, run_dir=str(tmp_path), inventory=False)
@@ -497,7 +433,7 @@ def test_audit_ckpt_pass_and_every_schema_mutation(tmp_path):
         reg.audit_ckpt(str(good), run, step, run_dir=str(tmp_path), inventory=False)
 
 
-@pytest.mark.parametrize("arm,rung", [("yaw", "2x32"), ("bf", "2x32"), ("bf", "8x8"), ("p1", "2x32")])
+@pytest.mark.parametrize("arm,rung", [("rf", "2x32")])
 def test_the_real_inventory_path_for_every_arm_and_rung(arm, rung):
     """A fresh wrapper's own state_dict + optimizer shapes pass; one dropped key, one reshaped
     tensor and one wrong optimizer-state shape are refused (the path audit_ckpt runs)."""
@@ -519,42 +455,25 @@ def test_the_real_inventory_path_for_every_arm_and_rung(arm, rung):
     reg._FRESH.clear()
 
 
-DC_VAN_F025_40K = "/media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt"
-REAL_100 = {"YAW": "/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/YAW/epoch=8-step=40000.ckpt",
-            "BF": "/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000.ckpt"}
+# exp_43's RF 100 % endpoint (plan F12; train.json, 4,551 steps / epoch) -- only where the NAS is mounted
+RF_100 = "/media/diskstation/yixunhu/FLAC/checkpoints/exp43_std_aug/exp43_RF_a6000_2x32/epoch=8-step=40000.ckpt"
 
 
-@pytest.mark.skipif(not os.path.exists(DC_VAN_F025_40K), reason="NAS not mounted")
-def test_audit_ckpt_admits_exp14s_real_dc_van_f025_endpoint():
-    """Real-data readback: dc_van_f025 was trained with P1's config at our fraction 025 (the
-    full exact-schema audit incl. the inventory; dc_van carries exp_14's run_contract key)."""
-    rd = os.path.dirname(DC_VAN_F025_40K)
-    out = reg.audit_ckpt(DC_VAN_F025_40K, "de_p1_f025", 40000, run_dir=rd, extra_top_keys={"run_contract"})
-    assert out["sha256"] == "aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c"
-    assert out["bytes"] == 723923435
-    with pytest.raises(reg.GateError):                          # without the exp_14 allowance
-        reg.audit_ckpt(DC_VAN_F025_40K, "de_p1_f025", 40000, run_dir=rd)
-    with pytest.raises(reg.GateError):
-        reg.audit_ckpt(DC_VAN_F025_40K, "de_p1_f025", 40000, run_dir="/elsewhere", extra_top_keys={"run_contract"})
-
-
-@pytest.mark.skipif(not all(os.path.exists(p) for p in REAL_100.values()), reason="NAS not mounted")
-@pytest.mark.parametrize("name", sorted(REAL_100))
-def test_the_real_100_percent_endpoints_satisfy_the_exact_schema(name):
-    """YAW / B-F 100 % (train.json, 4,551 steps / epoch): the only schema differences from a
-    fraction run are the epoch counters -- every key set and recipe value is the registered one."""
+@pytest.mark.skipif(not os.path.exists(RF_100), reason="NAS not mounted")
+def test_the_real_rf_100_percent_endpoint_satisfies_the_exact_schema():
+    """The RF 100 % checkpoint embeds the RF config and the RF wrapper's exact inventory; the only schema
+    differences from a fraction run are the epoch counters (8, not f025's 34)."""
     import torch
-    ck = torch.load(REAL_100[name], map_location="cpu", weights_only=False)
+    ck = torch.load(RF_100, map_location="cpu", weights_only=False)
+    assert reg.canonical(ck["model_config"]) == reg.canonical(json.load(open(os.path.join(REPO, reg.ARMS["rf"]["config"]))))
     probs = reg.ckpt_schema_problems(ck, 40000, "025")
-    # all three are the 100 % run's epoch counter (8, not the f025 34): the epoch, its progress, and the
-    # epoch in the ModelCheckpoint's own file name
     assert len(probs) == 3 and probs[0] == "epoch 8 != 34" and probs[1].startswith("epoch progress")
-    assert "best_model_path" in probs[2] and ck["callbacks"][reg.MODEL_CHECKPOINT_KEY]["best_model_path"].endswith(
-        "/epoch=8-step=40000.ckpt")
+    assert reg.inventory_problems(ck["state_dict"], "rf", "2x32")[0] == []
+    reg._FRESH.clear()
 
 
 def test_ckpt_manifest_needs_the_full_cadence(tmp_path):
-    run = "de_bf_f075"
+    run = RF["075"]
     d = tmp_path / run
     _touch(d, [reg.ckpt_name(s, "075") for s in reg.cadence_steps(37500)])
     with pytest.raises(reg.GateError):
@@ -569,55 +488,63 @@ def test_ckpt_manifest_needs_the_full_cadence(tmp_path):
 
 
 # ------------------------------------------------------------------ log gates
-def _log(run="de_yaw_f025", ngpu=2, n=73473, banner=True, flash_missing=0, step=True, end=False,
-         loss="0.512", members=None):
+def _log(run=RF["025"], ngpu=2, n=73473, banner=None, flash_missing=0, step=True, end=False,
+         loss="0.512", members=None, spe=None):
+    arm, tag, _ = reg.parse_run_id(run)
+    spe = reg.FRACS[tag]["steps_per_epoch"] if spe is None else spe
     parts = ["Seed set to 42"]
     parts += ["No module named 'flash_attn'", reg.FLASH_MISSING + ", disabling Flash Attention"] * flash_missing
     parts += [f"Found {n} files in 243 subfolders"] * ngpu
     if ngpu > 1:
         for r in (members if members is not None else range(ngpu)):
             parts.append(f"Initializing distributed: GLOBAL_RANK: {r}, MEMBER: {r + 1}/{ngpu}")
-    if banner:
-        parts.append(reg.YAW_BANNER)
+    parts += [reg.RF_BANNER] if banner is None else list(banner)
     if step:
-        parts.append(f"Epoch 0:   0%|          | 1/1148 [00:05<1:00:00,  0.30it/s, train/loss={loss}]")
+        parts.append(f"Epoch 0:   0%|          | 1/{spe} [00:05<1:00:00,  0.30it/s, train/loss={loss}]")
     text = "\n".join(parts)
     if end:
-        text += "\rEpoch 34:  84%|########4 | 968/1148 [59:53<11:08,  0.27it/s] " + reg.FIT_END.format(n=40000)
+        text += f"\rEpoch 34:  84%|########4 | 968/{spe} [59:53<11:08,  0.27it/s] " + reg.FIT_END.format(n=40000)
     return text
 
 
 def test_log_gate_start_pass():
-    assert reg.log_gate(_log(), "de_yaw_f025", "start", "flash", 2) == []
-    assert reg.log_gate(_log(run="de_bf_f025", banner=False), "de_bf_f025", "start", "flash", 2) == []
-    assert reg.log_gate(_log(flash_missing=2), "de_yaw_f025", "start", "sdpa", 2) == []
-    assert reg.log_gate(_log(ngpu=1), "de_yaw_f025", "start", "flash", 1) == []
+    assert reg.log_gate(_log(), RF["025"], "start", "flash", 2) == []
+    assert reg.log_gate(_log(flash_missing=2), RF["025"], "start", "sdpa", 2) == []
+    assert reg.log_gate(_log(ngpu=1), RF["025"], "start", "flash", 1) == []
+    assert reg.log_gate(_log(RF["075"], n=218463), RF["075"], "start", "flash", 2) == []
 
 
-@pytest.mark.parametrize("kw,run,backend", [
-    ({"banner": False}, "de_yaw_f025", "flash"),
-    ({"n": 291210}, "de_yaw_f025", "flash"),
-    ({"members": [0]}, "de_yaw_f025", "flash"),
-    ({"flash_missing": 2}, "de_yaw_f025", "flash"),
-    ({"flash_missing": 1}, "de_yaw_f025", "sdpa"),
-    ({"step": False}, "de_yaw_f025", "flash"),
-    ({"loss": "nan"}, "de_yaw_f025", "flash"),
-    ({"loss": "-inf"}, "de_yaw_f025", "flash"),
-    ({}, "de_bf_f025", "flash"),                                 # a B-F run printing the yaw banner
+C16_BANNER = "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"
+
+
+@pytest.mark.parametrize("kw,backend", [
+    ({"banner": []}, "flash"),                                   # no banner
+    ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+    ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+    ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+    ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+    ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+    ({"n": 291210}, "flash"),
+    ({"members": [0]}, "flash"),
+    ({"flash_missing": 2}, "flash"),
+    ({"flash_missing": 1}, "sdpa"),
+    ({"step": False}, "flash"),
+    ({"loss": "nan"}, "flash"),
+    ({"loss": "-inf"}, "flash"),
 ])
-def test_log_gate_start_failures(kw, run, backend):
-    assert reg.log_gate(_log(**kw), run, "start", backend, 2) != []
+def test_log_gate_start_failures(kw, backend):
+    assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
 
 
 def test_log_gate_banner_after_the_first_step_fails():
-    text = _log(banner=False) + "\n" + reg.YAW_BANNER
-    assert any("banner" in p for p in reg.log_gate(text, "de_yaw_f025", "start", "flash", 2))
+    text = _log(banner=[]) + "\n" + reg.RF_BANNER
+    assert any("banner" in p for p in reg.log_gate(text, RF["025"], "start", "flash", 2))
 
 
 def test_log_gate_end_needs_lightnings_marker_and_enough_finite_losses():
-    assert reg.log_gate(_log(end=True), "de_yaw_f025", "end", "flash", 2) == []
-    assert reg.log_gate(_log(), "de_yaw_f025", "end", "flash", 2) != []
-    assert reg.log_gate(_log(end=True), "de_yaw_f025", "end", "flash", 2, min_losses=2) != []
+    assert reg.log_gate(_log(end=True), RF["025"], "end", "flash", 2) == []
+    assert reg.log_gate(_log(), RF["025"], "end", "flash", 2) != []
+    assert reg.log_gate(_log(end=True), RF["025"], "end", "flash", 2, min_losses=2) != []
 
 
 def test_parse_losses_is_strict():
@@ -733,30 +660,29 @@ def test_the_snapshot_carries_every_read_only_exp38_dependency_with_its_hash(tmp
     kit = [r for r in manifest if r.startswith(reg.EXP_DIR + "/")]
     assert kit and all(os.path.basename(r).startswith("exp45_") and "/" not in r[len(reg.EXP_DIR) + 1:] for r in kit)
     exp38 = {r for r in manifest if r.startswith(reg.EXP38_DIR + "/")}
-    assert set(reg.EXP38_READONLY) <= exp38                     # + (until the RF-only registry) the B-F caps
-    assert not exp38 - set(reg.EXP38_READONLY) - {f"{reg.EXP38_DIR}/FLAC_AR_BF_cap{m}.json" for m in (32, 8)}
+    assert exp38 == set(reg.EXP38_READONLY)                     # nothing else of exp_38's folder
     assert f"{reg.EXP38_DIR}/exp38_eval.py" not in manifest and f"{reg.EXP38_DIR}/exp38_supervise.py" not in manifest
 
 
 def test_snapshot_is_complete_immutable_and_usable(tmp_path):
     """Codex code r1 HIGH 5: training is launched FROM the snapshot -- the closure (same digest as
     the tree), the subset-audit sidecar, and the two cwd-relative data links."""
-    files = reg.snapshot_files("de_bf_f050")
-    if reg.bf_config_rel(32) not in files or f"{reg.EXP_DIR}/exp45_supervise.py" not in files:
+    files = reg.snapshot_files(RF["050"])
+    if reg.ARMS["rf"]["config"] not in files or f"{reg.EXP_DIR}/exp45_supervise.py" not in files:
         pytest.skip("the exp_45 kit is not committed yet (the closure lists tracked files only)")
     assert "train.py" in files and "src/training/run_evidence.py" in files and reg.SUBSET_AUDIT in files
     assert not any(f.startswith("src/tests/") for f in files)
     dest = tmp_path / "snap"
-    out = reg.snapshot_tools("de_bf_f050", str(dest))
+    out = reg.snapshot_tools(RF["050"], str(dest))
     assert reg.verify_snapshot(str(dest), out["snapshot_sha256"])["verified"]
     assert reg.closure_digest(str(dest)) == reg.closure_digest()
     for rel in reg.SNAPSHOT_LINKS:
         assert os.path.islink(dest / rel) and os.readlink(dest / rel) == os.path.realpath(os.path.join(REPO, rel))
-    reg.check_config("bf", "2x32", repo=str(dest))
+    reg.check_config("rf", "2x32", repo=str(dest))
     reg.check_subset("050", repo=str(dest))
     assert reg.check_subset_audit(str(dest))["sha256"]
     with pytest.raises(reg.GateError):
-        reg.snapshot_tools("de_bf_f050", str(dest))             # never overwritten
+        reg.snapshot_tools(RF["050"], str(dest))                # never overwritten
     with pytest.raises(reg.GateError):
         reg.verify_snapshot(str(dest), "0" * 64)                # not the launch record's snapshot
     link = dest / "AcousticRooms"
@@ -786,7 +712,7 @@ def test_snapshot_is_complete_immutable_and_usable(tmp_path):
             q = dest / extra.rstrip("/")
             q.unlink() if (q.is_symlink() or q.is_file()) else q.rmdir()
         reg.verify_snapshot(str(dest))
-    cfg = dest / reg.bf_config_rel(32)
+    cfg = dest / reg.ARMS["rf"]["config"]
     cfg.write_text(cfg.read_text() + " ")
     with pytest.raises(reg.GateError):
         reg.verify_snapshot(str(dest))
@@ -805,7 +731,8 @@ def test_describe_every_required_run(platform, tmp_path, monkeypatch):
 def test_cli_dry_run_exit_codes(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(reg, "check_subset_audit", lambda repo=None: {"sha256": "0" * 64})
     assert reg._cli(["dry-run", "--platform", "a6000", "--save-root", str(tmp_path)]) == 0
-    assert "DRY-RUN OK: 6 run(s) on a6000" in capsys.readouterr().out
-    _touch(tmp_path / "de_yaw_f050", ["epoch=2-step=2500.ckpt"])
+    assert "DRY-RUN OK: 3 run(s) on a6000" in capsys.readouterr().out
+    _touch(tmp_path / RF["050"], ["epoch=2-step=2500.ckpt"])
     assert reg._cli(["dry-run", "--platform", "a6000", "--save-root", str(tmp_path)]) == 2
-    assert reg._cli(["dry-run", "--platform", "neuronic", "--rung", "8x8", "--save-root", str(tmp_path)]) == 2
+    with pytest.raises(SystemExit):                              # the 8x8 rung does not exist
+        reg._cli(["dry-run", "--platform", "neuronic", "--rung", "8x8", "--save-root", str(tmp_path)])

@@ -2,7 +2,7 @@
 """exp_45 evaluation driver for THIS 2×A6000 box (forked from exp_38's exp38_eval.py;
 plan_rf_data_curve.md r3 §3.2; exp_38: plan_data_efficiency.md r2 §9, §10 B8).
 
-    exp38_eval.py plan [--bridge]                 the 60 (+10) result cells and the 8 E0 cells, full argv
+    exp45_eval.py plan                            the 30 RF result cells and the 8 E0 cells, full argv
     exp38_eval.py env-receipt --write | --check   the campaign environment receipt (registry)
     exp38_eval.py prepare <run>                   admit a run's final checkpoint + create its farm link
     exp38_eval.py prepare-e0                      verify + link the four E0 reference checkpoints
@@ -74,16 +74,16 @@ SCENES = ("Apartments", "Auditorium", "Bathrooms", "Bedrooms", "Cafe", "Listenin
 E0 = {
     "E0a": {"ckpt": f"{NAS_CKPT_ROOT}/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt",
             "sha": "aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c",
-            "config": reg.ARMS["p1"]["config"], "cond": "vanilla", "by_scene": False},
+            "config": reg.E0_CONFIGS["bvp1"]["config"], "cond": "vanilla", "by_scene": False},
     "E0b": {"ckpt": f"{NAS_CKPT_ROOT}/ar_40k_endpoints/BF/epoch=8-step=40000.ckpt",
             "sha": "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328",
-            "config": reg.BF_BASE_CONFIG, "cond": "fa_invariant", "by_scene": True},
+            "config": reg.E0_CONFIGS["bf_base"]["config"], "cond": "fa_invariant", "by_scene": True},
     "E0c": {"ckpt": f"{NAS_CKPT_ROOT}/ar_40k_endpoints/YAW/epoch=8-step=40000.ckpt",
             "sha": "ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7",
-            "config": reg.ARMS["yaw"]["config"], "cond": "vanilla", "by_scene": True},
+            "config": reg.E0_CONFIGS["yaw"]["config"], "cond": "vanilla", "by_scene": True},
     "E0d": {"ckpt": f"{NAS_CKPT_ROOT}/ar_40k_endpoints/P1/epoch=8-step=40000.ckpt",
             "sha": "c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c",
-            "config": reg.ARMS["p1"]["config"], "cond": "vanilla", "by_scene": True},
+            "config": reg.E0_CONFIGS["bvp1"]["config"], "cond": "vanilla", "by_scene": True},
 }
 REF_DIR = reg.REF_DIR                 # exp_38's ref_cells/: EVERY reference reader and enumerator uses it
 REF_MANIFEST = reg.REF_MANIFEST
@@ -132,9 +132,8 @@ def e0_cells():
 
 
 def all_cells(bridge=None):
-    """E0 + every campaign run's cells (the bridge is part of the campaign under D2 = neuronic)."""
-    runs = reg.campaign_runs() + (["de_p1_f025"] if bridge and "de_p1_f025" not in reg.campaign_runs() else [])
-    return e0_cells() + [c for r in runs for c in run_cells(r)]
+    """E0 + the three RF runs' cells."""
+    return e0_cells() + [c for r in reg.campaign_runs() for c in run_cells(r)]
 
 
 def eval_argv(cell):
