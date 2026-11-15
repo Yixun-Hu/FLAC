@@ -1028,6 +1028,15 @@ def reserve_storage(run, token, run_dir, root, need=RUN_RESERVE_BYTES, floor=STO
         return {"reserved_bytes": int(need), "free_bytes": free, "outstanding_bytes": out}
 
 
+def storage_reservation(run, root):
+    """The run's reservation in ``root``'s ledger (a copy), or None; read under the ledger lock, nothing changed."""
+    if not os.path.isfile(os.path.join(root, STORAGE_LEDGER)):
+        return None
+    with _Ledger(root) as led:
+        mine = led.data["reservations"].get(run)
+        return dict(mine) if mine else None
+
+
 def recheck_storage(run, token, root, floor=STORAGE_FLOOR_BYTES):
     """Supervisor at FULL start, under the same lock: the run's own reservation (its token) must exist, and
     free - sum(outstanding of all reservations, its own included) >= floor. Changes nothing."""

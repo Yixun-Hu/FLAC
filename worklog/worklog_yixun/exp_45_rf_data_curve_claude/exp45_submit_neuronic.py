@@ -21,9 +21,19 @@ submission only when exactly one job carries the token (zero or several: refuse,
 ``abandon`` (all token jobs terminal) moves the owner record to ``.exp45_owners/abandoned/`` and the
 run dir to ``<dir>.abandoned_<ts>`` -- an abandoned record is never found again.
 
+Crash recovery (Codex code r1 finding 7): submit() holds the (run, mode) submission lock
+``<save root>/.exp45_submit_<run>__<MODE>.lock`` from its reservation to the 'submitted' intent, and reconcile /
+abandon take the same lock, so a submission in flight is never mistaken for a crash. abandon then recovers from the
+PERSISTED state alone: a reservation (or an owner dir) with no intent.json -- the submit died before its intent,
+so no sbatch was ever issued: released only when no job carries the reservation's token -- or a reservation whose
+owner record is already archived -- abandon died before the release: released only once every job of that token is
+terminal. A hold is never freed before its terminal status is established.
+
 Written by the exp_38 Coder (Claude Opus 5.5).
 """
 import argparse
+import contextlib
+import fcntl
 import json
 import os
 import subprocess
@@ -76,6 +86,26 @@ def owner_dir(run, mode, root=None):
 INTENT_KEYS = frozenset({"schema", "token", "run", "mode", "head", "time", "backend", "flash_version",
                          "allow_nonmatched", "save_dir", "job_name", "state", "ts", "job_id", "reconciled",
                          "partition_max_time"})
+
+
+def submit_lock_path(run, mode, root=None):
+    reg.parse_run_id(run)
+    return os.path.join(save_root(root), f".exp45_submit_{run}__{mode}.lock")
+
+
+@contextlib.contextmanager
+def submit_lock(run, mode, root=None):
+    """The (run, mode) submission lock (finding 7), never waited for: a holder means a submission is in flight (a
+    dead submitter's lock is released by the kernel)."""
+    fh = open(submit_lock_path(run, mode, root), "a")
+    try:
+        try:
+            fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise SubmitError(f"a submission of {run} {mode} is in progress (its lock is held): retry once it ends")
+        yield
+    finally:
+        fh.close()
 
 
 def job_name(run, mode, token):
@@ -171,9 +201,16 @@ def submit(run, mode, time_limit, backend, flash_version, allow_nonmatched, dry,
     if dry:
         return {"dry_run": True, "run_dir": sd, "owner": od, "argv": argv, "partition_max_time": max_time}
     reg.check_run_dir(sd, run, 0)
+    os.makedirs(save_root(root), exist_ok=True)
+    with submit_lock(run, mode, root):      # held from the reservation to the 'submitted' intent (finding 7)
+        return _submit_locked(run, mode, time_limit, backend, flash_version, allow_nonmatched, root, runner, head,
+                              token, sd, argv, od, max_time)
+
+
+def _submit_locked(run, mode, time_limit, backend, flash_version, allow_nonmatched, root, runner, head, token, sd,
+                   argv, od, max_time):
     reservation = None
     if mode == "FULL":           # the shared storage reservation, before sbatch and before any owner intent
-        os.makedirs(save_root(root), exist_ok=True)
         reservation = reg.reserve_storage(run, token, sd, save_root(root))
     os.makedirs(os.path.dirname(od), exist_ok=True)
     try:
@@ -276,8 +313,25 @@ def scheduler_state(name, runner=subprocess.run):
     return jobs
 
 
+def _no_intent_state(run, mode, root=None):
+    """What a (run, mode) without a live intent.json still holds: its reservation, an owner dir, archived owners."""
+    od = owner_dir(run, mode, root)
+    res = reg.storage_reservation(run, save_root(root)) if mode == "FULL" else None
+    return {"reservation_token": res["token"][:8] if res else None, "owner_dir": os.path.isdir(od),
+            "archived_owners": len(_archived_owners(run, mode, root))}
+
+
 def reconcile(run, mode, root=None, runner=subprocess.run):
     """Resolve an interrupted submission; refuses (SubmitError) unless the scheduler state is unambiguous."""
+    with submit_lock(run, mode, root):
+        if not os.path.isfile(os.path.join(owner_dir(run, mode, root), "intent.json")):
+            raise SubmitError(f"{run} {mode} has no owner intent ({_no_intent_state(run, mode, root)}): the submission "
+                              "never reached sbatch, or its owner is archived -- `abandon` recovers it from the "
+                              "persisted state")
+        return _reconcile_locked(run, mode, root, runner)
+
+
+def _reconcile_locked(run, mode, root, runner):
     od, intent = find_intent(run, mode, root)
     jobs = scheduler_state(intent["job_name"], runner)
     if intent["state"] == "submitting":
@@ -294,7 +348,92 @@ def reconcile(run, mode, root=None, runner=subprocess.run):
     return {"owner": od, "intent": intent, "jobs": jobs}
 
 
+def _archived_owners(run, mode, root=None):
+    """{dir: intent} of the archived owner records of (run, mode) whose intent.json is readable."""
+    d = os.path.join(save_root(root), OWNERS, "abandoned")
+    out = {}
+    for name in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+        if not name.startswith(f"{run}__{mode}."):
+            continue
+        try:
+            intent = json.load(open(os.path.join(d, name, "intent.json")))
+        except (OSError, ValueError):
+            continue
+        if isinstance(intent, dict) and intent.get("run") == run and intent.get("mode") == mode:
+            out[os.path.join(d, name)] = intent
+    return out
+
+
+def _partial_token(od):
+    """The token of a half-written intent (intent.json.tmp), if readable."""
+    try:
+        tok = json.load(open(os.path.join(od, "intent.json.tmp"))).get("token")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return tok if isinstance(tok, str) else None
+
+
+def _archive_owner(od, tag):
+    dest = os.path.join(os.path.dirname(od), "abandoned", f"{os.path.basename(od)}.{time.strftime('%Y%m%dT%H%M%S')}.{tag}")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    os.rename(od, dest)
+    return dest
+
+
+def _recover(run, mode, root, runner):
+    """abandon with no live intent.json (finding 7): recover from the persisted reservation and owner state only."""
+    od = owner_dir(run, mode, root)
+    res = reg.storage_reservation(run, save_root(root)) if mode == "FULL" else None
+    if res is None:
+        if not os.path.isdir(od):
+            raise SubmitError(f"{run} {mode}: no owner intent, no owner dir, no storage reservation -- nothing to abandon")
+        # killed after the owner dir, before intent.json (a SMOKE holds no reservation): no sbatch was issued
+        tok = _partial_token(od)
+        jobs = scheduler_state(job_name(run, mode, tok), runner) if tok else {}
+        if jobs:
+            raise SubmitError(f"job(s) {jobs} carry token {tok[:8]} although no intent was written: refuse to guess")
+        return {"recovered": "an owner dir without an intent", "owner_moved_to": _archive_owner(od, "no_intent"),
+                "run_dir_moved_to": None, "jobs": jobs, "storage_released": False}
+    token = res["token"]
+    jobs = scheduler_state(job_name(run, mode, token), runner)
+    archived = {d: i for d, i in _archived_owners(run, mode, root).items() if i.get("token") == token}
+    if archived:
+        # window 2: abandon archived the owner record and died before the release -- terminal status re-established
+        live = {j: s for j, s in jobs.items() if s not in TERMINAL}
+        if live:
+            raise SubmitError(f"job(s) {live} of token {token[:8]} are not terminal: scancel them first")
+        recorded = {i["job_id"] for i in archived.values() if i.get("state") == "submitted"}
+        if not recorded <= set(jobs):
+            raise SubmitError(f"recorded job(s) {sorted(recorded - set(jobs))} are not visible to the scheduler: "
+                              "refuse to guess")
+        released = reg.release_storage(run, token, save_root(root), reason="abandoned (recovered: the owner record "
+                                       "was archived before the release)")
+        return {"recovered": "the owner record was archived, its reservation still held", "owner": sorted(archived),
+                "run_dir_moved_to": None, "jobs": jobs, "storage_released": released is not None}
+    # window 1: killed after the reservation, before intent.json -- sbatch is issued only after intent.json exists,
+    # so no job may carry this token
+    if jobs:
+        raise SubmitError(f"job(s) {jobs} carry token {token[:8]} although no intent of it exists: refuse to guess")
+    if os.path.lexists(res["run_dir"]) or os.path.lexists(run_dir(run, mode, root)):
+        raise SubmitError(f"{res['run_dir']} exists although no job ever carried token {token[:8]}: refuse to guess")
+    tok = _partial_token(od) if os.path.isdir(od) else None
+    if tok not in (None, token):
+        raise SubmitError(f"{od}'s partial intent names token {tok[:8]}, not the reservation's {token[:8]}: refuse to guess")
+    moved = _archive_owner(od, "no_intent") if os.path.isdir(od) else None
+    released = reg.release_storage(run, token, save_root(root), reason="abandoned (recovered: the submit died before "
+                                   "its intent; no job carried the token)")
+    return {"recovered": "a reservation without an intent", "owner_moved_to": moved, "run_dir_moved_to": None,
+            "jobs": jobs, "storage_released": released is not None}
+
+
 def abandon(run, mode, root=None, runner=subprocess.run):
+    with submit_lock(run, mode, root):
+        if not os.path.isfile(os.path.join(owner_dir(run, mode, root), "intent.json")):
+            return _recover(run, mode, root, runner)
+        return _abandon_locked(run, mode, root, runner)
+
+
+def _abandon_locked(run, mode, root, runner):
     od, intent = find_intent(run, mode, root)
     jobs = scheduler_state(intent["job_name"], runner)
     live = {j: s for j, s in jobs.items() if s not in TERMINAL}

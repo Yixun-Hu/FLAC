@@ -212,3 +212,172 @@ def test_a_refused_candidate_is_not_inserted_and_the_ledger_is_strict(fs):
             reg.reserve_storage(bad_run, bad_token, "/x", str(root))
     with pytest.raises(reg.GateError, match="does not exist"):
         reg.reserve_storage(RUNS[0], TOKENS[RUNS[0]], "/x", str(root / "missing"))
+
+
+# ------------------------------------------------------------------ crash recovery of the submitter (Codex code r1 finding 7)
+import exp45_submit_neuronic as sub  # noqa: E402
+
+RUN = RUNS[0]
+
+
+class Sched:
+    """A fake scheduler: ``jobs`` = {job name: {job id: state}}; squeue shows the live ones, sacct every one."""
+
+    def __init__(self, jobs=None):
+        self.jobs, self.calls = {k: dict(v) for k, v in (jobs or {}).items()}, []
+
+    def __call__(self, argv, capture_output=True, text=True):
+        import types
+        self.calls.append(argv)
+        tool, out = os.path.basename(argv[0]), ""
+        if tool == "scontrol":
+            out = "PartitionName=all MaxTime=7-00:00:00 State=UP"
+        elif tool == "sbatch":
+            out = "4242;cluster"
+        elif tool == "squeue":
+            name = argv[argv.index("-n") + 1]
+            out = "".join(f"{j}|{s}\n" for j, s in self.jobs.get(name, {}).items() if s in sub.LIVE)
+        elif tool == "sacct":
+            name = argv[argv.index("--name") + 1]
+            out = "".join(f"{j}|{name}|{s}\n" for j, s in self.jobs.get(name, {}).items())
+        return types.SimpleNamespace(returncode=0, stdout=out, stderr="")
+
+
+class Crash(BaseException):
+    """A process death at this point of the code (nothing after it runs)."""
+
+
+@pytest.fixture
+def subm(tmp_path, monkeypatch):
+    monkeypatch.setattr(sub, "preflight", lambda run, mode, allow, dry, backend: "a" * 40)
+    monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)
+    monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+    root = tmp_path / "save_root"
+    root.mkdir()
+    return root
+
+
+def _submit(root, mode="FULL", runner=None):
+    return sub.submit(RUN, mode, "3-00:00:00", "flash", reg.FLASH_VERSION, False, False, root=str(root),
+                      runner=runner or Sched())
+
+
+def _held(root):
+    p = root / reg.STORAGE_LEDGER
+    return json.load(open(p))["reservations"] if p.exists() else {}
+
+
+def _crash_submit(root, monkeypatch, window, mode="FULL"):
+    """Run submit() and kill it at ``window``; returns the reservation token it persisted (or None)."""
+    if window == "after the reservation":
+        real = reg.reserve_storage
+
+        def reserve_then_die(*a, **k):
+            real(*a, **k)
+            raise Crash()
+        monkeypatch.setattr(reg, "reserve_storage", reserve_then_die)
+    elif window == "after the owner dir":
+        monkeypatch.setattr(sub, "_write_intent", lambda path, rec: (_ for _ in ()).throw(Crash()))
+    elif window == "after the intent's temp file":
+        def tmp_then_die(path, rec):
+            with open(path + ".tmp", "w") as fh:
+                json.dump(rec, fh)
+            raise Crash()
+        monkeypatch.setattr(sub, "_write_intent", tmp_then_die)
+    with pytest.raises(Crash):
+        _submit(root, mode)
+    monkeypatch.undo()                         # the next process runs the real code again
+    monkeypatch.setattr(sub, "preflight", lambda run, mode, allow, dry, backend: "a" * 40)
+    monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)
+    held = _held(root)
+    return held[RUN]["token"] if RUN in held else None
+
+
+@pytest.mark.parametrize("window", ["after the reservation", "after the owner dir", "after the intent's temp file"])
+def test_a_submit_killed_before_its_intent_is_recovered_by_abandon(subm, monkeypatch, tmp_path, window):
+    """Window 1 (finding 7): the reservation (and maybe an empty owner dir) persist, no intent.json. sbatch is issued
+    only after intent.json exists, so abandon may release the hold only once the scheduler shows NO job of the
+    reservation's token; until then the run stays blocked. reconcile names the state and points to abandon."""
+    root = subm
+    monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+    token = _crash_submit(root, monkeypatch, window)
+    monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+    assert token and list(_held(root)) == [RUN]
+    od = sub.owner_dir(RUN, "FULL", str(root))
+    assert os.path.isdir(od) == (window != "after the reservation") and not os.path.exists(os.path.join(od, "intent.json"))
+    with pytest.raises(reg.GateError):
+        _submit(root)                                                          # blocked until recovered
+    with pytest.raises(sub.SubmitError, match="abandon"):
+        sub.reconcile(RUN, "FULL", root=str(root), runner=Sched())
+    name = sub.job_name(RUN, "FULL", token)
+    for state in ("PENDING", "COMPLETED"):                    # a job of the token: no intent ever existed -> refuse
+        with pytest.raises(sub.SubmitError, match="refuse"):
+            sub.abandon(RUN, "FULL", root=str(root), runner=Sched({name: {"777": state}}))
+        assert list(_held(root)) == [RUN]
+    out = sub.abandon(RUN, "FULL", root=str(root), runner=Sched())
+    assert out["storage_released"] and _held(root) == {} and not os.path.exists(od)
+    rel = json.load(open(root / reg.STORAGE_LEDGER))["releases"]
+    assert [(r["run"], r["token"]) for r in rel] == [(RUN, token)] and "recovered" in rel[0]["reason"]
+    assert (out["owner_moved_to"] is None) == (window == "after the reservation")
+    with pytest.raises(sub.SubmitError):
+        sub.abandon(RUN, "FULL", root=str(root), runner=Sched())                # idempotent: nothing left to abandon
+    assert _submit(root)["job_id"] == "4242"                                    # the run may be submitted afresh
+
+
+def test_a_smoke_submit_killed_before_its_intent_is_recovered_by_abandon(subm, monkeypatch, tmp_path):
+    """Window 1 without a reservation (a SMOKE): an owner dir with no intent; abandon archives it."""
+    root = subm
+    _crash_submit(root, monkeypatch, "after the intent's temp file", mode="SMOKE")
+    monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+    od = sub.owner_dir(RUN, "SMOKE", str(root))
+    assert os.path.isdir(od) and _held(root) == {}
+    tok = json.load(open(os.path.join(od, "intent.json.tmp")))["token"]
+    with pytest.raises(sub.SubmitError, match="refuse"):
+        sub.abandon(RUN, "SMOKE", root=str(root), runner=Sched({sub.job_name(RUN, "SMOKE", tok): {"9": "RUNNING"}}))
+    out = sub.abandon(RUN, "SMOKE", root=str(root), runner=Sched())
+    assert not os.path.exists(od) and os.path.isdir(out["owner_moved_to"])
+    assert _submit(root, mode="SMOKE")["job_id"] == "4242"
+
+
+def test_an_abandon_killed_after_archiving_the_owner_is_recovered(subm, monkeypatch, tmp_path):
+    """Window 2 (finding 7): abandon archived the owner record, then died before releasing the reservation. The next
+    abandon finds the archived record of the reservation's token and releases the hold -- only once every job of the
+    token is terminal (the hold is never freed before that)."""
+    root = subm
+    out = _submit(root)
+    token, name = out["token"], sub.job_name(RUN, "FULL", out["token"])
+    real = reg.release_storage
+    monkeypatch.setattr(reg, "release_storage", lambda *a, **k: (_ for _ in ()).throw(Crash()))
+    with pytest.raises(Crash):
+        sub.abandon(RUN, "FULL", root=str(root), runner=Sched({name: {"4242": "FAILED"}}))
+    monkeypatch.setattr(reg, "release_storage", real)
+    assert not os.path.exists(sub.owner_dir(RUN, "FULL", str(root))) and list(_held(root)) == [RUN]
+    with pytest.raises(reg.GateError):
+        _submit(root)                                                          # blocked until recovered
+    with pytest.raises(sub.SubmitError, match="not terminal"):
+        sub.abandon(RUN, "FULL", root=str(root), runner=Sched({name: {"4242": "RUNNING"}}))
+    assert list(_held(root)) == [RUN]
+    got = sub.abandon(RUN, "FULL", root=str(root), runner=Sched({name: {"4242": "FAILED"}}))
+    assert got["storage_released"] and _held(root) == {} and "archived" in got["recovered"]
+    assert _submit(root)["job_id"] == "4242"
+
+
+def test_recovery_never_runs_while_a_submission_holds_its_lock(subm, monkeypatch, tmp_path):
+    """The (run, mode) submission lock: submit() holds it from the reservation to the 'submitted' intent, so a
+    concurrent reconcile / abandon refuses instead of mistaking a submission in flight for a crash."""
+    import fcntl
+    root = subm
+    path = sub.submit_lock_path(RUN, "FULL", str(root))
+    fh = open(path, "a")
+    fcntl.flock(fh, fcntl.LOCK_EX)
+    try:
+        for fn in (sub.abandon, sub.reconcile):
+            with pytest.raises(sub.SubmitError, match="in progress"):
+                fn(RUN, "FULL", root=str(root), runner=Sched())
+        with pytest.raises(sub.SubmitError, match="in progress"):
+            _submit(root)
+        assert _held(root) == {}
+    finally:
+        fh.close()
+    assert _submit(root)["job_id"] == "4242"
+
