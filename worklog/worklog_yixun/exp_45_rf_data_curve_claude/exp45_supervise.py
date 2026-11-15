@@ -413,6 +413,37 @@ def common_gates(a, platform):
     return arm, tag, rung, exe, d, pins
 
 
+# ---------------------------------------------------------------- the FULL loss record (plan r3 §3.2)
+FULL_LOGGER_ENTRIES = ["version_0", "version_0/hparams.yaml", "version_0/metrics.csv"]
+
+
+def move_loss_record(rd):
+    """FULL only, after the child exits and BEFORE the end audit (Codex plan r2 finding 2): <rd>/lightning_logs must
+    hold exactly version_0/{hparams.yaml, metrics.csv}; the CSV is validated, both files move into receipts/ as
+    loss_record.csv / loss_record_hparams.yaml and the emptied folders are removed. Anything else (version_1, an
+    extra file, a missing CSV) raises -- an end-audit failure; nothing moves then."""
+    ll = os.path.join(rd, reg.LOGGER_DIR)
+    got = reg.logger_entries(rd) if os.path.isdir(ll) and not os.path.islink(ll) else None
+    if got != FULL_LOGGER_ENTRIES:
+        raise reg.GateError(f"{ll}: entries {got} != exactly {FULL_LOGGER_ENTRIES}")
+    v0 = os.path.join(ll, "version_0")
+    moves = {reg.LOSS_RECORD: os.path.join(v0, "metrics.csv"), reg.LOSS_RECORD_HPARAMS: os.path.join(v0, "hparams.yaml")}
+    if any(os.path.islink(s) or not os.path.isfile(s) for s in moves.values()):
+        raise reg.GateError(f"{v0}: the logger files must be regular files")
+    out = reg.check_loss_record(moves[reg.LOSS_RECORD])
+    rdir = os.path.join(rd, reg.RECEIPTS_DIR)
+    os.makedirs(rdir, exist_ok=True)
+    for name in moves:
+        if os.path.lexists(os.path.join(rdir, name)):
+            raise reg.GateError(f"{rdir}/{name} exists")
+    for name, src in moves.items():
+        os.rename(src, os.path.join(rdir, name))
+    os.rmdir(v0)
+    os.rmdir(ll)
+    reg._fsync_dir(rdir)
+    return out
+
+
 # ---------------------------------------------------------------- modes
 def ts_now():
     return time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -633,6 +664,7 @@ def mode_campaign(a, platform):
         try:
             reg.verify_snapshot(snap, snapshot["snapshot_sha256"])
             if full:
+                rec.update(loss_record=move_loss_record(rd))      # FULL only; the SMOKE keeps its logger dir
                 # the AR bytes again AFTER the run (Codex code r3 BLOCKING 1, defense in depth): a file changed
                 # during training refuses the receipt (a change-and-restore inside the run is not detectable
                 # without an immutable copy -- decision D9)

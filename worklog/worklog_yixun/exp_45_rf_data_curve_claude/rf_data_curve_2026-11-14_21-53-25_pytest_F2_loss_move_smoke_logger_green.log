@@ -1,0 +1,24 @@
+HEAD 8007caf8f34ba85021028e3aa967a5952f8979aa tracked-clean=no host neu308.neuronic.cs.princeton.edu start 2026-11-14T21:53:39-05:00
+cmd: pytest -q src/tests/test_exp45_supervise.py src/tests/test_exp45_receipts.py src/tests/test_exp45_eval.py 
+........................................................s............... [ 16%]
+........................................................................ [ 32%]
+........................................................................ [ 49%]
+............................s....s.s.................................... [ 65%]
+........................................................................ [ 82%]
+................................................s....................... [ 98%]
+.......                                                                  [100%]
+=============================== warnings summary ===============================
+src/tests/test_exp45_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp45_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp45_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+434 passed, 5 skipped, 3 warnings in 138.86s (0:02:18)
+EXIT 0 end 2026-11-14T21:56:00-05:00

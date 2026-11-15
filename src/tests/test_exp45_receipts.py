@@ -206,8 +206,11 @@ def tree(tmp_path, monkeypatch):
 
 
 def _smoke(tree, run="exp45_RFf025_l40_2x32", ts="2026-11-08_04-00-00", rc=0, ckpt=False, recs=None, log=None, backend="flash",
-           platform="a6000", gpus=None):
+           platform="a6000", gpus=None, logger=None):
     sd = tree / f"smoke_{ts}"
+    for rel, data in ({"lightning_logs/version_0/hparams.yaml": "{}\n"} if logger is None else logger).items():
+        (sd / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
+        (sd / rel).write_text(data)                              # what PL's CSV logger leaves after 30 steps
     write_evidence(str(sd / "evidence"), recs if recs is not None else records(run, backend=backend))
     if ckpt:
         (sd / "epoch=0-step=1.ckpt").write_bytes(b"x")
@@ -232,6 +235,13 @@ def test_the_smoke_writer_recomputes_every_gate(tree):
     assert out["verdict"] == "FAIL" and out["log_gate"] != "PASS"
     out = _smoke(tree, ts="t5", recs={0: records("exp45_RFf025_l40_2x32")[0]})
     assert out["verdict"] == "FAIL"                               # a missing rank's evidence
+    assert _smoke(tree, ts="t6")["logger_gate"] == "PASS"
+    v0 = "lightning_logs/version_0/"
+    for i, logger in enumerate(({}, {v0 + "hparams.yaml": "{}\n", v0 + "events.out.tfevents.1.host": "x"},
+                                {v0 + "hparams.yaml": "{}\n", v0 + "metrics.csv": "step\n"},
+                                {v0 + "hparams.yaml": "{}\n", "lightning_logs/version_1/hparams.yaml": "{}\n"})):
+        out = _smoke(tree, ts=f"t7{i}", logger=logger)          # not exactly the CSV logger's version_0 dir
+        assert out["verdict"] == "FAIL" and out["logger_gate"] != "PASS", logger
 
 
 def test_the_writers_refuse_an_environment_receipt_changed_during_the_run(tree, monkeypatch):
@@ -276,6 +286,7 @@ SMOKE_MUTATIONS = {
     "snapshot dir": lambda r: r.update(snapshot_dir="/nonexistent/snapshot"),
     "log sha (valid-looking)": lambda r: r.update(log_sha256="7" * 64), "log path": lambda r: r.update(log="/nonexistent.log"),
     "extra key": lambda r: r.update(extra=1), "missing key": lambda r: r.pop("finished_at"),
+    "logger gate": lambda r: r.update(logger_gate=["x"]), "smoke dir": lambda r: r.update(smoke_dir="/nonexistent/smoke"),
 }
 
 
@@ -297,6 +308,11 @@ def test_the_smoke_consumer_re_opens_its_log_and_snapshot(tree):
     with pytest.raises(reg.GateError, match="snapshot"):
         reg.check_smoke_receipt("exp45_RFf025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
     out = _smoke(tree, ts="2026-11-08_05-00-00")
+    rec = json.load(open(out["smoke_receipt"]))
+    (__import__("pathlib").Path(rec["smoke_dir"]) / "lightning_logs" / "version_1").mkdir()
+    with pytest.raises(reg.GateError, match="smoke logger"):
+        reg.check_smoke_receipt("exp45_RFf025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
+    out = _smoke(tree, ts="2026-11-08_05-30-00")
     rec = json.load(open(out["smoke_receipt"]))
     open(rec["log"], "a").write("one more line\n")
     with pytest.raises(reg.GateError, match="log"):
@@ -347,6 +363,7 @@ def _admitted(tree, monkeypatch, run="exp45_RFf050_l40_2x32"):
     _, smkd = fx.sealed(reg, smk_path, reg.SMOKE_KEYS, schema=1, mode="SMOKE_DDP", run=run, platform="a6000",
                         backend="flash", head=HEAD, closure_sha256=CLOSURE, env_receipt_sha256=envd, rc=0,
                         checkpoints_written=0, log_gate="PASS", evidence_gate="PASS", verdict="PASS",
+                        logger_gate="PASS", smoke_dir=str(tree / "smoke"),
                         argv_projection=reg.argv_projection(argv), gpus=A6000_GPUS, snapshot_sha256="7" * 64,
                         log=str(slog), log_sha256=reg.sha256_file(str(slog)),
                         launched_at="2026-11-06T03:00:00-0500", finished_at="2026-11-06T03:30:00-0500",

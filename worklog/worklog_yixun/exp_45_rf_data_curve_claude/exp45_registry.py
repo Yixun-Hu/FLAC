@@ -1458,7 +1458,37 @@ def check_e0_receipt(platform, repo=None):
 
 # ---------------------------------------------------------------- SMOKE_DDP receipt (Codex code r1 BLOCKING 1)
 SMOKE_STEPS_DDP = 30
+# --logger none under the recorded flac env (no TensorBoard package) selects PL's CSV logger at the run dir (plan F4):
+# a 30-step SMOKE leaves exactly lightning_logs/version_0/hparams.yaml (no metrics row exists before step 99, F5)
+LOGGER_DIR = "lightning_logs"
+SMOKE_LOGGER_ENTRIES = ["version_0", "version_0/hparams.yaml"]
+
+
+def logger_entries(run_dir):
+    """Every entry under <run_dir>/lightning_logs (relative, directories included), links not followed."""
+    ll = os.path.join(run_dir, LOGGER_DIR)
+    out = []
+    for d, dirs, files in os.walk(ll, followlinks=False):
+        rel = os.path.relpath(d, ll)
+        out += [os.path.normpath(os.path.join(rel, x)) for x in dirs + files]
+    return sorted(out)
+
+
+def smoke_logger_problems(smoke_dir):
+    """The SMOKE gate's logger check (plan r3 §3.2): the CSV logger was selected -- exactly
+    lightning_logs/version_0/hparams.yaml, no TensorBoard event file -- before any FULL."""
+    ll = os.path.join(smoke_dir, LOGGER_DIR)
+    if not os.path.isdir(ll) or os.path.islink(ll):
+        return [f"{ll}: no logger directory (PL's CSV logger was not selected)"]
+    got = logger_entries(smoke_dir)
+    p = [f"{ll}: a TensorBoard event file {e}" for e in got if "tfevents" in os.path.basename(e)]
+    if got != SMOKE_LOGGER_ENTRIES:
+        p.append(f"{ll}: entries {got} != exactly {SMOKE_LOGGER_ENTRIES}")
+    return p
+
+
 SMOKE_KEYS = frozenset({"schema", "mode", "run", "platform", "backend", "head", "closure_sha256",
+                        "logger_gate", "smoke_dir",
                         "env_receipt_sha256", "subset_audit_sha256", "snapshot_sha256", "snapshot_dir", "argv_projection",
                         "model_config_sha256", "dataset_config_sha256", "split_sha256", "rc", "checkpoints_written",
                         "log", "log_sha256", "log_gate", "evidence", "evidence_gate", "gpus", "verdict",
@@ -1512,8 +1542,10 @@ def write_smoke_receipt(run, platform, backend, head, smoke_dir, log_path, rc, g
         eg = evidence_problems(recs, run, ngpu, backend, SMOKE_STEPS_DDP)
     except GateError as err:
         recs, eg = {}, [str(err)]
-    verdict = "PASS" if (rc == 0 and n_ckpt == 0 and not lg and not eg) else "FAIL"
+    xg = smoke_logger_problems(smoke_dir)
+    verdict = "PASS" if (rc == 0 and n_ckpt == 0 and not lg and not eg and not xg) else "FAIL"
     rec = {"schema": 1, "mode": "SMOKE_DDP", "run": run, "platform": platform, "backend": backend, "head": head,
+           "logger_gate": "PASS" if not xg else xg, "smoke_dir": smoke_dir,
            "closure_sha256": closure_digest(repo)["closure_sha256"],
            "env_receipt_sha256": _same_env(platform, env_sha, out_repo or repo),
            "subset_audit_sha256": check_subset_audit(repo)["sha256"], "snapshot_sha256": snapshot_sha,
@@ -1528,7 +1560,8 @@ def write_smoke_receipt(run, platform, backend, head, smoke_dir, log_path, rc, g
            "launched_at": launched_at, "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     out = _abs(smoke_receipt_rel(run, platform, ts), out_repo or repo)
     write_sealed(out, rec)
-    return {"smoke_receipt": out, "verdict": verdict, "log_gate": rec["log_gate"], "evidence_gate": rec["evidence_gate"]}
+    return {"smoke_receipt": out, "verdict": verdict, "log_gate": rec["log_gate"], "evidence_gate": rec["evidence_gate"],
+            "logger_gate": rec["logger_gate"]}
 
 
 def smoke_receipt_problems(rec, run, platform, backend, head, gpus=None, repo=None):
@@ -1542,10 +1575,12 @@ def smoke_receipt_problems(rec, run, platform, backend, head, gpus=None, repo=No
             "argv_projection": argv_projection(build_train_argv(run, platform, allow_nonmatched=rung != "2x32")),
             "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung), repo)),
             "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"],
-            "rc": 0, "checkpoints_written": 0, "log_gate": "PASS", "evidence_gate": "PASS", "verdict": "PASS"}
+            "rc": 0, "checkpoints_written": 0, "log_gate": "PASS", "evidence_gate": "PASS", "verdict": "PASS",
+            "logger_gate": "PASS"}
     p = [f"{k} {rec.get(k)!r} != {v!r}" for k, v in want.items() if canonical(rec.get(k)) != canonical(v)]
     if not (_is_sha(rec.get("snapshot_sha256")) and _is_sha(rec.get("log_sha256"))
             and isinstance(rec.get("log"), str) and isinstance(rec.get("snapshot_dir"), str)
+            and isinstance(rec.get("smoke_dir"), str)
             and isinstance(rec.get("launched_at"), str) and isinstance(rec.get("finished_at"), str)):
         p.append("snapshot / log / time fields malformed")
         return p
@@ -1564,6 +1599,7 @@ def smoke_receipt_problems(rec, run, platform, backend, head, gpus=None, repo=No
                           max_steps=SMOKE_STEPS_DDP, min_losses=1)
     except OSError as err:
         p.append(f"smoke log: {err}")
+    p += [f"smoke logger: {x}" for x in smoke_logger_problems(rec["smoke_dir"])]   # re-opened, not trusted
     if gpus is not None and canonical(rec.get("gpus")) != canonical(gpus):
         p.append(f"GPUs {rec.get('gpus')} != this launch's {gpus}")
     g = rec.get("gpus")
@@ -1853,7 +1889,7 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
         want_s = {"mode": "SMOKE_DDP", "run": run, "platform": plat, "backend": backend, "head": rec["head"],
                   "closure_sha256": rec["closure_sha256"], "env_receipt_sha256": rec["env_receipt_sha256"],
                   "rc": 0, "checkpoints_written": 0, "log_gate": "PASS", "evidence_gate": "PASS", "verdict": "PASS",
-                  "argv_projection": argv_projection(rec["argv"])}
+                  "logger_gate": "PASS", "argv_projection": argv_projection(rec["argv"])}
         p += [f"retained SMOKE {k} {str(smk.get(k))[:40]!r} != {str(v)[:40]!r}" for k, v in want_s.items()
               if canonical(smk.get(k)) != canonical(v)]
         ev = smk.get("evidence") or {}

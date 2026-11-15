@@ -357,15 +357,26 @@ FAKE_TRAIN = textwrap.dedent("""
     for name, rec in {evidence!r}.items():
         os.makedirs({evdir!r}, exist_ok=True)
         json.dump(rec, open(os.path.join({evdir!r}, name), "w"))
+    for rel, data in {logger!r}.items():                    # what PL's CSV logger leaves in the run dir
+        path = os.path.join(sys.argv[1], rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        open(path, "w").write(data)
     time.sleep(0.5)
     print({end!r}, flush=True)
     sys.exit(1 if mode == "crash" else 0)
 """)
 
 
-def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_head="f" * 40, content_after_ok=True):
+def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_head="f" * 40, content_after_ok=True,
+              logger=None):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import test_exp45_receipts as tr
+    import exp45_fixtures as fx
+    v0 = "lightning_logs/version_0/"
+    if logger is None:                                          # PL's CSV logger: FULL 400 rows, SMOKE none
+        logger = {v0 + "hparams.yaml": "{}\n"}
+        if smode == "FULL":
+            logger[v0 + "metrics.csv"] = fx.loss_csv(sv.reg).decode()
     reg = sv.reg
     run = "exp45_RFf025_l40_2x32"
     monkeypatch.setattr(reg, "REPO", str(tmp_path))
@@ -406,12 +417,12 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
     def fake_snapshot(run_, dest, repo=None):
         os.makedirs(dest)
         open(os.path.join(dest, "train.py"), "w").write(FAKE_TRAIN.format(
-            mode=mode, log=log, evidence=ev, evdir=str(rd / "evidence"), end=reg.FIT_END.format(n=40000)))
+            mode=mode, log=log, evidence=ev, evdir=str(rd / "evidence"), end=reg.FIT_END.format(n=40000), logger=logger))
         return {"snapshot": dest, "files": 1, "snapshot_sha256": "5" * 64}
     monkeypatch.setattr(reg, "snapshot_tools", fake_snapshot)
     monkeypatch.setattr(reg, "verify_snapshot", lambda dest, want=None: {"verified": True})
-    monkeypatch.setattr(reg, "build_train_argv", lambda *x, **k: ["train.py"])
-    monkeypatch.setattr(reg, "build_smoke_argv", lambda *x, **k: ["train.py"])
+    monkeypatch.setattr(reg, "build_train_argv", lambda *x, **k: ["train.py", str(rd)])
+    monkeypatch.setattr(reg, "build_smoke_argv", lambda *x, **k: ["train.py", x[2]])      # x[2] = the smoke dir
     calls = []
 
     import inspect
@@ -453,6 +464,10 @@ def test_a_full_run_launches_from_the_snapshot_gates_and_publishes(tmp_path, mon
     assert rec["cwd"].startswith(str(tmp_path / "snaps")) and rec["child_rc"] == 0 and rec["supervisor_pid"] == os.getpid()
     assert len(calls) == 2 and calls[-1] == ("commits", [("COMPLETE", True)]) and not (rd / ".exp38_lock").exists()
     assert [n for n in os.listdir(rd) if n.startswith(".exp38_lock.released_")]
+    # the FULL branch moved PL's CSV loss record into receipts/ before the end audit (plan r3 §3.2)
+    assert not (rd / "lightning_logs").exists() and rec["loss_record"]["loss_record_rows"] == 400
+    assert sorted(os.listdir(rd / "receipts")) == ["loss_record.csv", "loss_record_hparams.yaml"]
+    assert (rd / "receipts" / "loss_record_hparams.yaml").read_text() == "{}\n"
 
 
 @pytest.mark.parametrize("mode,audit_ok,want", [("crash", True, 1), ("badstart", True, sv.EXIT_START),
@@ -470,6 +485,31 @@ def test_a_smoke_ddp_seals_its_receipt_from_the_snapshot(tmp_path, monkeypatch, 
     code, rec, rd, calls = _campaign(tmp_path, monkeypatch, audit_ok=audit_ok, smode="SMOKE_DDP")
     assert code == want and len(calls) == 2 and str(rd).startswith(str(tmp_path / "outputs_FLAC" / "exp38_smoke"))
     assert "start_gate" not in rec and rec["mode"] == "SMOKE_DDP"
+    # the SMOKE branch moves nothing: its logger dir stays where PL wrote it (the SMOKE gate checks it)
+    assert sv.reg.logger_entries(str(rd)) == ["version_0", "version_0/hparams.yaml"] and "loss_record" not in rec
+    assert not (rd / "receipts").exists()
+
+
+V0 = "lightning_logs/version_0/"
+
+
+@pytest.mark.parametrize("name,logger", [
+    ("extra version", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "LOSS", "lightning_logs/version_1/hparams.yaml": "{}\n"}),
+    ("extra file", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "LOSS", V0 + "events.out.tfevents.1": "x"}),
+    ("missing csv", {V0 + "hparams.yaml": "{}\n"}),
+    ("no logger dir", {}),
+    ("short csv", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "step,train/loss\n99,0.5\n"}),
+])
+def test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit(tmp_path, monkeypatch, name, logger):
+    import exp45_fixtures as fx
+    logger = {k: (fx.loss_csv(sv.reg).decode() if v == "LOSS" else v) for k, v in logger.items()}
+    code, rec, rd, calls = _campaign(tmp_path, monkeypatch, logger=logger)
+    assert code == sv.EXIT_END and rec["status"].startswith("end audit failed") and "loss_record" not in rec
+    assert calls == [("commits", [])] and (rd / ".exp38_lock").is_dir()             # no receipt; crash marker kept
+    assert sorted(sv.reg.logger_entries(str(rd))) == sorted({os.path.normpath(os.path.relpath(k, "lightning_logs"))
+                                                            for k in logger} | ({os.path.dirname(os.path.relpath(k, "lightning_logs"))
+                                                                                for k in logger} - {""}))
+    assert not (rd / "receipts" / "loss_record.csv").exists()                     # nothing moved
 
 
 def test_a_full_run_refuses_an_e0_receipt_of_another_head(tmp_path, monkeypatch):

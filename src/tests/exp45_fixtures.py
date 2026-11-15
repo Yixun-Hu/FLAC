@@ -171,6 +171,7 @@ def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint b
         reg, os.path.join(rdir, smoke_name), reg.SMOKE_KEYS, schema=1, mode="SMOKE_DDP", run=run, platform=platform,
         backend=backend, head=head, closure_sha256=closure, env_receipt_sha256=env_digest, rc=0, checkpoints_written=0,
         log_gate="PASS", evidence_gate="PASS", verdict="PASS", argv_projection=reg.argv_projection(argv),
+        logger_gate="PASS", smoke_dir="/campaign/smoke",
         gpus=gpus, snapshot_sha256="7" * 64, log_sha256=reg.sha256_file(smoke_log),
         launched_at="2026-11-08T03:00:00-0500", finished_at="2026-11-08T03:30:00-0500",
         evidence={str(r): e for r, e in records(reg, run, ngpu, backend, reg.SMOKE_STEPS_DDP).items()})
