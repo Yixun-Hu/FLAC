@@ -55,6 +55,9 @@ OWNERS = ".exp45_owners"
 BRANCH = "exp-45-rf-data-curve"            # the launch branch on origin (plan F15, N6)
 PARTITION = "all"                           # exp45_train.sbatch's #SBATCH --partition
 ATTEMPT_CLAIM = "attempt.claim"
+# Codex code r2 finding 7: a killed submitter does not stop its sbatch child, so a 'submitting' intent with no job id
+# may still turn into a job; abandon keeps the hold for this long after the intent was written
+SUBMIT_GRACE_S = 3600
 FLASH_VERSION_DEFAULT = reg.FLASH_VERSION
 
 
@@ -438,6 +441,14 @@ def abandon(run, mode, root=None, runner=subprocess.run):
 
 def _abandon_locked(run, mode, root, runner):
     od, intent = find_intent(run, mode, root)
+    if intent["state"] == "submitting" and intent["job_id"] is None:
+        age = time.time() - time.mktime(time.strptime(intent["ts"], "%Y-%m-%dT%H:%M:%S"))
+        if age < SUBMIT_GRACE_S:                      # an sbatch of this submission may still be in flight (finding 7)
+            raise SubmitError(
+                f"{run} {mode}: the intent is 'submitting' with no job id ({age:.0f} s old): an sbatch of it may still be "
+                f"in flight (a killed submitter does not stop its child) -- the hold stays. Check `squeue -n "
+                f"{intent['job_name']}` and `sacct --name {intent['job_name']}`; once a job is visible, `reconcile` "
+                f"records it; abandon releases only after {SUBMIT_GRACE_S} s with no job of that name")
     jobs = scheduler_state(intent["job_name"], runner)
     live = {j: s for j, s in jobs.items() if s not in TERMINAL}
     if live:

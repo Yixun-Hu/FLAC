@@ -447,3 +447,30 @@ def test_recovery_never_runs_while_a_submission_holds_its_lock(subm, monkeypatch
         fh.close()
     assert _submit(root)["job_id"] == "4242"
 
+
+def test_a_submitting_intent_without_a_job_id_keeps_its_hold_while_an_sbatch_may_be_in_flight(subm, monkeypatch, tmp_path):
+    """Codex code r2 finding 7: a killed submitter does not stop its sbatch child, so an intent still 'submitting'
+    with no recorded job id may yet produce a job. abandon keeps the hold and refuses -- naming the exp45- job to look
+    for with squeue / sacct -- while the intent is younger than the grace; after it, with the submitter's lock free
+    and the scheduler showing NO job of that exact name, the hold is released (a job that appears later refuses at its
+    own start: its owner record is gone)."""
+    root = subm
+
+    def sbatch_then_die(argv, capture_output=True, text=True):
+        if os.path.basename(argv[0]) == "sbatch":
+            raise Crash()                                     # the submitter dies while its sbatch child runs
+        return Sched()(argv, capture_output=capture_output, text=text)
+    with pytest.raises(Crash):
+        _submit(root, runner=sbatch_then_die)
+    od, intent = sub.find_intent(RUN, "FULL", str(root))
+    assert intent["state"] == "submitting" and intent["job_id"] is None and list(_held(root)) == [RUN]
+    with pytest.raises(sub.SubmitError, match=intent["job_name"]):
+        sub.abandon(RUN, "FULL", root=str(root), runner=Sched())         # inside the grace: refused
+    assert list(_held(root)) == [RUN] and os.path.isfile(os.path.join(od, "intent.json"))
+    monkeypatch.setattr(sub, "SUBMIT_GRACE_S", 0)
+    with pytest.raises(sub.SubmitError, match="not terminal"):          # the in-flight sbatch did produce a job
+        sub.abandon(RUN, "FULL", root=str(root), runner=Sched({intent["job_name"]: {"5150": "PENDING"}}))
+    assert list(_held(root)) == [RUN]
+    out = sub.abandon(RUN, "FULL", root=str(root), runner=Sched())        # after the grace, no job of that name
+    assert out["storage_released"] and _held(root) == {}
+
