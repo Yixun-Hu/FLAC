@@ -181,3 +181,33 @@
   - **F14.** The lock alone is enough, and the sheet says so: every SMOKE re-checks the one receipt by exact equality, whether the SMOKEs run together or one after another.
   - **F15.** Item 7 (the OrbitRIR protocol) is left out under the collector's table, which has no OrbitRIR row. The generator prints the block only while an exp_45 row is published, so the byte-identity tests are unchanged.
 - **Next** — Codex code round 2 of 3, then L1.
+
+## 2026-11-15T01:45:00-05:00 — coordinator: Codex code r2 (REVISE); triage for fix round 2
+- **Goal** — code review round 2 of at most 3 on the fix round `23110d74..a39ded1c`.
+- **Command / Validation**
+  - prompt `rf_data_curve_codex_code_r2_prompt.md` → review `rf_data_curve_codex_code_r2_review.md`;
+  - log `rf_data_curve_2026-11-15_00-58-34_codex_code_r2.log.gz` (addresses redacted).
+  - The coordinator first checked the fix round: 18 first-parent commits; the tracked tree is clean; the final log reads `936 passed, 6 skipped`, `EXIT 0`; the exp_38 folder is byte-equal to `3593f34c`.
+- **Result** — verdict **REVISE**.
+  - r1 F2, F3, F6, F8, F9, F10, F11, F15 and F16 are FIXED.
+  - F1, F4, F5, F7, F12, F13 and F14 are PARTIAL; each maps to a new r2 finding below.
+  - r2 has 14 findings: 6 HIGH, 6 MEDIUM, 2 NIT. In summary:
+    - (1) the L8 regeneration writes main's tracked `model_comparison.md`;
+    - (2) written-byte credit with hardlinks and truncation;
+    - (3) the bridge seal does not bind the compared stream bytes;
+    - (4) the bundle is hashed and compared from separate reads;
+    - (5) the marker is published before `seal()` when the fsync raises;
+    - (6) output-root aliases into exp_38;
+    - (7) a live `sbatch` child after the submitter is killed;
+    - (8) no release path for a stranded sealed hold;
+    - (9) materialisation can clobber a file;
+    - (10) the E0 publication rule admits 96 paths, not 24;
+    - (11) the hygiene scan rejects another SMOKE's temp file;
+    - (12) primary training accepts `--backend sdpa`, but plan F2 and L5 require `flash`;
+    - (13) bytecode is written into exp_38's folder;
+    - (14) no L1 comparator command in the sheet.
+  - The reviewer confirmed: no submission/ledger lock-order cycle; the closure additions cover the reused exp43 validator's reads; all ten fixture streams re-hash to their pins.
+- **Analysis — triage (coordinator)**
+  - All 14 go to fix round 2.
+  - Round 3 is the last review, so the brief asks for the simplest fail-closed fix each time: refuse rather than recover where the plan allows it.
+- **Next** — Coder fix round 2 → Codex code r3 (final) → L1.
