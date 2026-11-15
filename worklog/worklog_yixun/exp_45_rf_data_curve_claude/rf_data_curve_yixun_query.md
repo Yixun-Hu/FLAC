@@ -42,3 +42,54 @@ runs exp_45 itself; the A6000 session has no neuronic access and only supplies t
 **Assumption, and why:** the SOP still applies on neuronic (plan approved by Yixun before implementation,
 TDD, Opus 5.5 subagents for code, Codex ≤ 3 plan + 3 code rounds), because "直接让 … 跑" says who runs it,
 not that the SOP is waived.
+
+## Query 4 — 2026-11-14 ≈ 19:05–19:20 EST, in the neuronic coordinating session (logged by that session)
+
+Asked in the neuronic session, in this order (verbatim):
+
+> Panoformer-style的yaw-augmentation你现在可以从github remote上面看到吗？应该是exp_43
+
+> 你可以来跑一下Panoformer-style的yaw-augmentation的25%, 50%, 75% data的实验吗
+
+> "RF（全圆 roll + flip，即 exp_43 的 arm）"中的RF，全圆是什么意思？
+
+> Panoformer-style应该就是C4加上flip，对吧
+
+> 但是如果我们之前选的是C的话，或者说是RF的话，那其实就和我们最开始跑的yaw-augmentation的实验是一样的了？就是加了一个flip?
+
+> 2. panoformer原来为什么只是0°–90° 之间随机取一个角度？如果按照这个角度选择，放在我们orbitrir的故事里也是make sense的吗
+
+> 1. UniFuse论文是什么论文？ERP是什么意思？
+> 2. 我们现在是希望yaw-augmentation baseline弱一些，其实就是C4+flip或者是C4的yaw-augmentation就可以了，现在我们已经有C4或者是C4+flip的结果了嘛？
+
+> 只跑 C4
+
+> 另外25, 50, 75% data对应的实验应该都push上github了，你从remote能够看到： git fetch origin exp-45-rf-data-curve, then read worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_brief.md and rf_data_curve_yixun_query.md on that branch. Follow the SOP: write plan_rf_data_curve.md for exp_45 and bring it to me for approval before implementing anything. Also push the exp_38 results commit to origin/exp-38-data-efficiency (D7-A in the brief).
+
+(The last message also carried, pasted, the A6000 session's report of 19:13 EST: exp_43 Stage A result table, Stage B launch, the exp_45 brief.)
+
+**Summary.** Yixun first asked whether the neuronic session could run the PanoFormer-style fraction runs, then
+asked what "full circle" means, whether PanoFormer is C4 + flip (it is not: `randint(0, w//4)`, a random 0–90°
+roll, + flip p = ½), why PanoFormer uses 0–90° (neither PanoFormer's paper nor its code gives a reason; UniFuse's
+paper says only that ERP is invariant under yaw rotation), and whether a weaker C4 / C4 + flip baseline already
+exists (no: only YAW, C16, RF and, as evaluation only, YAW at C4 angles). He answered "只跑 C4" to "C4 or C4 +
+flip?", then sent the last message, which directs this session to the RF brief.
+
+**Read as:** the last message supersedes "只跑 C4": exp_45 is the RF fraction curve of the brief, decided as the
+brief records. No C4 training is planned; if a C4 data curve is still wanted it is a separate experiment
+(it would need a 100 % C4 run too — none exists). This reading is stated to Yixun with the plan.
+
+**Assumption, and why:** the SOP applies (plan → Codex plan review → Yixun's approval → implementation), as the
+message says. D7-A cannot be executed as worded: there is no exp_38 results commit (plan F10, §10); what to push is
+put to Yixun as decision N7 instead of being guessed.
+
+## Query 5 — 2026-11-14 ≈ 20:55 EST (answer to "按推荐批准 exp_45 plan 和 N1–N10 吗？", neuronic session)
+
+> 按推荐批准
+
+**Read as:** plan r3 (`plan_rf_data_curve.md`) APPROVED with N1–N10 as recommended (§11): merge + kit fork; three
+concurrent FULLs; `--logger none` + PL CSV; A6000 evaluation (tree 45) with the ten-cell RF-100 bridge; pushes of
+`exp-45-rf-data-curve` each on Yixun's go; D7-A = a records-only exp_38 commit now (no preliminary numbers), formal
+results after exp_38 step 4; the A6000 Claude session runs the A6000 / NAS steps; E0 before SMOKE; E0 cells exempt
+from waveform dumps. The original instruction "push the exp_38 results commit to origin/exp-38-data-efficiency" plus
+N7 is read as the go to push that records-only commit.
