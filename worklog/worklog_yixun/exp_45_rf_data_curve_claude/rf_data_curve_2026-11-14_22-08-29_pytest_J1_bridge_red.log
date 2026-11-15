@@ -1,0 +1,447 @@
+HEAD 06168509dd746a7ffb8ed48c80ef0f8cfafd1b1a tracked-clean=no host neu316.neuronic.cs.princeton.edu start 2026-11-14T22:08:40-05:00
+cmd: pytest -q src/tests/test_exp45_eval.py -k bridge\ or\ dispatcher 
+FFFFFFFFFFFFFEEEEEEEEEEEE                                                [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_the_bridge_seals_equal_cells_and_records_the_bundle_hashes _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_bridge_seals_equal_ce0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3393a07520>
+
+    @pytest.fixture
+    def bridge_world(world, monkeypatch):
+>       monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+E       AttributeError: <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'> has no attribute 'BRIDGE_RESULT'
+
+src/tests/test_exp45_eval.py:1140: AttributeError
+_ ERROR at setup of test_every_bridge_integrity_failure_refuses[ref ckpt sha] __
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_bridge_integrity_fa0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f339388e350>
+
+    @pytest.fixture
+    def bridge_world(world, monkeypatch):
+>       monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+E       AttributeError: <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'> has no attribute 'BRIDGE_RESULT'
+
+src/tests/test_exp45_eval.py:1140: AttributeError
+_ ERROR at setup of test_every_bridge_integrity_failure_refuses[ref ckpt bytes] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_bridge_integrity_fa1'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f339388cd60>
+
+    @pytest.fixture
+    def bridge_world(world, monkeypatch):
+>       monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+E       AttributeError: <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'> has no attribute 'BRIDGE_RESULT'
+
+src/tests/test_exp45_eval.py:1140: AttributeError
+_ ERROR at setup of test_every_bridge_integrity_failure_refuses[ref input hash] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_bridge_integrity_fa2'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3393a06080>
+
+    @pytest.fixture
+    def bridge_world(world, monkeypatch):
+>       monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+E       AttributeError: <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'> has no attribute 'BRIDGE_RESULT'
+
+src/tests/test_exp45_eval.py:1140: AttributeError
+_ ERROR at setup of test_every_bridge_integrity_failure_refuses[ref assignment hash] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_bridge_integrity_fa3'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f347d6d0700>
+
+    @pytest.fixture
+    def bridge_world(world, monkeypatch):
+>       monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+E       AttributeError: <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'> has no attribute 'BRIDGE_RESULT'
+
+src/tests/test_exp45_eval.py:1140: AttributeError
+___ ERROR at setup of test_every_bridge_integrity_failure_refuses[ref count] ___
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_bridge_integrity_fa4'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f339388e170>
+
+    @pytest.fixture
+    def bridge_world(world, monkeypatch):
+>       monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+E       AttributeError: <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'> has no attribute 'BRIDGE_RESULT'
+
+src/tests/test_exp45_eval.py:1140: AttributeError
+_ ERROR at setup of test_every_bridge_integrity_failure_refuses[ref eval name] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_bridge_integrity_fa5'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f339388e440>
+
+    @pytest.fixture
+    def bridge_world(world, monkeypatch):
+>       monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+E       AttributeError: <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'> has no attribute 'BRIDGE_RESULT'
+
+src/tests/test_exp45_eval.py:1140: AttributeError
+___ ERROR at setup of test_every_bridge_integrity_failure_refuses[ref seed] ____
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_bridge_integrity_fa6'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f339388c8b0>
+
+    @pytest.fixture
+    def bridge_world(world, monkeypatch):
+>       monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+E       AttributeError: <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'> has no attribute 'BRIDGE_RESULT'
+
+src/tests/test_exp45_eval.py:1140: AttributeError
+___ ERROR at setup of test_every_bridge_integrity_failure_refuses[ref cond] ____
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_bridge_integrity_fa7'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f339388f040>
+
+    @pytest.fixture
+    def bridge_world(world, monkeypatch):
+>       monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+E       AttributeError: <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'> has no attribute 'BRIDGE_RESULT'
+
+src/tests/test_exp45_eval.py:1140: AttributeError
+_ ERROR at setup of test_every_bridge_integrity_failure_refuses[stream offsets] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_bridge_integrity_fa8'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f339388e8f0>
+
+    @pytest.fixture
+    def bridge_world(world, monkeypatch):
+>       monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+E       AttributeError: <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'> has no attribute 'BRIDGE_RESULT'
+
+src/tests/test_exp45_eval.py:1140: AttributeError
+_ ERROR at setup of test_every_bridge_integrity_failure_refuses[ref metric nan] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_bridge_integrity_fa9'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3393a06080>
+
+    @pytest.fixture
+    def bridge_world(world, monkeypatch):
+>       monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+E       AttributeError: <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'> has no attribute 'BRIDGE_RESULT'
+
+src/tests/test_exp45_eval.py:1140: AttributeError
+___ ERROR at setup of test_an_unadmitted_bridge_cell_refuses_the_comparison ____
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_unadmitted_bridge_cell0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f339388dfc0>
+
+    @pytest.fixture
+    def bridge_world(world, monkeypatch):
+>       monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+E       AttributeError: <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'> has no attribute 'BRIDGE_RESULT'
+
+src/tests/test_exp45_eval.py:1140: AttributeError
+=================================== FAILURES ===================================
+_________________ test_the_bridge_descriptor_and_its_ten_cells _________________
+
+    def test_the_bridge_descriptor_and_its_ten_cells():
+>       d = ev.RF100_BRIDGE
+E       AttributeError: module 'exp45_eval' has no attribute 'RF100_BRIDGE'
+
+src/tests/test_exp45_eval.py:1000: AttributeError
+______________________ test_cmd_run_accepts_bridge_names _______________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3393a05e40>
+
+    def test_cmd_run_accepts_bridge_names(monkeypatch):
+        monkeypatch.setattr(ev, "campaign_gates", lambda: (_ for _ in ()).throw(ev.EvalError("gates reached")))
+>       with pytest.raises(ev.EvalError, match="gates reached"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'gates reached'
+E         Actual message: "unknown cells ['exp45_RF100bridge_K8_s42']"
+
+src/tests/test_exp45_eval.py:1021: AssertionError
+_________ test_one_checkpoint_dispatcher_for_run_one_and_validate_cell _________
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_one_checkpoint_dispatcher0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f347dde3c10>
+
+    def test_one_checkpoint_dispatcher_for_run_one_and_validate_cell(world, monkeypatch):
+>       b = ev.bridge_cells()[0]
+E       AttributeError: module 'exp45_eval' has no attribute 'bridge_cells'
+
+src/tests/test_exp45_eval.py:1030: AttributeError
+__________ test_validate_cell_admits_a_bridge_cell_online_and_offline __________
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_admits_a_br0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+
+    def test_validate_cell_admits_a_bridge_cell_online_and_offline(world):
+>       cell = _bridge_cell(world)
+
+src/tests/test_exp45_eval.py:1050: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_admits_a_br0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+K = 8, seed = 42, dump = True
+
+    def _bridge_cell(world, K=8, seed=42, dump=True):
+>       cell = [c for c in ev.bridge_cells() if c["K"] == K and c["seed"] == seed][0]
+E       AttributeError: module 'exp45_eval' has no attribute 'bridge_cells'
+
+src/tests/test_exp45_eval.py:1045: AttributeError
+___ test_validate_cell_refuses_each_bridge_receipt_mutation[source-<lambda>] ___
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'source', fn = <function <lambda> at 0x7f347d330b80>
+
+    @pytest.mark.parametrize("name,fn", [
+        ("source", lambda r: r.update(checkpoint_source="exp45_training")),
+        ("descriptor", lambda r: r.update(bridge_descriptor_sha256="0" * 64)),
+        ("no source", lambda r: r.pop("checkpoint_source")), ("no descriptor", lambda r: r.pop("bridge_descriptor_sha256")),
+        ("training receipt", lambda r: r.update(training_receipt_sha256="0" * 64)),
+        ("ckpt sha", lambda r: r.update(ckpt_sha256="0" * 64)), ("ckpt bytes", lambda r: r.update(ckpt_bytes=1)),
+    ])
+    def test_validate_cell_refuses_each_bridge_receipt_mutation(world, name, fn):
+>       cell = _bridge_cell(world)
+
+src/tests/test_exp45_eval.py:1065: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+K = 8, seed = 42, dump = True
+
+    def _bridge_cell(world, K=8, seed=42, dump=True):
+>       cell = [c for c in ev.bridge_cells() if c["K"] == K and c["seed"] == seed][0]
+E       AttributeError: module 'exp45_eval' has no attribute 'bridge_cells'
+
+src/tests/test_exp45_eval.py:1045: AttributeError
+_ test_validate_cell_refuses_each_bridge_receipt_mutation[descriptor-<lambda>] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac1'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'descriptor', fn = <function <lambda> at 0x7f347d330c10>
+
+    @pytest.mark.parametrize("name,fn", [
+        ("source", lambda r: r.update(checkpoint_source="exp45_training")),
+        ("descriptor", lambda r: r.update(bridge_descriptor_sha256="0" * 64)),
+        ("no source", lambda r: r.pop("checkpoint_source")), ("no descriptor", lambda r: r.pop("bridge_descriptor_sha256")),
+        ("training receipt", lambda r: r.update(training_receipt_sha256="0" * 64)),
+        ("ckpt sha", lambda r: r.update(ckpt_sha256="0" * 64)), ("ckpt bytes", lambda r: r.update(ckpt_bytes=1)),
+    ])
+    def test_validate_cell_refuses_each_bridge_receipt_mutation(world, name, fn):
+>       cell = _bridge_cell(world)
+
+src/tests/test_exp45_eval.py:1065: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac1'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+K = 8, seed = 42, dump = True
+
+    def _bridge_cell(world, K=8, seed=42, dump=True):
+>       cell = [c for c in ev.bridge_cells() if c["K"] == K and c["seed"] == seed][0]
+E       AttributeError: module 'exp45_eval' has no attribute 'bridge_cells'
+
+src/tests/test_exp45_eval.py:1045: AttributeError
+_ test_validate_cell_refuses_each_bridge_receipt_mutation[no source-<lambda>] __
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac2'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'no source', fn = <function <lambda> at 0x7f347d330ca0>
+
+    @pytest.mark.parametrize("name,fn", [
+        ("source", lambda r: r.update(checkpoint_source="exp45_training")),
+        ("descriptor", lambda r: r.update(bridge_descriptor_sha256="0" * 64)),
+        ("no source", lambda r: r.pop("checkpoint_source")), ("no descriptor", lambda r: r.pop("bridge_descriptor_sha256")),
+        ("training receipt", lambda r: r.update(training_receipt_sha256="0" * 64)),
+        ("ckpt sha", lambda r: r.update(ckpt_sha256="0" * 64)), ("ckpt bytes", lambda r: r.update(ckpt_bytes=1)),
+    ])
+    def test_validate_cell_refuses_each_bridge_receipt_mutation(world, name, fn):
+>       cell = _bridge_cell(world)
+
+src/tests/test_exp45_eval.py:1065: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac2'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+K = 8, seed = 42, dump = True
+
+    def _bridge_cell(world, K=8, seed=42, dump=True):
+>       cell = [c for c in ev.bridge_cells() if c["K"] == K and c["seed"] == seed][0]
+E       AttributeError: module 'exp45_eval' has no attribute 'bridge_cells'
+
+src/tests/test_exp45_eval.py:1045: AttributeError
+_ test_validate_cell_refuses_each_bridge_receipt_mutation[no descriptor-<lambda>] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac3'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'no descriptor', fn = <function <lambda> at 0x7f347d330d30>
+
+    @pytest.mark.parametrize("name,fn", [
+        ("source", lambda r: r.update(checkpoint_source="exp45_training")),
+        ("descriptor", lambda r: r.update(bridge_descriptor_sha256="0" * 64)),
+        ("no source", lambda r: r.pop("checkpoint_source")), ("no descriptor", lambda r: r.pop("bridge_descriptor_sha256")),
+        ("training receipt", lambda r: r.update(training_receipt_sha256="0" * 64)),
+        ("ckpt sha", lambda r: r.update(ckpt_sha256="0" * 64)), ("ckpt bytes", lambda r: r.update(ckpt_bytes=1)),
+    ])
+    def test_validate_cell_refuses_each_bridge_receipt_mutation(world, name, fn):
+>       cell = _bridge_cell(world)
+
+src/tests/test_exp45_eval.py:1065: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac3'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+K = 8, seed = 42, dump = True
+
+    def _bridge_cell(world, K=8, seed=42, dump=True):
+>       cell = [c for c in ev.bridge_cells() if c["K"] == K and c["seed"] == seed][0]
+E       AttributeError: module 'exp45_eval' has no attribute 'bridge_cells'
+
+src/tests/test_exp45_eval.py:1045: AttributeError
+_ test_validate_cell_refuses_each_bridge_receipt_mutation[training receipt-<lambda>] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac4'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'training receipt', fn = <function <lambda> at 0x7f347d330dc0>
+
+    @pytest.mark.parametrize("name,fn", [
+        ("source", lambda r: r.update(checkpoint_source="exp45_training")),
+        ("descriptor", lambda r: r.update(bridge_descriptor_sha256="0" * 64)),
+        ("no source", lambda r: r.pop("checkpoint_source")), ("no descriptor", lambda r: r.pop("bridge_descriptor_sha256")),
+        ("training receipt", lambda r: r.update(training_receipt_sha256="0" * 64)),
+        ("ckpt sha", lambda r: r.update(ckpt_sha256="0" * 64)), ("ckpt bytes", lambda r: r.update(ckpt_bytes=1)),
+    ])
+    def test_validate_cell_refuses_each_bridge_receipt_mutation(world, name, fn):
+>       cell = _bridge_cell(world)
+
+src/tests/test_exp45_eval.py:1065: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac4'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+K = 8, seed = 42, dump = True
+
+    def _bridge_cell(world, K=8, seed=42, dump=True):
+>       cell = [c for c in ev.bridge_cells() if c["K"] == K and c["seed"] == seed][0]
+E       AttributeError: module 'exp45_eval' has no attribute 'bridge_cells'
+
+src/tests/test_exp45_eval.py:1045: AttributeError
+__ test_validate_cell_refuses_each_bridge_receipt_mutation[ckpt sha-<lambda>] __
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac5'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'ckpt sha', fn = <function <lambda> at 0x7f347d330e50>
+
+    @pytest.mark.parametrize("name,fn", [
+        ("source", lambda r: r.update(checkpoint_source="exp45_training")),
+        ("descriptor", lambda r: r.update(bridge_descriptor_sha256="0" * 64)),
+        ("no source", lambda r: r.pop("checkpoint_source")), ("no descriptor", lambda r: r.pop("bridge_descriptor_sha256")),
+        ("training receipt", lambda r: r.update(training_receipt_sha256="0" * 64)),
+        ("ckpt sha", lambda r: r.update(ckpt_sha256="0" * 64)), ("ckpt bytes", lambda r: r.update(ckpt_bytes=1)),
+    ])
+    def test_validate_cell_refuses_each_bridge_receipt_mutation(world, name, fn):
+>       cell = _bridge_cell(world)
+
+src/tests/test_exp45_eval.py:1065: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac5'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+K = 8, seed = 42, dump = True
+
+    def _bridge_cell(world, K=8, seed=42, dump=True):
+>       cell = [c for c in ev.bridge_cells() if c["K"] == K and c["seed"] == seed][0]
+E       AttributeError: module 'exp45_eval' has no attribute 'bridge_cells'
+
+src/tests/test_exp45_eval.py:1045: AttributeError
+_ test_validate_cell_refuses_each_bridge_receipt_mutation[ckpt bytes-<lambda>] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac6'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'ckpt bytes', fn = <function <lambda> at 0x7f347d330ee0>
+
+    @pytest.mark.parametrize("name,fn", [
+        ("source", lambda r: r.update(checkpoint_source="exp45_training")),
+        ("descriptor", lambda r: r.update(bridge_descriptor_sha256="0" * 64)),
+        ("no source", lambda r: r.pop("checkpoint_source")), ("no descriptor", lambda r: r.pop("bridge_descriptor_sha256")),
+        ("training receipt", lambda r: r.update(training_receipt_sha256="0" * 64)),
+        ("ckpt sha", lambda r: r.update(ckpt_sha256="0" * 64)), ("ckpt bytes", lambda r: r.update(ckpt_bytes=1)),
+    ])
+    def test_validate_cell_refuses_each_bridge_receipt_mutation(world, name, fn):
+>       cell = _bridge_cell(world)
+
+src/tests/test_exp45_eval.py:1065: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_eac6'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+K = 8, seed = 42, dump = True
+
+    def _bridge_cell(world, K=8, seed=42, dump=True):
+>       cell = [c for c in ev.bridge_cells() if c["K"] == K and c["seed"] == seed][0]
+E       AttributeError: module 'exp45_eval' has no attribute 'bridge_cells'
+
+src/tests/test_exp45_eval.py:1045: AttributeError
+____________ test_a_run_cell_receipt_may_not_carry_the_bridge_keys _____________
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_run_cell_receipt_may_no0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+
+    def test_a_run_cell_receipt_may_not_carry_the_bridge_keys(world):
+        cell = _cell(world)
+>       _mut(cell["receipt"], lambda r: r.update(checkpoint_source="exp43_external", bridge_descriptor_sha256=ev.BRIDGE_DESCRIPTOR_SHA256))
+
+src/tests/test_exp45_eval.py:1072: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_eval.py:292: in _mut
+    fn(rec)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+r = {'schema': 1, 'cell': 'exp45_RFf025_l40_2x32_K8_s43', 'argv': ['--model-config', 'worklog/worklog_yixun/exp_43_std_aug...g', 'src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json', '--cond-method', 'vanilla', ...], 'rc': 0, ...}
+
+>   _mut(cell["receipt"], lambda r: r.update(checkpoint_source="exp43_external", bridge_descriptor_sha256=ev.BRIDGE_DESCRIPTOR_SHA256))
+E   AttributeError: module 'exp45_eval' has no attribute 'BRIDGE_DESCRIPTOR_SHA256'
+
+src/tests/test_exp45_eval.py:1072: AttributeError
+________ test_prepare_bridge_verifies_sha_bytes_and_the_embedded_config ________
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_prepare_bridge_verifies_s0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3393a049d0>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_prepare_bridge_verifies_s0')
+
+    def test_prepare_bridge_verifies_sha_bytes_and_the_embedded_config(world, monkeypatch, tmp_path):
+        import io
+        import torch
+        cfg = json.load(open(os.path.join(REPO, ev.reg.ARMS["rf"]["config"])))
+        path = tmp_path / "epoch=8-step=40000.ckpt"
+    
+        def save(model_config):
+            buf = io.BytesIO()
+            torch.save({"model_config": model_config, "state_dict": {}}, buf)
+            path.write_bytes(buf.getvalue())
+            monkeypatch.setitem(ev.RF100_BRIDGE, "sha256", hashlib.sha256(buf.getvalue()).hexdigest())
+            monkeypatch.setitem(ev.RF100_BRIDGE, "bytes", len(buf.getvalue()))
+>       save(cfg)
+
+src/tests/test_exp45_eval.py:1091: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_config = {'model_type': 'diffusion_cond', 'sample_size': 10240, 'sample_rate': 22050, 'audio_channels': 1, ...}
+
+    def save(model_config):
+        buf = io.BytesIO()
+        torch.save({"model_config": model_config, "state_dict": {}}, buf)
+        path.write_bytes(buf.getvalue())
+>       monkeypatch.setitem(ev.RF100_BRIDGE, "sha256", hashlib.sha256(buf.getvalue()).hexdigest())
+E       AttributeError: module 'exp45_eval' has no attribute 'RF100_BRIDGE'
+
+src/tests/test_exp45_eval.py:1089: AttributeError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_eval.py::test_the_bridge_descriptor_and_its_ten_cells
+FAILED src/tests/test_exp45_eval.py::test_cmd_run_accepts_bridge_names - Asse...
+FAILED src/tests/test_exp45_eval.py::test_one_checkpoint_dispatcher_for_run_one_and_validate_cell
+FAILED src/tests/test_exp45_eval.py::test_validate_cell_admits_a_bridge_cell_online_and_offline
+FAILED src/tests/test_exp45_eval.py::test_validate_cell_refuses_each_bridge_receipt_mutation[source-<lambda>]
+FAILED src/tests/test_exp45_eval.py::test_validate_cell_refuses_each_bridge_receipt_mutation[descriptor-<lambda>]
+FAILED src/tests/test_exp45_eval.py::test_validate_cell_refuses_each_bridge_receipt_mutation[no source-<lambda>]
+FAILED src/tests/test_exp45_eval.py::test_validate_cell_refuses_each_bridge_receipt_mutation[no descriptor-<lambda>]
+FAILED src/tests/test_exp45_eval.py::test_validate_cell_refuses_each_bridge_receipt_mutation[training receipt-<lambda>]
+FAILED src/tests/test_exp45_eval.py::test_validate_cell_refuses_each_bridge_receipt_mutation[ckpt sha-<lambda>]
+FAILED src/tests/test_exp45_eval.py::test_validate_cell_refuses_each_bridge_receipt_mutation[ckpt bytes-<lambda>]
+FAILED src/tests/test_exp45_eval.py::test_a_run_cell_receipt_may_not_carry_the_bridge_keys
+FAILED src/tests/test_exp45_eval.py::test_prepare_bridge_verifies_sha_bytes_and_the_embedded_config
+ERROR src/tests/test_exp45_eval.py::test_the_bridge_seals_equal_cells_and_records_the_bundle_hashes
+ERROR src/tests/test_exp45_eval.py::test_every_bridge_integrity_failure_refuses[ref ckpt sha]
+ERROR src/tests/test_exp45_eval.py::test_every_bridge_integrity_failure_refuses[ref ckpt bytes]
+ERROR src/tests/test_exp45_eval.py::test_every_bridge_integrity_failure_refuses[ref input hash]
+ERROR src/tests/test_exp45_eval.py::test_every_bridge_integrity_failure_refuses[ref assignment hash]
+ERROR src/tests/test_exp45_eval.py::test_every_bridge_integrity_failure_refuses[ref count]
+ERROR src/tests/test_exp45_eval.py::test_every_bridge_integrity_failure_refuses[ref eval name]
+ERROR src/tests/test_exp45_eval.py::test_every_bridge_integrity_failure_refuses[ref seed]
+ERROR src/tests/test_exp45_eval.py::test_every_bridge_integrity_failure_refuses[ref cond]
+ERROR src/tests/test_exp45_eval.py::test_every_bridge_integrity_failure_refuses[stream offsets]
+ERROR src/tests/test_exp45_eval.py::test_every_bridge_integrity_failure_refuses[ref metric nan]
+ERROR src/tests/test_exp45_eval.py::test_an_unadmitted_bridge_cell_refuses_the_comparison
+13 failed, 186 deselected, 12 errors in 5.76s
+EXIT 1 end 2026-11-14T22:08:47-05:00

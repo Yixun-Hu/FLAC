@@ -1,0 +1,34 @@
+HEAD 06168509dd746a7ffb8ed48c80ef0f8cfafd1b1a tracked-clean=no host neu316.neuronic.cs.princeton.edu start 2026-11-14T22:09:40-05:00
+cmd: pytest -q src/tests/test_exp45_eval.py 
+F....................................................................... [ 34%]
+........................................................................ [ 68%]
+........s..........................................................      [100%]
+=================================== FAILURES ===================================
+__________ test_plan_has_8_e0_and_30_result_cells_with_unique_outputs __________
+
+    def test_plan_has_8_e0_and_30_result_cells_with_unique_outputs():
+        cells = ev.all_cells()                      # E0 + the three RF runs (no P1 bridge run in exp_45)
+>       assert ev.reg.TRAINING_PLATFORM == "neuronic" and len(cells) == 38
+E       AssertionError: assert ('neuronic' == 'neuronic'
+E         
+E           neuronic and 48 == 38)
+E        +  where 48 = len([{'name': 'de_E0a_K8_s42', 'run': 'E0a', 'K': 8, 'seed': 42, ...}, {'name': 'de_E0a_K1_s42', 'run': 'E0a', 'K': 1, 'se...K8_s42', 'run': 'E0c', 'K': 8, 'seed': 42, ...}, {'name': 'de_E0c_K1_s42', 'run': 'E0c', 'K': 1, 'seed': 42, ...}, ...])
+
+src/tests/test_exp45_eval.py:51: AssertionError
+=============================== warnings summary ===============================
+src/tests/test_exp45_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp45_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp45_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_eval.py::test_plan_has_8_e0_and_30_result_cells_with_unique_outputs
+1 failed, 209 passed, 1 skipped, 3 warnings in 29.69s
+EXIT 1 end 2026-11-14T22:10:11-05:00

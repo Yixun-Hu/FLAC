@@ -39,15 +39,19 @@ import exp45_collect as col  # noqa: E402  (one module graph: col.ev is ev, col.
 import exp45_eval as ev  # noqa: E402
 
 
+RF025 = "exp45_RFf025_l40_2x32"
+
+
 def _opt(argv, flag):
     return argv[argv.index(flag) + 1]
 
 
-def test_plan_has_8_e0_and_30_result_cells_with_unique_outputs():
-    cells = ev.all_cells()                      # E0 + the three RF runs (no P1 bridge run in exp_45)
-    assert ev.reg.TRAINING_PLATFORM == "neuronic" and len(cells) == 38
-    assert len({c["name"] for c in cells}) == 38 and len({c["metrics"] for c in cells}) == 38
-    assert sum(c["e0"] is not None for c in cells) == 8 and {c["run"] for c in cells if not c["e0"]} == set(ev.reg.campaign_runs())
+def test_plan_has_8_e0_30_result_and_10_bridge_cells_with_unique_outputs():
+    cells = ev.all_cells()                      # E0 + the three RF runs + the RF-100 bridge (no P1 bridge run)
+    assert ev.reg.TRAINING_PLATFORM == "neuronic" and len(cells) == 48
+    assert len({c["name"] for c in cells}) == 48 and len({c["metrics"] for c in cells}) == 48
+    assert sum(c["e0"] is not None for c in cells) == 8 and sum(bool(c["bridge"]) for c in cells) == 10
+    assert {c["run"] for c in cells if not c["e0"]} == set(ev.reg.campaign_runs()) | {ev.BRIDGE_RUN}
     assert all(c["dump"] == (c["e0"] is None) for c in cells)
 
 
@@ -990,3 +994,225 @@ def test_d2_neuronic_campaign_runs_and_admission(world, monkeypatch):
                              e0_path=world["campaign"]["e0_receipt"], platform="a6000")
     with pytest.raises(ev.EvalError, match="D2"):
         ev.prepare("exp45_RFf050_l40_2x32")                                        # trained on the wrong platform
+
+
+# ------------------------------------------------------------------ the RF-100 bridge (plan r3 §3.2, N5)
+def test_the_bridge_descriptor_and_its_ten_cells():
+    d = ev.RF100_BRIDGE
+    assert d["checkpoint"] == "/media/diskstation/yixunhu/FLAC/checkpoints/exp43_std_aug/exp43_RF_a6000_2x32/epoch=8-step=40000.ckpt"
+    assert (d["sha256"], d["bytes"], d["model_config_sha256"]) == (
+        "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6", 723922731,
+        "d6a02ddebdc37c3844038898cc4888b4562e1d9d6669dd52ef021e221ac5086d")
+    assert ev.reg.sha256_file(os.path.join(REPO, ev.reg.ARMS["rf"]["config"])) == d["model_config_sha256"]
+    cells = ev.bridge_cells()
+    assert [c["name"] for c in cells] == list(d["cells"]) and len(cells) == 10
+    assert set(d["cells"].values()) == {f"exp43_RF_T_S40000_K{K}_s{s}" for K in (8, 1) for s in ev.SEEDS}
+    assert all(c["bridge"] and c["dump"] and c["e0"] is None and c["config"] == ev.reg.ARMS["rf"]["config"]
+               and c["cond"] == "vanilla" for c in cells)
+    names = [c["name"] for c in ev.all_cells()]
+    assert len(names) == len(set(names)) == 48 and set(d["cells"]) <= set(names)
+    run = [c for c in ev.run_cells(RF025) if c["K"] == 8 and c["seed"] == 42][0]
+    a, b = ev.eval_argv(cells[0]), ev.eval_argv(run)                     # a run cell's argv but name + checkpoint
+    assert len(a) == len(b) and [x for x, y in zip(a, b) if x != y] == [cells[0]["name"], cells[0]["ckpt_link"]]
+    assert ev.BRIDGE_DESCRIPTOR_SHA256 == hashlib.sha256(ev.reg.canonical(d).encode()).hexdigest()
+
+
+def test_cmd_run_accepts_bridge_names(monkeypatch):
+    monkeypatch.setattr(ev, "campaign_gates", lambda: (_ for _ in ()).throw(ev.EvalError("gates reached")))
+    with pytest.raises(ev.EvalError, match="gates reached"):
+        ev.cmd_run(0, ["exp45_RF100bridge_K8_s42", RF025 + "_K8_s42"])     # bridge + run cells: one kind
+    with pytest.raises(ev.EvalError, match="unknown cells"):
+        ev.cmd_run(0, ["exp45_RF100bridge_K8_s47"])
+    with pytest.raises(ev.EvalError, match="separate calls"):
+        ev.cmd_run(0, ["exp45_RF100bridge_K8_s42", "de_E0a_K8_s42"])
+
+
+def test_one_checkpoint_dispatcher_for_run_one_and_validate_cell(world, monkeypatch):
+    b = ev.bridge_cells()[0]
+    want = (ev.RF100_BRIDGE["sha256"], ev.RF100_BRIDGE["bytes"], None)
+    assert ev.cell_checkpoint(b, world["campaign"]) == want
+    seen = []
+    monkeypatch.setattr(ev, "expected_ckpt", lambda cell, campaign, offline=False: seen.append((cell["name"], offline)) or ("s", 1, "t"))
+    c = ev.run_cells(RF025)[0]
+    assert ev.cell_checkpoint(c, world["campaign"], True) == ("s", 1, "t") and seen == [(c["name"], True)]
+    assert ev.cell_checkpoint(b, world["campaign"], True) == want and len(seen) == 1
+    import inspect
+    for fn in (ev.run_one, ev.validate_cell):                           # both go through the dispatcher only
+        src = inspect.getsource(fn)
+        assert "cell_checkpoint(cell, campaign" in src and "expected_ckpt(" not in src
+
+
+def _bridge_cell(world, K=8, seed=42, dump=True):
+    cell = [c for c in ev.bridge_cells() if c["K"] == K and c["seed"] == seed][0]
+    return fx.make_cell(ev, cell, world["campaign"], ev.bridge_checkpoint(), str(world["tmp"] / "logs"), dump=dump)
+
+
+def test_validate_cell_admits_a_bridge_cell_online_and_offline(world):
+    cell = _bridge_cell(world)
+    assert ev.validate_cell(cell) == [] and ev.validate_cell(cell, offline=True) == []
+    rec = json.load(open(cell["receipt"]))
+    assert (rec["checkpoint_source"], rec["bridge_descriptor_sha256"], rec["training_receipt_sha256"]) == \
+        ("exp43_external", ev.BRIDGE_DESCRIPTOR_SHA256, None)
+
+
+@pytest.mark.parametrize("name,fn", [
+    ("source", lambda r: r.update(checkpoint_source="exp45_training")),
+    ("descriptor", lambda r: r.update(bridge_descriptor_sha256="0" * 64)),
+    ("no source", lambda r: r.pop("checkpoint_source")), ("no descriptor", lambda r: r.pop("bridge_descriptor_sha256")),
+    ("training receipt", lambda r: r.update(training_receipt_sha256="0" * 64)),
+    ("ckpt sha", lambda r: r.update(ckpt_sha256="0" * 64)), ("ckpt bytes", lambda r: r.update(ckpt_bytes=1)),
+])
+def test_validate_cell_refuses_each_bridge_receipt_mutation(world, name, fn):
+    cell = _bridge_cell(world)
+    _mut(cell["receipt"], fn)
+    assert ev.validate_cell(cell) != [] and ev.validate_cell(cell, offline=True) != []
+
+
+def test_a_run_cell_receipt_may_not_carry_the_bridge_keys(world):
+    cell = _cell(world)
+    _mut(cell["receipt"], lambda r: r.update(checkpoint_source="exp43_external", bridge_descriptor_sha256=ev.BRIDGE_DESCRIPTOR_SHA256))
+    assert any("receipt schema" in p for p in ev.validate_cell(cell))
+    b = _bridge_cell(world, seed=43)
+    _mut(b["metrics"], lambda r: r.update(ckpt_sha256_loaded="1" * 64))                # not the descriptor's checkpoint
+    assert any("ckpt sha" in p for p in ev.validate_cell(b))
+
+
+def test_prepare_bridge_verifies_sha_bytes_and_the_embedded_config(world, monkeypatch, tmp_path):
+    import io
+    import torch
+    cfg = json.load(open(os.path.join(REPO, ev.reg.ARMS["rf"]["config"])))
+    path = tmp_path / "epoch=8-step=40000.ckpt"
+
+    def save(model_config):
+        buf = io.BytesIO()
+        torch.save({"model_config": model_config, "state_dict": {}}, buf)
+        path.write_bytes(buf.getvalue())
+        monkeypatch.setitem(ev.RF100_BRIDGE, "sha256", hashlib.sha256(buf.getvalue()).hexdigest())
+        monkeypatch.setitem(ev.RF100_BRIDGE, "bytes", len(buf.getvalue()))
+    save(cfg)
+    out = ev._prepare_bridge(str(path), torch, io)
+    link = ev.bridge_cells()[0]["ckpt_link"]
+    assert out["sha256"] == ev.RF100_BRIDGE["sha256"] and os.readlink(link) == str(path)
+    os.remove(link)
+    other = json.loads(json.dumps(cfg))
+    other["training"]["yaw_aug"]["flip"] = False                                    # exp_15's YAW config
+    save(other)
+    with pytest.raises(ev.EvalError, match="embedded model config"):
+        ev._prepare_bridge(str(path), torch, io)
+    save(cfg)
+    monkeypatch.setitem(ev.RF100_BRIDGE, "bytes", ev.RF100_BRIDGE["bytes"] + 1)
+    with pytest.raises(ev.EvalError, match="sha256 / bytes"):
+        ev._prepare_bridge(str(path), torch, io)
+    save(cfg)
+    monkeypatch.setitem(ev.RF100_BRIDGE, "sha256", "0" * 64)
+    with pytest.raises(ev.EvalError, match="sha256 / bytes"):
+        ev._prepare_bridge(str(path), torch, io)
+    save(cfg)
+    monkeypatch.setitem(ev.RF100_BRIDGE, "model_config_sha256", "0" * 64)
+    with pytest.raises(ev.EvalError, match="model config"):
+        ev._prepare_bridge(str(path), torch, io)
+    assert not os.path.lexists(link)
+
+
+def _bundle(world, mutate=None, admission=None):
+    """Our ten admitted bridge cells + exp_43's reference bundle (references = our values with exp_43's metadata)."""
+    b = world["tmp"] / "bundle"
+    (b / "cells").mkdir(parents=True)
+    (b / "admission").mkdir()
+    for c in ev.bridge_cells():
+        cell = _bridge_cell(world, c["K"], c["seed"])
+        stem = ev.bridge_ref_stem(ev.RF100_BRIDGE["cells"][c["name"]])
+        m, s = json.load(open(cell["metrics"])), json.load(open(cell["stream"]))
+        m.update(eval_name=ev.RF100_BRIDGE["cells"][c["name"]], ckpt_path="/home/yixunhu/x/farm/RF/epoch=8-step=40000.ckpt",
+                 source_sha="5f5b493a8ac1" + "0" * 28)                             # metadata only: not compared
+        if mutate:
+            mutate(c, m, s)
+        json.dump(m, open(b / "cells" / f"{stem}.json", "w"))
+        json.dump(s, open(b / "cells" / f"{stem}.stream.json", "w"))
+    json.dump(admission if admission is not None else {"run": "exp43_RF_a6000_2x32", "final_ckpt_sha256": ev.RF100_BRIDGE["sha256"]},
+              open(b / "admission" / "exp43_training_admission.json", "w"))
+    rels = sorted(os.path.relpath(os.path.join(d, f), b) for d, _, fs in os.walk(b) for f in fs)
+    (b / ev.BRIDGE_MANIFEST).write_text("".join(f"{ev.reg.sha256_file(str(b / r))}  {r}\n" for r in rels))
+    return b
+
+
+@pytest.fixture
+def bridge_world(world, monkeypatch):
+    monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+    return world
+
+
+def test_the_bridge_seals_equal_cells_and_records_the_bundle_hashes(bridge_world):
+    b = _bundle(bridge_world)
+    rec = ev.cmd_bridge(str(b))
+    assert rec["verdict"] == "equal" and sorted(rec["cells"]) == sorted(ev.RF100_BRIDGE["cells"])
+    assert all(v["verdict"] == "equal" and v["differences"] == {} for v in rec["cells"].values())
+    assert len(rec["bundle_files"]) == 21 and rec["admission_record"] == "admission/exp43_training_admission.json"
+    assert rec["bundle_manifest_sha256"] == ev.reg.sha256_file(str(b / ev.BRIDGE_MANIFEST))
+    sealed, _ = ev.reg.read_sealed(ev.BRIDGE_RESULT, ev.BRIDGE_KEYS)
+    assert sealed == json.loads(json.dumps(rec)) and sealed["descriptor_sha256"] == ev.BRIDGE_DESCRIPTOR_SHA256
+    with pytest.raises(ev.reg.GateError):
+        ev.cmd_bridge(str(b))                                                      # sealed once
+
+
+def test_a_numeric_difference_is_an_evaluator_discrepancy_not_a_failure(bridge_world):
+    def bump(c, m, s):
+        if c["name"] == "exp45_RF100bridge_K1_s44":
+            m["metrics"]["T60"] += 1e-6
+            m["by_scene"]["Cafe"]["EDT"] += 1e-6
+    rec = ev.cmd_bridge(str(_bundle(bridge_world, bump)))
+    assert rec["verdict"] == "evaluator discrepancy"
+    bad = rec["cells"]["exp45_RF100bridge_K1_s44"]
+    assert bad["verdict"] == "evaluator discrepancy" and sorted(bad["differences"]) == ["by_scene.Cafe.EDT", "metrics.T60"]
+    assert [k for k, v in rec["cells"].items() if v["verdict"] != "equal"] == ["exp45_RF100bridge_K1_s44"]
+
+
+@pytest.mark.parametrize("name", ["ref ckpt sha", "ref ckpt bytes", "ref input hash", "ref assignment hash", "ref count",
+                                  "ref eval name", "ref seed", "ref cond", "stream offsets", "ref metric nan"])
+def test_every_bridge_integrity_failure_refuses(bridge_world, name):
+    target = "exp45_RF100bridge_K8_s45"
+
+    def mutate(c, m, s):
+        if c["name"] != target:
+            return
+        {"ref ckpt sha": lambda: m.update(ckpt_sha256_loaded="0" * 64), "ref ckpt bytes": lambda: m.update(ckpt_bytes_loaded=1),
+         "ref input hash": lambda: s.update(input_hash="0" * 64), "ref assignment hash": lambda: s.update(assignment_hash="0" * 64),
+         "ref count": lambda: s.update(stream_count=6336), "ref eval name": lambda: m.update(eval_name="exp43_RF_T_S40000_K8_s46"),
+         "ref seed": lambda: m.update(seed=46), "ref cond": lambda: m.update(cond_method="fa_invariant"),
+         "stream offsets": lambda: s.update(offsets=[1]), "ref metric nan": lambda: m["metrics"].update(C50=float("nan")),
+         }[name]()
+    with pytest.raises(ev.EvalError, match="bridge integrity"):
+        ev.cmd_bridge(str(_bundle(bridge_world, mutate)))
+    assert not os.path.exists(ev.BRIDGE_RESULT)
+
+
+def test_the_bundle_itself_is_integrity_checked(bridge_world):
+    b = _bundle(bridge_world)
+    f = b / "cells" / (ev.bridge_ref_stem("exp43_RF_T_S40000_K8_s42") + ".json")
+    good = f.read_bytes()
+    f.write_bytes(good + b" ")
+    with pytest.raises(ev.EvalError, match="manifest sha256"):
+        ev.cmd_bridge(str(b))
+    f.write_bytes(good)
+    (b / "cells" / "extra.json").write_text("{}")
+    with pytest.raises(ev.EvalError, match="unmanifested"):
+        ev.cmd_bridge(str(b))
+    os.remove(b / "cells" / "extra.json")
+    man = (b / ev.BRIDGE_MANIFEST).read_text().split("\n")
+    (b / ev.BRIDGE_MANIFEST).write_text("\n".join(ln for ln in man if "K1_s46.stream" not in ln))
+    with pytest.raises(ev.EvalError, match="20 reference cell files"):
+        ev.cmd_bridge(str(b))
+    assert not os.path.exists(ev.BRIDGE_RESULT)
+
+
+def test_the_admission_record_must_name_the_checkpoint(bridge_world):
+    with pytest.raises(ev.EvalError, match="admission record"):
+        ev.cmd_bridge(str(_bundle(bridge_world, admission={"run": "exp43_RF_a6000_2x32", "final_ckpt_sha256": "0" * 64})))
+
+
+def test_an_unadmitted_bridge_cell_refuses_the_comparison(bridge_world):
+    b = _bundle(bridge_world)
+    c = ev.bridge_cells()[3]
+    _mut(c["receipt"], lambda r: r.update(checkpoint_source="exp45_training"))
+    with pytest.raises(ev.EvalError, match="bridge integrity"):
+        ev.cmd_bridge(str(b))

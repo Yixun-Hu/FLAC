@@ -2,7 +2,7 @@
 """exp_45 evaluation driver for THIS 2×A6000 box (forked from exp_38's exp38_eval.py;
 plan_rf_data_curve.md r3 §3.2; exp_38: plan_data_efficiency.md r2 §9, §10 B8).
 
-    exp45_eval.py plan                            the 30 RF result cells and the 8 E0 cells, full argv
+    exp45_eval.py plan                            the 8 E0, 30 RF result and 10 RF-100 bridge cells, full argv
     exp38_eval.py env-receipt --write | --check   the campaign environment receipt (registry)
     exp38_eval.py prepare <run>                   admit a run's final checkpoint + create its farm link
     exp38_eval.py prepare-e0                      verify + link the four E0 reference checkpoints
@@ -10,6 +10,8 @@ plan_rf_data_curve.md r3 §3.2; exp_38: plan_data_efficiency.md r2 §9, §10 B8)
     exp38_eval.py e0                              E0 verdict -> the sealed data_efficiency_e0_receipt.json
     exp38_eval.py e0-check                        validate the sealed E0 receipt against this tree
     exp38_eval.py validate [--offline] <name>...  admission check of finished cells
+    exp45_eval.py prepare-bridge                  verify + link the RF-100 checkpoint (RF100_BRIDGE)
+    exp45_eval.py bridge --bundle <dir>           compare the 10 bridge cells with exp_43's reference bundle
 
 Every cell runs ``eval_FLAC.py`` through the reviewed exp_35 no-flash launcher (SDPA, the backend of
 every reference cell) with the reference cells' exact argv shape (incl. ``--num-workers 4``).
@@ -123,11 +125,11 @@ def method_suffix(cond):
     return "" if cond == "vanilla" else "_fa_invariant_a4"
 
 
-def make_cell(name, run, K, seed, ckpt_link, config, cond, dump, e0=None):
+def make_cell(name, run, K, seed, ckpt_link, config, cond, dump, e0=None, bridge=False):
     stem = f"{os.path.basename(ckpt_link)[:-5]}_metrics_1_1.0_{name}{method_suffix(cond)}"
     d = os.path.dirname(ckpt_link)
     return {"name": name, "run": run, "K": K, "seed": seed, "ckpt_link": ckpt_link, "config": config,
-            "cond": cond, "dump": dump, "e0": e0, "stem": stem,
+            "cond": cond, "dump": dump, "e0": e0, "bridge": bridge, "stem": stem,
             "metrics": os.path.join(d, stem + ".json"), "stream": os.path.join(d, stem + ".stream.json"),
             "receipt": os.path.join(d, stem + ".receipt.json"),
             "dump_dir": os.path.join(DUMP_ROOT, stem) if dump else None}
@@ -151,9 +153,33 @@ def e0_cells():
     return out
 
 
+# ---------------------------------------------------------------- the RF-100 bridge (plan r3 §3.2, N5)
+# A separate registered descriptor (Codex plan r1 finding 7, r2 finding 3): exp_43's RF 100 % checkpoint, evaluated
+# here with a run cell's argv. exp_43's admission record and its ten reference cells are NOT constants: they are a
+# runtime input (the bridge reference bundle, a directory + its manifest) whose file hashes the sealed bridge result
+# records.
+BRIDGE_RUN = "exp45_RF100bridge"
+RF100_BRIDGE = {
+    "checkpoint": f"{NAS_CKPT_ROOT}/exp43_std_aug/exp43_RF_a6000_2x32/epoch=8-step=40000.ckpt",
+    "sha256": "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6",
+    "bytes": 723922731,
+    "model_config_sha256": "d6a02ddebdc37c3844038898cc4888b4562e1d9d6669dd52ef021e221ac5086d",
+    # bridge cell -> exp_43's reference cell (exp43_cells.json naming, brief §5)
+    "cells": {f"{BRIDGE_RUN}_K{K}_s{s}": f"exp43_RF_T_S40000_K{K}_s{s}" for K in (8, 1) for s in SEEDS},
+}
+BRIDGE_DESCRIPTOR_SHA256 = hashlib.sha256(reg.canonical(RF100_BRIDGE).encode()).hexdigest()
+BRIDGE_RECEIPT_KEYS = frozenset({"checkpoint_source", "bridge_descriptor_sha256"})   # + the result-cell receipt keys
+
+
+def bridge_cells():
+    link = f"{FARM}/RF100bridge/{os.path.basename(RF100_BRIDGE['checkpoint'])}"
+    return [make_cell(f"{BRIDGE_RUN}_K{K}_s{s}", BRIDGE_RUN, K, s, link, reg.ARMS["rf"]["config"],
+                      reg.ARMS["rf"]["cond_method"], dump=True, bridge=True) for K in (8, 1) for s in SEEDS]
+
+
 def all_cells(bridge=None):
-    """E0 + the three RF runs' cells."""
-    return e0_cells() + [c for r in reg.campaign_runs() for c in run_cells(r)]
+    """E0 + the three RF runs' cells + the ten RF-100 bridge cells."""
+    return e0_cells() + [c for r in reg.campaign_runs() for c in run_cells(r)] + bridge_cells()
 
 
 def eval_argv(cell):
@@ -508,6 +534,19 @@ def expected_ckpt(cell, campaign, offline=False):
     return rec["final_ckpt_sha256"], rec["final_ckpt_bytes"], digest
 
 
+def bridge_checkpoint():
+    """(sha256, bytes, None) of the bridge checkpoint: the registered descriptor (no exp_45 training receipt)."""
+    return RF100_BRIDGE["sha256"], RF100_BRIDGE["bytes"], None
+
+
+def cell_checkpoint(cell, campaign, offline=False):
+    """THE checkpoint-identity dispatcher of run_one() and validate_cell() (Codex plan r2 finding 3): bridge cells ->
+    the RF100_BRIDGE descriptor; run and E0 cells -> the unchanged expected_ckpt()."""
+    if cell.get("bridge"):
+        return bridge_checkpoint()
+    return expected_ckpt(cell, campaign, offline)
+
+
 def dump_manifest_copy(cell):
     return _abs(cell["metrics"])[:-len(".json")] + ".dump_manifest.json"
 
@@ -575,7 +614,7 @@ def validate_cell(cell, campaign=None, offline=False):
         if strict_equal(rec.get(k), v):
             p.append(f"{k} {rec.get(k)!r} != {v!r}")
     try:
-        ck_sha, ck_bytes, tr_sha = expected_ckpt(cell, campaign, offline)
+        ck_sha, ck_bytes, tr_sha = cell_checkpoint(cell, campaign, offline)
         if rec["ckpt_sha256_loaded"] != ck_sha or rec["ckpt_bytes_loaded"] != ck_bytes or type(rec["ckpt_bytes_loaded"]) is not int:
             p.append("ckpt sha / bytes loaded != the admitted checkpoint")
     except (OSError, EvalError, reg.GateError) as err:
@@ -588,9 +627,10 @@ def validate_cell(cell, campaign=None, offline=False):
         p.append(f"stream assignment_hash {stream.get('assignment_hash') if isinstance(stream, dict) else stream!r} "
                  f"!= the pinned {ASSIGNMENT_HASH[(cell['K'], cell['seed'])][:12]}")
     links = {"metrics_sha256": reg.sha256_file(_abs(cell["metrics"])), "stream_sha256": reg.sha256_file(_abs(cell["stream"]))}
-    if not isinstance(receipt, dict) or set(receipt) != RECEIPT_KEYS:
+    keys = RECEIPT_KEYS | (BRIDGE_RECEIPT_KEYS if cell.get("bridge") else frozenset())
+    if not isinstance(receipt, dict) or set(receipt) != keys:
         got = set(receipt) if isinstance(receipt, dict) else set()
-        p.append(f"receipt schema (missing {sorted(RECEIPT_KEYS - got)}, extra {sorted(got - RECEIPT_KEYS)})")
+        p.append(f"receipt schema (missing {sorted(keys - got)}, extra {sorted(got - keys)})")
         return [f"{cell['name']}: {x}" for x in p]
     gpu = receipt["gpu"]
     if not offline:                  # the dependencies as they are NOW (Codex code r2 HIGH 5)
@@ -609,6 +649,8 @@ def validate_cell(cell, campaign=None, offline=False):
               "agree_sha256": reg.AGREE_SHA256, "vae_ckpt_sha256": reg.VAE_CKPT_SHA256, "vit_rev": reg.VIT_REV,
               "eval_snapshot_sha256": campaign.get("eval_snapshot_sha256"),
               "ckpt_sha256": ck_sha, "ckpt_bytes": ck_bytes, "training_receipt_sha256": tr_sha, **links}
+    if cell.get("bridge"):
+        want_r.update(checkpoint_source="exp43_external", bridge_descriptor_sha256=BRIDGE_DESCRIPTOR_SHA256)
     for k, v in want_r.items():
         if strict_equal(receipt[k], v):
             p.append(f"receipt {k} {str(receipt[k])[:80]!r} != {str(v)[:80]!r}")
@@ -849,7 +891,7 @@ def run_one(cell, gpu, campaign, lock_fds=()):
             raise EvalError(f"{cell['name']}: a partial {k} exists ({cell[k]}); archive it first")
     if cell["dump"] and os.path.lexists(cell["dump_dir"]):
         raise EvalError(f"{cell['name']}: dump dir {cell['dump_dir']} exists; archive it first")
-    ck_sha, ck_bytes, tr_sha = expected_ckpt(cell, campaign)
+    ck_sha, ck_bytes, tr_sha = cell_checkpoint(cell, campaign)
     snap, snap_sha = eval_snapshot(campaign["closure_sha256"])
     if snap_sha != campaign["eval_snapshot_sha256"]:
         raise EvalError("the evaluation snapshot is not the campaign's")
@@ -886,6 +928,8 @@ def run_one(cell, gpu, campaign, lock_fds=()):
                "dump_manifest_sha256": None, "ckpt_sha256": ck_sha, "ckpt_bytes": ck_bytes,
                "training_receipt_sha256": tr_sha, "started_at": started,
                "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+    if cell.get("bridge"):
+        receipt.update(checkpoint_source="exp43_external", bridge_descriptor_sha256=BRIDGE_DESCRIPTOR_SHA256)
     if cell["dump"] and exists(os.path.join(cell["dump_dir"], "manifest.json")):
         _copy_once(os.path.join(cell["dump_dir"], "manifest.json"), dump_manifest_copy(cell))
         receipt["dump_manifest_sha256"] = reg.sha256_file(dump_manifest_copy(cell))
@@ -984,6 +1028,146 @@ def cmd_e0():
     return rec
 
 
+def prepare_bridge():
+    """Verify the RF-100 checkpoint against RF100_BRIDGE -- one read: sha256 + bytes, and the EMBEDDED model config ==
+    the RF config file (sha256 d6a02dde...) -- and link it into the farm (plan r3 §3.2, N5)."""
+    import io
+    import torch
+    campaign_gates()
+    validate_e0_receipt()
+    return _prepare_bridge(RF100_BRIDGE["checkpoint"], torch, io)
+
+
+def _prepare_bridge(path, torch, io):
+    data = open(path, "rb").read()
+    if hashlib.sha256(data).hexdigest() != RF100_BRIDGE["sha256"] or len(data) != RF100_BRIDGE["bytes"]:
+        raise EvalError(f"{path}: sha256 / bytes != RF100_BRIDGE {RF100_BRIDGE['sha256'][:12]} / {RF100_BRIDGE['bytes']}")
+    cfg_rel = reg.ARMS["rf"]["config"]
+    if reg.sha256_file(_abs(cfg_rel)) != RF100_BRIDGE["model_config_sha256"]:
+        raise EvalError(f"{cfg_rel} is not the bridge's model config {RF100_BRIDGE['model_config_sha256'][:12]}")
+    ck = torch.load(io.BytesIO(data), map_location="cpu", weights_only=False)
+    if not isinstance(ck, dict) or reg.canonical(ck.get("model_config")) != reg.canonical(json.load(open(_abs(cfg_rel)))):
+        raise EvalError(f"{path}: the embedded model config is not {cfg_rel}")
+    _link(bridge_cells()[0]["ckpt_link"], path)
+    return {"bridge_checkpoint": path, "sha256": RF100_BRIDGE["sha256"], "bytes": len(data),
+            "descriptor_sha256": BRIDGE_DESCRIPTOR_SHA256}
+
+
+BRIDGE_MANIFEST = "BRIDGE_MANIFEST.sha256"
+BRIDGE_RESULT = f"{EXP}/rf_data_curve_bridge.json"
+BRIDGE_KEYS = frozenset({"schema", "descriptor", "descriptor_sha256", "bundle", "bundle_manifest_sha256",
+                         "bundle_files", "admission_record", "campaign", "cells", "verdict", "written_at"})
+
+
+def bridge_ref_stem(ref_cell):
+    return f"{os.path.basename(RF100_BRIDGE['checkpoint'])[:-5]}_metrics_1_1.0_{ref_cell}"
+
+
+def load_bridge_bundle(bundle):
+    """({rel: sha256}, manifest sha256) of the bridge reference bundle: exactly ONE exp_43 admission record
+    admission/<name>.json and, per exp_43 reference cell, cells/<stem>.json + cells/<stem>.stream.json -- every file
+    listed once in BRIDGE_MANIFEST.sha256, matching its sha256, and nothing else on disk (integrity: refuses)."""
+    man = os.path.join(bundle, BRIDGE_MANIFEST)
+    try:
+        lines = [ln for ln in open(man).read().split("\n") if ln]
+    except OSError as err:
+        raise EvalError(f"bridge bundle manifest {man}: {err}")
+    pairs = [ln.split("  ", 1) for ln in lines]
+    files = {rel: d for d, rel in pairs if len(d) == 64}
+    want = {f"cells/{bridge_ref_stem(r)}{ext}" for r in RF100_BRIDGE["cells"].values() for ext in (".json", ".stream.json")}
+    adm = [r for r in files if r.startswith("admission/") and r.endswith(".json") and r.count("/") == 1]
+    if len(files) != len(pairs) or len(adm) != 1 or set(files) != want | set(adm):
+        raise EvalError(f"bridge bundle: {len(pairs)} manifest lines; need exactly the 20 reference cell files + one "
+                        f"admission/<name>.json (missing {sorted(want - set(files))[:3]}, extra "
+                        f"{sorted(set(files) - want - set(adm))[:3]}, admission {adm})")
+    on_disk = sorted(os.path.relpath(os.path.join(d, f), bundle) for d, _, fs in os.walk(bundle) for f in fs)
+    if on_disk != sorted(set(files) | {BRIDGE_MANIFEST}):
+        raise EvalError(f"bridge bundle holds unmanifested files {sorted(set(on_disk) - set(files) - {BRIDGE_MANIFEST})[:3]}")
+    for rel, d in files.items():
+        if reg.sha256_file(os.path.join(bundle, rel)) != d:
+            raise EvalError(f"bridge bundle {rel} != its manifest sha256")
+    return files, reg.sha256_file(man), adm[0]
+
+
+def bridge_reference_problems(cell, ref, stream):
+    """Integrity (pins, counts, hashes) of one exp_43 reference cell -- a failure, never a discrepancy."""
+    p = []
+    if not isinstance(ref, dict) or not isinstance(stream, dict):
+        return ["reference metrics / stream not JSON objects"]
+    p += metric_block_problems(ref.get("metrics"), "reference metrics")
+    want = {"eval_name": RF100_BRIDGE["cells"][cell["name"]], "seed": cell["seed"], "dataset_config": EVAL_CONFIGS[cell["K"]],
+            "cond_method": "vanilla", "rotate_deg": 0.0, "steps": 1, "cfg_scale": 1.0, "n_samples": 6337,
+            "weights_source": "ema", "ckpt_sha256_loaded": RF100_BRIDGE["sha256"], "ckpt_bytes_loaded": RF100_BRIDGE["bytes"]}
+    p += [f"reference {k} {ref.get(k)!r} != {v!r}" for k, v in want.items() if strict_equal(ref.get(k), v)]
+    pins = {"stream_count": 6337, "input_hash": INPUT_HASH[(cell["K"], cell["seed"])],
+            "assignment_hash": ASSIGNMENT_HASH[(cell["K"], cell["seed"])]}
+    p += [f"reference stream {k} {stream.get(k)!r} != the pin" for k, v in pins.items() if stream.get(k) != v]
+    return p
+
+
+STREAM_ITEMS = ("input_tuples", "offsets", "assignment_tuples")
+
+
+def compare_bridge_cell(ours, our_stream, ref, ref_stream):
+    """(integrity problems, metric differences) on the registered projection: every metric key (metrics + by_scene),
+    the per-item stream values, the input / assignment hashes and the count; eval-name / path / timestamp fields are
+    not compared. A stream difference is an integrity failure; a metric difference is an evaluator discrepancy."""
+    integrity = [f"stream {k} differs from the reference" for k in STREAM_ITEMS + ("input_hash", "assignment_hash",
+                                                                                 "stream_count")
+                 if strict_equal(our_stream.get(k), ref_stream.get(k)) is not None]
+    diffs = {f"metrics.{k}": v for k, v in metric_diff(ours.get("metrics"), ref.get("metrics")).items()}
+    for sc in sorted(set(ours.get("by_scene") or {}) | set(ref.get("by_scene") or {})):
+        a, b = (ours.get("by_scene") or {}).get(sc), (ref.get("by_scene") or {}).get(sc)
+        if not (isinstance(a, dict) and isinstance(b, dict)):
+            if strict_equal(a, b) is not None:
+                diffs[f"by_scene.{sc}"] = (a, b)
+            continue
+        diffs.update({f"by_scene.{sc}.{k}": v for k, v in metric_diff(a, b).items()})
+    return integrity, diffs
+
+
+def cmd_bridge(bundle):
+    """Compare the ten admitted bridge cells with exp_43's reference bundle and seal rf_data_curve_bridge.json:
+    an integrity failure (bundle hash / set, pin, count, an unadmitted cell) refuses; a numeric difference is reported
+    per cell as an "evaluator discrepancy" until explained (plan r3 §3.2, N5)."""
+    campaign = validate_e0_receipt()
+    files, man_sha, adm = load_bridge_bundle(bundle)
+    try:
+        record = json.load(open(os.path.join(bundle, adm)))
+    except ValueError as err:
+        raise EvalError(f"bridge bundle {adm}: not JSON ({err})")
+    if not isinstance(record, dict) or RF100_BRIDGE["sha256"] not in reg.canonical(record):
+        raise EvalError(f"bridge bundle {adm}: the exp_43 admission record does not name the checkpoint "
+                        f"{RF100_BRIDGE['sha256'][:12]}")
+    cells, integrity = {}, []
+    for c in bridge_cells():
+        probs = validate_cell(c, campaign)
+        stem = bridge_ref_stem(RF100_BRIDGE["cells"][c["name"]])
+        ref = json.load(open(os.path.join(bundle, "cells", stem + ".json")))
+        ref_stream = json.load(open(os.path.join(bundle, "cells", stem + ".stream.json")))
+        probs += bridge_reference_problems(c, ref, ref_stream)
+        if probs:
+            integrity += probs
+            continue
+        ours, our_stream = json.load(open(_abs(c["metrics"]))), json.load(open(_abs(c["stream"])))
+        bad, diffs = compare_bridge_cell(ours, our_stream, ref, ref_stream)
+        integrity += [f"{c['name']}: {x}" for x in bad]
+        cells[c["name"]] = {"reference_cell": RF100_BRIDGE["cells"][c["name"]],
+                            "verdict": "equal" if not diffs else "evaluator discrepancy",
+                            "differences": {k: {"ours": a, "reference": b} for k, (a, b) in sorted(diffs.items())},
+                            "metrics_sha256": reg.sha256_file(_abs(c["metrics"])),
+                            "reference_metrics_sha256": files[f"cells/{stem}.json"]}
+    if integrity:
+        raise EvalError("bridge integrity: " + "; ".join(integrity[:6]))
+    rec = {"schema": 1, "descriptor": RF100_BRIDGE, "descriptor_sha256": BRIDGE_DESCRIPTOR_SHA256,
+           "bundle": os.path.realpath(bundle), "bundle_manifest_sha256": man_sha, "bundle_files": files,
+           "admission_record": adm, "campaign": {k: campaign[k] for k in ("head", "closure_sha256", "sha256")},
+           "cells": cells, "verdict": "equal" if all(v["verdict"] == "equal" for v in cells.values())
+           else "evaluator discrepancy", "written_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+    reg.write_sealed(_abs(BRIDGE_RESULT), rec)
+    return rec
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -992,6 +1176,8 @@ def main(argv=None):
     g.add_argument("--write", action="store_true"); g.add_argument("--check", action="store_true")
     s = sub.add_parser("prepare"); s.add_argument("run")
     sub.add_parser("prepare-e0")
+    sub.add_parser("prepare-bridge")
+    s = sub.add_parser("bridge"); s.add_argument("--bundle", required=True)
     s = sub.add_parser("run"); s.add_argument("--gpu", type=int, required=True, choices=(0, 1))
     s.add_argument("--cells", nargs="+", required=True); s.add_argument("--shared", action="store_true")
     sub.add_parser("e0")
@@ -1010,6 +1196,11 @@ def main(argv=None):
             print(json.dumps(prepare(a.run)))
         elif a.cmd == "prepare-e0":
             print(json.dumps(prepare_e0()))
+        elif a.cmd == "prepare-bridge":
+            print(json.dumps(prepare_bridge()))
+        elif a.cmd == "bridge":
+            rec = cmd_bridge(a.bundle)
+            print(f"BRIDGE {rec['verdict']}: " + ", ".join(f"{k} {v['verdict']}" for k, v in sorted(rec["cells"].items())))
         elif a.cmd == "run":
             cmd_run(a.gpu, a.cells, a.shared)
         elif a.cmd == "e0":

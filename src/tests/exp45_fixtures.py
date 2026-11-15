@@ -352,5 +352,7 @@ def make_cell(ev, cell, campaign, ckpt, log_dir, dump=True, metrics=None, by_sce
                "metrics_sha256": msha, "stream_sha256": ssha, "dump_manifest_sha256": man_sha,
                "ckpt_sha256": ckpt[0], "ckpt_bytes": ckpt[1], "training_receipt_sha256": ckpt[2],
                "started_at": "2026-11-09T05:00:00-0500", "finished_at": "2026-11-09T05:30:00-0500"}
+    if cell.get("bridge"):                                       # exp_45: an RF-100 bridge cell's receipt
+        receipt.update(checkpoint_source="exp43_external", bridge_descriptor_sha256=ev.BRIDGE_DESCRIPTOR_SHA256)
     json.dump(receipt, open(ev._abs(cell["receipt"]), "w"))
     return cell
