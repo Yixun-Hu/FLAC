@@ -768,6 +768,64 @@ def test_collect_refuses_any_missing_or_unadmitted_cell(world, monkeypatch, tmp_
         col.collect()
 
 
+def _publication(tmp_path):
+    """A published results bundle in a fresh root: the JSON + Markdown (exp45_collect.publish) whose manifest names a
+    few evidence files, and the generator_static() files -- each at its relative path."""
+    root = tmp_path / "published"
+    (root / col.reg.EXP_DIR).mkdir(parents=True)
+    ev_files = {f"{ev.FARM}/E0a/x_metrics.json": b"e0 cell", f"{ev.FARM}/exp45_RFf025_l40_2x32/y.stream.json": b"stream",
+                f"{col.reg.EXP_DIR}/rf_data_curve_bridge.json": b"bridge"}
+    for rel, data in list(ev_files.items()) + [(rel, b"static " + rel.encode()) for rel in col.generator_static()]:
+        os.makedirs(root / os.path.dirname(rel), exist_ok=True)
+        (root / rel).write_bytes(data)
+    manifest = {"artifacts": {rel: hashlib.sha256(d).hexdigest() for rel, d in list(ev_files.items())[:1]},
+                "runs": {"exp45_RFf025_l40_2x32": {rel: hashlib.sha256(d).hexdigest() for rel, d in list(ev_files.items())[1:]}}}
+    col.publish(_rows(), [], manifest, repo=str(root))
+    return root, ev_files
+
+
+def test_verify_and_materialise_carry_a_publication_to_another_root_sha256_verified(tmp_path):
+    """Codex code r1 finding 12: ``verify`` re-hashes every file the results JSON names (and the Markdown names the
+    JSON's sha256); ``materialise`` copies the publication + generator_static() byte for byte to another root,
+    identical-or-absent, then verifies it there."""
+    root, ev_files = _publication(tmp_path)
+    got = col.verify(str(root))
+    assert set(got) == set(ev_files) | {col.OUT_JSON, col.OUT_MD}
+    dest = tmp_path / "generator_root"
+    dest.mkdir()
+    out = col.materialise(str(dest), root=str(root))
+    assert out["copied"] == len(ev_files) + 2 + len(col.generator_static()) and out["already_identical"] == 0
+    assert col.verify(str(dest)) == got
+    assert all((dest / rel).read_bytes() == (root / rel).read_bytes() for rel in col.generator_static())
+    assert col.materialise(str(dest), root=str(root))["already_identical"] == out["copied"]         # idempotent
+    victim = dest / list(ev_files)[1]
+    victim.write_bytes(b"other bytes")
+    with pytest.raises(ev.EvalError, match="other bytes"):
+        col.materialise(str(dest), root=str(root))                         # never overwritten
+    with pytest.raises(ev.EvalError, match="recorded sha256"):
+        col.verify(str(dest))
+    (root / list(ev_files)[0]).write_bytes(b"changed")
+    with pytest.raises(ev.EvalError, match="recorded sha256"):
+        col.verify(str(root))
+    md = root / col.OUT_MD
+    md.write_text(md.read_text().replace("results JSON sha256", "results JSON"))
+    with pytest.raises(ev.EvalError, match="does not name"):
+        col.verify(str(root))
+    with pytest.raises(ev.EvalError, match="no published"):
+        col.verify(str(tmp_path / "nothing_here"))
+
+
+def test_the_collector_cli_verifies_and_materialises(tmp_path, monkeypatch, capsys):
+    root, _ = _publication(tmp_path)
+    monkeypatch.chdir(os.getcwd())                               # main() chdirs to REPO: restored afterwards
+    monkeypatch.setattr(col.reg, "REPO", str(root))
+    assert col.main(["verify"]) == 0 and "verified" in capsys.readouterr().out
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    assert col.main(["materialise", "--dest", str(dest)]) == 0 and col.verify(str(dest))
+    assert col.main(["verify", "--root", str(tmp_path / "absent")]) == 2
+
+
 @pytest.mark.parametrize("what", ["waveforms", "checkpoint", "e0 log", "cell log"])
 def test_the_manifest_refuses_an_artifact_changed_after_admission(world, monkeypatch, what):
     """Codex code r3 HIGH 6: manifest hashes are CURRENT bytes, compared with what admission accepted."""

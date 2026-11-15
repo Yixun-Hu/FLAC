@@ -55,7 +55,16 @@ RUN=exp45_RFf025_l40_2x32       # then exp45_RFf050_l40_2x32, exp45_RFf075_l40_2
 python $E/exp45_eval.py prepare $RUN          # TRAINING_COMPLETE (incl. the loss record) at the E0 closure; farm copies
 python $E/exp45_eval.py run --gpu 0 --cells ${RUN}_K8_s42 ${RUN}_K8_s43 ${RUN}_K8_s44 ${RUN}_K8_s45 ${RUN}_K8_s46 &
 python $E/exp45_eval.py run --gpu 1 --cells ${RUN}_K1_s42 ${RUN}_K1_s43 ${RUN}_K1_s44 ${RUN}_K1_s45 ${RUN}_K1_s46; wait
-python $E/exp45_collect.py            # all 30 + 10 cells admitted OFFLINE, else it refuses (exit 2)
-#    then the exp_45 results commit from the publication worktree (force-added farm evidence under
-#    outputs_FLAC/exp45_rf_data_curve/eval/, subject "exp_45 results publication ..."), pushed on Yixun's go
+python $E/exp45_collect.py            # all 30 + 10 cells admitted OFFLINE + the sealed bridge comparison, else exit 2
+python $E/exp45_collect.py verify     # every file the results JSON names re-hashes (Codex code r1 finding 12)
+
+# 4. the exp_45 results commit R45 from the publication worktree (tree 45 stays at X): the results, the bridge
+#    comparison and every farm file the results JSON names, byte for byte at the same paths, verified there
+git -C ~/codespace/exp-45-publish pull --ff-only
+python $E/exp45_collect.py materialise --dest ~/codespace/exp-45-publish     # identical-or-absent copies, re-hashed
+cd ~/codespace/exp-45-publish
+python $E/exp45_collect.py verify     # the publication worktree: the same sha256 check before the commit
+git add -f $E/rf_data_curve_results.{json,md} $E/rf_data_curve_bridge.json{,.sha256} outputs_FLAC/exp45_rf_data_curve/eval
+git diff --cached --name-only        # the results, the bridge comparison and the farm evidence only
+git commit -m "exp_45 results publication: 30 RF cells + the RF-100 bridge"     # -> R45; pushed on Yixun's go
 ```

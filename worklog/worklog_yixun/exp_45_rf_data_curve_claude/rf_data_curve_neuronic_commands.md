@@ -76,13 +76,32 @@ test ! -e $DST/$RUN && rsync -a --partial --exclude .exp38_tools neuronic:$SRC/ 
   && mv $DST/$RUN.incoming $DST/$RUN
 #    training-check re-validates receipts/loss_record.csv against the training receipt's sha256 / rows
 
-# 5. (L8, neuronic part) after the exp_45 results commit is pushed: pull it, regenerate the shared table (#1); after
-#    exp_38 step 4's results bundle is pushed: import it (isolated offline adapter), materialise it, build, regen #2
-git -C /n/fs/gatrdp/codespace/exp-45-launch fetch origin exp-45-rf-data-curve      # (only once no job runs there)
+# 5. (L8, neuronic part; Codex code r1 finding 12) -- after the last exp_45 job ended. Two roots receive the published
+#    evidence, each sha256-verified: the BUILD checkout B = a fresh detached worktree of the pushed exp_45 results
+#    commit R45 (the launch checkout stays at Y), and the GENERATOR root G = the neuronic main checkout, where every
+#    older row resolves (plan N6; its checkout is never moved -- the evidence is copied in, identical-or-absent).
+G=/n/fs/gatrdp/codespace/FLAC
+R45=<the pushed exp_45 results commit, subject "exp_45 results publication ...", full 40-hex>
+git -C $G fetch origin exp-45-rf-data-curve exp-38-data-efficiency     # objects + remote refs only
+git -C $G merge-base --is-ancestor $Y $R45                              # the results build on the launch records Y
+git -C $G worktree add --detach /n/fs/gatrdp/codespace/exp-45-build $R45
+cd /n/fs/gatrdp/codespace/exp-45-build
+test "$(git rev-parse HEAD)" = "$R45" && test -z "$(git status --porcelain --untracked-files=no)"
+$PY $E/exp45_collect.py verify                      # B: the MD names the JSON's sha256; every manifest file re-hashes
+$PY $E/exp45_collect.py materialise --dest $G       # B -> G byte for byte (+ the kit / configs / refs the rows need)
+$PY $E/exp45_collect.py verify --root $G            # G: the same sha256 check on the copies
+# 5a. regeneration #1 (all six exp_45 rows must populate); the table is copied into B and committed + pushed from B
+#     on Yixun's go (N6)
+$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G
+cp $G/worklog/worklog_yixun/model_comparison.md worklog/worklog_yixun/model_comparison.md
+# 5b. after exp_38 step 4's results bundle is pushed on exp-38-data-efficiency (it descends from exp_38's pushed D7-A
+#     records commit e5a012fa): fetch it, import it (isolated offline adapter; every file sha256-hashed into the
+#     sealed import record and copied into G, re-hashed after the copy), build (re-extracts B38 and re-verifies the
+#     record against its blobs), regeneration #2 (all twelve exp_38 rows must populate), committed as in 5a
 B38=<the exp_38 results-bundle commit, full 40-hex>
-$PY $E/exp45_table.py import-exp38 --commit $B38 --generator-root /n/fs/gatrdp/codespace/FLAC
+git -C $G fetch origin exp-38-data-efficiency
+git -C $G merge-base --is-ancestor e5a012fa62705627104bcd9892643edab07aa1e7 $B38
+$PY $E/exp45_table.py import-exp38 --commit $B38 --generator-root $G
 $PY $E/exp45_table.py build --exp38-commit $B38
-#    regenerations (#1 when exp_45's 30 cells are published, #2 after the exp_38 import), each committed and pushed
-#    on Yixun's go (N6): all six exp_45 rows / all twelve exp_38 rows must populate
-$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root /n/fs/gatrdp/codespace/FLAC
+$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G
 ```

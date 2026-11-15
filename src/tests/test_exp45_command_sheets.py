@@ -20,7 +20,11 @@ SHEETS = {
         "python $E/exp45_eval.py e0 && python $E/exp45_eval.py e0-check",
         "git add -f $E/rf_data_curve_e0_receipt.json{,.sha256} outputs_FLAC/exp45_rf_data_curve/eval/E0{a,b,c,d}",
         "python $E/exp45_eval.py prepare-bridge", "python $E/exp45_eval.py run --gpu 1 --cells exp45_RF100bridge_K8_s42",
-        "python $E/exp45_eval.py bridge --bundle", "python $E/exp45_eval.py prepare $RUN", "python $E/exp45_collect.py"],
+        "python $E/exp45_eval.py bridge --bundle", "python $E/exp45_eval.py prepare $RUN", "python $E/exp45_collect.py",
+        # the exp_45 results commit: copied + verified into the publication worktree (Codex code r1 finding 12)
+        "python $E/exp45_collect.py verify", "git -C ~/codespace/exp-45-publish pull --ff-only",
+        "python $E/exp45_collect.py materialise --dest ~/codespace/exp-45-publish",
+        'git commit -m "exp_45 results publication: 30 RF cells + the RF-100 bridge"'],
     "rf_data_curve_neuronic_commands.md": [
         "git worktree add --detach /n/fs/gatrdp/codespace/exp-45-launch $Y",
         "$PY $E/exp45_registry.py e0-check --platform neuronic", "$PY $E/exp45_registry.py untracked --platform neuronic",
@@ -30,9 +34,18 @@ SHEETS = {
         "exp45_submit_neuronic.py submit --run $RUN --mode SMOKE", "exp45_submit_neuronic.py submit --run $RUN --mode FULL",
         "exp45_submit_neuronic.py reconcile", "exp45_submit_neuronic.py abandon",
         "training-check $RUN --run-dir $DST/$RUN.incoming --platform neuronic", "--closure", "--e0-sha",
-        "$PY $E/exp45_table.py import-exp38 --commit $B38 --generator-root /n/fs/gatrdp/codespace/FLAC",
+        # L8 (Codex code r1 finding 12): fetch both branches, the build checkout at R45, sha256-verify there, copy +
+        # verify into the generator root, fetch the exp_38 bundle descending from its pushed records commit e5a012fa
+        "G=/n/fs/gatrdp/codespace/FLAC", "git -C $G fetch origin exp-45-rf-data-curve exp-38-data-efficiency",
+        "git -C $G merge-base --is-ancestor $Y $R45",
+        "git -C $G worktree add --detach /n/fs/gatrdp/codespace/exp-45-build $R45",
+        'test "$(git rev-parse HEAD)" = "$R45"', "$PY $E/exp45_collect.py verify",
+        "$PY $E/exp45_collect.py materialise --dest $G", "$PY $E/exp45_collect.py verify --root $G",
+        "git -C $G fetch origin exp-38-data-efficiency",
+        "git -C $G merge-base --is-ancestor e5a012fa62705627104bcd9892643edab07aa1e7 $B38",
+        "$PY $E/exp45_table.py import-exp38 --commit $B38 --generator-root $G",
         "$PY $E/exp45_table.py build --exp38-commit $B38",
-        "$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root /n/fs/gatrdp/codespace/FLAC"],
+        "$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G"],
 }
 
 
@@ -50,6 +63,38 @@ def test_the_sheet_is_well_formed_and_current(name):
     assert not re.search(r"(^|\n)(MODE=|python \$E/|\$PY \$E/)", outside), "a command outside a code block"
     assert "--resume" not in text and "RESUME_STEP=" not in text
     assert "exp38_eval.py" not in joined and "exp38_submit_neuronic.py" not in joined   # the fork's own kit only
+
+
+def test_l8_makes_the_published_evidence_available_and_verified_before_any_use():
+    """Codex code r1 finding 12: on neuronic every consumer of the published evidence runs only after its root
+    received and verified it -- fetch -> build checkout at R45 -> verify -> copy into G -> verify G -> regen #1; the exp_38
+    bundle is fetched and checked to descend from exp_38's pushed records commit before it is imported; G is the plan
+    N6 main checkout and its checkout is never moved (no checkout / pull / merge / reset in G)."""
+    import subprocess
+    b = _blocks("rf_data_curve_neuronic_commands.md")
+    l8 = b[b.index("G=/n/fs/gatrdp/codespace/FLAC"):]
+    order = ["git -C $G fetch origin exp-45-rf-data-curve exp-38-data-efficiency", "git -C $G merge-base --is-ancestor $Y $R45",
+             "git -C $G worktree add --detach /n/fs/gatrdp/codespace/exp-45-build $R45", "$PY $E/exp45_collect.py verify\n",
+             "$PY $E/exp45_collect.py materialise --dest $G", "$PY $E/exp45_collect.py verify --root $G",
+             "$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G", "git -C $G fetch origin exp-38-data-efficiency",
+             "git -C $G merge-base --is-ancestor e5a012fa62705627104bcd9892643edab07aa1e7 $B38",
+             "$PY $E/exp45_table.py import-exp38 --commit $B38 --generator-root $G", "$PY $E/exp45_table.py build --exp38-commit $B38"]
+    pos = [l8.index(cmd) if not cmd.endswith("\n") else l8.index(cmd) for cmd in order]
+    assert pos == sorted(pos), [order[i] for i in range(len(pos)) if pos[i] != sorted(pos)[i]]
+    assert l8.rindex("gen_model_comparison.py --repo-root $G") > l8.index("exp45_table.py build")      # regen #2 last
+    for verb in ("checkout", "pull", "merge ", "reset", "switch", "stash"):
+        assert f"git -C $G {verb}" not in l8, verb
+    assert "/n/fs/gatrdp/codespace/FLAC" not in l8.replace("G=/n/fs/gatrdp/codespace/FLAC", "")      # only via $G
+    # e5a012fa is exp_38's pushed D7-A records commit and descends from the merged tip 3593f34c (EXP38_BASE)
+    git = lambda *a: subprocess.run(["git", "-C", REPO, *a], capture_output=True, text=True)       # noqa: E731
+    assert git("cat-file", "-t", "e5a012fa62705627104bcd9892643edab07aa1e7").stdout.strip() == "commit"
+    assert git("merge-base", "--is-ancestor", "3593f34cad4e6e4415a572e93d16ee83465f8ae8",
+               "e5a012fa62705627104bcd9892643edab07aa1e7").returncode == 0
+    a6 = _blocks("rf_data_curve_command.md")
+    seq = ["python $E/exp45_collect.py materialise --dest ~/codespace/exp-45-publish", "cd ~/codespace/exp-45-publish",
+           "python $E/exp45_collect.py verify     # the publication worktree", "git add -f $E/rf_data_curve_results.{json,md}",
+           'git commit -m "exp_45 results publication']
+    assert [a6.index(c) for c in seq] == sorted(a6.index(c) for c in seq)
 
 
 def _blocks(name):

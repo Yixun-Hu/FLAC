@@ -15,7 +15,18 @@ the Markdown and the JSON manifest, never turned into an equality. Publication (
 the JSON LAST (the commit point; the Markdown carries the JSON's sha256), each temp -> fsync -> rename, under the
 collector lock; the JSON carries {path: sha256} of every file the admission consumed.
 
-    python exp45_collect.py
+    python exp45_collect.py                                   # collect + publish (the default)
+    python exp45_collect.py verify [--root DIR]               # sha256-verify a published results bundle in DIR
+    python exp45_collect.py materialise --dest DIR            # byte-copy the verified publication into DIR
+
+``verify`` / ``materialise`` (Codex code r1 finding 12): the results JSON names every file its admission consumed
+with its sha256 and the Markdown names the JSON's sha256, so a checkout of the results commit, a publication
+worktree or the neuronic generator root is verified by re-hashing exactly those files. ``materialise`` copies them,
+plus what exp45_eval's offline admission reads besides the evidence (generator_static: the exp_45 kit's
+exp45_eval.py / exp45_registry.py, the RF + E0 configs, exp_38's E0a decision and reference cells), byte for byte to
+the same relative paths under DIR -- an existing file must already be identical, every copy is re-hashed -- and then
+verifies DIR. Run from the tree holding the publication (tree 45 -> the publication worktree on the A6000 box; the
+build checkout of the results commit -> the generator root on neuronic).
 
 Written by the exp_38 Coder (Claude Opus 5.5); exp_45 deltas by the exp_45 Coder (Claude Opus 5.5).
 """
@@ -181,11 +192,88 @@ def collect():
     return rows, [], manifest
 
 
+def generator_static():
+    """What exp45_eval's OFFLINE admission reads in another root besides the published evidence (the files a
+    generator root must hold for the shared table's exp_45 rows): the exp_45 kit's exp45_eval.py + exp45_registry.py,
+    the RF and E0 model configs, exp_38's E0a decision + sidecar and its reference manifest + cells."""
+    return (f"{reg.EXP_DIR}/exp45_eval.py", f"{reg.EXP_DIR}/exp45_registry.py", reg.ARMS["rf"]["config"],
+            *(v["config"] for v in reg.E0_CONFIGS.values()), reg.E0A_DECISION, reg.E0A_DECISION + ".sha256",
+            reg.REF_MANIFEST, *(f"{reg.REF_DIR}/{r}" for r in reg.ref_set()))
+
+
+def verify(root=None):
+    """sha256-verify the published exp_45 results in ``root`` (finding 12): the Markdown names the JSON's sha256 and
+    every file of the JSON's manifest (the E0 artifacts, every run's cells and farm records, the bridge comparison)
+    re-hashes to its recorded value. Returns {relative path: sha256} of every verified file, the JSON and Markdown
+    included; raises EvalError."""
+    root = os.path.realpath(root or reg.REPO)
+    try:
+        jtext = open(os.path.join(root, OUT_JSON), "rb").read()
+        md = open(os.path.join(root, OUT_MD)).read()
+        man = json.loads(jtext)["manifest"]
+        want = dict(man["artifacts"])
+        for files in man["runs"].values():
+            want.update(files)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as err:
+        raise ev.EvalError(f"no published exp_45 results in {root}: {err}")
+    jsha = hashlib.sha256(jtext).hexdigest()
+    if f"results JSON sha256: `{jsha}`" not in md:
+        raise ev.EvalError(f"{OUT_MD} in {root} does not name its results JSON's sha256 {jsha[:12]}")
+    if any(os.path.isabs(rel) or ".." in rel.split("/") for rel in want):
+        raise ev.EvalError("the results manifest names a path outside its root")
+    bad = sorted(rel for rel, d in want.items() if not os.path.isfile(os.path.join(root, rel))
+                 or reg.sha256_file(os.path.join(root, rel)) != d)
+    if bad:
+        raise ev.EvalError(f"{len(bad)} published file(s) in {root} missing or not their recorded sha256: {bad[:3]}")
+    return dict(want, **{OUT_JSON: jsha, OUT_MD: reg.sha256_file(os.path.join(root, OUT_MD))})
+
+
+def materialise(dest, root=None):
+    """Copy the verified publication of ``root`` + generator_static() byte for byte to the same relative paths under
+    ``dest`` (finding 12): an existing destination file must already be identical (else refuse, nothing overwritten),
+    every copy is re-hashed, and ``dest`` is verified afterwards."""
+    root = os.path.realpath(root or reg.REPO)
+    if not os.path.isdir(dest):
+        raise ev.EvalError(f"destination {dest} does not exist")
+    files = verify(root)
+    files.update({rel: reg.sha256_file(os.path.join(root, rel)) for rel in generator_static()})
+    copied = same = 0
+    for rel, digest in sorted(files.items()):
+        target = os.path.join(dest, rel)
+        if os.path.lexists(target):
+            if os.path.islink(target) or not os.path.isfile(target) or reg.sha256_file(target) != digest:
+                raise ev.EvalError(f"{target} exists with other bytes: refused, nothing overwritten")
+            same += 1
+            continue
+        data = open(os.path.join(root, rel), "rb").read()
+        if hashlib.sha256(data).hexdigest() != digest:
+            raise ev.EvalError(f"{rel} changed during the copy")
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        reg.atomic_write_bytes(target, data)
+        if reg.sha256_file(target) != digest:
+            raise ev.EvalError(f"{target}: the copy does not re-hash to {digest[:12]}")
+        copied += 1
+    verify(dest)
+    return {"dest": os.path.realpath(dest), "copied": copied, "already_identical": same, "files": len(files)}
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.parse_args(argv)
+    sub = p.add_subparsers(dest="cmd")
+    s = sub.add_parser("verify")
+    s.add_argument("--root")
+    s = sub.add_parser("materialise")
+    s.add_argument("--dest", required=True)
+    a = p.parse_args(argv)
     os.chdir(reg.REPO)
     try:
+        if a.cmd == "verify":
+            files = verify(a.root)
+            print(f"verified {len(files)} published file(s) in {os.path.realpath(a.root or reg.REPO)}")
+            return 0
+        if a.cmd == "materialise":
+            print(json.dumps(materialise(a.dest)))
+            return 0
         rows, pending, manifest = collect()
     except (ev.EvalError, reg.GateError, OSError, ValueError, KeyError) as err:
         print(f"EXP45 COLLECT REFUSED: {err}", file=sys.stderr)

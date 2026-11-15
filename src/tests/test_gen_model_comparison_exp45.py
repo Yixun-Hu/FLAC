@@ -155,6 +155,27 @@ def test_published_exp45_rows_carry_the_registered_disclosures(tmp_path, monkeyp
     assert src.index("check_exp45_round(rendered") < src.index("exp45_disclosure_lines(rendered")
 
 
+def test_a_generator_root_materialised_from_the_checkout_resolves_the_exp45_rows(tmp_path, monkeypatch):
+    """Codex code r1 finding 12: what ``exp45_collect.py materialise`` copies besides the evidence
+    (generator_static()) is exactly enough for the shared generator's exp_45 contract in a root that does not track
+    the exp_45 folder (the neuronic main checkout): with those files + a run's published cells, the rows validate."""
+    sys.path.insert(0, os.path.join(REPO, EXP_REL))
+    import exp45_collect as col
+    root = tmp_path / "generator_root"
+    (root / ".git").mkdir(parents=True)
+    for rel in col.generator_static():
+        (root / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(os.path.join(REPO, rel), root / rel)
+    for name in ("exp45_registry", "exp45_eval"):
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    ev = gen._load_exp45_eval(str(root))
+    assert ev.reg.REPO == str(root)
+    files = _write_run(root, ev, RUNS[2], 1)
+    ok, probs = gen.validate_exp45_cell(files, repo_root=str(root), expected_run=RUNS[2], expected_k=1)
+    assert ok, probs
+
+
 def test_round_gate_publishes_only_complete_pairs_at_one_pin(tmp_path):
     label = gen.EXP45_LABELS["025"]
     rendered = [{"label": label, "K": 8, "line": "| ok |", "contract": "exp45"},

@@ -172,8 +172,13 @@ def test_materialisation_copies_the_verified_bytes_to_their_exact_paths(imp, tmp
     gen.mkdir()
     tbl.import_exp38(sha, generator_root=str(gen), repo=repo)
     rec, _ = tbl.reg.read_sealed(os.path.join(repo, tbl.IMPORT_RECORD), tbl.IMPORT_KEYS)
-    copied = [r for r in rec["files"] if r not in tbl.EXP38_CONFIGS and "/ref_cells/" not in r]
+    # Codex code r1 finding 12: EVERY admitted file and exp_38's kit code reach the generator root (it need not carry
+    # exp_38's folder): the configs and reference cells too, and exp38_eval.py / exp38_registry.py as imported
+    copied = sorted(rec["files"])
     assert copied and all(tbl.reg.sha256_file(str(gen / r)) == rec["files"][r] for r in copied)
+    assert {f"{tbl.reg.EXP38_DIR}/exp38_eval.py", f"{tbl.reg.EXP38_DIR}/exp38_registry.py"} <= set(rec["code"])
+    assert all(tbl.reg.sha256_file(str(gen / r)) == d == tbl.reg.sha256_file(os.path.join(repo, r))
+               for r, d in rec["code"].items())
     assert (gen / tbl.EXP38_FARM / "de_bf_f025").is_dir()
     os.remove(os.path.join(repo, tbl.IMPORT_RECORD))
     os.remove(os.path.join(repo, tbl.IMPORT_RECORD) + ".sha256")

@@ -54,8 +54,8 @@ EXP38_SOURCE_PATHS = (reg.EXP38_DIR, EXP38_FARM, "worklog/worklog_yixun/exp_07_f
                       "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json",
                       "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json")
 IMPORT_RECORD = f"{reg.EXP_DIR}/rf_data_curve_exp38_import.json"
-IMPORT_KEYS = frozenset({"schema", "commit", "base", "campaign", "files", "opened", "attestations", "cells", "rows",
-                         "written_at"})
+IMPORT_KEYS = frozenset({"schema", "commit", "base", "campaign", "files", "code", "opened", "attestations", "cells",
+                         "rows", "written_at"})
 TABLE_MD = f"{reg.EXP_DIR}/rf_data_curve_table.md"
 TABLE_EVIDENCE = f"{reg.EXP_DIR}/rf_data_curve_table_evidence.json"
 METHODS = {"rf": "Roll + Flip (RF), exp_45", "yaw": "YAW-Aug, exp_38", "bf": "OrbitRIR (B-F), exp_38"}
@@ -261,14 +261,16 @@ def import_exp38(commit, generator_root=None, repo=None, python=None):
             if v["metrics_rel"] != stem + ".json" or \
                     json.load(open(os.path.join(tmp, stem + ".json")))["metrics"] != v["metrics"]:
                 raise TableError(f"{name}: adapter values / path differ from the hashed metrics file")
+        code_hashes = {p: reg.sha256_file(os.path.join(tmp, p)) for p in sorted(code)}    # exp_38's kit, as imported
         rec = {"schema": 1, "commit": sha, "base": EXP38_BASE, "campaign": got["campaign"], "files": hashes,
+               "code": code_hashes,
                "opened": sorted(p for p in got["opened"] if not p.endswith("/") and p not in code),
                "attestations": {"checkpoints": {n: v["ckpt_sha256"] for n, v in sorted(got["cells"].items())},
                                 "waveform_dump_manifests": {n: v["dump_manifest_sha256"] for n, v in sorted(got["cells"].items())}},
                "cells": {n: {k: v[k] for k in ("run", "K", "seed", "metrics")} for n, v in sorted(got["cells"].items())},
                "rows": exp38_rows(got["cells"]), "written_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
         if generator_root:
-            materialise(tmp, hashes, generator_root)
+            materialise(tmp, dict(hashes, **code_hashes), generator_root)
         digest = reg.write_sealed(out_path, rec)
         return {"import_record": out_path, "sha256": digest, "commit": sha, "files": len(hashes)}
     finally:
@@ -276,13 +278,13 @@ def import_exp38(commit, generator_root=None, repo=None, python=None):
 
 
 def materialise(src_root, hashes, generator_root):
-    """Copy every verified file byte for byte to its exact relative path under ``generator_root`` (r3 finding 4):
-    the hash is re-checked after the copy; an existing file must already be byte-identical."""
+    """Copy every verified file -- all of EXP38_IMPORT_FILES and the exp_38 kit code its offline admission imported
+    -- byte for byte to its exact relative path under ``generator_root`` (r3 finding 4; Codex code r1 finding 12: the
+    generator root need not carry exp_38's folder): the hash is re-checked after the copy; an existing file must
+    already be byte-identical (a tree that tracks exp_38's folder at the same bytes is left as it is)."""
     if not os.path.isdir(generator_root):
         raise TableError(f"generator root {generator_root} does not exist")
     for rel, digest in sorted(hashes.items()):
-        if rel in EXP38_CONFIGS or rel.startswith(f"{reg.EXP38_DIR}/ref_cells/"):
-            continue                                  # tracked in every tree that carries exp_38's folder
         dest = os.path.join(generator_root, rel)
         if os.path.exists(dest):
             if reg.sha256_file(dest) != digest:
@@ -333,6 +335,9 @@ def verify_record_at_commit(rec, repo=None):
             raise TableError(f"the import record's file set != EXP38_IMPORT_FILES at {commit[:12]}")
         bad = [f for f in files if not os.path.isfile(os.path.join(tmp, f))
                or reg.sha256_file(os.path.join(tmp, f)) != rec["files"][f]]
+        bad += sorted(f for f, d in (rec["code"] or {}).items() if not f.startswith(reg.EXP38_DIR + "/")
+                      or not f.endswith(".py") or not os.path.isfile(os.path.join(tmp, f))
+                      or reg.sha256_file(os.path.join(tmp, f)) != d)
         if bad:
             raise TableError(f"{len(bad)} recorded sha256 differ from the blobs at {commit[:12]}, e.g. {bad[:3]}")
         stems = exp38_cell_stems()
