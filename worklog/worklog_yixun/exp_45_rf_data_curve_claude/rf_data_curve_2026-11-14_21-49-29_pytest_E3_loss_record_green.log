@@ -1,0 +1,23 @@
+HEAD b04e8027eb0904f073ad6f228e3d27a532c2ec57 tracked-clean=no host neu323.neuronic.cs.princeton.edu start 2026-11-14T21:49:38-05:00
+cmd: pytest -q src/tests/test_exp45_receipts.py src/tests/test_exp45_eval.py 
+s....................................................................... [ 18%]
+........................................................................ [ 37%]
+..........................................s....s.s...................... [ 56%]
+........................................................................ [ 75%]
+..............................................................s......... [ 94%]
+.....................                                                    [100%]
+=============================== warnings summary ===============================
+src/tests/test_exp45_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp45_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp45_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+376 passed, 5 skipped, 3 warnings in 58.79s
+EXIT 0 end 2026-11-14T21:50:39-05:00

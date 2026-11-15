@@ -1593,6 +1593,48 @@ def check_smoke_receipt(run, platform, backend, head, gpus=None, repo=None):
     return {"smoke_receipt": paths[-1], "sha256": digest}
 
 
+# ---------------------------------------------------------------- the training-loss record (plan r3 §3.2, N3, F4 / F5)
+LOSS_RECORD = "loss_record.csv"                     # receipts/: PL's CSV-logger metrics.csv (moved there by the FULL
+LOSS_RECORD_HPARAMS = "loss_record_hparams.yaml"    # supervisor before the end audit), with its hparams.yaml
+LOSS_COLUMNS = frozenset({"step", "train/std_data", "train/loss", "train/mse_loss", "epoch", "train/lr"})
+LOSS_EVERY = 100                                    # PL 2.1 log_every_n_steps: the logging rank's batch loss
+
+
+def check_loss_record(path, max_steps=MAX_STEPS):
+    """{"loss_record_sha256", "loss_record_rows"} of a run's every-100-step batch-loss record, else GateError. The
+    header is parsed BY NAME -- PL 2.1 builds the column order from a set, so any order passes (Codex plan r1
+    finding 10) -- with no duplicate column (r2 finding 9) and exactly the registered column set; one row per logged
+    step, step = 99 + 100 k for k = 0 .. 399 in order; every train/loss finite. The sha256 is of the file bytes."""
+    import csv
+    import io
+    import math
+    try:
+        data = open(path, "rb").read()
+        rows = list(csv.reader(io.StringIO(data.decode("utf-8"))))
+    except (OSError, UnicodeDecodeError, csv.Error) as err:
+        raise GateError(f"loss record {path} missing / unreadable: {err}")
+    head, body = (rows[0], rows[1:]) if rows else ([], [])
+    if len(head) != len(set(head)):
+        raise GateError(f"{path}: duplicate column in the header {head}")
+    if set(head) != LOSS_COLUMNS:
+        raise GateError(f"{path}: columns {sorted(head)} != {sorted(LOSS_COLUMNS)}")
+    want = [LOSS_EVERY - 1 + LOSS_EVERY * k for k in range(max_steps // LOSS_EVERY)]
+    if len(body) != len(want):
+        raise GateError(f"{path}: {len(body)} rows != {len(want)} (one per {LOSS_EVERY} steps)")
+    col = {name: i for i, name in enumerate(head)}
+    for i, (row, step) in enumerate(zip(body, want), start=1):
+        if len(row) != len(head) or row[col["step"]] != str(step):
+            raise GateError(f"{path}: row {i} ({len(row)} fields, step {row[col['step']] if len(row) == len(head) else '?'}) "
+                            f"!= step {step}")
+        try:
+            loss = float(row[col["train/loss"]])
+        except ValueError:
+            loss = float("nan")
+        if not math.isfinite(loss):
+            raise GateError(f"{path}: row {i} (step {step}) train/loss {row[col['train/loss']]!r} is not finite")
+    return {"loss_record_sha256": hashlib.sha256(data).hexdigest(), "loss_record_rows": len(body)}
+
+
 # ---------------------------------------------------------------- terminal training receipt (Codex code r1 BLOCKING 4)
 TRAINING_RECEIPT = "TRAINING_COMPLETE.json"
 FULL_MIN_LOSSES = 50          # the end gate of a 40k run: at least 50 finite progress-bar losses
@@ -1603,7 +1645,7 @@ TRAINING_KEYS = frozenset({"schema", "run", "platform", "backend", "head", "clos
                            "receipts", "argv", "rc", "log",
                            "log_sha256", "log_gate", "evidence_sha256", "evidence_gate", "checkpoints_sha256",
                            "final_ckpt", "final_ckpt_sha256", "final_ckpt_bytes", "gpus", "launched_at",
-                           "finished_at"})
+                           "finished_at", "loss_record_sha256", "loss_record_rows"})
 
 
 def evidence_digest(evidence_dir):
@@ -1699,6 +1741,9 @@ def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snaps
         shutil.copyfile(os.path.join(repo, f), os.path.join(rd, RECEIPTS_DIR, f))
     if snapshot_digest(os.path.join(rd, RECEIPTS_DIR)) != snapshot_sha:
         raise GateError("the retained snapshot manifests are not the launched snapshot's")
+    loss = check_loss_record(os.path.join(rd, RECEIPTS_DIR, LOSS_RECORD))        # moved in by the supervisor
+    if not os.path.isfile(os.path.join(rd, RECEIPTS_DIR, LOSS_RECORD_HPARAMS)):
+        raise GateError(f"the loss record's {LOSS_RECORD_HPARAMS} is not in {RECEIPTS_DIR}/")
     rec = {"schema": 1, "run": run, "platform": platform, "backend": backend, "head": head,
            "closure_sha256": closure_digest(repo)["closure_sha256"], "snapshot_sha256": snapshot_sha,
            "env_receipt_sha256": _same_env(platform, env_sha, tree), "e0_receipt_sha256": e0_sha,
@@ -1711,7 +1756,8 @@ def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snaps
            "evidence_sha256": evidence_digest(os.path.join(rd, "evidence")), "evidence_gate": "PASS",
            "checkpoints_sha256": sha256_file(manifest), "final_ckpt": final, "final_ckpt_sha256": audit["sha256"],
            "final_ckpt_bytes": audit["bytes"], "gpus": gpus,
-           "receipts": dict(retained, log="train.log", snapshot_manifest="SNAPSHOT.sha256", snapshot_links="SNAPSHOT.links"),
+           "receipts": dict(retained, log="train.log", snapshot_manifest="SNAPSHOT.sha256", snapshot_links="SNAPSHOT.links",
+                            loss_record=LOSS_RECORD, loss_record_hparams=LOSS_RECORD_HPARAMS), **loss,
            "data_content_checks": ["pre-launch", "post-run"],
            "launched_at": launched_at, "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     write_sealed(os.path.join(rd, TRAINING_RECEIPT), rec)
@@ -1750,7 +1796,8 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
             "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung))),
             "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"],
             "data_content_sha256": AR_CONTENT_SHA256,
-            "argv": build_train_argv(run, plat, allow_nonmatched=rung != "2x32")}
+            "argv": build_train_argv(run, plat, allow_nonmatched=rung != "2x32"),
+            "loss_record_rows": MAX_STEPS // LOSS_EVERY}
     p += [f"{k} {str(rec.get(k))[:60]!r} != {str(v)[:60]!r}" for k, v in want.items() if canonical(rec.get(k)) != canonical(v)]
     if closure is not None and rec["closure_sha256"] != closure:
         p.append(f"trained at closure {str(rec['closure_sha256'])[:12]}, not the campaign's {closure[:12]}")
@@ -1759,7 +1806,8 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
     if not (isinstance(rec["head"], str) and re.fullmatch(r"[0-9a-f]{40}", rec["head"])
             and all(_is_sha(rec[k]) for k in ("closure_sha256", "snapshot_sha256", "env_receipt_sha256",
                                               "e0_receipt_sha256", "smoke_receipt_sha256", "log_sha256",
-                                              "evidence_sha256", "checkpoints_sha256", "final_ckpt_sha256"))
+                                              "evidence_sha256", "checkpoints_sha256", "final_ckpt_sha256",
+                                              "loss_record_sha256"))
             and type(rec["final_ckpt_bytes"]) is int and isinstance(rec["launched_at"], str)
             and isinstance(rec["finished_at"], str) and isinstance(rec["log"], str)
             and isinstance(rec["smoke_receipt"], str)):
@@ -1770,8 +1818,16 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
     rdir = os.path.join(src, RECEIPTS_DIR)
     names = rec["receipts"] if isinstance(rec["receipts"], dict) else {}
     try:
-        if sorted(names) != ["e0", "env", "log", "smoke", "smoke_log", "snapshot_links", "snapshot_manifest"]:
+        if sorted(names) != ["e0", "env", "log", "loss_record", "loss_record_hparams", "smoke", "smoke_log",
+                             "snapshot_links", "snapshot_manifest"] \
+                or (names["loss_record"], names["loss_record_hparams"]) != (LOSS_RECORD, LOSS_RECORD_HPARAMS):
             raise GateError(f"retained receipts {sorted(names)}")
+        # the loss record is re-opened and re-validated, online and offline (plan r3 §3.2, Codex plan r1 finding 9)
+        got = check_loss_record(os.path.join(rdir, LOSS_RECORD))
+        if (got["loss_record_sha256"], got["loss_record_rows"]) != (rec["loss_record_sha256"], rec["loss_record_rows"]):
+            p.append("the retained loss record != the training receipt's sha256 / rows")
+        if not os.path.isfile(os.path.join(rdir, LOSS_RECORD_HPARAMS)):
+            p.append(f"the retained {LOSS_RECORD_HPARAMS} is missing")
         e0c, d_e0 = read_sealed(os.path.join(rdir, names["e0"]), exp45_eval.E0_KEYS)
         envc, d_env = read_sealed(os.path.join(rdir, names["env"]), ENV_RECEIPT_KEYS)
         smk, d_smk = read_sealed(os.path.join(rdir, names["smoke"]), SMOKE_KEYS)

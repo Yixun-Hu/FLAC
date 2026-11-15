@@ -1,0 +1,2265 @@
+HEAD b04e8027eb0904f073ad6f228e3d27a532c2ec57 tracked-clean=no host neu312.neuronic.cs.princeton.edu start 2026-11-14T21:46:38-05:00
+cmd: pytest -q src/tests/test_exp45_receipts.py -k loss\ or\ training_receipt 
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF [ 94%]
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+______ test_the_training_receipt_is_published_only_after_every_end_audit _______
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_is_p0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a2180a0>
+
+    def test_the_training_receipt_is_published_only_after_every_end_audit(tree, monkeypatch):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:391: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_is_p0/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+______________ test_the_training_receipt_refuses_a_failed_run[rc] ______________
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_refu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a160550>
+case = 'rc'
+
+    @pytest.mark.parametrize("case", ["rc", "few losses", "missing ckpt", "bad evidence", "sdpa evidence", "content"])
+    def test_the_training_receipt_refuses_a_failed_run(tree, monkeypatch, case):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch, losses=10 if case == "few losses" else 60,
+                                                      drop=20000 if case == "missing ckpt" else None)
+
+src/tests/test_exp45_receipts.py:412: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_refu0/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+__________ test_the_training_receipt_refuses_a_failed_run[few losses] __________
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_refu1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a46d0>
+case = 'few losses'
+
+    @pytest.mark.parametrize("case", ["rc", "few losses", "missing ckpt", "bad evidence", "sdpa evidence", "content"])
+    def test_the_training_receipt_refuses_a_failed_run(tree, monkeypatch, case):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch, losses=10 if case == "few losses" else 60,
+                                                      drop=20000 if case == "missing ckpt" else None)
+
+src/tests/test_exp45_receipts.py:412: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_refu1/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_________ test_the_training_receipt_refuses_a_failed_run[missing ckpt] _________
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_refu2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a049540>
+case = 'missing ckpt'
+
+    @pytest.mark.parametrize("case", ["rc", "few losses", "missing ckpt", "bad evidence", "sdpa evidence", "content"])
+    def test_the_training_receipt_refuses_a_failed_run(tree, monkeypatch, case):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch, losses=10 if case == "few losses" else 60,
+                                                      drop=20000 if case == "missing ckpt" else None)
+
+src/tests/test_exp45_receipts.py:412: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_refu2/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_________ test_the_training_receipt_refuses_a_failed_run[bad evidence] _________
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_refu3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a21ba30>
+case = 'bad evidence'
+
+    @pytest.mark.parametrize("case", ["rc", "few losses", "missing ckpt", "bad evidence", "sdpa evidence", "content"])
+    def test_the_training_receipt_refuses_a_failed_run(tree, monkeypatch, case):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch, losses=10 if case == "few losses" else 60,
+                                                      drop=20000 if case == "missing ckpt" else None)
+
+src/tests/test_exp45_receipts.py:412: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_refu3/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+________ test_the_training_receipt_refuses_a_failed_run[sdpa evidence] _________
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_refu4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f35146f9f00>
+case = 'sdpa evidence'
+
+    @pytest.mark.parametrize("case", ["rc", "few losses", "missing ckpt", "bad evidence", "sdpa evidence", "content"])
+    def test_the_training_receipt_refuses_a_failed_run(tree, monkeypatch, case):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch, losses=10 if case == "few losses" else 60,
+                                                      drop=20000 if case == "missing ckpt" else None)
+
+src/tests/test_exp45_receipts.py:412: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_refu4/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+___________ test_the_training_receipt_refuses_a_failed_run[content] ____________
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_refu5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a1ba0>
+case = 'content'
+
+    @pytest.mark.parametrize("case", ["rc", "few losses", "missing ckpt", "bad evidence", "sdpa evidence", "content"])
+    def test_the_training_receipt_refuses_a_failed_run(tree, monkeypatch, case):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch, losses=10 if case == "few losses" else 60,
+                                                      drop=20000 if case == "missing ckpt" else None)
+
+src/tests/test_exp45_receipts.py:412: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_refu5/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_____ test_the_training_receipt_consumer_refuses_each_field_mutation[argv] _____
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a08c640>
+name = 'argv'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons0/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+__ test_the_training_receipt_consumer_refuses_each_field_mutation[argv batch] __
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a218b20>
+name = 'argv batch'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons1/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+___ test_the_training_receipt_consumer_refuses_each_field_mutation[backend] ____
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a21b730>
+name = 'backend'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons2/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[closure (valid-looking)] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a5f00>
+name = 'closure (valid-looking)'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons3/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+___ test_the_training_receipt_consumer_refuses_each_field_mutation[content] ____
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a036b60>
+name = 'content'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons4/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[content checks] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a79a0>
+name = 'content checks'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons5/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+___ test_the_training_receipt_consumer_refuses_each_field_mutation[data cfg] ___
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a048d90>
+name = 'data cfg'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons6/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+____ test_the_training_receipt_consumer_refuses_each_field_mutation[e0 sha] ____
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons7')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a09fe20>
+name = 'e0 sha'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons7/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+___ test_the_training_receipt_consumer_refuses_each_field_mutation[env sha] ____
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons8')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a53f0>
+name = 'env sha'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons8/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[evidence gate] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons9')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a1120>
+name = 'evidence gate'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons9/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[evidence sha] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons10')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a08cfa0>
+name = 'evidence sha'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons10/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[final bytes] __
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons11')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a4970>
+name = 'final bytes'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons11/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[final bytes type] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons12')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a21bfd0>
+name = 'final bytes type'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons12/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+__ test_the_training_receipt_consumer_refuses_each_field_mutation[final name] __
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons13')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a037dc0>
+name = 'final name'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons13/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+__ test_the_training_receipt_consumer_refuses_each_field_mutation[final sha] ___
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons14')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a7af0>
+name = 'final sha'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons14/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_____ test_the_training_receipt_consumer_refuses_each_field_mutation[gpus] _____
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons15')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a6b00>
+name = 'gpus'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons15/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+___ test_the_training_receipt_consumer_refuses_each_field_mutation[gpus l40] ___
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons16')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a4730>
+name = 'gpus l40'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons16/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_____ test_the_training_receipt_consumer_refuses_each_field_mutation[head] _____
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons17')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a3f10>
+name = 'head'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons17/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[head malformed] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons18')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a08e350>
+name = 'head malformed'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons18/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+___ test_the_training_receipt_consumer_refuses_each_field_mutation[log gate] ___
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons19')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0379a0>
+name = 'log gate'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons19/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+___ test_the_training_receipt_consumer_refuses_each_field_mutation[log sha] ____
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons20')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0d8b50>
+name = 'log sha'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons20/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+__ test_the_training_receipt_consumer_refuses_each_field_mutation[loss rows] ___
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons21')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a041000>
+name = 'loss rows'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons21/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[loss rows type] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons22')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0db820>
+name = 'loss rows type'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons22/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+___ test_the_training_receipt_consumer_refuses_each_field_mutation[loss sha] ___
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons23')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0437c0>
+name = 'loss sha'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons23/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[loss sha malformed] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons24')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0d92d0>
+name = 'loss sha malformed'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons24/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[manifest sha] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons25')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a041d50>
+name = 'manifest sha'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons25/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+__ test_the_training_receipt_consumer_refuses_each_field_mutation[model cfg] ___
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons26')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a21b2b0>
+name = 'model cfg'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons26/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+___ test_the_training_receipt_consumer_refuses_each_field_mutation[platform] ___
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons27')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a2180a0>
+name = 'platform'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons27/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+______ test_the_training_receipt_consumer_refuses_each_field_mutation[rc] ______
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons28')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a219810>
+name = 'rc'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons28/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[receipts loss missing] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons29')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a2189a0>
+name = 'receipts loss missing'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons29/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[receipts loss name] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons30')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a21bd30>
+name = 'receipts loss name'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons30/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[receipts map] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons31')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0bdc60>
+name = 'receipts map'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons31/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[receipts name] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons32')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a08e7a0>
+name = 'receipts name'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons32/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_____ test_the_training_receipt_consumer_refuses_each_field_mutation[run] ______
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons33')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0bd0c0>
+name = 'run'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons33/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+____ test_the_training_receipt_consumer_refuses_each_field_mutation[schema] ____
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons34')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0db250>
+name = 'schema'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons34/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+__ test_the_training_receipt_consumer_refuses_each_field_mutation[smoke sha] ___
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons35')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a30a0>
+name = 'smoke sha'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons35/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+___ test_the_training_receipt_consumer_refuses_each_field_mutation[snapshot] ___
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons36')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0340d0>
+name = 'snapshot'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons36/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_consumer_refuses_each_field_mutation[snapshot sha (valid-looking)] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons37')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a4730>
+name = 'snapshot sha (valid-looking)'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons37/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+____ test_the_training_receipt_consumer_refuses_each_field_mutation[split] _____
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons38')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a6d40>
+name = 'split'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons38/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_____ test_the_training_receipt_consumer_refuses_each_field_mutation[time] _____
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons39')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a55a0>
+name = 'time'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons39/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+__ test_the_training_receipt_consumer_refuses_each_field_mutation[time order] __
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons40')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a7cd0>
+name = 'time order'
+
+    @pytest.mark.parametrize("name", sorted(TR_MUTATIONS))
+    def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeypatch, name):
+        """Codex code r2 BLOCKING 1: every field of the sealed terminal receipt is checked on consumption."""
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_cons40/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_______ test_the_training_receipt_re_opens_its_retained_records[e0 copy] _______
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a4340>
+what = 'e0 copy'
+
+    @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
+                                      "smoke copy evidence", "smoke log", "snapshot manifest", "e0 copy resealed",
+                                      "env copy resealed", "no commit", "commit record status"])
+    def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:475: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o0/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+______ test_the_training_receipt_re_opens_its_retained_records[env copy] _______
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a6410>
+what = 'env copy'
+
+    @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
+                                      "smoke copy evidence", "smoke log", "snapshot manifest", "e0 copy resealed",
+                                      "env copy resealed", "no commit", "commit record status"])
+    def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:475: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o1/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_re_opens_its_retained_records[smoke copy resealed] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a5990>
+what = 'smoke copy resealed'
+
+    @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
+                                      "smoke copy evidence", "smoke log", "snapshot manifest", "e0 copy resealed",
+                                      "env copy resealed", "no commit", "commit record status"])
+    def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:475: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o2/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+______ test_the_training_receipt_re_opens_its_retained_records[log copy] _______
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0be620>
+what = 'log copy'
+
+    @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
+                                      "smoke copy evidence", "smoke log", "snapshot manifest", "e0 copy resealed",
+                                      "env copy resealed", "no commit", "commit record status"])
+    def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:475: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o3/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+____ test_the_training_receipt_re_opens_its_retained_records[evidence file] ____
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a66e0>
+what = 'evidence file'
+
+    @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
+                                      "smoke copy evidence", "smoke log", "snapshot manifest", "e0 copy resealed",
+                                      "env copy resealed", "no commit", "commit record status"])
+    def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:475: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o4/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_re_opens_its_retained_records[smoke copy evidence] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a4f10>
+what = 'smoke copy evidence'
+
+    @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
+                                      "smoke copy evidence", "smoke log", "snapshot manifest", "e0 copy resealed",
+                                      "env copy resealed", "no commit", "commit record status"])
+    def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:475: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o5/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+______ test_the_training_receipt_re_opens_its_retained_records[smoke log] ______
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a4760>
+what = 'smoke log'
+
+    @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
+                                      "smoke copy evidence", "smoke log", "snapshot manifest", "e0 copy resealed",
+                                      "env copy resealed", "no commit", "commit record status"])
+    def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:475: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o6/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+__ test_the_training_receipt_re_opens_its_retained_records[snapshot manifest] __
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o7')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0a6560>
+what = 'snapshot manifest'
+
+    @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
+                                      "smoke copy evidence", "smoke log", "snapshot manifest", "e0 copy resealed",
+                                      "env copy resealed", "no commit", "commit record status"])
+    def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:475: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o7/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+__ test_the_training_receipt_re_opens_its_retained_records[e0 copy resealed] ___
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o8')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a040400>
+what = 'e0 copy resealed'
+
+    @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
+                                      "smoke copy evidence", "smoke log", "snapshot manifest", "e0 copy resealed",
+                                      "env copy resealed", "no commit", "commit record status"])
+    def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:475: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o8/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+__ test_the_training_receipt_re_opens_its_retained_records[env copy resealed] __
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o9')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a049d20>
+what = 'env copy resealed'
+
+    @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
+                                      "smoke copy evidence", "smoke log", "snapshot manifest", "e0 copy resealed",
+                                      "env copy resealed", "no commit", "commit record status"])
+    def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:475: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o9/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+______ test_the_training_receipt_re_opens_its_retained_records[no commit] ______
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o10')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a04ac80>
+what = 'no commit'
+
+    @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
+                                      "smoke copy evidence", "smoke log", "snapshot manifest", "e0 copy resealed",
+                                      "env copy resealed", "no commit", "commit record status"])
+    def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:475: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o10/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+_ test_the_training_receipt_re_opens_its_retained_records[commit record status] _
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o11')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a048d90>
+what = 'commit record status'
+
+    @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
+                                      "smoke copy evidence", "smoke log", "snapshot manifest", "e0 copy resealed",
+                                      "env copy resealed", "no commit", "commit record status"])
+    def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, what):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:475: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_re_o11/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+__________ test_check_loss_record_accepts_pls_csv_in_any_column_order __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_loss_record_accepts0')
+
+    def test_check_loss_record_accepts_pls_csv_in_any_column_order(tmp_path):
+        p = tmp_path / "metrics.csv"
+>       p.write_bytes(fx.loss_csv(reg))
+
+src/tests/test_exp45_receipts.py:529: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+tag = '025'
+header = ['step', 'train/std_data', 'train/loss', 'train/mse_loss', 'epoch', 'train/lr']
+rows = None, fn = None
+
+    def loss_csv(reg, tag="025", header=None, rows=None, fn=None):
+        """PL 2.1's CSV-logger metrics.csv of a 40k run (header + 400 rows at steps 99, 199, ..., 39999) as bytes;
+        ``fn(i, row)`` may mutate a row dict, ``header`` reorders / changes the columns."""
+        header = header or LOSS_HEADER
+        out = [",".join(header)]
+>       for k in range(reg.MAX_STEPS // reg.LOSS_EVERY if rows is None else rows):
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_EVERY'
+
+src/tests/exp45_fixtures.py:37: AttributeError
+_________________ test_check_loss_record_refuses[399 rows-kw0] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_loss_record_refuses0')
+name = '399 rows', kw = {'rows': 399}
+
+    @pytest.mark.parametrize("name,kw", [
+        ("399 rows", {"rows": 399}), ("401 rows", {"rows": 401}),
+        ("step gap", {"fn": lambda k, r: r.update(step="1099") if k == 10 else None}),
+        ("step float", {"fn": lambda k, r: r.update(step=r["step"] + ".0") if k == 0 else None}),
+        ("nan loss", {"fn": lambda k, r: r.update(**{"train/loss": "nan"}) if k == 7 else None}),
+        ("inf loss", {"fn": lambda k, r: r.update(**{"train/loss": "inf"}) if k == 399 else None}),
+        ("empty loss", {"fn": lambda k, r: r.update(**{"train/loss": ""}) if k == 3 else None}),
+        ("extra column", {"header": fx.LOSS_HEADER + ["val/loss"]}),
+        ("missing column", {"header": fx.LOSS_HEADER[:-1]}),
+        ("duplicate column", {"header": fx.LOSS_HEADER + ["train/loss"]}),
+    ])
+    def test_check_loss_record_refuses(tmp_path, name, kw):
+        p = tmp_path / "metrics.csv"
+        p.write_bytes(fx.loss_csv(reg, **kw))
+        with pytest.raises(reg.GateError):
+>           reg.check_loss_record(str(p))
+E           AttributeError: module 'exp45_registry' has no attribute 'check_loss_record'
+
+src/tests/test_exp45_receipts.py:551: AttributeError
+_________________ test_check_loss_record_refuses[401 rows-kw1] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_loss_record_refuses1')
+name = '401 rows', kw = {'rows': 401}
+
+    @pytest.mark.parametrize("name,kw", [
+        ("399 rows", {"rows": 399}), ("401 rows", {"rows": 401}),
+        ("step gap", {"fn": lambda k, r: r.update(step="1099") if k == 10 else None}),
+        ("step float", {"fn": lambda k, r: r.update(step=r["step"] + ".0") if k == 0 else None}),
+        ("nan loss", {"fn": lambda k, r: r.update(**{"train/loss": "nan"}) if k == 7 else None}),
+        ("inf loss", {"fn": lambda k, r: r.update(**{"train/loss": "inf"}) if k == 399 else None}),
+        ("empty loss", {"fn": lambda k, r: r.update(**{"train/loss": ""}) if k == 3 else None}),
+        ("extra column", {"header": fx.LOSS_HEADER + ["val/loss"]}),
+        ("missing column", {"header": fx.LOSS_HEADER[:-1]}),
+        ("duplicate column", {"header": fx.LOSS_HEADER + ["train/loss"]}),
+    ])
+    def test_check_loss_record_refuses(tmp_path, name, kw):
+        p = tmp_path / "metrics.csv"
+        p.write_bytes(fx.loss_csv(reg, **kw))
+        with pytest.raises(reg.GateError):
+>           reg.check_loss_record(str(p))
+E           AttributeError: module 'exp45_registry' has no attribute 'check_loss_record'
+
+src/tests/test_exp45_receipts.py:551: AttributeError
+_________________ test_check_loss_record_refuses[step gap-kw2] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_loss_record_refuses2')
+name = 'step gap', kw = {'fn': <function <lambda> at 0x7f3514523be0>}
+
+    @pytest.mark.parametrize("name,kw", [
+        ("399 rows", {"rows": 399}), ("401 rows", {"rows": 401}),
+        ("step gap", {"fn": lambda k, r: r.update(step="1099") if k == 10 else None}),
+        ("step float", {"fn": lambda k, r: r.update(step=r["step"] + ".0") if k == 0 else None}),
+        ("nan loss", {"fn": lambda k, r: r.update(**{"train/loss": "nan"}) if k == 7 else None}),
+        ("inf loss", {"fn": lambda k, r: r.update(**{"train/loss": "inf"}) if k == 399 else None}),
+        ("empty loss", {"fn": lambda k, r: r.update(**{"train/loss": ""}) if k == 3 else None}),
+        ("extra column", {"header": fx.LOSS_HEADER + ["val/loss"]}),
+        ("missing column", {"header": fx.LOSS_HEADER[:-1]}),
+        ("duplicate column", {"header": fx.LOSS_HEADER + ["train/loss"]}),
+    ])
+    def test_check_loss_record_refuses(tmp_path, name, kw):
+        p = tmp_path / "metrics.csv"
+>       p.write_bytes(fx.loss_csv(reg, **kw))
+
+src/tests/test_exp45_receipts.py:549: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+tag = '025'
+header = ['step', 'train/std_data', 'train/loss', 'train/mse_loss', 'epoch', 'train/lr']
+rows = None, fn = <function <lambda> at 0x7f3514523be0>
+
+    def loss_csv(reg, tag="025", header=None, rows=None, fn=None):
+        """PL 2.1's CSV-logger metrics.csv of a 40k run (header + 400 rows at steps 99, 199, ..., 39999) as bytes;
+        ``fn(i, row)`` may mutate a row dict, ``header`` reorders / changes the columns."""
+        header = header or LOSS_HEADER
+        out = [",".join(header)]
+>       for k in range(reg.MAX_STEPS // reg.LOSS_EVERY if rows is None else rows):
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_EVERY'
+
+src/tests/exp45_fixtures.py:37: AttributeError
+________________ test_check_loss_record_refuses[step float-kw3] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_loss_record_refuses3')
+name = 'step float', kw = {'fn': <function <lambda> at 0x7f3514523c70>}
+
+    @pytest.mark.parametrize("name,kw", [
+        ("399 rows", {"rows": 399}), ("401 rows", {"rows": 401}),
+        ("step gap", {"fn": lambda k, r: r.update(step="1099") if k == 10 else None}),
+        ("step float", {"fn": lambda k, r: r.update(step=r["step"] + ".0") if k == 0 else None}),
+        ("nan loss", {"fn": lambda k, r: r.update(**{"train/loss": "nan"}) if k == 7 else None}),
+        ("inf loss", {"fn": lambda k, r: r.update(**{"train/loss": "inf"}) if k == 399 else None}),
+        ("empty loss", {"fn": lambda k, r: r.update(**{"train/loss": ""}) if k == 3 else None}),
+        ("extra column", {"header": fx.LOSS_HEADER + ["val/loss"]}),
+        ("missing column", {"header": fx.LOSS_HEADER[:-1]}),
+        ("duplicate column", {"header": fx.LOSS_HEADER + ["train/loss"]}),
+    ])
+    def test_check_loss_record_refuses(tmp_path, name, kw):
+        p = tmp_path / "metrics.csv"
+>       p.write_bytes(fx.loss_csv(reg, **kw))
+
+src/tests/test_exp45_receipts.py:549: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+tag = '025'
+header = ['step', 'train/std_data', 'train/loss', 'train/mse_loss', 'epoch', 'train/lr']
+rows = None, fn = <function <lambda> at 0x7f3514523c70>
+
+    def loss_csv(reg, tag="025", header=None, rows=None, fn=None):
+        """PL 2.1's CSV-logger metrics.csv of a 40k run (header + 400 rows at steps 99, 199, ..., 39999) as bytes;
+        ``fn(i, row)`` may mutate a row dict, ``header`` reorders / changes the columns."""
+        header = header or LOSS_HEADER
+        out = [",".join(header)]
+>       for k in range(reg.MAX_STEPS // reg.LOSS_EVERY if rows is None else rows):
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_EVERY'
+
+src/tests/exp45_fixtures.py:37: AttributeError
+_________________ test_check_loss_record_refuses[nan loss-kw4] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_loss_record_refuses4')
+name = 'nan loss', kw = {'fn': <function <lambda> at 0x7f3514523d00>}
+
+    @pytest.mark.parametrize("name,kw", [
+        ("399 rows", {"rows": 399}), ("401 rows", {"rows": 401}),
+        ("step gap", {"fn": lambda k, r: r.update(step="1099") if k == 10 else None}),
+        ("step float", {"fn": lambda k, r: r.update(step=r["step"] + ".0") if k == 0 else None}),
+        ("nan loss", {"fn": lambda k, r: r.update(**{"train/loss": "nan"}) if k == 7 else None}),
+        ("inf loss", {"fn": lambda k, r: r.update(**{"train/loss": "inf"}) if k == 399 else None}),
+        ("empty loss", {"fn": lambda k, r: r.update(**{"train/loss": ""}) if k == 3 else None}),
+        ("extra column", {"header": fx.LOSS_HEADER + ["val/loss"]}),
+        ("missing column", {"header": fx.LOSS_HEADER[:-1]}),
+        ("duplicate column", {"header": fx.LOSS_HEADER + ["train/loss"]}),
+    ])
+    def test_check_loss_record_refuses(tmp_path, name, kw):
+        p = tmp_path / "metrics.csv"
+>       p.write_bytes(fx.loss_csv(reg, **kw))
+
+src/tests/test_exp45_receipts.py:549: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+tag = '025'
+header = ['step', 'train/std_data', 'train/loss', 'train/mse_loss', 'epoch', 'train/lr']
+rows = None, fn = <function <lambda> at 0x7f3514523d00>
+
+    def loss_csv(reg, tag="025", header=None, rows=None, fn=None):
+        """PL 2.1's CSV-logger metrics.csv of a 40k run (header + 400 rows at steps 99, 199, ..., 39999) as bytes;
+        ``fn(i, row)`` may mutate a row dict, ``header`` reorders / changes the columns."""
+        header = header or LOSS_HEADER
+        out = [",".join(header)]
+>       for k in range(reg.MAX_STEPS // reg.LOSS_EVERY if rows is None else rows):
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_EVERY'
+
+src/tests/exp45_fixtures.py:37: AttributeError
+_________________ test_check_loss_record_refuses[inf loss-kw5] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_loss_record_refuses5')
+name = 'inf loss', kw = {'fn': <function <lambda> at 0x7f3514523d90>}
+
+    @pytest.mark.parametrize("name,kw", [
+        ("399 rows", {"rows": 399}), ("401 rows", {"rows": 401}),
+        ("step gap", {"fn": lambda k, r: r.update(step="1099") if k == 10 else None}),
+        ("step float", {"fn": lambda k, r: r.update(step=r["step"] + ".0") if k == 0 else None}),
+        ("nan loss", {"fn": lambda k, r: r.update(**{"train/loss": "nan"}) if k == 7 else None}),
+        ("inf loss", {"fn": lambda k, r: r.update(**{"train/loss": "inf"}) if k == 399 else None}),
+        ("empty loss", {"fn": lambda k, r: r.update(**{"train/loss": ""}) if k == 3 else None}),
+        ("extra column", {"header": fx.LOSS_HEADER + ["val/loss"]}),
+        ("missing column", {"header": fx.LOSS_HEADER[:-1]}),
+        ("duplicate column", {"header": fx.LOSS_HEADER + ["train/loss"]}),
+    ])
+    def test_check_loss_record_refuses(tmp_path, name, kw):
+        p = tmp_path / "metrics.csv"
+>       p.write_bytes(fx.loss_csv(reg, **kw))
+
+src/tests/test_exp45_receipts.py:549: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+tag = '025'
+header = ['step', 'train/std_data', 'train/loss', 'train/mse_loss', 'epoch', 'train/lr']
+rows = None, fn = <function <lambda> at 0x7f3514523d90>
+
+    def loss_csv(reg, tag="025", header=None, rows=None, fn=None):
+        """PL 2.1's CSV-logger metrics.csv of a 40k run (header + 400 rows at steps 99, 199, ..., 39999) as bytes;
+        ``fn(i, row)`` may mutate a row dict, ``header`` reorders / changes the columns."""
+        header = header or LOSS_HEADER
+        out = [",".join(header)]
+>       for k in range(reg.MAX_STEPS // reg.LOSS_EVERY if rows is None else rows):
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_EVERY'
+
+src/tests/exp45_fixtures.py:37: AttributeError
+________________ test_check_loss_record_refuses[empty loss-kw6] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_loss_record_refuses6')
+name = 'empty loss', kw = {'fn': <function <lambda> at 0x7f3514523e20>}
+
+    @pytest.mark.parametrize("name,kw", [
+        ("399 rows", {"rows": 399}), ("401 rows", {"rows": 401}),
+        ("step gap", {"fn": lambda k, r: r.update(step="1099") if k == 10 else None}),
+        ("step float", {"fn": lambda k, r: r.update(step=r["step"] + ".0") if k == 0 else None}),
+        ("nan loss", {"fn": lambda k, r: r.update(**{"train/loss": "nan"}) if k == 7 else None}),
+        ("inf loss", {"fn": lambda k, r: r.update(**{"train/loss": "inf"}) if k == 399 else None}),
+        ("empty loss", {"fn": lambda k, r: r.update(**{"train/loss": ""}) if k == 3 else None}),
+        ("extra column", {"header": fx.LOSS_HEADER + ["val/loss"]}),
+        ("missing column", {"header": fx.LOSS_HEADER[:-1]}),
+        ("duplicate column", {"header": fx.LOSS_HEADER + ["train/loss"]}),
+    ])
+    def test_check_loss_record_refuses(tmp_path, name, kw):
+        p = tmp_path / "metrics.csv"
+>       p.write_bytes(fx.loss_csv(reg, **kw))
+
+src/tests/test_exp45_receipts.py:549: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+tag = '025'
+header = ['step', 'train/std_data', 'train/loss', 'train/mse_loss', 'epoch', 'train/lr']
+rows = None, fn = <function <lambda> at 0x7f3514523e20>
+
+    def loss_csv(reg, tag="025", header=None, rows=None, fn=None):
+        """PL 2.1's CSV-logger metrics.csv of a 40k run (header + 400 rows at steps 99, 199, ..., 39999) as bytes;
+        ``fn(i, row)`` may mutate a row dict, ``header`` reorders / changes the columns."""
+        header = header or LOSS_HEADER
+        out = [",".join(header)]
+>       for k in range(reg.MAX_STEPS // reg.LOSS_EVERY if rows is None else rows):
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_EVERY'
+
+src/tests/exp45_fixtures.py:37: AttributeError
+_______________ test_check_loss_record_refuses[extra column-kw7] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_loss_record_refuses7')
+name = 'extra column'
+kw = {'header': ['step', 'train/std_data', 'train/loss', 'train/mse_loss', 'epoch', 'train/lr', ...]}
+
+    @pytest.mark.parametrize("name,kw", [
+        ("399 rows", {"rows": 399}), ("401 rows", {"rows": 401}),
+        ("step gap", {"fn": lambda k, r: r.update(step="1099") if k == 10 else None}),
+        ("step float", {"fn": lambda k, r: r.update(step=r["step"] + ".0") if k == 0 else None}),
+        ("nan loss", {"fn": lambda k, r: r.update(**{"train/loss": "nan"}) if k == 7 else None}),
+        ("inf loss", {"fn": lambda k, r: r.update(**{"train/loss": "inf"}) if k == 399 else None}),
+        ("empty loss", {"fn": lambda k, r: r.update(**{"train/loss": ""}) if k == 3 else None}),
+        ("extra column", {"header": fx.LOSS_HEADER + ["val/loss"]}),
+        ("missing column", {"header": fx.LOSS_HEADER[:-1]}),
+        ("duplicate column", {"header": fx.LOSS_HEADER + ["train/loss"]}),
+    ])
+    def test_check_loss_record_refuses(tmp_path, name, kw):
+        p = tmp_path / "metrics.csv"
+>       p.write_bytes(fx.loss_csv(reg, **kw))
+
+src/tests/test_exp45_receipts.py:549: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+tag = '025'
+header = ['step', 'train/std_data', 'train/loss', 'train/mse_loss', 'epoch', 'train/lr', ...]
+rows = None, fn = None
+
+    def loss_csv(reg, tag="025", header=None, rows=None, fn=None):
+        """PL 2.1's CSV-logger metrics.csv of a 40k run (header + 400 rows at steps 99, 199, ..., 39999) as bytes;
+        ``fn(i, row)`` may mutate a row dict, ``header`` reorders / changes the columns."""
+        header = header or LOSS_HEADER
+        out = [",".join(header)]
+>       for k in range(reg.MAX_STEPS // reg.LOSS_EVERY if rows is None else rows):
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_EVERY'
+
+src/tests/exp45_fixtures.py:37: AttributeError
+______________ test_check_loss_record_refuses[missing column-kw8] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_loss_record_refuses8')
+name = 'missing column'
+kw = {'header': ['step', 'train/std_data', 'train/loss', 'train/mse_loss', 'epoch']}
+
+    @pytest.mark.parametrize("name,kw", [
+        ("399 rows", {"rows": 399}), ("401 rows", {"rows": 401}),
+        ("step gap", {"fn": lambda k, r: r.update(step="1099") if k == 10 else None}),
+        ("step float", {"fn": lambda k, r: r.update(step=r["step"] + ".0") if k == 0 else None}),
+        ("nan loss", {"fn": lambda k, r: r.update(**{"train/loss": "nan"}) if k == 7 else None}),
+        ("inf loss", {"fn": lambda k, r: r.update(**{"train/loss": "inf"}) if k == 399 else None}),
+        ("empty loss", {"fn": lambda k, r: r.update(**{"train/loss": ""}) if k == 3 else None}),
+        ("extra column", {"header": fx.LOSS_HEADER + ["val/loss"]}),
+        ("missing column", {"header": fx.LOSS_HEADER[:-1]}),
+        ("duplicate column", {"header": fx.LOSS_HEADER + ["train/loss"]}),
+    ])
+    def test_check_loss_record_refuses(tmp_path, name, kw):
+        p = tmp_path / "metrics.csv"
+>       p.write_bytes(fx.loss_csv(reg, **kw))
+
+src/tests/test_exp45_receipts.py:549: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+tag = '025'
+header = ['step', 'train/std_data', 'train/loss', 'train/mse_loss', 'epoch']
+rows = None, fn = None
+
+    def loss_csv(reg, tag="025", header=None, rows=None, fn=None):
+        """PL 2.1's CSV-logger metrics.csv of a 40k run (header + 400 rows at steps 99, 199, ..., 39999) as bytes;
+        ``fn(i, row)`` may mutate a row dict, ``header`` reorders / changes the columns."""
+        header = header or LOSS_HEADER
+        out = [",".join(header)]
+>       for k in range(reg.MAX_STEPS // reg.LOSS_EVERY if rows is None else rows):
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_EVERY'
+
+src/tests/exp45_fixtures.py:37: AttributeError
+_____________ test_check_loss_record_refuses[duplicate column-kw9] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_loss_record_refuses9')
+name = 'duplicate column'
+kw = {'header': ['step', 'train/std_data', 'train/loss', 'train/mse_loss', 'epoch', 'train/lr', ...]}
+
+    @pytest.mark.parametrize("name,kw", [
+        ("399 rows", {"rows": 399}), ("401 rows", {"rows": 401}),
+        ("step gap", {"fn": lambda k, r: r.update(step="1099") if k == 10 else None}),
+        ("step float", {"fn": lambda k, r: r.update(step=r["step"] + ".0") if k == 0 else None}),
+        ("nan loss", {"fn": lambda k, r: r.update(**{"train/loss": "nan"}) if k == 7 else None}),
+        ("inf loss", {"fn": lambda k, r: r.update(**{"train/loss": "inf"}) if k == 399 else None}),
+        ("empty loss", {"fn": lambda k, r: r.update(**{"train/loss": ""}) if k == 3 else None}),
+        ("extra column", {"header": fx.LOSS_HEADER + ["val/loss"]}),
+        ("missing column", {"header": fx.LOSS_HEADER[:-1]}),
+        ("duplicate column", {"header": fx.LOSS_HEADER + ["train/loss"]}),
+    ])
+    def test_check_loss_record_refuses(tmp_path, name, kw):
+        p = tmp_path / "metrics.csv"
+>       p.write_bytes(fx.loss_csv(reg, **kw))
+
+src/tests/test_exp45_receipts.py:549: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+tag = '025'
+header = ['step', 'train/std_data', 'train/loss', 'train/mse_loss', 'epoch', 'train/lr', ...]
+rows = None, fn = None
+
+    def loss_csv(reg, tag="025", header=None, rows=None, fn=None):
+        """PL 2.1's CSV-logger metrics.csv of a 40k run (header + 400 rows at steps 99, 199, ..., 39999) as bytes;
+        ``fn(i, row)`` may mutate a row dict, ``header`` reorders / changes the columns."""
+        header = header or LOSS_HEADER
+        out = [",".join(header)]
+>       for k in range(reg.MAX_STEPS // reg.LOSS_EVERY if rows is None else rows):
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_EVERY'
+
+src/tests/exp45_fixtures.py:37: AttributeError
+____________ test_check_loss_record_refuses_a_missing_or_empty_file ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_loss_record_refuses10')
+
+    def test_check_loss_record_refuses_a_missing_or_empty_file(tmp_path):
+        with pytest.raises(reg.GateError):
+>           reg.check_loss_record(str(tmp_path / "absent.csv"))
+E           AttributeError: module 'exp45_registry' has no attribute 'check_loss_record'
+
+src/tests/test_exp45_receipts.py:556: AttributeError
+__________ test_a_loss_record_changed_after_sealing_is_refused[False] __________
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_loss_record_changed_aft0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a040880>
+offline = False
+
+    @pytest.mark.parametrize("offline", [False, True])
+    def test_a_loss_record_changed_after_sealing_is_refused(tree, monkeypatch, offline):
+        """The training receipt binds the loss record's sha256 / rows; online (the run dir) and offline (a copy of
+        the run's records, as the evaluation farm keeps it) the CSV is re-opened and re-validated."""
+        import shutil
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:567: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_a_loss_record_changed_aft0/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+__________ test_a_loss_record_changed_after_sealing_is_refused[True] ___________
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_loss_record_changed_aft1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a04cb50>
+offline = True
+
+    @pytest.mark.parametrize("offline", [False, True])
+    def test_a_loss_record_changed_after_sealing_is_refused(tree, monkeypatch, offline):
+        """The training receipt binds the loss record's sha256 / rows; online (the run dir) and offline (a copy of
+        the run's records, as the evaluation farm keeps it) the CSV is re-opened and re-validated."""
+        import shutil
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:567: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_a_loss_record_changed_aft1/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+____________ test_the_training_receipt_needs_the_moved_loss_record _____________
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_need0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a0bdf30>
+
+    def test_the_training_receipt_needs_the_moved_loss_record(tree, monkeypatch):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:593: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_need0/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+____________ test_the_training_receipt_binds_manifest_sha_and_bytes ____________
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_bind0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f342a04fac0>
+
+    def test_the_training_receipt_binds_manifest_sha_and_bytes(tree, monkeypatch):
+>       rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+
+src/tests/test_exp45_receipts.py:601: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:375: in _full_run
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+reg = <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'>
+rdir = '/tmp/pytest-of-yh4742/pytest-0/test_the_training_receipt_bind0/exp45_RFf050_l40_2x32/receipts'
+tag = '050', kw = {}
+
+    def write_loss_record(reg, rdir, tag="025", **kw):
+        """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+        os.makedirs(rdir, exist_ok=True)
+>       open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+E       AttributeError: module 'exp45_registry' has no attribute 'LOSS_RECORD'
+
+src/tests/exp45_fixtures.py:50: AttributeError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_is_published_only_after_every_end_audit
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_refuses_a_failed_run[rc]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_refuses_a_failed_run[few losses]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_refuses_a_failed_run[missing ckpt]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_refuses_a_failed_run[bad evidence]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_refuses_a_failed_run[sdpa evidence]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_refuses_a_failed_run[content]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[argv]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[argv batch]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[backend]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[closure (valid-looking)]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[content]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[content checks]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[data cfg]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[e0 sha]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[env sha]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[evidence gate]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[evidence sha]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[final bytes]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[final bytes type]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[final name]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[final sha]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[gpus]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[gpus l40]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[head]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[head malformed]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[log gate]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[log sha]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[loss rows]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[loss rows type]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[loss sha]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[loss sha malformed]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[manifest sha]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[model cfg]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[platform]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[rc]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[receipts loss missing]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[receipts loss name]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[receipts map]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[receipts name]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[run]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[schema]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[smoke sha]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[snapshot]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[snapshot sha (valid-looking)]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[split]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[time]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_consumer_refuses_each_field_mutation[time order]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_re_opens_its_retained_records[e0 copy]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_re_opens_its_retained_records[env copy]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_re_opens_its_retained_records[smoke copy resealed]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_re_opens_its_retained_records[log copy]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_re_opens_its_retained_records[evidence file]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_re_opens_its_retained_records[smoke copy evidence]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_re_opens_its_retained_records[smoke log]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_re_opens_its_retained_records[snapshot manifest]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_re_opens_its_retained_records[e0 copy resealed]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_re_opens_its_retained_records[env copy resealed]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_re_opens_its_retained_records[no commit]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_re_opens_its_retained_records[commit record status]
+FAILED src/tests/test_exp45_receipts.py::test_check_loss_record_accepts_pls_csv_in_any_column_order
+FAILED src/tests/test_exp45_receipts.py::test_check_loss_record_refuses[399 rows-kw0]
+FAILED src/tests/test_exp45_receipts.py::test_check_loss_record_refuses[401 rows-kw1]
+FAILED src/tests/test_exp45_receipts.py::test_check_loss_record_refuses[step gap-kw2]
+FAILED src/tests/test_exp45_receipts.py::test_check_loss_record_refuses[step float-kw3]
+FAILED src/tests/test_exp45_receipts.py::test_check_loss_record_refuses[nan loss-kw4]
+FAILED src/tests/test_exp45_receipts.py::test_check_loss_record_refuses[inf loss-kw5]
+FAILED src/tests/test_exp45_receipts.py::test_check_loss_record_refuses[empty loss-kw6]
+FAILED src/tests/test_exp45_receipts.py::test_check_loss_record_refuses[extra column-kw7]
+FAILED src/tests/test_exp45_receipts.py::test_check_loss_record_refuses[missing column-kw8]
+FAILED src/tests/test_exp45_receipts.py::test_check_loss_record_refuses[duplicate column-kw9]
+FAILED src/tests/test_exp45_receipts.py::test_check_loss_record_refuses_a_missing_or_empty_file
+FAILED src/tests/test_exp45_receipts.py::test_a_loss_record_changed_after_sealing_is_refused[False]
+FAILED src/tests/test_exp45_receipts.py::test_a_loss_record_changed_after_sealing_is_refused[True]
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_needs_the_moved_loss_record
+FAILED src/tests/test_exp45_receipts.py::test_the_training_receipt_binds_manifest_sha_and_bytes
+76 failed, 124 deselected in 10.10s
+EXIT 1 end 2026-11-14T21:46:49-05:00

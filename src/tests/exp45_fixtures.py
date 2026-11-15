@@ -26,6 +26,32 @@ PINNED_SINGLE = {
     "strategy": "SingleDeviceStrategy", "syncbn_modules": 0, "vit_ckpt_wrapped_layers": 12, "world_size": 1}
 
 
+LOSS_HEADER = ["step", "train/std_data", "train/loss", "train/mse_loss", "epoch", "train/lr"]
+
+
+def loss_csv(reg, tag="025", header=None, rows=None, fn=None):
+    """PL 2.1's CSV-logger metrics.csv of a 40k run (header + 400 rows at steps 99, 199, ..., 39999) as bytes;
+    ``fn(i, row)`` may mutate a row dict, ``header`` reorders / changes the columns."""
+    header = header or LOSS_HEADER
+    out = [",".join(header)]
+    for k in range(reg.MAX_STEPS // reg.LOSS_EVERY if rows is None else rows):
+        step = 99 + 100 * k
+        row = {"step": str(step), "train/std_data": "1.13", "train/loss": f"{0.5 + 1.0 / (k + 1):.6f}",
+               "train/mse_loss": "0.5", "epoch": str(reg.epoch_of_step(step + 1, tag)), "train/lr": "4.9e-05"}
+        if fn:
+            fn(k, row)
+        out.append(",".join(row.get(h, "") for h in header))
+    return ("\n".join(out) + "\n").encode()
+
+
+def write_loss_record(reg, rdir, tag="025", **kw):
+    """The two files the FULL supervisor moves into receipts/ (plan r3 §3.2)."""
+    os.makedirs(rdir, exist_ok=True)
+    open(os.path.join(rdir, reg.LOSS_RECORD), "wb").write(loss_csv(reg, tag, **kw))
+    open(os.path.join(rdir, reg.LOSS_RECORD_HPARAMS), "w").write("{}\n")
+    return reg.check_loss_record(os.path.join(rdir, reg.LOSS_RECORD))
+
+
 def records(reg, run, ngpu=2, backend="flash", max_steps=30):
     """Per-rank first-step evidence that passes reg.evidence_problems."""
     arm, tag, rung = reg.parse_run_id(run)
@@ -152,6 +178,7 @@ def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint b
     open(log, "w").write(train_log(reg, run, ngpu, steps=reg.MAX_STEPS, losses=60, backend=backend))
     snap_sha = write_snapshot_manifests(reg, rdir)
     write_evidence(os.path.join(rd, "evidence"), records(reg, run, ngpu, backend, reg.MAX_STEPS))
+    loss = write_loss_record(reg, rdir, tag)
     rec = {"schema": 1, "run": run, "platform": platform, "backend": backend, "head": head,
            "closure_sha256": closure, "snapshot_sha256": snap_sha, "env_receipt_sha256": env_digest,
            "e0_receipt_sha256": e0_digest, "smoke_receipt": "/campaign/" + smoke_name,
@@ -161,7 +188,8 @@ def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint b
            "data_content_sha256": content_sha if content_sha is not None else reg.AR_CONTENT_SHA256,
            "receipts": {"e0": e0_name, "env": env_name, "smoke": smoke_name, "log": "train.log",
                         "smoke_log": "smoke_log.log", "snapshot_manifest": "SNAPSHOT.sha256",
-                        "snapshot_links": "SNAPSHOT.links"},
+                        "snapshot_links": "SNAPSHOT.links", "loss_record": reg.LOSS_RECORD,
+                        "loss_record_hparams": reg.LOSS_RECORD_HPARAMS}, **loss,
            "data_content_checks": ["pre-launch", "post-run"],
            "argv": argv, "rc": 0, "log": "/campaign/train.log", "log_sha256": reg.sha256_file(log),
            "log_gate": "PASS", "evidence_sha256": reg.evidence_digest(os.path.join(rd, "evidence")),

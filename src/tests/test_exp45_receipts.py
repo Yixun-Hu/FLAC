@@ -171,6 +171,7 @@ def test_sealed_records(tmp_path):
 # ------------------------------------------------------------------ SMOKE_DDP receipts
 CLOSURE, ENV_SHA, AUDIT_SHA, HEAD = fx.FIX_CLOSURE, "d" * 64, "a" * 64, "f" * 40
 A6000_GPUS = sorted([u, "NVIDIA RTX A6000"] for u in reg.A6000_UUIDS)
+RF050 = "exp45_RFf050_l40_2x32"
 
 
 def smoke_log(run, ngpu=2, steps=30, losses=3, end=True, backend="flash"):
@@ -371,6 +372,7 @@ def _full_run(tree, monkeypatch, run="exp45_RFf050_l40_2x32", losses=60, rc=0, d
     paths, digests = _admitted(tree, monkeypatch, run)
     retained = reg.retain_receipts(str(rd), paths, plain={"smoke_log": digests["smoke_log"]})
     digests["snapshot"] = fx.write_snapshot_manifests(reg, str(tree))     # the launched snapshot's manifests
+    digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
     return rd, log, retained, paths, digests
 
 
@@ -391,7 +393,8 @@ def test_the_training_receipt_is_published_only_after_every_end_audit(tree, monk
     assert rec["final_ckpt_bytes"] == len(b"ckpt 40000") and rec["rc"] == 0
     assert sorted(os.listdir(rd / reg.RECEIPTS_DIR)) == sorted(
         [os.path.basename(p) for p in paths.values()] + [os.path.basename(p) + ".sha256" for p in paths.values()]
-        + ["train.log", "smoke_log.log", "SNAPSHOT.sha256", "SNAPSHOT.links"])
+        + ["train.log", "smoke_log.log", "SNAPSHOT.sha256", "SNAPSHOT.links", reg.LOSS_RECORD, reg.LOSS_RECORD_HPARAMS])
+    assert (rec["loss_record_sha256"], rec["loss_record_rows"]) == (digests["loss"]["loss_record_sha256"], 400)
     got, digest = reg.check_training_receipt("exp45_RFf050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"],
                                              platform="a6000")
     assert got == rec and len(digest) == 64
@@ -448,6 +451,10 @@ TR_MUTATIONS = {
     "time order": lambda r: r.update(launched_at="2099-11-10T04:00:00-0500"),
     "content checks": lambda r: r.update(data_content_checks=["pre-launch"]),
     "time": lambda r: r.update(finished_at=None), "schema": lambda r: r.update(schema=2), "run": lambda r: r.update(run="exp45_RFf025_l40_2x32"),
+    "loss sha": lambda r: r.update(loss_record_sha256="1" * 64), "loss rows": lambda r: r.update(loss_record_rows=399),
+    "loss rows type": lambda r: r.update(loss_record_rows=400.0), "loss sha malformed": lambda r: r.update(loss_record_sha256="x"),
+    "receipts loss name": lambda r: r["receipts"].update(loss_record="metrics.csv"),
+    "receipts loss missing": lambda r: r["receipts"].pop("loss_record_hparams"),
 }
 
 
@@ -514,6 +521,80 @@ def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, w
         json.dump(e, open(f, "w"))
     with pytest.raises(reg.GateError):
         reg.check_training_receipt("exp45_RFf050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"])
+
+
+# ------------------------------------------------------------------ the loss record (plan r3 §3.2, §3.3)
+def test_check_loss_record_accepts_pls_csv_in_any_column_order(tmp_path):
+    p = tmp_path / "metrics.csv"
+    p.write_bytes(fx.loss_csv(reg))
+    got = reg.check_loss_record(str(p))
+    assert got == {"loss_record_sha256": reg.sha256_file(str(p)), "loss_record_rows": 400}
+    p.write_bytes(fx.loss_csv(reg, header=list(reversed(fx.LOSS_HEADER))))      # PL builds the order from a set
+    assert reg.check_loss_record(str(p))["loss_record_rows"] == 400
+
+
+@pytest.mark.parametrize("name,kw", [
+    ("399 rows", {"rows": 399}), ("401 rows", {"rows": 401}),
+    ("step gap", {"fn": lambda k, r: r.update(step="1199") if k == 10 else None}),       # 1099 missing
+    ("step float", {"fn": lambda k, r: r.update(step=r["step"] + ".0") if k == 0 else None}),
+    ("nan loss", {"fn": lambda k, r: r.update(**{"train/loss": "nan"}) if k == 7 else None}),
+    ("inf loss", {"fn": lambda k, r: r.update(**{"train/loss": "inf"}) if k == 399 else None}),
+    ("empty loss", {"fn": lambda k, r: r.update(**{"train/loss": ""}) if k == 3 else None}),
+    ("extra column", {"header": fx.LOSS_HEADER + ["val/loss"]}),
+    ("missing column", {"header": fx.LOSS_HEADER[:-1]}),
+    ("duplicate column", {"header": fx.LOSS_HEADER + ["train/loss"]}),
+])
+def test_check_loss_record_refuses(tmp_path, name, kw):
+    p = tmp_path / "metrics.csv"
+    p.write_bytes(fx.loss_csv(reg, **kw))
+    with pytest.raises(reg.GateError):
+        reg.check_loss_record(str(p))
+
+
+def test_check_loss_record_refuses_a_missing_or_empty_file(tmp_path):
+    with pytest.raises(reg.GateError):
+        reg.check_loss_record(str(tmp_path / "absent.csv"))
+    (tmp_path / "e.csv").write_bytes(b"")
+    with pytest.raises(reg.GateError):
+        reg.check_loss_record(str(tmp_path / "e.csv"))
+
+
+@pytest.mark.parametrize("offline", [False, True])
+def test_a_loss_record_changed_after_sealing_is_refused(tree, monkeypatch, offline):
+    """The training receipt binds the loss record's sha256 / rows; online (the run dir) and offline (a copy of
+    the run's records, as the evaluation farm keeps it) the CSV is re-opened and re-validated."""
+    import shutil
+    rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+    _write_tr(tree, rd, log, retained, paths, digests)
+    farm = tree / "farm_copy"
+    farm.mkdir()
+    for f in ("CHECKPOINTS.sha256", reg.TRAINING_RECEIPT, reg.TRAINING_RECEIPT + ".sha256", reg.COMMIT_MARKER,
+              reg.COMMIT_MARKER + ".sha256"):
+        shutil.copyfile(rd / f, farm / f)
+    lr = json.load(open(rd / reg.COMMIT_MARKER))["launch_record"]
+    shutil.copyfile(rd / lr, farm / lr)
+    for sub in (reg.RECEIPTS_DIR, "evidence"):
+        shutil.copytree(rd / sub, farm / sub)
+    kw = {"receipt_dir": str(farm), "verify_bytes": False} if offline else {}
+    src = farm if offline else rd
+    reg.check_training_receipt(RF050, str(rd), closure=CLOSURE, e0_sha=digests["e0"], **kw)
+    csv = src / reg.RECEIPTS_DIR / reg.LOSS_RECORD
+    good = csv.read_bytes()
+    csv.write_bytes(good.replace(b"4.9e-05", b"4.8e-05", 1))                         # a valid CSV, other bytes
+    with pytest.raises(reg.GateError, match="loss record"):
+        reg.check_training_receipt(RF050, str(rd), closure=CLOSURE, e0_sha=digests["e0"], **kw)
+    csv.write_bytes(good)
+    os.remove(src / reg.RECEIPTS_DIR / reg.LOSS_RECORD_HPARAMS)
+    with pytest.raises(reg.GateError, match="hparams"):
+        reg.check_training_receipt(RF050, str(rd), closure=CLOSURE, e0_sha=digests["e0"], **kw)
+
+
+def test_the_training_receipt_needs_the_moved_loss_record(tree, monkeypatch):
+    rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
+    os.remove(rd / reg.RECEIPTS_DIR / reg.LOSS_RECORD)
+    with pytest.raises(reg.GateError, match="loss record"):
+        _write_tr(tree, rd, log, retained, paths, digests)
+    assert not (rd / reg.TRAINING_RECEIPT).exists()
 
 
 def test_the_training_receipt_binds_manifest_sha_and_bytes(tree, monkeypatch):

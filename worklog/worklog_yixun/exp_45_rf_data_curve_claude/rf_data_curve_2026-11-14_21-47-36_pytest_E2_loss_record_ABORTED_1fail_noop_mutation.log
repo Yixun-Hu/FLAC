@@ -1,0 +1,49 @@
+HEAD b04e8027eb0904f073ad6f228e3d27a532c2ec57 tracked-clean=no host neu312.neuronic.cs.princeton.edu start 2026-11-14T21:47:38-05:00
+cmd: pytest -q src/tests/test_exp45_receipts.py src/tests/test_exp45_eval.py 
+s....................................................................... [ 18%]
+........................................................................ [ 37%]
+.............................F............s....s.s...................... [ 56%]
+........................................................................ [ 75%]
+..............................................................s......... [ 94%]
+.....................                                                    [100%]
+=================================== FAILURES ===================================
+_________________ test_check_loss_record_refuses[step gap-kw2] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_loss_record_refuses2')
+name = 'step gap', kw = {'fn': <function <lambda> at 0x7f7c5b5c4f70>}
+
+    @pytest.mark.parametrize("name,kw", [
+        ("399 rows", {"rows": 399}), ("401 rows", {"rows": 401}),
+        ("step gap", {"fn": lambda k, r: r.update(step="1099") if k == 10 else None}),
+        ("step float", {"fn": lambda k, r: r.update(step=r["step"] + ".0") if k == 0 else None}),
+        ("nan loss", {"fn": lambda k, r: r.update(**{"train/loss": "nan"}) if k == 7 else None}),
+        ("inf loss", {"fn": lambda k, r: r.update(**{"train/loss": "inf"}) if k == 399 else None}),
+        ("empty loss", {"fn": lambda k, r: r.update(**{"train/loss": ""}) if k == 3 else None}),
+        ("extra column", {"header": fx.LOSS_HEADER + ["val/loss"]}),
+        ("missing column", {"header": fx.LOSS_HEADER[:-1]}),
+        ("duplicate column", {"header": fx.LOSS_HEADER + ["train/loss"]}),
+    ])
+    def test_check_loss_record_refuses(tmp_path, name, kw):
+        p = tmp_path / "metrics.csv"
+        p.write_bytes(fx.loss_csv(reg, **kw))
+>       with pytest.raises(reg.GateError):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp45_receipts.py:550: Failed
+=============================== warnings summary ===============================
+src/tests/test_exp45_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp45_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp45_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_receipts.py::test_check_loss_record_refuses[step gap-kw2]
+1 failed, 375 passed, 5 skipped, 3 warnings in 44.68s
+EXIT 1 end 2026-11-14T21:48:24-05:00
