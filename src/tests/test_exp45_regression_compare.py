@@ -21,7 +21,8 @@ def _xml(path, cases):
     """cases: {node: outcome or (outcome, message)} -> a pytest-shaped junit file."""
     out = ['<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite name="pytest">']
     for node, res in cases.items():
-        outcome, msg = (res, "AssertionError: assert 1 == 2") if isinstance(res, str) else res
+        outcome, msg = (res, "NAS not mounted" if res == "skipped" else "AssertionError: assert 1 == 2") \
+            if isinstance(res, str) else res
         mod, name = node.split("::", 1)
         cls = mod[:-3].replace("/", ".")
         if "::" in name:
@@ -29,7 +30,7 @@ def _xml(path, cases):
             cls += "." + k
         name = name.replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
         msg = msg.replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
-        body = {"passed": "", "skipped": '<skipped message="NAS not mounted"/>',
+        body = {"passed": "", "skipped": f'<skipped type="pytest.skip" message="{msg}">{mod}:1: {msg}</skipped>',
                 "failed": f'<failure message="{msg}">trace</failure>', "error": f'<error message="{msg}">trace</error>'}[outcome]
         out.append(f'<testcase classname="{cls}" name="{name}" time="0.1">{body}</testcase>')
     out.append("</testsuite></testsuites>")
@@ -41,9 +42,13 @@ BASE = {"src/tests/test_a.py::test_x": "passed", "src/tests/test_b.py::test_y[1-
         "src/tests/test_c.py::TestK::test_z": "passed", COMPAT[0]: "passed", COMPAT[1]: "passed"}
 
 
-def _run(tmp_path, merged, p38=None, p43=None):
+ROOTS = ("/n/fs/gatrdp/codespace/exp-45-rf-data-curve", "/n/fs/gatrdp/codespace/_l1_parent_3593f34c",
+         "/n/fs/gatrdp/codespace/_l1_parent_4a7e3b3a")
+
+
+def _run(tmp_path, merged, p38=None, p43=None, roots=ROOTS):
     files = [_xml(tmp_path / f"{n}.xml", c) for n, c in (("m", merged), ("p38", p38 or BASE), ("p43", p43 or BASE))]
-    return rc.compare(*(rc.load(f) for f in files))
+    return rc.compare(*(rc.load(f, roots=roots) for f in files))
 
 
 def test_node_ids_follow_pytests_classname():
@@ -88,6 +93,30 @@ def test_signatures_ignore_tmp_paths_and_addresses(tmp_path):
     assert problems == []
 
 
+def test_signatures_normalise_the_checkout_roots(tmp_path):
+    """Codex code r1 finding 8: the inherited validator-pin failure names the checkout it ran in; the same failure in
+    the three checkouts has ONE signature once their roots are normalised -- the failing operation and the error
+    text stay part of it."""
+    node = "src/tests/test_exp40_eval.py::test_authoritative_validator_pins_are_the_source_blobs"
+    msg = ("exp40_kit.Refused: git rev-parse 6be49f46:worklog/x.py failed in {root}: fatal: path 'worklog/x.py' "
+           "exists on disk, but not in '6be49f46'")
+    per = [dict(BASE, **{node: ("failed", msg.format(root=r))}) for r in ROOTS]
+    problems, report = _run(tmp_path, *per)
+    assert problems == [] and "inherited from 3593f34c, 4a7e3b3a" in report["allowed_failures"][0]
+    assert "<checkout>" in report["allowed_failures"][0] and ROOTS[0] not in report["allowed_failures"][0]
+    # a root given with a trailing slash or as a symlink resolves to the same placeholder
+    problems, _ = _run(tmp_path, *per, roots=tuple(r + "/" for r in ROOTS))
+    assert problems == []
+    # another failing operation or another error is another signature, roots normalised or not
+    for other in (msg.replace("rev-parse", "cat-file"), msg.replace("exists on disk", "is missing")):
+        problems, _ = _run(tmp_path, per[0], p38=dict(BASE, **{node: ("failed", other.format(root=ROOTS[1]))}),
+                           p43=dict(BASE, **{node: ("failed", other.format(root=ROOTS[2]))}))
+        assert len(problems) == 1 and node in problems[0]
+    # without the roots the reviewer's case reproduces: three different signatures
+    problems, _ = _run(tmp_path, *per, roots=())
+    assert len(problems) == 1
+
+
 def test_the_three_tie_audit_tests_may_fail(tmp_path):
     base = dict(BASE, **{t: "passed" for t in TIE})
     problems, report = _run(tmp_path, dict(base, **{t: "failed" for t in TIE}), p38=base, p43=base)
@@ -108,23 +137,45 @@ def test_the_compat_edited_nodes_must_pass_even_if_a_parent_failed_them(tmp_path
 
 
 def test_every_new_exp45_node_must_pass(tmp_path):
-    new = {"src/tests/test_exp45_registry.py::test_a[rf]": "passed", "src/tests/test_gen_model_comparison_exp45.py::test_b": "passed",
-           "src/tests/test_exp45_receipts.py::test_c": "skipped"}
+    new = {"src/tests/test_exp45_registry.py::test_a[rf]": "passed", "src/tests/test_gen_model_comparison_exp45.py::test_b": "passed"}
     problems, report = _run(tmp_path, dict(BASE, **new))
-    assert problems == [] and report["new_exp45_skips"] == ["src/tests/test_exp45_receipts.py::test_c"]
+    assert problems == [] and report["new_exp45_skips"] == []
     for outcome in ("failed", "error"):
         problems, _ = _run(tmp_path, dict(BASE, **dict(new, **{"src/tests/test_exp45_registry.py::test_a[rf]": outcome})))
         assert len(problems) == 1 and "new exp_45 node" in problems[0]
+    # Codex code r1 finding 9: an UNREGISTERED skip of a new node is a FAIL, whatever its reason
+    problems, _ = _run(tmp_path, dict(BASE, **dict(new, **{"src/tests/test_exp45_receipts.py::test_c": "skipped"})))
+    assert len(problems) == 1 and "test_c" in problems[0] and "skip" in problems[0]
+
+
+def test_only_the_registered_environment_skips_of_new_nodes_pass(tmp_path):
+    """Codex code r1 finding 9: skip reasons are kept; a new exp_45 node may be skipped only as an exactly registered
+    (node, reason) environment exception -- the same node with another reason, or the reason on another node, FAILs."""
+    assert rc.ENV_SKIPS and all(rc.NEW_FILE.match(n) and isinstance(r, str) and r for n, r in rc.ENV_SKIPS)
+    reg_skips = {n: ("skipped", r) for n, r in sorted(rc.ENV_SKIPS)}
+    problems, report = _run(tmp_path, dict(BASE, **reg_skips))
+    assert problems == [] and report["new_exp45_skips"] == [{"node": n, "reason": r} for n, r in sorted(rc.ENV_SKIPS)]
+    node, reason = sorted(rc.ENV_SKIPS)[0]
+    problems, _ = _run(tmp_path, dict(BASE, **{node: ("skipped", reason + " (or not)")}))
+    assert len(problems) == 1 and node in problems[0]
+    problems, _ = _run(tmp_path, dict(BASE, **{"src/tests/test_exp45_registry.py::test_unregistered": ("skipped", reason)}))
+    assert len(problems) == 1 and "test_unregistered" in problems[0]
+    # an old (non-exp_45) node may still be skipped: the policy covers new nodes only
+    problems, _ = _run(tmp_path, dict(BASE, **{"src/tests/test_a.py::test_x": "skipped"}))
+    assert problems == []
 
 
 def test_the_cli_exit_codes(tmp_path, capsys):
     good = [_xml(tmp_path / f"{n}.xml", BASE) for n in ("m", "a", "b")]
     out = tmp_path / "report.json"
-    assert rc.main(["--merged", good[0], "--exp38", good[1], "--exp43", good[2], "--out", str(out)]) == 0
+    roots = ["--merged-root", ROOTS[0], "--exp38-root", ROOTS[1], "--exp43-root", ROOTS[2]]
+    with pytest.raises(SystemExit):
+        rc.main(["--merged", good[0], "--exp38", good[1], "--exp43", good[2]])             # the roots are required
+    assert rc.main(["--merged", good[0], "--exp38", good[1], "--exp43", good[2], "--out", str(out)] + roots) == 0
     assert json.load(open(out))["verdict"] == "PASS" and "REGRESSION POLICY PASS" in capsys.readouterr().out
     bad = _xml(tmp_path / "bad.xml", dict(BASE, **{"src/tests/test_a.py::test_x": "failed"}))
-    assert rc.main(["--merged", bad, "--exp38", good[1], "--exp43", good[2]]) == 1
+    assert rc.main(["--merged", bad, "--exp38", good[1], "--exp43", good[2]] + roots) == 1
     (tmp_path / "broken.xml").write_text("<testsuites><testcase")
-    assert rc.main(["--merged", str(tmp_path / "broken.xml"), "--exp38", good[1], "--exp43", good[2]]) == 2
+    assert rc.main(["--merged", str(tmp_path / "broken.xml"), "--exp38", good[1], "--exp43", good[2]] + roots) == 2
     (tmp_path / "empty.xml").write_text("<testsuites/>")
-    assert rc.main(["--merged", str(tmp_path / "empty.xml"), "--exp38", good[1], "--exp43", good[2]]) == 2
+    assert rc.main(["--merged", str(tmp_path / "empty.xml"), "--exp38", good[1], "--exp43", good[2]] + roots) == 2
