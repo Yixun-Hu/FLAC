@@ -564,37 +564,26 @@ def test_aggregate_and_seed_set():
         col.aggregate({s: recs[s] for s in (42, 43, 44, 45)})
 
 
-def test_reference_rows_reproduce_table_3b_and_bind_to_e0(e0):
-    campaign, rec = e0
-    rows, used = col.reference_rows(campaign)
-    assert len(used) == 60
-    t = {(m, f): rows[(m, f, 8)]["stats"] for (m, f, K) in rows if K == 8}
-    assert round(t[("p1", "025")]["EDT"][0], 3) == 42.914 and round(t[("p1", "025")]["T60"][0], 2) == 10.25
-    assert round(t[("p1", "100")]["EDT"][0], 3) == 40.650 and round(t[("p1", "100")]["T60"][0], 3) == 8.993
-    assert round(t[("yaw", "100")]["T60"][0], 3) == 7.965 and round(t[("bf", "100")]["EDT"][0], 3) == 38.794
-    rec["references"]["anchors/P1/P1_K8_s42.json"] = "0" * 64
-    json.dump(rec, open(campaign["e0_receipt"], "w"))
-    with pytest.raises(ev.EvalError):
-        col.reference_rows(campaign)
+def _rows():
+    """Synthetic rf_rows() output (the publication order test needs no admitted cells)."""
+    st = {k: (1.0, 0.1, 5) for k in ev.METRIC_KEYS}
+    return {(m, f, K): {"stats": st, "source": "x"} for m, f in [("rf", t) for t in ("025", "050", "075")] + [("rf_bridge", "100")]
+            for K in (8, 1)}
 
 
-def test_run_block_pending_on_any_problem_and_render(e0):
-    campaign, _ = e0
-    rows, probs, man = col.run_block("exp45_RFf025_l40_2x32", campaign, validate=lambda c: [f"{c['name']}: missing"])
-    assert rows == {} and man == {} and len(probs) == 10
-    md = col.render(col.reference_rows(campaign)[0], probs)
-    assert md.count("PENDING") >= 12 and "exp45_RFf025_l40_2x32_K8_s42: missing" in md
+def test_render_shows_the_three_fractions_and_the_bridge():
+    md = col.render(_rows(), [])
+    assert md.count("| Roll + Flip (RF) | ") == 6 and md.count("(bridge) | 100 % |") == 2 and "PENDING" not in md
 
 
 def test_publish_order_markdown_first_json_last(tmp_path, e0, monkeypatch):
-    campaign, _ = e0
     exp = tmp_path / col.reg.EXP_DIR
     exp.mkdir(parents=True)
-    rows = col.reference_rows(campaign)[0]
+    rows = _rows()
     sha = col.publish(rows, [], {"m": 1}, repo=str(tmp_path))
     j = (tmp_path / col.OUT_JSON).read_bytes()
     assert hashlib.sha256(j).hexdigest() == sha and sha in (tmp_path / col.OUT_MD).read_text()
-    assert json.loads(j)["manifest"] == {"m": 1}
+    assert json.loads(j)["manifest"] == {"m": 1} and len(json.loads(j)["rows"]) == 8
     assert not [p for p in exp.iterdir() if ".tmp" in p.name]
     order, real = [], col.reg.atomic_write_bytes
 
@@ -611,57 +600,99 @@ def test_publish_order_markdown_first_json_last(tmp_path, e0, monkeypatch):
     assert hashlib.sha256(j).hexdigest() not in (tmp_path / col.OUT_MD).read_text()
 
 
-def test_pending_cells_fail_unless_partial(monkeypatch, tmp_path):
-    monkeypatch.setattr(col, "collect", lambda bridge=False: ({}, ["exp45_RFf025_l40_2x32: pending"], {}))
-    monkeypatch.setattr(col, "publish", lambda rows, pending, manifest, repo=None: "0" * 64)
-    assert col.main([]) == 1
-    assert col.main(["--partial"]) == 0
-    monkeypatch.setattr(col, "collect", lambda bridge=False: ({}, [], {}))
-    assert col.main([]) == 0
+def test_the_collector_refuses_rather_than_publishing_partially(monkeypatch, tmp_path):
+    published = []
+    monkeypatch.setattr(col, "publish", lambda rows, pending, manifest, repo=None: published.append(rows) or "0" * 64)
+    monkeypatch.setattr(col, "collect", lambda: (_ for _ in ()).throw(ev.EvalError("3 cell problem(s)")))
+    assert col.main([]) == 2 and published == []
+    monkeypatch.setattr(col, "collect", lambda: ({}, [], {}))
+    assert col.main([]) == 0 and published == [{}]
+    with pytest.raises(SystemExit):
+        col.main(["--partial"])                                   # no partial publication exists
 
 
-@pytest.mark.skipif(not os.path.exists(os.path.join(REPO, "weights", "AGREE", "AGREE_fullAR.pt")),
-                    reason="the campaign manifest re-hashes the checkout's AGREE weights (A6000 campaign tree)")
-def test_the_result_manifest_lists_every_admitted_artifact(world, monkeypatch):
-    """Codex code r2 HIGH 7: a path -> sha256 entry for every file the admission consumed."""
-    for K in (8, 1):
-        for s_ in ev.SEEDS:
-            _cell(world, K=K, seed=s_)
-    campaign = world["campaign"]
-    rows, probs, arts = col.run_block("exp45_RFf025_l40_2x32", campaign)
-    assert probs == [] and len(rows) == 2
-    cells = ev.run_cells("exp45_RFf025_l40_2x32")
-    farm = os.path.dirname(cells[0]["ckpt_link"])
-    for c in cells:
-        rec = json.load(open(c["receipt"]))
-        for path in (c["metrics"], c["stream"], c["receipt"], rec["log"], ev.dump_manifest_copy(c),
-                     os.path.join(c["dump_dir"], "waveforms.npy"), os.path.join(c["dump_dir"], "COMPLETE")):
-            assert path in arts, path
-    for f in ("CHECKPOINTS.sha256", ev.reg.TRAINING_RECEIPT, ev.reg.TRAINING_RECEIPT + ".sha256", "receipts/train.log",
-              "evidence/run_evidence.json.rank1.json"):
-        assert os.path.join(farm, f) in arts, f
-    assert all(len(v) == 64 for v in arts.values())
-    assert os.path.realpath(cells[0]["ckpt_link"]) in arts and os.path.join(farm, ev.reg.COMMIT_MARKER) in arts
-    monkeypatch.setattr(col.reg, "campaign_runs", lambda: ["exp45_RFf025_l40_2x32"])
-    snapdir = world["tmp"] / "evalsnap_manifests"
-    fx.write_snapshot_manifests(ev.reg, str(snapdir))
-    monkeypatch.setattr(ev, "eval_snapshot_dir", lambda closure: str(snapdir))
-    real_digest = ev.reg.snapshot_digest
-    monkeypatch.setattr(ev.reg, "snapshot_digest", lambda d: campaign["eval_snapshot_sha256"] if d == str(snapdir)
-                        else real_digest(d))
-    env_rel = str(world["tmp"] / "env_receipt.json")
-    fx.sealed(ev.reg, env_rel, ev.reg.ENV_RECEIPT_KEYS, platform="a6000")
-    monkeypatch.setattr(ev.reg, "env_receipt_rel", lambda platform: env_rel)
+def _training(world, run):
+    """A run's sealed training receipt in the (fake) NAS run dir + what `prepare` copies / links into the farm."""
+    tmp = world["tmp"]
+    farm = os.path.dirname(ev.run_cells(run)[0]["ckpt_link"])
+    rd = tmp / "nas" / run
+    fx.make_training_receipt(ev, run, str(rd), world["campaign"]["closure_sha256"], e0_sha=world["campaign"]["sha256"],
+                             e0_path=world["campaign"]["e0_receipt"])
+    fx.copy_to_farm(ev, str(rd), farm)
+    final = ev.reg.ckpt_name(ev.reg.MAX_STEPS, ev.reg.parse_run_id(run)[1])
+    os.symlink(str(rd / final), os.path.join(farm, final))
+    return ev.reg.read_sealed(str(rd / ev.reg.TRAINING_RECEIPT), ev.reg.TRAINING_KEYS)
+
+
+def _cmd_run_world(world, monkeypatch, tmp_path):
+    """cmd_run() -- the production entry point -- with a fake evaluator writing what eval_FLAC writes."""
+    for run in ev.reg.campaign_runs():
+        _training(world, run)
+    snap = tmp_path / "evalsnap"
+    snap.mkdir()
+    pins = {"agree_sha256": ev.reg.AGREE_SHA256, "vae_ckpt_sha256": ev.reg.VAE_CKPT_SHA256, "vit_rev": ev.reg.VIT_REV}
+    for name, fn in {"campaign_gates": lambda: None, "gpu_foreign": lambda gpu: [], "eval_env": lambda gpu: {},
+                     "gpu_row": lambda gpu: (ev.reg.A6000_UUIDS[gpu], ev.GPU_NAME), "git_head": lambda repo=None: fx.CAMPAIGN["head"],
+                     "eval_snapshot": lambda closure, create=False: (str(snap), fx.CAMPAIGN["eval_snapshot_sha256"]),
+                     "EVAL_LOG_DIR": str(tmp_path / "eval_logs")}.items():
+        monkeypatch.setattr(ev, name, fn)
+    monkeypatch.setattr(ev.reg, "storage_gate", lambda *a, **k: {})
+    monkeypatch.setattr(ev.reg, "eval_pins", lambda repo=None: dict(pins))
+    monkeypatch.setattr(ev.reg, "verify_snapshot", lambda d, want=None: {"snapshot_sha256": fx.CAMPAIGN["eval_snapshot_sha256"]})
+    cells = {c["name"]: c for c in ev.all_cells()}
+
+    def fake_eval(cmd, cwd, env, log, lock_fds=(), grace=60):
+        cell = cells[cmd[cmd.index("--eval-name") + 1]]
+        ck = ev.cell_checkpoint(cell, world["campaign"])
+        fx.make_cell(ev, cell, world["campaign"], ck, str(tmp_path / "unused_logs"))
+        os.remove(cell["receipt"])                                # the driver writes the receipt itself
+        open(log, "a").write(ev.SENTINEL + "\n")
+        return 0
+    monkeypatch.setattr(ev, "run_owned", fake_eval)
+    names = [c["name"] for c in ev.all_cells() if not c["e0"]]
+    ev.cmd_run(1, names, lockdir=str(tmp_path))
+    return names
+
+
+def test_collect_admits_all_30_run_and_10_bridge_cells_produced_by_cmd_run(world, monkeypatch, tmp_path):
+    """plan r3 §3.2 (Codex plan r2 finding 3): the 40 cells come from cmd_run(); collect() admits every one OFFLINE
+    and lists {path: sha256} of every file that admission consumed."""
+    names = _cmd_run_world(world, monkeypatch, tmp_path)
+    assert len(names) == 40
     rows, pending, manifest = col.collect()
-    assert pending == [] and manifest["runs"]["exp45_RFf025_l40_2x32"] == arts
-    art = manifest["artifacts"]
-    assert campaign["e0_receipt"] in art and campaign["e0_receipt"] + ".sha256" in art
-    assert all(ev._abs(c["metrics"]) in art for c in ev.e0_cells())
-    assert len([k for k in art if "/ref_cells/" in k]) == 69                 # 68 cells + the manifest
-    for c in ev.e0_cells():                                                   # E0 logs, weights, snapshot manifests
-        assert json.load(open(c["receipt"]))["log"] in art
-    assert os.path.realpath(ev._abs(ev.reg.AGREE_REL)) in art and os.path.realpath(ev._abs(ev.reg.VAE_CKPT_REL)) in art
-    assert str(snapdir / "SNAPSHOT.sha256") in art and str(snapdir / "SNAPSHOT.links") in art
+    assert pending == [] and sorted(rows) == sorted((m, f, K) for m, f in [("rf", t) for t in ("025", "050", "075")]
+                                                    + [("rf_bridge", "100")] for K in (8, 1))
+    assert all(rows[k]["stats"]["T60"][2] == 5 for k in rows)
+    assert sorted(manifest["runs"]) == sorted(ev.reg.campaign_runs() + [ev.BRIDGE_RUN])
+    for run in ev.reg.campaign_runs():
+        arts = manifest["runs"][run]
+        for c in ev.run_cells(run):
+            for p in (c["metrics"], c["stream"], c["receipt"], ev.dump_manifest_copy(c)):
+                assert os.path.relpath(ev._abs(p), ev.reg.REPO) in arts, p
+        farm = os.path.relpath(os.path.dirname(ev._abs(ev.run_cells(run)[0]["ckpt_link"])), ev.reg.REPO)
+        for f in ("CHECKPOINTS.sha256", ev.reg.TRAINING_RECEIPT, "receipts/loss_record.csv", "evidence/run_evidence.json.rank1.json"):
+            assert os.path.join(farm, f) in arts, f
+        assert not [k for k in arts if k.startswith("/media") or k.endswith(".ckpt") or k.endswith(".npy")]
+    assert len(manifest["runs"][ev.BRIDGE_RUN]) == 40                     # 10 cells x (metrics, stream, receipt, dump copy)
+    assert len(manifest["artifacts"]) == 3 + 24
+    (tmp_path / col.reg.EXP_DIR).mkdir(parents=True, exist_ok=True)
+    sha = col.publish(rows, pending, manifest, repo=str(tmp_path))
+    assert json.load(open(tmp_path / col.OUT_JSON))["manifest"] == json.loads(json.dumps(manifest)) and len(sha) == 64
+
+
+@pytest.mark.parametrize("what", ["missing run cell", "missing bridge cell", "unadmitted bridge cell", "e0 cell"])
+def test_collect_refuses_any_missing_or_unadmitted_cell(world, monkeypatch, tmp_path, what):
+    _cmd_run_world(world, monkeypatch, tmp_path)
+    if what == "missing run cell":
+        os.remove(ev.run_cells(ev.reg.campaign_runs()[1])[7]["stream"])
+    elif what == "missing bridge cell":
+        os.remove(ev.bridge_cells()[9]["metrics"])
+    elif what == "unadmitted bridge cell":
+        _mut(ev.bridge_cells()[2]["receipt"], lambda r: r.update(bridge_descriptor_sha256="0" * 64))
+    else:
+        _mut(ev.e0_cells()[1]["metrics"], lambda r: r["metrics"].update(T60=r["metrics"]["T60"] + 1e-9))
+    with pytest.raises((ev.EvalError, ev.reg.GateError)):
+        col.collect()
 
 
 @pytest.mark.parametrize("what", ["waveforms", "checkpoint", "e0 log", "cell log"])
@@ -947,44 +978,6 @@ def test_the_real_bfc4ea4b_e0a_replay_passes_under_the_widened_decision():
             assert not ev.judge_e0(c, bad, ref, decision)[0], (name, k)
         other = [o for o in ev.E0A_CELLS if o != name][0]                             # pins are per cell
         assert not ev.judge_e0(c, got, ref, {other: decision[other]})[0]
-
-
-def test_flac_rows_carry_the_exp14_retrieval_label(decided, tmp_path):
-    campaign, rec, decision = decided
-    rows, used = col.reference_rows(campaign)
-    for (m, f, K), v in rows.items():
-        assert v["retrieval_evaluator"] == ("exp_14" if m == "p1" and f in ("025", "050", "075") else None)
-    md = col.render(rows, [])
-    flac25 = [ln for ln in md.split("\n") if ln.startswith("| FLAC (P1) | 25 %")]
-    assert flac25 and all(ln.count("†") == 1 for ln in flac25) and "exp_14's own evaluator" in md
-    assert all("†" not in ln for ln in md.split("\n") if ln.startswith("| FLAC (P1) | 100 %"))
-    (tmp_path / col.reg.EXP_DIR).mkdir(parents=True)
-    col.publish(rows, [], {}, repo=str(tmp_path))
-    payload = json.load(open(tmp_path / col.OUT_JSON))
-    labels = {(r["model"], r["fraction"]): r["retrieval_evaluator"] for r in payload["rows"]}
-    assert labels[("p1", "050")] == "exp_14" and labels[("p1", "100")] == "exp_38" and labels[("yaw", "100")] == "exp_38"
-    for r in payload["rows"]:                       # the JSON names EVERY exp_14-evaluator metric: all six R@k
-        exp14 = r["model"] == "p1" and r["fraction"] in ("025", "050", "075")
-        assert r["exp_14_evaluator_metrics"] == (sorted(ev.RETRIEVAL_KEYS) if exp14 else []), r
-        assert set(r["exp_14_evaluator_metrics"]) <= set(r["stats"])
-    for k in ("R@1", "R@5", "R@10", "RIR->GT-RIR", "RIR->geom"):
-        assert k in md, k                           # the footnote covers them whether shown or not
-
-
-def test_every_shown_flac_retrieval_column_carries_the_mark(decided, monkeypatch):
-    """With every metric shown, all six retrieval columns of the FLAC 25 / 50 / 75 % rows carry the mark and no
-    acoustic column does (the table shows R@1 GT by default; the mark follows RETRIEVAL_KEYS, not R@1)."""
-    campaign, rec, decision = decided
-    monkeypatch.setattr(col, "SHOW", ev.METRIC_KEYS)
-    rows, _ = col.reference_rows(campaign)
-    md = col.render(rows, [])
-    for frac in ("25 %", "50 %", "75 %", "100 %"):
-        lines = [ln for ln in md.split("\n") if ln.startswith(f"| FLAC (P1) | {frac}")]
-        assert len(lines) == 2                      # K8 + K1
-        for ln in lines:
-            cells = [x.strip() for x in ln.strip("|").split("|")][2:2 + len(ev.METRIC_KEYS)]
-            marked = {m for m, x in zip(ev.METRIC_KEYS, cells) if x.endswith("†")}
-            assert marked == (set(ev.RETRIEVAL_KEYS) if frac != "100 %" else set()), (frac, marked)
 
 
 def test_d2_neuronic_campaign_runs_and_admission(world, monkeypatch):
