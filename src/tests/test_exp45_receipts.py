@@ -244,6 +244,46 @@ def test_the_smoke_writer_recomputes_every_gate(tree):
         assert out["verdict"] == "FAIL" and out["logger_gate"] != "PASS", logger
 
 
+def test_the_smoke_logger_gate_checks_file_types_like_the_full_mover(tree):
+    """Codex code r1 finding 16: the SMOKE logger gate requires PL's CSV-logger OUTPUT, not just its names --
+    lightning_logs/version_0 a real directory and version_0/hparams.yaml a regular file, neither a symlink (the FULL
+    mover's own check). An empty directory or a symlink named hparams.yaml, or a symlinked version_0, is refused."""
+    v0 = "lightning_logs/version_0"
+    elsewhere = tree / "elsewhere"
+    (elsewhere / "version_0").mkdir(parents=True)
+    (elsewhere / "version_0" / "hparams.yaml").write_text("{}\n")
+    (elsewhere / "hparams.yaml").write_text("{}\n")
+
+    def regular(sd):
+        (sd / v0).mkdir(parents=True)
+        (sd / v0 / "hparams.yaml").write_text("{}\n")
+
+    def hp_dir(sd):
+        (sd / v0 / "hparams.yaml").mkdir(parents=True)                # an empty directory under the CSV name
+
+    def hp_link(sd):
+        (sd / v0).mkdir(parents=True)
+        os.symlink(elsewhere / "hparams.yaml", sd / v0 / "hparams.yaml")
+
+    def v0_link(sd):
+        (sd / "lightning_logs").mkdir(parents=True)
+        os.symlink(elsewhere / "version_0", sd / v0)
+
+    for name, make in (("regular", regular), ("hparams dir", hp_dir), ("hparams symlink", hp_link),
+                       ("version_0 symlink", v0_link)):
+        sd = tree / f"logger_{name.replace(' ', '_')}"
+        make(sd)
+        probs = reg.smoke_logger_problems(str(sd))
+        assert (probs == []) == (name == "regular"), (name, probs)
+    # through the SMOKE writer: the sealed receipt's logger gate and verdict
+    out = _smoke(tree, ts="t_link", logger={})
+    assert out["verdict"] == "FAIL"                                     # no logger dir at all (unchanged)
+    sd = tree / "smoke_t_hp"
+    (sd / v0 / "hparams.yaml").mkdir(parents=True)
+    out = _smoke(tree, ts="t_hp", logger={})
+    assert out["verdict"] == "FAIL" and out["logger_gate"] != "PASS"
+
+
 def test_the_writers_refuse_an_environment_receipt_changed_during_the_run(tree, monkeypatch):
     monkeypatch.setattr(reg, "env_receipt_sha", lambda platform, repo=None: "9" * 64)
     with pytest.raises(reg.GateError, match="environment receipt changed"):

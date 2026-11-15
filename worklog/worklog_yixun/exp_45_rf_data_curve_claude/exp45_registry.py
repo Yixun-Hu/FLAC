@@ -1591,7 +1591,9 @@ def logger_entries(run_dir):
 
 def smoke_logger_problems(smoke_dir):
     """The SMOKE gate's logger check (plan r3 §3.2): the CSV logger was selected -- exactly
-    lightning_logs/version_0/hparams.yaml, no TensorBoard event file -- before any FULL."""
+    lightning_logs/version_0/hparams.yaml, no TensorBoard event file -- before any FULL. The entries are checked by
+    TYPE too, as the FULL mover does (Codex code r1 finding 16): version_0 a real directory, hparams.yaml a regular
+    file, neither a symlink."""
     ll = os.path.join(smoke_dir, LOGGER_DIR)
     if not os.path.isdir(ll) or os.path.islink(ll):
         return [f"{ll}: no logger directory (PL's CSV logger was not selected)"]
@@ -1599,6 +1601,11 @@ def smoke_logger_problems(smoke_dir):
     p = [f"{ll}: a TensorBoard event file {e}" for e in got if "tfevents" in os.path.basename(e)]
     if got != SMOKE_LOGGER_ENTRIES:
         p.append(f"{ll}: entries {got} != exactly {SMOKE_LOGGER_ENTRIES}")
+        return p
+    v0 = os.path.join(ll, "version_0")
+    hp = os.path.join(v0, "hparams.yaml")
+    if os.path.islink(v0) or not os.path.isdir(v0) or os.path.islink(hp) or not os.path.isfile(hp):
+        p.append(f"{v0}: version_0 must be a directory and hparams.yaml a regular file, neither a symlink")
     return p
 
 
