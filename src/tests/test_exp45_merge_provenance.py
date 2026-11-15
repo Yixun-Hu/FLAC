@@ -68,11 +68,15 @@ ALLOWED_AFTER_MERGE = (f"{EXPREL}/*", "src/tests/test_exp45_*.py", "src/tests/ex
 RESULTS_ONLY = ("outputs_FLAC/exp45_rf_data_curve/eval/*", "worklog/worklog_yixun/model_comparison.md")
 RESULTS_SUBJECT = "exp_45 results publication"            # the subject prefix of a results-publication commit
 # the E0 publication commit Y (rf_data_curve_command.md step 1; Codex code r1 finding 13): ITS registered subject, and
-# besides the exp_45 folder ONLY the 24 files of the eight E0 cells (metrics, stream, receipt of de_E0{a..d}_K{8,1}_s42
-# in their own gate's directory) -- the results-publication rule above is not widened
+# besides the exp_45 folder ONLY the 24 files of the eight E0 cells -- exactly enumerated from each gate's registered
+# checkpoint epoch and conditioning suffix (Codex code r2 finding 10; exp45_eval.e0_cells naming, test-checked) --
+# the results-publication rule above is not widened
 E0_SUBJECT = re.compile(r"exp_45 records: E0 PASS at [0-9a-f]{40}")
-E0_ONLY = re.compile(r"outputs_FLAC/exp45_rf_data_curve/eval/(E0[a-d])/epoch=(?:34|8)-step=40000_metrics_1_1\.0_de_\1"
-                     r"_K[18]_s42(?:_fa_invariant_a4)?\.(?:json|stream\.json|receipt\.json)")
+E0_GATES = {"E0a": ("epoch=34-step=40000", ""), "E0b": ("epoch=8-step=40000", "_fa_invariant_a4"),
+            "E0c": ("epoch=8-step=40000", ""), "E0d": ("epoch=8-step=40000", "")}
+E0_FILES = frozenset(f"outputs_FLAC/exp45_rf_data_curve/eval/{g}/{ck}_metrics_1_1.0_de_{g}_K{K}_s42{sfx}{ext}"
+                     for g, (ck, sfx) in E0_GATES.items() for K in (8, 1)
+                     for ext in (".json", ".stream.json", ".receipt.json"))
 COMPAT_EDITS = {"src/tests/test_exp40_kit.py": "test_prefigure_parse_matches_the_expected_values_type_strict",
                 "src/tests/test_exp43_kit.py": "test_prefigure_parse_matches_the_expected_values_type_strict",
                 # the generator contract's six exp_45 rows need the byte-identity test to set them aside, exactly as
@@ -116,7 +120,7 @@ def path_allowed(path, subject):
         return True
     if matches(path, RESULTS_ONLY) and subject.startswith(RESULTS_SUBJECT):
         return True
-    return E0_SUBJECT.fullmatch(subject) is not None and E0_ONLY.fullmatch(path) is not None
+    return E0_SUBJECT.fullmatch(subject) is not None and path in E0_FILES
 
 
 def merge_commit():
@@ -269,6 +273,23 @@ def test_the_e0_publication_commit_is_registered_for_the_e0_files_only():
     # the results-publication rule is unchanged: eval/* + the table under its own subject, nothing else
     assert path_allowed(stray[0], RESULTS_SUBJECT + ": 30 cells") and path_allowed(stray[1], RESULTS_SUBJECT + ": x")
     assert not path_allowed("src/data/dataset.py", RESULTS_SUBJECT + ": x")
+
+
+def test_the_e0_rule_admits_exactly_the_24_registered_e0_paths():
+    """Codex code r2 finding 10: the E0 exception is the exact 24-path set -- each gate's registered checkpoint epoch
+    (E0a: 34, the others: 8) and conditioning suffix (E0b: _fa_invariant_a4 only) -- not their 96 combinations."""
+    subject = "exp_45 records: E0 PASS at " + "0123456789abcdef" * 2 + "01234567"
+    e0 = _e0_cell_files()
+    farm = "outputs_FLAC/exp45_rf_data_curve/eval"
+    combos = [f"{farm}/{g}/epoch={ep}-step=40000_metrics_1_1.0_de_{g}_K{K}_s42{sfx}{ext}"
+              for g in ("E0a", "E0b", "E0c", "E0d") for ep in (34, 8) for K in (8, 1)
+              for sfx in ("", "_fa_invariant_a4") for ext in (".json", ".stream.json", ".receipt.json")]
+    assert len(combos) == 96 and set(e0) <= set(combos)
+    assert sorted(p for p in combos if path_allowed(p, subject)) == e0
+    for wrong in (f"{farm}/E0a/epoch=8-step=40000_metrics_1_1.0_de_E0a_K8_s42.json",          # E0a's epoch is 34
+                  f"{farm}/E0b/epoch=8-step=40000_metrics_1_1.0_de_E0b_K8_s42.json",          # E0b needs its suffix
+                  f"{farm}/E0c/epoch=8-step=40000_metrics_1_1.0_de_E0c_K1_s42_fa_invariant_a4.json"):
+        assert not path_allowed(wrong, subject), wrong
 
 
 @pytest.mark.parametrize("folder,parent", [(EXP38REL, EXP38_TIP), (EXP40REL, EXP43_PIN), (EXP43REL, EXP43_PIN)])
