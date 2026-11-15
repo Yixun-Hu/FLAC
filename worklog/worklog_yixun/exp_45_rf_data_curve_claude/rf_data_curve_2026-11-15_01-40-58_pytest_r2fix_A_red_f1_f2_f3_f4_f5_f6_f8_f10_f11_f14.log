@@ -1,0 +1,1517 @@
+HEAD 774ec2f048699aeb142e880abe6b50374bf5d0d3 tracked-clean=no host neu305.neuronic.cs.princeton.edu start 2026-11-15T01:41:03-05:00
+cmd: pytest -q src/tests/test_exp45_storage.py::test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit src/tests/test_exp45_storage.py::test_a_hard_linked_file_under_a_reserved_run_dir_refuses src/tests/test_exp45_storage.py::test_a_write_between_the_two_observations_is_never_credited_against_older_free_space src/tests/test_exp45_eval.py::test_a_bridge_stream_changed_after_the_seal_refuses_collection src/tests/test_exp45_eval.py::test_each_bridge_bundle_file_is_read_exactly_once src/tests/test_exp45_eval.py::test_a_bundle_file_changed_after_its_capture_cannot_steer_the_comparison src/tests/test_exp45_supervise.py::test_a_failure_after_the_marker_rename_never_rewrites_the_sealed_record src/tests/test_exp45_merge_provenance.py::test_the_e0_rule_admits_exactly_the_24_registered_e0_paths src/tests/test_exp45_receipts.py::test_the_real_hygiene_gate_tolerates_a_live_writers_receipt_temp_file_only src/tests/test_exp45_launchers.py::test_release_frees_only_the_ledger_hold_of_a_sealed_terminal_run src/tests/test_exp45_launchers.py::test_release_refuses_an_unsealed_foreign_or_unproven_run src/tests/test_exp45_command_sheets.py src/tests/test_gen_model_comparison_exp45.py::test_the_generator_writes_its_table_to_out_never_into_the_evidence_root src/tests/test_exp45_isolation.py 
+FFFFFFFFFFFFFFFFFFFFFFFFFFF.F..FF..FFEEEEEEE                             [100%]
+==================================== ERRORS ====================================
+__ ERROR at setup of test_equal_contained_and_containing_aliases_are_refused ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_equal_contained_and_conta0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b318dd9f0>
+
+    @pytest.fixture
+    def protected(tmp_path, monkeypatch):
+        """A fake exp_38 save root, dump root and tree (farm + worklog folder) the registry treats as protected."""
+        save38, dump38 = tmp_path / "exp38_save_root", tmp_path / "exp38_dumps"
+        for d in (save38, dump38):
+            d.mkdir()
+>       monkeypatch.setattr(reg, "EXP38_SAVE_ROOTS", (str(save38),))
+E       AttributeError: <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'> has no attribute 'EXP38_SAVE_ROOTS'
+
+src/tests/test_exp45_isolation.py:54: AttributeError
+_ ERROR at setup of test_the_storage_probe_and_the_ledger_refuse_an_aliased_root_before_writing _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_storage_probe_and_the0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b31599300>
+
+    @pytest.fixture
+    def protected(tmp_path, monkeypatch):
+        """A fake exp_38 save root, dump root and tree (farm + worklog folder) the registry treats as protected."""
+        save38, dump38 = tmp_path / "exp38_save_root", tmp_path / "exp38_dumps"
+        for d in (save38, dump38):
+            d.mkdir()
+>       monkeypatch.setattr(reg, "EXP38_SAVE_ROOTS", (str(save38),))
+E       AttributeError: <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'> has no attribute 'EXP38_SAVE_ROOTS'
+
+src/tests/test_exp45_isolation.py:54: AttributeError
+_ ERROR at setup of test_the_submitter_refuses_an_aliased_save_root_before_any_lock_or_owner _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b35902f20>
+
+    @pytest.fixture
+    def protected(tmp_path, monkeypatch):
+        """A fake exp_38 save root, dump root and tree (farm + worklog folder) the registry treats as protected."""
+        save38, dump38 = tmp_path / "exp38_save_root", tmp_path / "exp38_dumps"
+        for d in (save38, dump38):
+            d.mkdir()
+>       monkeypatch.setattr(reg, "EXP38_SAVE_ROOTS", (str(save38),))
+E       AttributeError: <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'> has no attribute 'EXP38_SAVE_ROOTS'
+
+src/tests/test_exp45_isolation.py:54: AttributeError
+_ ERROR at setup of test_the_supervisor_refuses_an_aliased_save_root_before_any_claim_or_directory _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_supervisor_refuses_an0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b3159bc40>
+
+    @pytest.fixture
+    def protected(tmp_path, monkeypatch):
+        """A fake exp_38 save root, dump root and tree (farm + worklog folder) the registry treats as protected."""
+        save38, dump38 = tmp_path / "exp38_save_root", tmp_path / "exp38_dumps"
+        for d in (save38, dump38):
+            d.mkdir()
+>       monkeypatch.setattr(reg, "EXP38_SAVE_ROOTS", (str(save38),))
+E       AttributeError: <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'> has no attribute 'EXP38_SAVE_ROOTS'
+
+src/tests/test_exp45_isolation.py:54: AttributeError
+__ ERROR at setup of test_the_evaluator_refuses_an_aliased_dump_root_or_farm ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b315e8e20>
+
+    @pytest.fixture
+    def protected(tmp_path, monkeypatch):
+        """A fake exp_38 save root, dump root and tree (farm + worklog folder) the registry treats as protected."""
+        save38, dump38 = tmp_path / "exp38_save_root", tmp_path / "exp38_dumps"
+        for d in (save38, dump38):
+            d.mkdir()
+>       monkeypatch.setattr(reg, "EXP38_SAVE_ROOTS", (str(save38),))
+E       AttributeError: <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'> has no attribute 'EXP38_SAVE_ROOTS'
+
+src/tests/test_exp45_isolation.py:54: AttributeError
+_ ERROR at setup of test_materialise_writes_nothing_into_exp38s_namespaces_or_through_an_alias _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_materialise_writes_nothin0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b3159b9a0>
+
+    @pytest.fixture
+    def protected(tmp_path, monkeypatch):
+        """A fake exp_38 save root, dump root and tree (farm + worklog folder) the registry treats as protected."""
+        save38, dump38 = tmp_path / "exp38_save_root", tmp_path / "exp38_dumps"
+        for d in (save38, dump38):
+            d.mkdir()
+>       monkeypatch.setattr(reg, "EXP38_SAVE_ROOTS", (str(save38),))
+E       AttributeError: <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'> has no attribute 'EXP38_SAVE_ROOTS'
+
+src/tests/test_exp45_isolation.py:54: AttributeError
+_ ERROR at setup of test_the_exp38_import_materialiser_refuses_a_protected_or_aliased_destination _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_exp38_import_material0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b3596ff10>
+
+    @pytest.fixture
+    def protected(tmp_path, monkeypatch):
+        """A fake exp_38 save root, dump root and tree (farm + worklog folder) the registry treats as protected."""
+        save38, dump38 = tmp_path / "exp38_save_root", tmp_path / "exp38_dumps"
+        for d in (save38, dump38):
+            d.mkdir()
+>       monkeypatch.setattr(reg, "EXP38_SAVE_ROOTS", (str(save38),))
+E       AttributeError: <module 'exp45_registry' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py'> has no attribute 'EXP38_SAVE_ROOTS'
+
+src/tests/test_exp45_isolation.py:54: AttributeError
+=================================== FAILURES ===================================
+_ test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit[reserve-truncation] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_file_changing_across_th0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b358ba230>
+change = 'truncation', check = 'reserve'
+
+    @pytest.mark.parametrize("change", ["truncation", "replacement", "deletion"])
+    @pytest.mark.parametrize("check", ["reserve", "recheck"])
+    def test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit(tmp_path, monkeypatch, change, check):
+        """Codex code r2 finding 2: written-byte credit is the MINIMUM of two scans that bracket the free-space sample,
+        per file identity (st_dev, st_ino). KiB scale: run A holds 20 KiB with an 8-KiB checkpoint written; 17 KiB are
+        free; just before free space is sampled the checkpoint is truncated / replaced by a new file / deleted -- the
+        sample then reads 25 KiB, while the first scan saw 8 KiB. Credited once against the later sample, the headroom
+        would read 25 - (20 - 8) = 13 KiB (12 with a 1-KiB candidate) over a 10-KiB floor; the true one is 25 - 20 = 5."""
+        root = tmp_path / "root"
+        root.mkdir()
+        run_a, run_b = RUNS[0], RUNS[1]
+        d = root / run_a
+        d.mkdir()
+        ck = d / "epoch=0-step=2500.ckpt"
+        ck.write_bytes(os.urandom(8 * KIB))
+        state = {"free": 1024 * KIB, "armed": False, "done": False}
+    
+        def real_credits_total():                                       # the filesystem's own view: allocated bytes
+            return sum(min(st.st_size, st.st_blocks * 512) for st in (os.lstat(os.path.join(d, f)) for f in os.listdir(d)))
+    
+        def free(path):
+            if state["armed"] and not state["done"]:
+                state["done"] = True
+                if change == "truncation":
+                    open(ck, "r+b").truncate(0)
+                elif change == "replacement":
+                    os.remove(ck)
+                    sample = state["free"] - real_credits_total()
+                    ck.write_bytes(os.urandom(8 * KIB))                   # a NEW file, after the sample
+                    return sample
+                else:
+                    os.remove(ck)
+            return state["free"] - real_credits_total()
+        monkeypatch.setattr(reg, "free_bytes", free)
+        reg.reserve_storage(run_a, TOKENS[run_a], str(d), str(root), need=20 * KIB, floor=10 * KIB)
+        state.update(free=25 * KIB, armed=True)                          # 25 KiB capacity, 8 of them written: 17 free
+>       with pytest.raises(reg.GateError, match="floor"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp45_storage.py:255: Failed
+_ test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit[reserve-replacement] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_file_changing_across_th1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b35905cc0>
+change = 'replacement', check = 'reserve'
+
+    @pytest.mark.parametrize("change", ["truncation", "replacement", "deletion"])
+    @pytest.mark.parametrize("check", ["reserve", "recheck"])
+    def test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit(tmp_path, monkeypatch, change, check):
+        """Codex code r2 finding 2: written-byte credit is the MINIMUM of two scans that bracket the free-space sample,
+        per file identity (st_dev, st_ino). KiB scale: run A holds 20 KiB with an 8-KiB checkpoint written; 17 KiB are
+        free; just before free space is sampled the checkpoint is truncated / replaced by a new file / deleted -- the
+        sample then reads 25 KiB, while the first scan saw 8 KiB. Credited once against the later sample, the headroom
+        would read 25 - (20 - 8) = 13 KiB (12 with a 1-KiB candidate) over a 10-KiB floor; the true one is 25 - 20 = 5."""
+        root = tmp_path / "root"
+        root.mkdir()
+        run_a, run_b = RUNS[0], RUNS[1]
+        d = root / run_a
+        d.mkdir()
+        ck = d / "epoch=0-step=2500.ckpt"
+        ck.write_bytes(os.urandom(8 * KIB))
+        state = {"free": 1024 * KIB, "armed": False, "done": False}
+    
+        def real_credits_total():                                       # the filesystem's own view: allocated bytes
+            return sum(min(st.st_size, st.st_blocks * 512) for st in (os.lstat(os.path.join(d, f)) for f in os.listdir(d)))
+    
+        def free(path):
+            if state["armed"] and not state["done"]:
+                state["done"] = True
+                if change == "truncation":
+                    open(ck, "r+b").truncate(0)
+                elif change == "replacement":
+                    os.remove(ck)
+                    sample = state["free"] - real_credits_total()
+                    ck.write_bytes(os.urandom(8 * KIB))                   # a NEW file, after the sample
+                    return sample
+                else:
+                    os.remove(ck)
+            return state["free"] - real_credits_total()
+        monkeypatch.setattr(reg, "free_bytes", free)
+        reg.reserve_storage(run_a, TOKENS[run_a], str(d), str(root), need=20 * KIB, floor=10 * KIB)
+        state.update(free=25 * KIB, armed=True)                          # 25 KiB capacity, 8 of them written: 17 free
+>       with pytest.raises(reg.GateError, match="floor"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp45_storage.py:255: Failed
+_ test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit[reserve-deletion] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_file_changing_across_th2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b35943370>
+change = 'deletion', check = 'reserve'
+
+    @pytest.mark.parametrize("change", ["truncation", "replacement", "deletion"])
+    @pytest.mark.parametrize("check", ["reserve", "recheck"])
+    def test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit(tmp_path, monkeypatch, change, check):
+        """Codex code r2 finding 2: written-byte credit is the MINIMUM of two scans that bracket the free-space sample,
+        per file identity (st_dev, st_ino). KiB scale: run A holds 20 KiB with an 8-KiB checkpoint written; 17 KiB are
+        free; just before free space is sampled the checkpoint is truncated / replaced by a new file / deleted -- the
+        sample then reads 25 KiB, while the first scan saw 8 KiB. Credited once against the later sample, the headroom
+        would read 25 - (20 - 8) = 13 KiB (12 with a 1-KiB candidate) over a 10-KiB floor; the true one is 25 - 20 = 5."""
+        root = tmp_path / "root"
+        root.mkdir()
+        run_a, run_b = RUNS[0], RUNS[1]
+        d = root / run_a
+        d.mkdir()
+        ck = d / "epoch=0-step=2500.ckpt"
+        ck.write_bytes(os.urandom(8 * KIB))
+        state = {"free": 1024 * KIB, "armed": False, "done": False}
+    
+        def real_credits_total():                                       # the filesystem's own view: allocated bytes
+            return sum(min(st.st_size, st.st_blocks * 512) for st in (os.lstat(os.path.join(d, f)) for f in os.listdir(d)))
+    
+        def free(path):
+            if state["armed"] and not state["done"]:
+                state["done"] = True
+                if change == "truncation":
+                    open(ck, "r+b").truncate(0)
+                elif change == "replacement":
+                    os.remove(ck)
+                    sample = state["free"] - real_credits_total()
+                    ck.write_bytes(os.urandom(8 * KIB))                   # a NEW file, after the sample
+                    return sample
+                else:
+                    os.remove(ck)
+            return state["free"] - real_credits_total()
+        monkeypatch.setattr(reg, "free_bytes", free)
+        reg.reserve_storage(run_a, TOKENS[run_a], str(d), str(root), need=20 * KIB, floor=10 * KIB)
+        state.update(free=25 * KIB, armed=True)                          # 25 KiB capacity, 8 of them written: 17 free
+>       with pytest.raises(reg.GateError, match="floor"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp45_storage.py:255: Failed
+_ test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit[recheck-truncation] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_file_changing_across_th3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b3596fdc0>
+change = 'truncation', check = 'recheck'
+
+    @pytest.mark.parametrize("change", ["truncation", "replacement", "deletion"])
+    @pytest.mark.parametrize("check", ["reserve", "recheck"])
+    def test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit(tmp_path, monkeypatch, change, check):
+        """Codex code r2 finding 2: written-byte credit is the MINIMUM of two scans that bracket the free-space sample,
+        per file identity (st_dev, st_ino). KiB scale: run A holds 20 KiB with an 8-KiB checkpoint written; 17 KiB are
+        free; just before free space is sampled the checkpoint is truncated / replaced by a new file / deleted -- the
+        sample then reads 25 KiB, while the first scan saw 8 KiB. Credited once against the later sample, the headroom
+        would read 25 - (20 - 8) = 13 KiB (12 with a 1-KiB candidate) over a 10-KiB floor; the true one is 25 - 20 = 5."""
+        root = tmp_path / "root"
+        root.mkdir()
+        run_a, run_b = RUNS[0], RUNS[1]
+        d = root / run_a
+        d.mkdir()
+        ck = d / "epoch=0-step=2500.ckpt"
+        ck.write_bytes(os.urandom(8 * KIB))
+        state = {"free": 1024 * KIB, "armed": False, "done": False}
+    
+        def real_credits_total():                                       # the filesystem's own view: allocated bytes
+            return sum(min(st.st_size, st.st_blocks * 512) for st in (os.lstat(os.path.join(d, f)) for f in os.listdir(d)))
+    
+        def free(path):
+            if state["armed"] and not state["done"]:
+                state["done"] = True
+                if change == "truncation":
+                    open(ck, "r+b").truncate(0)
+                elif change == "replacement":
+                    os.remove(ck)
+                    sample = state["free"] - real_credits_total()
+                    ck.write_bytes(os.urandom(8 * KIB))                   # a NEW file, after the sample
+                    return sample
+                else:
+                    os.remove(ck)
+            return state["free"] - real_credits_total()
+        monkeypatch.setattr(reg, "free_bytes", free)
+        reg.reserve_storage(run_a, TOKENS[run_a], str(d), str(root), need=20 * KIB, floor=10 * KIB)
+        state.update(free=25 * KIB, armed=True)                          # 25 KiB capacity, 8 of them written: 17 free
+>       with pytest.raises(reg.GateError, match="floor"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp45_storage.py:255: Failed
+_ test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit[recheck-replacement] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_file_changing_across_th4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b35943ca0>
+change = 'replacement', check = 'recheck'
+
+    @pytest.mark.parametrize("change", ["truncation", "replacement", "deletion"])
+    @pytest.mark.parametrize("check", ["reserve", "recheck"])
+    def test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit(tmp_path, monkeypatch, change, check):
+        """Codex code r2 finding 2: written-byte credit is the MINIMUM of two scans that bracket the free-space sample,
+        per file identity (st_dev, st_ino). KiB scale: run A holds 20 KiB with an 8-KiB checkpoint written; 17 KiB are
+        free; just before free space is sampled the checkpoint is truncated / replaced by a new file / deleted -- the
+        sample then reads 25 KiB, while the first scan saw 8 KiB. Credited once against the later sample, the headroom
+        would read 25 - (20 - 8) = 13 KiB (12 with a 1-KiB candidate) over a 10-KiB floor; the true one is 25 - 20 = 5."""
+        root = tmp_path / "root"
+        root.mkdir()
+        run_a, run_b = RUNS[0], RUNS[1]
+        d = root / run_a
+        d.mkdir()
+        ck = d / "epoch=0-step=2500.ckpt"
+        ck.write_bytes(os.urandom(8 * KIB))
+        state = {"free": 1024 * KIB, "armed": False, "done": False}
+    
+        def real_credits_total():                                       # the filesystem's own view: allocated bytes
+            return sum(min(st.st_size, st.st_blocks * 512) for st in (os.lstat(os.path.join(d, f)) for f in os.listdir(d)))
+    
+        def free(path):
+            if state["armed"] and not state["done"]:
+                state["done"] = True
+                if change == "truncation":
+                    open(ck, "r+b").truncate(0)
+                elif change == "replacement":
+                    os.remove(ck)
+                    sample = state["free"] - real_credits_total()
+                    ck.write_bytes(os.urandom(8 * KIB))                   # a NEW file, after the sample
+                    return sample
+                else:
+                    os.remove(ck)
+            return state["free"] - real_credits_total()
+        monkeypatch.setattr(reg, "free_bytes", free)
+        reg.reserve_storage(run_a, TOKENS[run_a], str(d), str(root), need=20 * KIB, floor=10 * KIB)
+        state.update(free=25 * KIB, armed=True)                          # 25 KiB capacity, 8 of them written: 17 free
+>       with pytest.raises(reg.GateError, match="floor"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp45_storage.py:255: Failed
+_ test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit[recheck-deletion] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_file_changing_across_th5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b35907fd0>
+change = 'deletion', check = 'recheck'
+
+    @pytest.mark.parametrize("change", ["truncation", "replacement", "deletion"])
+    @pytest.mark.parametrize("check", ["reserve", "recheck"])
+    def test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit(tmp_path, monkeypatch, change, check):
+        """Codex code r2 finding 2: written-byte credit is the MINIMUM of two scans that bracket the free-space sample,
+        per file identity (st_dev, st_ino). KiB scale: run A holds 20 KiB with an 8-KiB checkpoint written; 17 KiB are
+        free; just before free space is sampled the checkpoint is truncated / replaced by a new file / deleted -- the
+        sample then reads 25 KiB, while the first scan saw 8 KiB. Credited once against the later sample, the headroom
+        would read 25 - (20 - 8) = 13 KiB (12 with a 1-KiB candidate) over a 10-KiB floor; the true one is 25 - 20 = 5."""
+        root = tmp_path / "root"
+        root.mkdir()
+        run_a, run_b = RUNS[0], RUNS[1]
+        d = root / run_a
+        d.mkdir()
+        ck = d / "epoch=0-step=2500.ckpt"
+        ck.write_bytes(os.urandom(8 * KIB))
+        state = {"free": 1024 * KIB, "armed": False, "done": False}
+    
+        def real_credits_total():                                       # the filesystem's own view: allocated bytes
+            return sum(min(st.st_size, st.st_blocks * 512) for st in (os.lstat(os.path.join(d, f)) for f in os.listdir(d)))
+    
+        def free(path):
+            if state["armed"] and not state["done"]:
+                state["done"] = True
+                if change == "truncation":
+                    open(ck, "r+b").truncate(0)
+                elif change == "replacement":
+                    os.remove(ck)
+                    sample = state["free"] - real_credits_total()
+                    ck.write_bytes(os.urandom(8 * KIB))                   # a NEW file, after the sample
+                    return sample
+                else:
+                    os.remove(ck)
+            return state["free"] - real_credits_total()
+        monkeypatch.setattr(reg, "free_bytes", free)
+        reg.reserve_storage(run_a, TOKENS[run_a], str(d), str(root), need=20 * KIB, floor=10 * KIB)
+        state.update(free=25 * KIB, armed=True)                          # 25 KiB capacity, 8 of them written: 17 free
+>       with pytest.raises(reg.GateError, match="floor"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp45_storage.py:255: Failed
+_ test_a_hard_linked_file_under_a_reserved_run_dir_refuses[inside one run dir] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_hard_linked_file_under_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b35943880>
+where = 'inside one run dir'
+
+    @pytest.mark.parametrize("where", ["inside one run dir", "across two reservations"])
+    def test_a_hard_linked_file_under_a_reserved_run_dir_refuses(tmp_path, monkeypatch, where):
+        """Codex code r2 finding 2: a regular file with more than one hard link would earn its allocation once per name
+        (or once per reservation): any such file under a reserved run dir refuses the storage check (GateError)."""
+        root = tmp_path / "root"
+        root.mkdir()
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 12)
+        for r in RUNS[:2]:
+            (root / r).mkdir()
+            reg.reserve_storage(r, TOKENS[r], str(root / r), str(root), need=64 * KIB, floor=0)
+        ck = root / RUNS[0] / "epoch=0-step=2500.ckpt"
+        ck.write_bytes(os.urandom(8 * KIB))
+        os.link(ck, (root / RUNS[0] / "copy.ckpt") if where == "inside one run dir" else (root / RUNS[1] / "copy.ckpt"))
+        for fn in (lambda: reg.recheck_storage(RUNS[0], TOKENS[RUNS[0]], str(root), floor=0),
+                   lambda: reg.reserve_storage(RUNS[2], TOKENS[RUNS[2]], str(root / RUNS[2]), str(root), need=KIB, floor=0)):
+>           with pytest.raises(reg.GateError, match="hard link"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp45_storage.py:278: Failed
+_ test_a_hard_linked_file_under_a_reserved_run_dir_refuses[across two reservations] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_hard_linked_file_under_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b3596c8e0>
+where = 'across two reservations'
+
+    @pytest.mark.parametrize("where", ["inside one run dir", "across two reservations"])
+    def test_a_hard_linked_file_under_a_reserved_run_dir_refuses(tmp_path, monkeypatch, where):
+        """Codex code r2 finding 2: a regular file with more than one hard link would earn its allocation once per name
+        (or once per reservation): any such file under a reserved run dir refuses the storage check (GateError)."""
+        root = tmp_path / "root"
+        root.mkdir()
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 12)
+        for r in RUNS[:2]:
+            (root / r).mkdir()
+            reg.reserve_storage(r, TOKENS[r], str(root / r), str(root), need=64 * KIB, floor=0)
+        ck = root / RUNS[0] / "epoch=0-step=2500.ckpt"
+        ck.write_bytes(os.urandom(8 * KIB))
+        os.link(ck, (root / RUNS[0] / "copy.ckpt") if where == "inside one run dir" else (root / RUNS[1] / "copy.ckpt"))
+        for fn in (lambda: reg.recheck_storage(RUNS[0], TOKENS[RUNS[0]], str(root), floor=0),
+                   lambda: reg.reserve_storage(RUNS[2], TOKENS[RUNS[2]], str(root / RUNS[2]), str(root), need=KIB, floor=0)):
+>           with pytest.raises(reg.GateError, match="hard link"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp45_storage.py:278: Failed
+_ test_a_write_between_the_two_observations_is_never_credited_against_older_free_space[reserve-after the free-space sample] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_write_between_the_two_o0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b35940fd0>
+where = 'after the free-space sample', check = 'reserve'
+
+    @pytest.mark.parametrize("where", ["after the free-space sample", "after the written-bytes scan"])
+    @pytest.mark.parametrize("check", ["reserve", "recheck"])
+    def test_a_write_between_the_two_observations_is_never_credited_against_older_free_space(tmp_path, monkeypatch,
+                                                                                              where, check):
+        """Codex code r1 finding 5: the credited written bytes are counted BEFORE free space is sampled, so an 8-KiB
+        checkpoint landing between the two observations can only shrink the computed headroom. KiB scale: run A holds a
+        20-KiB reservation with nothing written, 25 KiB are free, the floor is 10 KiB; after the write the true headroom is
+        (25 - 8) - (20 - 8) = 5 KiB (recheck) or 5 - 1 = 4 KiB (a 1-KiB candidate): both refuse, whichever observation
+        the write lands after (free sampled before the scan would credit the 8 KiB against the older 25 KiB: 13 / 12)."""
+        root = tmp_path / "root"
+        root.mkdir()
+        run_a, run_b = RUNS[0], RUNS[1]
+        d = root / run_a
+        real_written = reg.written_bytes
+        state = {"free": 1024 * KIB, "armed": False, "landed": False}
+    
+        def land():
+            if state["armed"] and not state["landed"]:
+                d.mkdir(exist_ok=True)
+                (d / "epoch=0-step=2500.ckpt").write_bytes(os.urandom(8 * KIB))     # the trainer's write, mid-check
+                state["landed"] = True
+    
+        def free(path):
+            f = state["free"] - real_written(str(d))         # every written byte has left the free space
+            if where == "after the free-space sample":
+                land()
+            return f
+    
+>       real_credits = reg._file_credits
+E       AttributeError: module 'exp45_registry' has no attribute '_file_credits'
+
+src/tests/test_exp45_storage.py:153: AttributeError
+_ test_a_write_between_the_two_observations_is_never_credited_against_older_free_space[reserve-after the written-bytes scan] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_write_between_the_two_o1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b3596ed10>
+where = 'after the written-bytes scan', check = 'reserve'
+
+    @pytest.mark.parametrize("where", ["after the free-space sample", "after the written-bytes scan"])
+    @pytest.mark.parametrize("check", ["reserve", "recheck"])
+    def test_a_write_between_the_two_observations_is_never_credited_against_older_free_space(tmp_path, monkeypatch,
+                                                                                              where, check):
+        """Codex code r1 finding 5: the credited written bytes are counted BEFORE free space is sampled, so an 8-KiB
+        checkpoint landing between the two observations can only shrink the computed headroom. KiB scale: run A holds a
+        20-KiB reservation with nothing written, 25 KiB are free, the floor is 10 KiB; after the write the true headroom is
+        (25 - 8) - (20 - 8) = 5 KiB (recheck) or 5 - 1 = 4 KiB (a 1-KiB candidate): both refuse, whichever observation
+        the write lands after (free sampled before the scan would credit the 8 KiB against the older 25 KiB: 13 / 12)."""
+        root = tmp_path / "root"
+        root.mkdir()
+        run_a, run_b = RUNS[0], RUNS[1]
+        d = root / run_a
+        real_written = reg.written_bytes
+        state = {"free": 1024 * KIB, "armed": False, "landed": False}
+    
+        def land():
+            if state["armed"] and not state["landed"]:
+                d.mkdir(exist_ok=True)
+                (d / "epoch=0-step=2500.ckpt").write_bytes(os.urandom(8 * KIB))     # the trainer's write, mid-check
+                state["landed"] = True
+    
+        def free(path):
+            f = state["free"] - real_written(str(d))         # every written byte has left the free space
+            if where == "after the free-space sample":
+                land()
+            return f
+    
+>       real_credits = reg._file_credits
+E       AttributeError: module 'exp45_registry' has no attribute '_file_credits'
+
+src/tests/test_exp45_storage.py:153: AttributeError
+_ test_a_write_between_the_two_observations_is_never_credited_against_older_free_space[recheck-after the free-space sample] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_write_between_the_two_o2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b35904190>
+where = 'after the free-space sample', check = 'recheck'
+
+    @pytest.mark.parametrize("where", ["after the free-space sample", "after the written-bytes scan"])
+    @pytest.mark.parametrize("check", ["reserve", "recheck"])
+    def test_a_write_between_the_two_observations_is_never_credited_against_older_free_space(tmp_path, monkeypatch,
+                                                                                              where, check):
+        """Codex code r1 finding 5: the credited written bytes are counted BEFORE free space is sampled, so an 8-KiB
+        checkpoint landing between the two observations can only shrink the computed headroom. KiB scale: run A holds a
+        20-KiB reservation with nothing written, 25 KiB are free, the floor is 10 KiB; after the write the true headroom is
+        (25 - 8) - (20 - 8) = 5 KiB (recheck) or 5 - 1 = 4 KiB (a 1-KiB candidate): both refuse, whichever observation
+        the write lands after (free sampled before the scan would credit the 8 KiB against the older 25 KiB: 13 / 12)."""
+        root = tmp_path / "root"
+        root.mkdir()
+        run_a, run_b = RUNS[0], RUNS[1]
+        d = root / run_a
+        real_written = reg.written_bytes
+        state = {"free": 1024 * KIB, "armed": False, "landed": False}
+    
+        def land():
+            if state["armed"] and not state["landed"]:
+                d.mkdir(exist_ok=True)
+                (d / "epoch=0-step=2500.ckpt").write_bytes(os.urandom(8 * KIB))     # the trainer's write, mid-check
+                state["landed"] = True
+    
+        def free(path):
+            f = state["free"] - real_written(str(d))         # every written byte has left the free space
+            if where == "after the free-space sample":
+                land()
+            return f
+    
+>       real_credits = reg._file_credits
+E       AttributeError: module 'exp45_registry' has no attribute '_file_credits'
+
+src/tests/test_exp45_storage.py:153: AttributeError
+_ test_a_write_between_the_two_observations_is_never_credited_against_older_free_space[recheck-after the written-bytes scan] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_write_between_the_two_o3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b3592b2e0>
+where = 'after the written-bytes scan', check = 'recheck'
+
+    @pytest.mark.parametrize("where", ["after the free-space sample", "after the written-bytes scan"])
+    @pytest.mark.parametrize("check", ["reserve", "recheck"])
+    def test_a_write_between_the_two_observations_is_never_credited_against_older_free_space(tmp_path, monkeypatch,
+                                                                                              where, check):
+        """Codex code r1 finding 5: the credited written bytes are counted BEFORE free space is sampled, so an 8-KiB
+        checkpoint landing between the two observations can only shrink the computed headroom. KiB scale: run A holds a
+        20-KiB reservation with nothing written, 25 KiB are free, the floor is 10 KiB; after the write the true headroom is
+        (25 - 8) - (20 - 8) = 5 KiB (recheck) or 5 - 1 = 4 KiB (a 1-KiB candidate): both refuse, whichever observation
+        the write lands after (free sampled before the scan would credit the 8 KiB against the older 25 KiB: 13 / 12)."""
+        root = tmp_path / "root"
+        root.mkdir()
+        run_a, run_b = RUNS[0], RUNS[1]
+        d = root / run_a
+        real_written = reg.written_bytes
+        state = {"free": 1024 * KIB, "armed": False, "landed": False}
+    
+        def land():
+            if state["armed"] and not state["landed"]:
+                d.mkdir(exist_ok=True)
+                (d / "epoch=0-step=2500.ckpt").write_bytes(os.urandom(8 * KIB))     # the trainer's write, mid-check
+                state["landed"] = True
+    
+        def free(path):
+            f = state["free"] - real_written(str(d))         # every written byte has left the free space
+            if where == "after the free-space sample":
+                land()
+            return f
+    
+>       real_credits = reg._file_credits
+E       AttributeError: module 'exp45_registry' has no attribute '_file_credits'
+
+src/tests/test_exp45_storage.py:153: AttributeError
+________ test_a_bridge_stream_changed_after_the_seal_refuses_collection ________
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_bridge_stream_changed_a0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b3596e9e0>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_bridge_stream_changed_a0')
+
+    def test_a_bridge_stream_changed_after_the_seal_refuses_collection(world, monkeypatch, tmp_path):
+        """Codex code r2 finding 3: the sealed comparison binds the sha256 of every compared exp_45 stream and metrics file
+        and of the cell's receipt; a stream stripped of its preimages after the seal -- its pins kept and its receipt /
+        dump-manifest links refreshed so the cell alone still admits offline -- refuses collection."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+        rec = _seal_bridge(world, monkeypatch)
+        c = [c for c in ev.bridge_cells() if c["name"] == "exp45_RF100bridge_K8_s44"][0]
+>       assert {"stream_sha256", "receipt_sha256", "metrics_sha256"} <= set(rec["cells"][c["name"]])
+E       AssertionError: assert {'metrics_sha...tream_sha256'} <= {'differences...6', 'verdict'}
+E         
+E         Extra items in the left set:
+E         'stream_sha256'
+E         'receipt_sha256'
+
+src/tests/test_exp45_eval.py:752: AssertionError
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+______________ test_each_bridge_bundle_file_is_read_exactly_once _______________
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_each_bridge_bundle_file_i0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b359077c0>
+
+    def test_each_bridge_bundle_file_is_read_exactly_once(bridge_world, monkeypatch):
+        """Codex code r2 finding 4: every bundle file (the manifest, the admission record, the 20 reference files) is
+        read ONCE; the captured bytes are verified against the manifest and are the bytes parsed and compared."""
+        import builtins
+        b = _bundle(bridge_world)
+        opened, real_open = {}, builtins.open
+    
+        def counting_open(f, *a, **k):
+            p = os.path.realpath(str(f)) if isinstance(f, (str, bytes, os.PathLike)) else None
+            if p and p.startswith(os.path.realpath(str(b)) + os.sep):
+                opened[os.path.relpath(p, os.path.realpath(str(b)))] = opened.get(os.path.relpath(p, os.path.realpath(str(b))), 0) + 1
+            return real_open(f, *a, **k)
+        monkeypatch.setattr(builtins, "open", counting_open)
+        rec = ev.cmd_bridge(str(b))
+        monkeypatch.setattr(builtins, "open", real_open)
+        assert rec["verdict"] == "equal" and len(opened) == 22
+>       assert {k: v for k, v in opened.items() if v != 1} == {}, opened
+E       AssertionError: {'BRIDGE_MANIFEST.sha256': 2, 'admission/exp43_admission_RF.json': 3, 'cells/epoch=8-step=40000_metrics_1_1.0_exp43_RF_T_S40000_K1_s42.json': 2, 'cells/epoch=8-step=40000_metrics_1_1.0_exp43_RF_T_S40000_K1_s42.stream.json': 2, ...}
+E       assert {'BRIDGE_MANI...json': 2, ...} == {}
+E         
+E         Left contains 22 more items:
+E         {'BRIDGE_MANIFEST.sha256': 2,
+E          'admission/exp43_admission_RF.json': 3,
+E          'cells/epoch=8-step=40000_metrics_1_1.0_exp43_RF_T_S40000_K1_s42.json': 2,
+E          'cells/epoch=8-step=40000_metrics_1_1.0_exp43_RF_T_S40000_K1_s42.stream.json': 2,
+E          'cells/epoch=8-step=40000_metrics_1_1.0_exp43_RF_T_S40000_K1_s43.json': 2,...
+E         
+E         ...Full output truncated (18 lines hidden), use '-vv' to show
+
+src/tests/test_exp45_eval.py:779: AssertionError
+_ test_a_bundle_file_changed_after_its_capture_cannot_steer_the_comparison[reference metrics] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_bundle_file_changed_aft0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b35928520>
+which = 'reference metrics'
+
+    @pytest.mark.parametrize("which", ["reference metrics", "reference stream", "admission record"])
+    def test_a_bundle_file_changed_after_its_capture_cannot_steer_the_comparison(bridge_world, monkeypatch, which):
+        """Codex code r2 finding 4: a reference changed on disk right after it was captured (and verified) is never the
+        one compared -- the comparison uses the captured bytes, so the sealed hashes describe what was compared."""
+        import builtins
+        b = _bundle(bridge_world)
+        stem = ev.bridge_ref_stem("exp43_RF_T_S40000_K8_s42")
+        rel = {"reference metrics": f"cells/{stem}.json", "reference stream": f"cells/{stem}.stream.json",
+               "admission record": "admission/exp43_admission_RF.json"}[which]
+        target = os.path.realpath(str(b / rel))
+        real_open, state = builtins.open, {"done": False}
+    
+        def swap_after_first_read(f, *a, **k):
+            fh = real_open(f, *a, **k)
+            if not state["done"] and isinstance(f, (str, os.PathLike)) and os.path.realpath(str(f)) == target \
+                    and ("r" in (a[0] if a else k.get("mode", "r"))):
+                state["done"] = True
+                data = fh.read()
+                fh.close()
+                if which == "reference metrics":
+                    d = json.loads(data)
+                    d["metrics"]["T60"] += 1.0                     # would show as a discrepancy if it were compared
+                    new = json.dumps(d).encode()
+                elif which == "reference stream":
+                    d = json.loads(data)
+                    d.pop("input_tuples")                          # would refuse if it were compared
+                    new = json.dumps(d).encode()
+                else:
+                    new = b"{}"
+                with real_open(target, "wb") as w:
+                    w.write(new)
+                import io
+                return io.BytesIO(data) if "b" in (a[0] if a else k.get("mode", "r")) else io.StringIO(data.decode()
+                                                                                                     if isinstance(data, bytes) else data)
+            return fh
+        monkeypatch.setattr(builtins, "open", swap_after_first_read)
+        rec = ev.cmd_bridge(str(b))
+        monkeypatch.setattr(builtins, "open", real_open)
+>       assert state["done"] and rec["verdict"] == "equal" and rec["cells"]["exp45_RF100bridge_K8_s42"]["differences"] == {}
+E       AssertionError: assert (True and 'evaluator discrepancy' == 'equal'
+E         
+E         - equal
+E         + evaluator discrepancy)
+
+src/tests/test_exp45_eval.py:820: AssertionError
+_ test_a_bundle_file_changed_after_its_capture_cannot_steer_the_comparison[reference stream] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_bundle_file_changed_aft1'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b35949b70>
+which = 'reference stream'
+
+    @pytest.mark.parametrize("which", ["reference metrics", "reference stream", "admission record"])
+    def test_a_bundle_file_changed_after_its_capture_cannot_steer_the_comparison(bridge_world, monkeypatch, which):
+        """Codex code r2 finding 4: a reference changed on disk right after it was captured (and verified) is never the
+        one compared -- the comparison uses the captured bytes, so the sealed hashes describe what was compared."""
+        import builtins
+        b = _bundle(bridge_world)
+        stem = ev.bridge_ref_stem("exp43_RF_T_S40000_K8_s42")
+        rel = {"reference metrics": f"cells/{stem}.json", "reference stream": f"cells/{stem}.stream.json",
+               "admission record": "admission/exp43_admission_RF.json"}[which]
+        target = os.path.realpath(str(b / rel))
+        real_open, state = builtins.open, {"done": False}
+    
+        def swap_after_first_read(f, *a, **k):
+            fh = real_open(f, *a, **k)
+            if not state["done"] and isinstance(f, (str, os.PathLike)) and os.path.realpath(str(f)) == target \
+                    and ("r" in (a[0] if a else k.get("mode", "r"))):
+                state["done"] = True
+                data = fh.read()
+                fh.close()
+                if which == "reference metrics":
+                    d = json.loads(data)
+                    d["metrics"]["T60"] += 1.0                     # would show as a discrepancy if it were compared
+                    new = json.dumps(d).encode()
+                elif which == "reference stream":
+                    d = json.loads(data)
+                    d.pop("input_tuples")                          # would refuse if it were compared
+                    new = json.dumps(d).encode()
+                else:
+                    new = b"{}"
+                with real_open(target, "wb") as w:
+                    w.write(new)
+                import io
+                return io.BytesIO(data) if "b" in (a[0] if a else k.get("mode", "r")) else io.StringIO(data.decode()
+                                                                                                     if isinstance(data, bytes) else data)
+            return fh
+        monkeypatch.setattr(builtins, "open", swap_after_first_read)
+>       rec = ev.cmd_bridge(str(b))
+
+src/tests/test_exp45_eval.py:818: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+bundle = '/tmp/pytest-of-yh4742/pytest-0/test_a_bundle_file_changed_aft1/bundle'
+
+    def cmd_bridge(bundle):
+        """Compare the ten admitted bridge cells with exp_43's reference bundle and seal rf_data_curve_bridge.json:
+        an integrity failure (bundle hash / set, pin, count, an unadmitted cell) refuses; a numeric difference is reported
+        per cell as an "evaluator discrepancy" until explained (plan r3 §3.2, N5)."""
+        campaign = validate_e0_receipt()
+        files, man_sha, adm = load_bridge_bundle(bundle)
+        admission, probs = bridge_admission(os.path.join(bundle, adm), adm)
+        if probs:
+            raise EvalError("bridge admission: " + "; ".join(probs[:4]))
+        if admission["sha256"] != files[adm]:
+            raise EvalError(f"bridge bundle {adm} changed while it was read")
+        cells, integrity = {}, []
+        for c in bridge_cells():
+            probs = validate_cell(c, campaign)
+            stem = bridge_ref_stem(RF100_BRIDGE["cells"][c["name"]])
+            ref = json.load(open(os.path.join(bundle, "cells", stem + ".json")))
+            ref_stream = json.load(open(os.path.join(bundle, "cells", stem + ".stream.json")))
+            probs += bridge_reference_problems(c, ref, ref_stream)
+            if probs:
+                integrity += probs
+                continue
+            ours, our_stream = json.load(open(_abs(c["metrics"]))), json.load(open(_abs(c["stream"])))
+            bad, diffs = compare_bridge_cell(ours, our_stream, ref, ref_stream, c["K"])
+            integrity += [f"{c['name']}: {x}" for x in bad]
+            cells[c["name"]] = {"reference_cell": RF100_BRIDGE["cells"][c["name"]],
+                                "verdict": "equal" if not diffs else "evaluator discrepancy",
+                                "differences": {k: {"ours": a, "reference": b} for k, (a, b) in sorted(diffs.items())},
+                                "metrics_sha256": reg.sha256_file(_abs(c["metrics"])),
+                                "reference_metrics_sha256": files[f"cells/{stem}.json"]}
+        if integrity:
+>           raise EvalError("bridge integrity: " + "; ".join(integrity[:6]))
+E           exp45_eval.EvalError: bridge integrity: exp45_RF100bridge_K8_s42: the reference stream: the per-item ['input_tuples'] are missing (a stream without its preimages proves nothing)
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py:1240: EvalError
+_ test_a_bundle_file_changed_after_its_capture_cannot_steer_the_comparison[admission record] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_bundle_file_changed_aft2'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b35928d60>
+which = 'admission record'
+
+    @pytest.mark.parametrize("which", ["reference metrics", "reference stream", "admission record"])
+    def test_a_bundle_file_changed_after_its_capture_cannot_steer_the_comparison(bridge_world, monkeypatch, which):
+        """Codex code r2 finding 4: a reference changed on disk right after it was captured (and verified) is never the
+        one compared -- the comparison uses the captured bytes, so the sealed hashes describe what was compared."""
+        import builtins
+        b = _bundle(bridge_world)
+        stem = ev.bridge_ref_stem("exp43_RF_T_S40000_K8_s42")
+        rel = {"reference metrics": f"cells/{stem}.json", "reference stream": f"cells/{stem}.stream.json",
+               "admission record": "admission/exp43_admission_RF.json"}[which]
+        target = os.path.realpath(str(b / rel))
+        real_open, state = builtins.open, {"done": False}
+    
+        def swap_after_first_read(f, *a, **k):
+            fh = real_open(f, *a, **k)
+            if not state["done"] and isinstance(f, (str, os.PathLike)) and os.path.realpath(str(f)) == target \
+                    and ("r" in (a[0] if a else k.get("mode", "r"))):
+                state["done"] = True
+                data = fh.read()
+                fh.close()
+                if which == "reference metrics":
+                    d = json.loads(data)
+                    d["metrics"]["T60"] += 1.0                     # would show as a discrepancy if it were compared
+                    new = json.dumps(d).encode()
+                elif which == "reference stream":
+                    d = json.loads(data)
+                    d.pop("input_tuples")                          # would refuse if it were compared
+                    new = json.dumps(d).encode()
+                else:
+                    new = b"{}"
+                with real_open(target, "wb") as w:
+                    w.write(new)
+                import io
+                return io.BytesIO(data) if "b" in (a[0] if a else k.get("mode", "r")) else io.StringIO(data.decode()
+                                                                                                     if isinstance(data, bytes) else data)
+            return fh
+        monkeypatch.setattr(builtins, "open", swap_after_first_read)
+>       rec = ev.cmd_bridge(str(b))
+
+src/tests/test_exp45_eval.py:818: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+bundle = '/tmp/pytest-of-yh4742/pytest-0/test_a_bundle_file_changed_aft2/bundle'
+
+    def cmd_bridge(bundle):
+        """Compare the ten admitted bridge cells with exp_43's reference bundle and seal rf_data_curve_bridge.json:
+        an integrity failure (bundle hash / set, pin, count, an unadmitted cell) refuses; a numeric difference is reported
+        per cell as an "evaluator discrepancy" until explained (plan r3 §3.2, N5)."""
+        campaign = validate_e0_receipt()
+        files, man_sha, adm = load_bridge_bundle(bundle)
+        admission, probs = bridge_admission(os.path.join(bundle, adm), adm)
+        if probs:
+>           raise EvalError("bridge admission: " + "; ".join(probs[:4]))
+E           exp45_eval.EvalError: bridge admission: exp_43 admission record admission/exp43_admission_RF.json: admission /tmp/pytest-of-yh4742/pytest-0/test_a_bundle_file_changed_aft2/bundle/admission/exp43_admission_RF.json keys [] != the exact admission schema
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py:1218: EvalError
+___ test_a_failure_after_the_marker_rename_never_rewrites_the_sealed_record ____
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_failure_after_the_marke0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b3166e710>
+
+    def test_a_failure_after_the_marker_rename_never_rewrites_the_sealed_record(tmp_path, monkeypatch):
+        """Codex code r2 finding 5: the terminal launch record is frozen BEFORE the commit marker is published, so a
+        failure after the marker's rename -- here the directory fsync of its publication -- cannot rewrite it: the
+        published marker still binds the record's bytes, the run stays admissible, and the hold stays (`release`)."""
+        a, run, rd, nas, tr, digests = _completed_full_run(tmp_path, monkeypatch)
+        reg = sv.reg
+        real = reg._fsync_dir
+    
+        def fail_after_rename(d):
+            if os.path.exists(os.path.join(d, reg.COMMIT_MARKER)):
+                raise OSError("injected: the directory fsync after the marker's rename failed")
+            return real(d)
+        monkeypatch.setattr(reg, "_fsync_dir", fail_after_rename)
+        with pytest.raises(OSError, match="injected"):
+            sv.mode_campaign(a, "a6000")
+        monkeypatch.setattr(reg, "_fsync_dir", real)
+        cm = json.load(open(rd / reg.COMMIT_MARKER))
+>       assert reg.sha256_file(str(rd / cm["launch_record"])) == cm["launch_record_sha256"]
+E       AssertionError: assert 'b8215a180442...2442297e1d50c' == '1e4fad2aad97...5a36d238ffc6f'
+E         
+E         - 1e4fad2aad97d01cea66aebbd41c36037aef43cdba5e130d61f5a36d238ffc6f
+E         + b8215a180442c09a4e731caeff528bcbb56fac98e1b1e470eeb2442297e1d50c
+
+src/tests/test_exp45_supervise.py:836: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp45_RFf050_l40_2x32",
+ "mode": "FULL",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-15_01-41-51",
+ "launched_at": "2026-11-15T01:41:51-0500",
+ "host": "neu305.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "f0c7c2b98c8fa6abf6c14536b3fca2eda2c43768aa570ce96684a06c05ccb0d9",
+ "env_receipt_sha256": "59120421ef43bbde860a9b2d4b313d5db3f046a9e6728c3925565a84643e254e",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": {
+  "sha256": "950b2fe76267ee1f9c1d440f7f0c0e4e25d885f6c90dcda3fb16bdb12efe2bed",
+  "head": "ffffffffffffffffffffffffffffffffffffffff"
+ },
+ "smoke": {
+  "smoke_receipt": "/tmp/pytest-of-yh4742/pytest-0/test_a_failure_after_the_marke0/tree/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_smoke_exp45_RFf050_l40_2x32_a6000_2026-11-08_04-00-00.json",
+  "sha256": "2d3958e1410c4f2221b6b549b0c210d8992ba29bf21bf4dab5809ffce0253084"
+ },
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs",
+  "reservation": {
+   "free_bytes": 1000000000000000,
+   "outstanding_bytes": 13731483648,
+   "reserved_bytes": 13731483648
+  }
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_a_failure_after_the_marke0/nas/exp45_RFf050_l40_2x32",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_a_failure_after_the_marke0/snaps/exp45_RFf050_l40_2x32_FULL_2026-11-15_01-41-51",
+  "files": 8,
+  "snapshot_sha256": "83b0e7725f255b6c3b1b17637c5cc1424e9756a91f6d0e02272af405a4d3361f"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_a_failure_after_the_marke0/snaps/exp45_RFf050_l40_2x32_FULL_2026-11-15_01-41-51",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "--model-config",
+  "worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json",
+  "--dataset-config",
+  "src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json",
+  "--pretransform-ckpt-path",
+  "weights/FLAC/VAE.safetensors",
+  "--max-steps",
+  "40000",
+  "--batch-size",
+  "32",
+  "--accum-batches",
+  "1",
+  "--num-workers",
+  "6",
+  "--seed",
+  "42",
+  "--num-gpus",
+  "2",
+  "--num-nodes",
+  "1",
+  "--strategy",
+  "ddp_find_unused_parameters_true",
+  "--sync-batchnorm",
+  "true",
+  "--precision",
+  "bf16-mixed",
+  "--val-every",
+  "-1",
+  "--gradient-clip-val",
+  "0.0",
+  "--logger",
+  "none",
+  "--checkpoint-every",
+  "2500",
+  "--name",
+  "exp45_RFf050_l40_2x32",
+  "--experiment-name",
+  "exp45_RFf050_l40_2x32",
+  "--save-dir",
+  "/tmp/pytest-of-yh4742/pytest-0/test_a_failure_after_the_marke0/nas/exp45_RFf050_l40_2x32",
+  "--evidence-json",
+  "/tmp/pytest-of-yh4742/pytest-0/test_a_failure_after_the_marke0/nas/exp45_RFf050_l40_2x32/evidence/run_evidence.json"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_USER": "yh4742",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASK_PID": "3635578",
+  "SLURM_LOCALID": "0",
+  "SLURM_SUBMIT_DIR": "/n/fs/rfmprog/.tmp/yh4742/claude-374349/-n-fs-gatrdp/b12fd646-feb5-4c9d-97ab-45a879f6143f/scratchpad",
+  "SLURM_JOB_START_TIME": "1794724863",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_END_TIME": "1794727263",
+  "SLURM_CPUS_ON_NODE": "8",
+  "SLURM_JOB_CPUS_PER_NODE": "8",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_TRES_PER_TASK": "cpu=8",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOBID": "4248198",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_PROCID": "0",
+  "SLURM_CPUS_PER_TASK": "8",
+  "SLURM_TOPOLOGY_ADDR": "neu305",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_MEM_PER_NODE": "32768",
+  "SLURM_NODELIST": "neu305",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_NNODES": "1",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_JOB_ID": "4248198",
+  "SLURM_NODEID": "0",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_JOB_NAME": "exp45-pytest-r2fix_A_red_f1_f2_f3_f4_f5_f6_f8_f10_f11_f14",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NODELIST": "neu305"
+ },
+ "supervisor_sha256": "259e2550f5e874be0f80c49f603d2ba03ed0552d4c1805e9123be7ccbc7e8ddc",
+ "supervisor_pid": 3636040,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_a_failure_after_the_marke0/tree/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_2026-11-15_01-41-51_exp45_RFf050_l40_2x32_a6000_FULL_train.log",
+ "status": "launching"
+}
+----------------------------- Captured stderr call -----------------------------
+record write /tmp/pytest-of-yh4742/pytest-0/test_a_failure_after_the_marke0/nas/exp45_RFf050_l40_2x32/at_launch_exp45_RFf050_l40_2x32_a6000_FULL_2026-11-15_01-41-51.json failed: injected: the directory fsync after the marker's rename failed
+__________ test_the_e0_rule_admits_exactly_the_24_registered_e0_paths __________
+
+    def test_the_e0_rule_admits_exactly_the_24_registered_e0_paths():
+        """Codex code r2 finding 10: the E0 exception is the exact 24-path set -- each gate's registered checkpoint epoch
+        (E0a: 34, the others: 8) and conditioning suffix (E0b: _fa_invariant_a4 only) -- not their 96 combinations."""
+        subject = "exp_45 records: E0 PASS at " + "0123456789abcdef" * 2 + "01234567"
+        e0 = _e0_cell_files()
+        farm = "outputs_FLAC/exp45_rf_data_curve/eval"
+        combos = [f"{farm}/{g}/epoch={ep}-step=40000_metrics_1_1.0_de_{g}_K{K}_s42{sfx}{ext}"
+                  for g in ("E0a", "E0b", "E0c", "E0d") for ep in (34, 8) for K in (8, 1)
+                  for sfx in ("", "_fa_invariant_a4") for ext in (".json", ".stream.json", ".receipt.json")]
+        assert len(combos) == 96 and set(e0) <= set(combos)
+>       assert sorted(p for p in combos if path_allowed(p, subject)) == e0
+E       AssertionError: assert ['outputs_FLA...am.json', ...] == ['outputs_FLA...am.json', ...]
+E         
+E         At index 3 diff: 'outputs_FLAC/exp45_rf_data_curve/eval/E0a/epoch=34-step=40000_metrics_1_1.0_de_E0a_K1_s42_fa_invariant_a4.json' != 'outputs_FLAC/exp45_rf_data_curve/eval/E0a/epoch=34-step=40000_metrics_1_1.0_de_E0a_K8_s42.json'
+E         Left contains 72 more items, first extra item: 'outputs_FLAC/exp45_rf_data_curve/eval/E0b/epoch=34-step=40000_metrics_1_1.0_de_E0b_K1_s42.json'
+E         Use -v to get more diff
+
+src/tests/test_exp45_merge_provenance.py:284: AssertionError
+__ test_the_real_hygiene_gate_tolerates_a_live_writers_receipt_temp_file_only __
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_real_hygiene_gate_tol0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b3166de70>
+
+    def test_the_real_hygiene_gate_tolerates_a_live_writers_receipt_temp_file_only(tmp_path, monkeypatch):
+        """Codex code r2 finding 11: while another SMOKE publishes the environment receipt (it holds the receipt lock, its
+        temp file .rf_data_curve_env_receipt_neuronic.json.sha256.tmp.<pid> on disk), the REAL check_untracked of an
+        arriving SMOKE passes; once that writer is dead (lock free) the same temp file is refused as stale, by name."""
+        import signal
+        monkeypatch.setenv("PYTHONNOUSERSITE", "1")
+        root = _git_tree(tmp_path)
+        data = tmp_path / "AR"
+        data.mkdir()
+        (root / "AcousticRooms").symlink_to(data)
+        (root / reg.VAE_PATH).symlink_to(os.path.realpath(os.path.join(REPO, reg.VAE_PATH)))
+        (root / reg.EXP_DIR).mkdir(parents=True)
+        assert reg.check_untracked("neuronic", str(root)) == []
+        child = subprocess.Popen([sys.executable, "-I", "-c", PAUSED_WRITER, str(root), EXP], stdout=subprocess.PIPE,
+                                 text=True)
+        try:
+            line = child.stdout.readline().strip()
+            assert line.startswith("PAUSED .rf_data_curve_env_receipt_neuronic.json"), line
+            tmp_name = line.split()[1]
+            assert os.path.exists(root / reg.EXP_DIR / tmp_name)
+>           assert reg.check_untracked("neuronic", str(root)) == []               # a live writer's temp file
+E           AssertionError: assert ['unexpected ....tmp.3650704'] == []
+E             
+E             Left contains one more item: 'unexpected untracked entry worklog/worklog_yixun/exp_45_rf_data_curve_claude/.rf_data_curve_env_receipt_neuronic.json.sha256.tmp.3650704'
+E             Use -v to get more diff
+
+src/tests/test_exp45_receipts.py:789: AssertionError
+_______ test_release_frees_only_the_ledger_hold_of_a_sealed_terminal_run _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_release_frees_only_the_le0')
+no_preflight = None
+
+    def test_release_frees_only_the_ledger_hold_of_a_sealed_terminal_run(tmp_path, no_preflight):
+        out = _submit(tmp_path)
+        rd, od, intent = _sealed_full(tmp_path)
+        name = intent["job_name"]
+        before = _tree_state(rd, od)
+        live = FakeScheduler(squeue="4242|RUNNING\n", sacct=f"4242|{name}|RUNNING\n")
+        with pytest.raises(sub.SubmitError, match="not terminal"):
+>           sub.release("exp45_RFf025_l40_2x32", root=str(tmp_path), runner=live)
+E           AttributeError: module 'exp45_submit_neuronic' has no attribute 'release'
+
+src/tests/test_exp45_launchers.py:395: AttributeError
+_____ test_release_refuses_an_unsealed_foreign_or_unproven_run[no marker] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_release_refuses_an_unseal0')
+no_preflight = None, what = 'no marker'
+
+    @pytest.mark.parametrize("what", ["no marker", "record changed", "receipt changed", "another attempt", "foreign token",
+                                      "job not visible"])
+    def test_release_refuses_an_unsealed_foreign_or_unproven_run(tmp_path, no_preflight, what):
+        _submit(tmp_path)
+        rd, od, intent = _sealed_full(tmp_path)
+        name = intent["job_name"]
+        runner = FakeScheduler(sacct=f"4242|{name}|COMPLETED\n")
+        lr = [f for f in os.listdir(rd) if f.startswith("at_launch_")][0]
+        if what == "no marker":
+            for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+                os.remove(rd / f)
+        elif what == "record changed":
+            rec = json.load(open(rd / lr))
+            rec["note"] = "rewritten after the seal"
+            json.dump(rec, open(rd / lr, "w"))
+        elif what == "receipt changed":
+            (rd / reg.TRAINING_RECEIPT).write_text('{"other": 1}\n')
+        elif what == "another attempt":
+            cm = json.load(open(rd / reg.COMMIT_MARKER))
+            rec = json.load(open(rd / lr))
+            rec["owner"] = os.path.join(od, "attempt_999.json")
+            for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+                os.remove(rd / f)
+            json.dump(rec, open(rd / lr, "w"))
+            reg.write_commit_marker(str(rd), "exp45_RFf025_l40_2x32", cm["training_receipt_sha256"], str(rd / lr))
+        elif what == "foreign token":
+            p = tmp_path / reg.STORAGE_LEDGER
+            led = json.load(open(p))
+            led["reservations"]["exp45_RFf025_l40_2x32"]["token"] = "9" * 32
+            json.dump(led, open(p, "w"))
+        else:
+            runner = FakeScheduler()                                   # the recorded job is not visible
+        with pytest.raises(reg.GateError):
+>           sub.release("exp45_RFf025_l40_2x32", root=str(tmp_path), runner=runner)
+E           AttributeError: module 'exp45_submit_neuronic' has no attribute 'release'
+
+src/tests/test_exp45_launchers.py:441: AttributeError
+___ test_release_refuses_an_unsealed_foreign_or_unproven_run[record changed] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_release_refuses_an_unseal1')
+no_preflight = None, what = 'record changed'
+
+    @pytest.mark.parametrize("what", ["no marker", "record changed", "receipt changed", "another attempt", "foreign token",
+                                      "job not visible"])
+    def test_release_refuses_an_unsealed_foreign_or_unproven_run(tmp_path, no_preflight, what):
+        _submit(tmp_path)
+        rd, od, intent = _sealed_full(tmp_path)
+        name = intent["job_name"]
+        runner = FakeScheduler(sacct=f"4242|{name}|COMPLETED\n")
+        lr = [f for f in os.listdir(rd) if f.startswith("at_launch_")][0]
+        if what == "no marker":
+            for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+                os.remove(rd / f)
+        elif what == "record changed":
+            rec = json.load(open(rd / lr))
+            rec["note"] = "rewritten after the seal"
+            json.dump(rec, open(rd / lr, "w"))
+        elif what == "receipt changed":
+            (rd / reg.TRAINING_RECEIPT).write_text('{"other": 1}\n')
+        elif what == "another attempt":
+            cm = json.load(open(rd / reg.COMMIT_MARKER))
+            rec = json.load(open(rd / lr))
+            rec["owner"] = os.path.join(od, "attempt_999.json")
+            for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+                os.remove(rd / f)
+            json.dump(rec, open(rd / lr, "w"))
+            reg.write_commit_marker(str(rd), "exp45_RFf025_l40_2x32", cm["training_receipt_sha256"], str(rd / lr))
+        elif what == "foreign token":
+            p = tmp_path / reg.STORAGE_LEDGER
+            led = json.load(open(p))
+            led["reservations"]["exp45_RFf025_l40_2x32"]["token"] = "9" * 32
+            json.dump(led, open(p, "w"))
+        else:
+            runner = FakeScheduler()                                   # the recorded job is not visible
+        with pytest.raises(reg.GateError):
+>           sub.release("exp45_RFf025_l40_2x32", root=str(tmp_path), runner=runner)
+E           AttributeError: module 'exp45_submit_neuronic' has no attribute 'release'
+
+src/tests/test_exp45_launchers.py:441: AttributeError
+__ test_release_refuses_an_unsealed_foreign_or_unproven_run[receipt changed] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_release_refuses_an_unseal2')
+no_preflight = None, what = 'receipt changed'
+
+    @pytest.mark.parametrize("what", ["no marker", "record changed", "receipt changed", "another attempt", "foreign token",
+                                      "job not visible"])
+    def test_release_refuses_an_unsealed_foreign_or_unproven_run(tmp_path, no_preflight, what):
+        _submit(tmp_path)
+        rd, od, intent = _sealed_full(tmp_path)
+        name = intent["job_name"]
+        runner = FakeScheduler(sacct=f"4242|{name}|COMPLETED\n")
+        lr = [f for f in os.listdir(rd) if f.startswith("at_launch_")][0]
+        if what == "no marker":
+            for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+                os.remove(rd / f)
+        elif what == "record changed":
+            rec = json.load(open(rd / lr))
+            rec["note"] = "rewritten after the seal"
+            json.dump(rec, open(rd / lr, "w"))
+        elif what == "receipt changed":
+            (rd / reg.TRAINING_RECEIPT).write_text('{"other": 1}\n')
+        elif what == "another attempt":
+            cm = json.load(open(rd / reg.COMMIT_MARKER))
+            rec = json.load(open(rd / lr))
+            rec["owner"] = os.path.join(od, "attempt_999.json")
+            for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+                os.remove(rd / f)
+            json.dump(rec, open(rd / lr, "w"))
+            reg.write_commit_marker(str(rd), "exp45_RFf025_l40_2x32", cm["training_receipt_sha256"], str(rd / lr))
+        elif what == "foreign token":
+            p = tmp_path / reg.STORAGE_LEDGER
+            led = json.load(open(p))
+            led["reservations"]["exp45_RFf025_l40_2x32"]["token"] = "9" * 32
+            json.dump(led, open(p, "w"))
+        else:
+            runner = FakeScheduler()                                   # the recorded job is not visible
+        with pytest.raises(reg.GateError):
+>           sub.release("exp45_RFf025_l40_2x32", root=str(tmp_path), runner=runner)
+E           AttributeError: module 'exp45_submit_neuronic' has no attribute 'release'
+
+src/tests/test_exp45_launchers.py:441: AttributeError
+__ test_release_refuses_an_unsealed_foreign_or_unproven_run[another attempt] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_release_refuses_an_unseal3')
+no_preflight = None, what = 'another attempt'
+
+    @pytest.mark.parametrize("what", ["no marker", "record changed", "receipt changed", "another attempt", "foreign token",
+                                      "job not visible"])
+    def test_release_refuses_an_unsealed_foreign_or_unproven_run(tmp_path, no_preflight, what):
+        _submit(tmp_path)
+        rd, od, intent = _sealed_full(tmp_path)
+        name = intent["job_name"]
+        runner = FakeScheduler(sacct=f"4242|{name}|COMPLETED\n")
+        lr = [f for f in os.listdir(rd) if f.startswith("at_launch_")][0]
+        if what == "no marker":
+            for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+                os.remove(rd / f)
+        elif what == "record changed":
+            rec = json.load(open(rd / lr))
+            rec["note"] = "rewritten after the seal"
+            json.dump(rec, open(rd / lr, "w"))
+        elif what == "receipt changed":
+            (rd / reg.TRAINING_RECEIPT).write_text('{"other": 1}\n')
+        elif what == "another attempt":
+            cm = json.load(open(rd / reg.COMMIT_MARKER))
+            rec = json.load(open(rd / lr))
+            rec["owner"] = os.path.join(od, "attempt_999.json")
+            for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+                os.remove(rd / f)
+            json.dump(rec, open(rd / lr, "w"))
+            reg.write_commit_marker(str(rd), "exp45_RFf025_l40_2x32", cm["training_receipt_sha256"], str(rd / lr))
+        elif what == "foreign token":
+            p = tmp_path / reg.STORAGE_LEDGER
+            led = json.load(open(p))
+            led["reservations"]["exp45_RFf025_l40_2x32"]["token"] = "9" * 32
+            json.dump(led, open(p, "w"))
+        else:
+            runner = FakeScheduler()                                   # the recorded job is not visible
+        with pytest.raises(reg.GateError):
+>           sub.release("exp45_RFf025_l40_2x32", root=str(tmp_path), runner=runner)
+E           AttributeError: module 'exp45_submit_neuronic' has no attribute 'release'
+
+src/tests/test_exp45_launchers.py:441: AttributeError
+___ test_release_refuses_an_unsealed_foreign_or_unproven_run[foreign token] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_release_refuses_an_unseal4')
+no_preflight = None, what = 'foreign token'
+
+    @pytest.mark.parametrize("what", ["no marker", "record changed", "receipt changed", "another attempt", "foreign token",
+                                      "job not visible"])
+    def test_release_refuses_an_unsealed_foreign_or_unproven_run(tmp_path, no_preflight, what):
+        _submit(tmp_path)
+        rd, od, intent = _sealed_full(tmp_path)
+        name = intent["job_name"]
+        runner = FakeScheduler(sacct=f"4242|{name}|COMPLETED\n")
+        lr = [f for f in os.listdir(rd) if f.startswith("at_launch_")][0]
+        if what == "no marker":
+            for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+                os.remove(rd / f)
+        elif what == "record changed":
+            rec = json.load(open(rd / lr))
+            rec["note"] = "rewritten after the seal"
+            json.dump(rec, open(rd / lr, "w"))
+        elif what == "receipt changed":
+            (rd / reg.TRAINING_RECEIPT).write_text('{"other": 1}\n')
+        elif what == "another attempt":
+            cm = json.load(open(rd / reg.COMMIT_MARKER))
+            rec = json.load(open(rd / lr))
+            rec["owner"] = os.path.join(od, "attempt_999.json")
+            for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+                os.remove(rd / f)
+            json.dump(rec, open(rd / lr, "w"))
+            reg.write_commit_marker(str(rd), "exp45_RFf025_l40_2x32", cm["training_receipt_sha256"], str(rd / lr))
+        elif what == "foreign token":
+            p = tmp_path / reg.STORAGE_LEDGER
+            led = json.load(open(p))
+            led["reservations"]["exp45_RFf025_l40_2x32"]["token"] = "9" * 32
+            json.dump(led, open(p, "w"))
+        else:
+            runner = FakeScheduler()                                   # the recorded job is not visible
+        with pytest.raises(reg.GateError):
+>           sub.release("exp45_RFf025_l40_2x32", root=str(tmp_path), runner=runner)
+E           AttributeError: module 'exp45_submit_neuronic' has no attribute 'release'
+
+src/tests/test_exp45_launchers.py:441: AttributeError
+__ test_release_refuses_an_unsealed_foreign_or_unproven_run[job not visible] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_release_refuses_an_unseal5')
+no_preflight = None, what = 'job not visible'
+
+    @pytest.mark.parametrize("what", ["no marker", "record changed", "receipt changed", "another attempt", "foreign token",
+                                      "job not visible"])
+    def test_release_refuses_an_unsealed_foreign_or_unproven_run(tmp_path, no_preflight, what):
+        _submit(tmp_path)
+        rd, od, intent = _sealed_full(tmp_path)
+        name = intent["job_name"]
+        runner = FakeScheduler(sacct=f"4242|{name}|COMPLETED\n")
+        lr = [f for f in os.listdir(rd) if f.startswith("at_launch_")][0]
+        if what == "no marker":
+            for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+                os.remove(rd / f)
+        elif what == "record changed":
+            rec = json.load(open(rd / lr))
+            rec["note"] = "rewritten after the seal"
+            json.dump(rec, open(rd / lr, "w"))
+        elif what == "receipt changed":
+            (rd / reg.TRAINING_RECEIPT).write_text('{"other": 1}\n')
+        elif what == "another attempt":
+            cm = json.load(open(rd / reg.COMMIT_MARKER))
+            rec = json.load(open(rd / lr))
+            rec["owner"] = os.path.join(od, "attempt_999.json")
+            for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+                os.remove(rd / f)
+            json.dump(rec, open(rd / lr, "w"))
+            reg.write_commit_marker(str(rd), "exp45_RFf025_l40_2x32", cm["training_receipt_sha256"], str(rd / lr))
+        elif what == "foreign token":
+            p = tmp_path / reg.STORAGE_LEDGER
+            led = json.load(open(p))
+            led["reservations"]["exp45_RFf025_l40_2x32"]["token"] = "9" * 32
+            json.dump(led, open(p, "w"))
+        else:
+            runner = FakeScheduler()                                   # the recorded job is not visible
+        with pytest.raises(reg.GateError):
+>           sub.release("exp45_RFf025_l40_2x32", root=str(tmp_path), runner=runner)
+E           AttributeError: module 'exp45_submit_neuronic' has no attribute 'release'
+
+src/tests/test_exp45_launchers.py:441: AttributeError
+_ test_the_sheet_is_well_formed_and_current[rf_data_curve_neuronic_commands.md] _
+
+name = 'rf_data_curve_neuronic_commands.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_the_sheet_is_well_formed_and_current(name):
+        text = open(os.path.join(EXP, name)).read()
+        fences = [ln for ln in text.split("\n") if ln.startswith("```")]
+        assert len(fences) % 2 == 0 and fences, "unbalanced code fences"
+        blocks = re.findall(r"```bash\n(.*?)\n```", text, flags=re.S)
+        assert blocks and all("```" not in b for b in blocks)
+        joined = "\n".join(blocks)
+        for cmd in SHEETS[name]:
+>           assert cmd in joined, cmd
+E           AssertionError: $PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G --out $B/worklog/worklog_yixun/model_comparison.md
+E           assert '$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G --out $B/worklog/worklog_yixun/model_comparison.md' in 'Y=<the pushed records commit Y (E0 PASS at X)>\n# 0. a clean launch checkout at Y (once; never commit in it while job... $G\n$PY $E/exp45_table.py build --exp38-commit $B38\n$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G'
+
+src/tests/test_exp45_command_sheets.py:64: AssertionError
+_ test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout[rf_data_curve_neuronic_commands.md] _
+
+name = 'rf_data_curve_neuronic_commands.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout(name):
+        """Codex code r2 finding 1: neither regeneration writes main's tracked table (the generator reads its evidence
+        from G and writes its table to B via --out), and every other command touching the plan-N6 main checkout is a
+        registered read-only / metadata / untracked-only form -- none moves, edits, commits or copies into G."""
+        cwd_main = False                                     # is MAIN the shell's working directory?
+        for cmd in _commands(open(os.path.join(EXP, name)).read()):
+            if cmd.startswith("cd "):
+                cwd_main = cmd.split()[1] == MAIN
+            if MAIN in cmd or "$G" in cmd or "${G}" in cmd or cwd_main:
+>               assert any(re.fullmatch(f, cmd) for f in MAIN_FORMS), f"{name}: {cmd}"
+E               AssertionError: rf_data_curve_neuronic_commands.md: git -C $G fetch origin exp-45-rf-data-curve exp-38-data-efficiency     # objects + remote refs only
+E               assert False
+E                +  where False = any(<generator object test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout.<locals>.<genexpr> at 0x7f4b309c98c0>)
+
+src/tests/test_exp45_command_sheets.py:150: AssertionError
+__________________ test_the_l1_comparison_command_is_complete __________________
+
+    def test_the_l1_comparison_command_is_complete():
+        """Codex code r2 finding 14: the neuronic sheet runs the registered L1 -- the same full CPU suite on the merged tree
+        and on both parents' worktrees (at exp_38's tip and exp_43's pin), then exp45_regression_compare.py with the three
+        junit inputs and all three checkout roots."""
+        b = _blocks("rf_data_curve_neuronic_commands.md")
+>       assert re.search(r"git -C \$M worktree add --detach \$P38 3593f34cad4e6e4415a572e93d16ee83465f8ae8", b)
+E       AssertionError: assert None
+E        +  where None = <function search at 0x7f4c2adcd360>('git -C \\$M worktree add --detach \\$P38 3593f34cad4e6e4415a572e93d16ee83465f8ae8', 'Y=<the pushed records commit Y (E0 PASS at X)>\n# 0. a clean launch checkout at Y (once; never commit in it while job... $G\n$PY $E/exp45_table.py build --exp38-commit $B38\n$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G')
+E        +    where <function search at 0x7f4c2adcd360> = re.search
+
+src/tests/test_exp45_command_sheets.py:160: AssertionError
+___ test_the_generator_writes_its_table_to_out_never_into_the_evidence_root ____
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_generator_writes_its_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4b3596c850>
+
+    def test_the_generator_writes_its_table_to_out_never_into_the_evidence_root(tmp_path, monkeypatch):
+        """Codex code r2 finding 1: --repo-root selects the EVIDENCE only; --out selects the table, so the L8
+        regenerations read the neuronic main checkout and write the table into the build checkout B."""
+        root = tmp_path / "main_checkout"
+        (root / "worklog" / "worklog_yixun").mkdir(parents=True)
+        table = root / "worklog" / "worklog_yixun" / "model_comparison.md"
+        table.write_text("main's tracked table\n")
+        out = tmp_path / "B" / "worklog" / "worklog_yixun" / "model_comparison.md"
+        out.parent.mkdir(parents=True)
+        monkeypatch.setattr(gen, "ROWS", [])
+>       assert gen.main(["--repo-root", str(root), "--out", str(out)]) == 0
+
+src/tests/test_gen_model_comparison_exp45.py:189: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/gen_model_comparison.py:1337: in main
+    args = ap.parse_args(argv)
+../../envs/flac/lib/python3.10/argparse.py:1836: in parse_args
+    self.error(msg % ' '.join(argv))
+../../envs/flac/lib/python3.10/argparse.py:2594: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='__main__.py', usage=None, description='gen_model_comparison.py - regenerates worklog/worklog_yixu...row spec, rerun, commit.\n', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = '__main__.py: error: unrecognized arguments: --out /tmp/pytest-of-yh4742/pytest-0/test_the_generator_writes_its_0/B/worklog/worklog_yixun/model_comparison.md\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+../../envs/flac/lib/python3.10/argparse.py:2581: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: __main__.py [-h] [--repo-root REPO_ROOT] [--allow-row-regression]
+                   [--allow-partial-exp11]
+__main__.py: error: unrecognized arguments: --out /tmp/pytest-of-yh4742/pytest-0/test_the_generator_writes_its_0/B/worklog/worklog_yixun/model_comparison.md
+________________ test_the_protected_roots_are_exp38s_own_values ________________
+
+    def test_the_protected_roots_are_exp38s_own_values():
+        """The protected roots are read from exp_38's own registry and evaluator (never retyped)."""
+        src38 = open(os.path.join(REPO, reg.EXP38_DIR, "exp38_registry.py")).read()
+        ev38 = open(os.path.join(REPO, reg.EXP38_DIR, "exp38_eval.py")).read()
+>       for root in reg.EXP38_SAVE_ROOTS:
+E       AttributeError: module 'exp45_registry' has no attribute 'EXP38_SAVE_ROOTS'
+
+src/tests/test_exp45_isolation.py:40: AttributeError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_storage.py::test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit[reserve-truncation]
+FAILED src/tests/test_exp45_storage.py::test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit[reserve-replacement]
+FAILED src/tests/test_exp45_storage.py::test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit[reserve-deletion]
+FAILED src/tests/test_exp45_storage.py::test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit[recheck-truncation]
+FAILED src/tests/test_exp45_storage.py::test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit[recheck-replacement]
+FAILED src/tests/test_exp45_storage.py::test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit[recheck-deletion]
+FAILED src/tests/test_exp45_storage.py::test_a_hard_linked_file_under_a_reserved_run_dir_refuses[inside one run dir]
+FAILED src/tests/test_exp45_storage.py::test_a_hard_linked_file_under_a_reserved_run_dir_refuses[across two reservations]
+FAILED src/tests/test_exp45_storage.py::test_a_write_between_the_two_observations_is_never_credited_against_older_free_space[reserve-after the free-space sample]
+FAILED src/tests/test_exp45_storage.py::test_a_write_between_the_two_observations_is_never_credited_against_older_free_space[reserve-after the written-bytes scan]
+FAILED src/tests/test_exp45_storage.py::test_a_write_between_the_two_observations_is_never_credited_against_older_free_space[recheck-after the free-space sample]
+FAILED src/tests/test_exp45_storage.py::test_a_write_between_the_two_observations_is_never_credited_against_older_free_space[recheck-after the written-bytes scan]
+FAILED src/tests/test_exp45_eval.py::test_a_bridge_stream_changed_after_the_seal_refuses_collection
+FAILED src/tests/test_exp45_eval.py::test_each_bridge_bundle_file_is_read_exactly_once
+FAILED src/tests/test_exp45_eval.py::test_a_bundle_file_changed_after_its_capture_cannot_steer_the_comparison[reference metrics]
+FAILED src/tests/test_exp45_eval.py::test_a_bundle_file_changed_after_its_capture_cannot_steer_the_comparison[reference stream]
+FAILED src/tests/test_exp45_eval.py::test_a_bundle_file_changed_after_its_capture_cannot_steer_the_comparison[admission record]
+FAILED src/tests/test_exp45_supervise.py::test_a_failure_after_the_marker_rename_never_rewrites_the_sealed_record
+FAILED src/tests/test_exp45_merge_provenance.py::test_the_e0_rule_admits_exactly_the_24_registered_e0_paths
+FAILED src/tests/test_exp45_receipts.py::test_the_real_hygiene_gate_tolerates_a_live_writers_receipt_temp_file_only
+FAILED src/tests/test_exp45_launchers.py::test_release_frees_only_the_ledger_hold_of_a_sealed_terminal_run
+FAILED src/tests/test_exp45_launchers.py::test_release_refuses_an_unsealed_foreign_or_unproven_run[no marker]
+FAILED src/tests/test_exp45_launchers.py::test_release_refuses_an_unsealed_foreign_or_unproven_run[record changed]
+FAILED src/tests/test_exp45_launchers.py::test_release_refuses_an_unsealed_foreign_or_unproven_run[receipt changed]
+FAILED src/tests/test_exp45_launchers.py::test_release_refuses_an_unsealed_foreign_or_unproven_run[another attempt]
+FAILED src/tests/test_exp45_launchers.py::test_release_refuses_an_unsealed_foreign_or_unproven_run[foreign token]
+FAILED src/tests/test_exp45_launchers.py::test_release_refuses_an_unsealed_foreign_or_unproven_run[job not visible]
+FAILED src/tests/test_exp45_command_sheets.py::test_the_sheet_is_well_formed_and_current[rf_data_curve_neuronic_commands.md]
+FAILED src/tests/test_exp45_command_sheets.py::test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout[rf_data_curve_neuronic_commands.md]
+FAILED src/tests/test_exp45_command_sheets.py::test_the_l1_comparison_command_is_complete
+FAILED src/tests/test_gen_model_comparison_exp45.py::test_the_generator_writes_its_table_to_out_never_into_the_evidence_root
+FAILED src/tests/test_exp45_isolation.py::test_the_protected_roots_are_exp38s_own_values
+ERROR src/tests/test_exp45_isolation.py::test_equal_contained_and_containing_aliases_are_refused
+ERROR src/tests/test_exp45_isolation.py::test_the_storage_probe_and_the_ledger_refuse_an_aliased_root_before_writing
+ERROR src/tests/test_exp45_isolation.py::test_the_submitter_refuses_an_aliased_save_root_before_any_lock_or_owner
+ERROR src/tests/test_exp45_isolation.py::test_the_supervisor_refuses_an_aliased_save_root_before_any_claim_or_directory
+ERROR src/tests/test_exp45_isolation.py::test_the_evaluator_refuses_an_aliased_dump_root_or_farm
+ERROR src/tests/test_exp45_isolation.py::test_materialise_writes_nothing_into_exp38s_namespaces_or_through_an_alias
+ERROR src/tests/test_exp45_isolation.py::test_the_exp38_import_materialiser_refuses_a_protected_or_aliased_destination
+32 failed, 5 passed, 7 errors in 50.57s
+EXIT 1 end 2026-11-15T01:41:58-05:00

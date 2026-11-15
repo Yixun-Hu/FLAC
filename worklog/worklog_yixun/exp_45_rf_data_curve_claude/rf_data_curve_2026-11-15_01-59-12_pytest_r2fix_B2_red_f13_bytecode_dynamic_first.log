@@ -1,0 +1,30 @@
+HEAD 8e86a88557c0d3264e339ae7b5b250248a3a540c tracked-clean=no host neu306.neuronic.cs.princeton.edu start 2026-11-15T02:00:07-05:00
+cmd: pytest -q src/tests/test_exp45_launchers.py::test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools 
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_launcher_writes_no_by0')
+
+    def test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools(tmp_path):
+        """Codex code r2 finding 13: the importing driver (the supervisor the sbatch execs) runs with bytecode writing
+        disabled, so a fresh launch checkout never acquires __pycache__ files under exp_38's folder. The dry-run hook
+        imports the reused exp_38 tools; with PYTHONPYCACHEPREFIX pointed at a scratch dir, any bytecode Python would
+        have written lands there instead of in the repo -- and none for exp_38's folder may appear."""
+        prefix = tmp_path / "pycache_prefix"
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN="exp45_RFf025_l40_2x32", MODE="FULL",
+                   EXPECT_SHA="a" * 40, EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR="/x", ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(tmp_path), PYTHONPYCACHEPREFIX=str(prefix))
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        written = [os.path.join(d, f) for d, _, fs in os.walk(prefix) for f in fs] if prefix.exists() else []
+>       assert not [w for w in written if "exp_38_data_efficiency_claude" in w], written[:5]
+E       AssertionError: ['/tmp/pytest-of-yh4742/pytest-0/test_the_launcher_writes_no_by0/pycache_prefix/n/fs/gatrdp/codespace/exp-45-rf-data-c...e_launcher_writes_no_by0/pycache_prefix/n/fs/gatrdp/codespace/exp-45-rf-data-curve/src/models/factory.cpython-310.pyc']
+E       assert not ['/tmp/pytest-of-yh4742/pytest-0/test_the_launcher_writes_no_by0/pycache_prefix/n/fs/gatrdp/codespace/exp-45-rf-data-c...rdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_38_data_efficiency_claude/exp38_registry.cpython-310.pyc']
+
+src/tests/test_exp45_launchers.py:458: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_launchers.py::test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools
+1 failed in 61.05s (0:01:01)
+EXIT 1 end 2026-11-15T02:01:10-05:00

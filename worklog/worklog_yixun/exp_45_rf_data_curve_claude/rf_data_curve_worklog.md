@@ -211,3 +211,60 @@
   - All 14 go to fix round 2.
   - Round 3 is the last review, so the brief asks for the simplest fail-closed fix each time: refuse rather than recover where the plan allows it.
 - **Next** — Coder fix round 2 → Codex code r3 (final) → L1.
+
+## 2026-11-15T03:05:00-05:00 — Coder fix round 2: Codex code r2 findings 1–14 fixed (TDD, CPU Slurm); L0 green
+- **Goal** — fix all 14 findings of `rf_data_curve_codex_code_r2_review.md` under the coordinator's 01:45 triage. The rule for each: a test red before its fix and green after, and the simplest fix that fails closed with the least new surface (refuse rather than recover where the plan allows it).
+- **Version Control**
+  - `774ec2f0`: the coordinator's four files, unchanged.
+  - Fix commits `84b4ec7c` … `da55a4a9`, one per finding (plus test-only follow-ups for r2-13 and r2-12) (r2-3 + r2-4 share one, as do r2-1 + r2-14), listed in `commits_rf_data_curve.md`.
+  - Nothing pushed, `main` untouched, no stash. The exp_38, exp_40 and exp_43 folders are byte-frozen. The generator gained 6 lines (`--out`) and lost none.
+- **Checks the guidance required**
+  - **r2-12.** exp_38's seven neuronic FULL launch records at `e5a012fa` all record `backend flash` and `pins.attention_backend flash`, status COMPLETE: `at_launch_de_{yaw,bf}_f{025,050,075}_neuronic_FULL_*.json` and `at_launch_de_p1_f025_neuronic_FULL_*.json`.
+  - **r2-6.** The protected roots are exp_38's own values: the two `save_root`s in `exp38_registry.PLATFORMS`, and `DUMP_ROOT` / `FARM` in `exp38_eval.py`. A test pins them against those files.
+- **Command / Validation** — every pytest ran in a CPU Slurm job (`all`, 8 CPUs, node-local `TMPDIR=/tmp`). Logs (`rf_data_curve_<ts>_pytest_<label>.log`, in this folder):
+  - **A-red** `2026-11-15_01-40-58_…r2fix_A_red_f1_f2_f3_f4_f5_f6_f8_f10_f11_f14`: 32 failed, 7 errors, 5 passed. The isolation module errors at its fixture because the protected-root names are new API. A behavioural red there would have meant aliasing a real exp_38 root, so it was not attempted.
+  - **A-green** `2026-11-15_01-47-30_…r2fix_A_green_all_exp45`: every exp_45 test, 717 passed, 5 skipped, at `8e86a885`, tracked tree clean.
+  - **B-red** `2026-11-15_01-54-02_…r2fix_B_red_f7_f9_f12_f13`: 8 failed, 2 passed. The two passes are the dangling-symlink cases, already refused by r2-6's alias check.
+  - **B2-red** `2026-11-15_01-59-12_…r2fix_B2_red_f13_bytecode_dynamic_first`: the bytecode test with its dynamic check first. exp38_registry and the other imported modules' `.pyc` appeared under the `PYTHONPYCACHEPREFIX` dir.
+  - `2026-11-15_02-09-14_…r2fix_Z_L0_final_full_scope_ABORTED_cancelled_bytecode_test_too_strict`: the first final run, cancelled by me at 51 %. Its one failure was the r2-13 test asserting that NO bytecode appeared under the prefix; the supervisor's probe subprocesses legitimately cache stdlib bytecode there.
+  - `2026-11-15_02-20-51_…r2fix_probe_bytecode_test_ABORTED_assertion_too_strict`: the diagnosis run for that failure. The test now checks exp_38's folder and `worklog/worklog_yixun/` (`da55a4a9`, test-only).
+  - `2026-11-15_02-25-51_…r2fix_Z2_L0_final_full_scope_ABORTED_1fail_sdpa_test_env_patch`: 980 passed, 1 failed. The r2-12 admission test wrote its SDPA SMOKE receipt while the FULL chain's environment-receipt patch was still active; fixed in `5b1b2f73` (test-only).
+  - `2026-11-15_02-32-11_…r2fix_probe2_bytecode_test_vv`: the r2-13 test alone after `da55a4a9`, 1 passed.
+  - **B3-green** `2026-11-15_02-43-58_…r2fix_B3_green_f12_sdpa_tests`: both r2-12 tests, 2 passed.
+  - **Final** `2026-11-15_02-43-58_…r2fix_Z3_L0_final_full_scope_green`: the L0 scope (every `test_exp45_*.py` including the new `test_exp45_isolation.py`, the five generator suites, `test_yaw_aug_collect.py`, the two compat nodes), **981 passed, 6 skipped, 0 failed** (EXIT 0) at HEAD `5b1b2f73`, tracked tree clean (the 6 skips: the five registered exp_45 environment skips + one generator-suite skip).
+- **Result** — passed: L0 is green with findings 1–14 fixed. Not run (out of scope): L1–L8, any dry-run, any training / evaluation sbatch, anything on the NAS.
+- **Disposition of the r2 findings** (log names as above; every node is also green in **Final**)
+
+| # | Severity | Commit | Test node(s) | Red | Green |
+|---|---|---|---|---|---|
+| 1 | HIGH | `b9c4c4c9` | `test_exp45_command_sheets.py::test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout[2]`; `test_gen_model_comparison_exp45.py::test_the_generator_writes_its_table_to_out_never_into_the_evidence_root` | A-red | A-green |
+| 2 | HIGH | `84b4ec7c` | `test_exp45_storage.py::test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit[6]`, `::test_a_hard_linked_file_under_a_reserved_run_dir_refuses[2]` | A-red | A-green |
+| 3 | HIGH | `af44a265` | `test_exp45_eval.py::test_a_bridge_stream_changed_after_the_seal_refuses_collection` | A-red | A-green |
+| 4 | HIGH | `af44a265` | `test_exp45_eval.py::test_each_bridge_bundle_file_is_read_exactly_once`, `::test_a_bundle_file_changed_after_its_capture_cannot_steer_the_comparison[3]` | A-red | A-green |
+| 5 | HIGH | `3c8dbc87` | `test_exp45_supervise.py::test_a_failure_after_the_marker_rename_never_rewrites_the_sealed_record` | A-red | A-green |
+| 6 | HIGH | `8e86a885` | `test_exp45_isolation.py` (8 tests) | A-red (fixture errors: new API) | A-green |
+| 7 | MEDIUM | `8b008f4d` | `test_exp45_storage.py::test_a_submitting_intent_without_a_job_id_keeps_its_hold_while_an_sbatch_may_be_in_flight` | B-red | Final |
+| 8 | MEDIUM | `62d33103` | `test_exp45_launchers.py::test_release_frees_only_the_ledger_hold_of_a_sealed_terminal_run`, `::test_release_refuses_an_unsealed_foreign_or_unproven_run[6]` | A-red | A-green |
+| 9 | MEDIUM | `992d8e43` | `test_exp45_eval.py::test_materialise_never_clobbers_a_destination[3]`; `test_exp45_table.py::test_the_import_materialiser_never_clobbers_a_destination[3]` | B-red (tracked, race) | Final |
+| 10 | MEDIUM | `dced6703` | `test_exp45_merge_provenance.py::test_the_e0_rule_admits_exactly_the_24_registered_e0_paths` | A-red | A-green |
+| 11 | MEDIUM | `376cb3a2` | `test_exp45_receipts.py::test_the_real_hygiene_gate_tolerates_a_live_writers_receipt_temp_file_only` | A-red | A-green |
+| 12 | MEDIUM | `b017eb31` + `5b1b2f73` | `test_exp45_receipts.py::test_a_consistent_sdpa_training_chain_is_refused_at_admission`, `::test_an_sdpa_launch_is_refused_before_any_work` | B-red | Final |
+| 13 | NIT | `8243bf30` + `da55a4a9` | `test_exp45_launchers.py::test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools` | B2-red | Final |
+| 14 | NIT | `b9c4c4c9` | `test_exp45_command_sheets.py::test_the_l1_comparison_command_is_complete`, `::test_the_sheet_is_well_formed_and_current[rf_data_curve_neuronic_commands.md]` | A-red | A-green |
+
+- **Analysis — for the reviewer**
+  - **r2-2.** A file earns credit only if it is unchanged across the two scans that bracket the free-space sample (same `st_dev`, `st_ino`, `st_ctime_ns`).
+    - A replacement into a reused inode is caught by its new ctime.
+    - A file still being written earns nothing, which is conservative by at most one checkpoint.
+    - `st_nlink > 1` refuses.
+  - **r2-6.**
+    - Each output namespace is refused if it equals, lies inside or contains a protected root. The namespaces checked are the save roots, the dump root and the farm. The checks run in `storage_gate` and `_Ledger`, in the submitter's `submit` and submission lock, in the supervisor and in the evaluator's `campaign_gates`.
+    - A materialise destination ROOT is checked for "equals or lies inside" only, not "contains". The plan-N6 root `/n/fs/gatrdp/codespace/FLAC` contains exp_38's neuronic save root by layout (`FLAC/outputs_FLAC/exp38_data_efficiency`), so "contains" would refuse G outright.
+    - Every destination file is refused if written through an aliased directory.
+    - `exp45_collect.py materialise` never writes exp_38's files: its reference cells and E0a decision must already be in G at identical bytes. If G does not track exp_38's folder they arrive with step 5b's `import-exp38`, so 5a waits for it.
+    - **Flagged for the coordinator / Yixun:** `exp45_table.py`'s import materialisation still copies exp_38's OWN verified records to their plan r3 §3.2-registered paths in G. On neuronic, `G/outputs_FLAC/exp38_data_efficiency/eval` lies inside exp_38's save root, also by layout. I kept that registered behaviour (no-alias and no-clobber guards only). Refusing it would make regeneration #2 impossible in G.
+  - **r2-7.** I chose the grace period, the simpler of the coordinator's two options: abandon of a 'submitting' intent with no job id refuses for `SUBMIT_GRACE_S` = 1 h and names the `exp45-` job to check. A late job refuses at its own start, because its owner record is gone.
+  - **r2-8.** `release --run` frees only the ledger hold, and only of a sealed run whose marker, launch record and training receipt bind this owner's attempt, with every job terminal.
+  - **r2-9.** The dangling-symlink case was already refused by r2-6's alias check; this commit adds `lexists`, the index check and the `os.link` publish.
+  - **r2-13.** `-B` is on both exec lines of the sbatch.
+- **Next** — Codex code round 3 (the last), then L1.

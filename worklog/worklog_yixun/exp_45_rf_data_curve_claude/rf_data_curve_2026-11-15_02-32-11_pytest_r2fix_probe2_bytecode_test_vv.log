@@ -1,0 +1,12 @@
+HEAD da55a4a974162c1034d3edc0a729c25afffcf9cc tracked-clean=yes host neu313.neuronic.cs.princeton.edu start 2026-11-15T02:32:13-05:00
+cmd: pytest -q -vv src/tests/test_exp45_launchers.py::test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools 
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-45-rf-data-curve
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+src/tests/test_exp45_launchers.py::test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools PASSED [100%]
+
+========================= 1 passed in 86.76s (0:01:26) =========================
+EXIT 0 end 2026-11-15T02:33:44-05:00

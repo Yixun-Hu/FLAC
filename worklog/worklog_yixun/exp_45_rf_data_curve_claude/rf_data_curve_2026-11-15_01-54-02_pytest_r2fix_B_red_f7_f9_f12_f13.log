@@ -1,0 +1,265 @@
+HEAD 8e86a88557c0d3264e339ae7b5b250248a3a540c tracked-clean=no host neu320.neuronic.cs.princeton.edu start 2026-11-15T01:54:06-05:00
+cmd: pytest -q src/tests/test_exp45_storage.py::test_a_submitting_intent_without_a_job_id_keeps_its_hold_while_an_sbatch_may_be_in_flight src/tests/test_exp45_eval.py::test_materialise_never_clobbers_a_destination src/tests/test_exp45_table.py::test_the_import_materialiser_never_clobbers_a_destination src/tests/test_exp45_receipts.py::test_a_consistent_sdpa_training_chain_is_refused_at_admission src/tests/test_exp45_receipts.py::test_an_sdpa_launch_is_refused_before_any_work src/tests/test_exp45_launchers.py::test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools 
+F.FF.FFFFF                                                               [100%]
+=================================== FAILURES ===================================
+_ test_a_submitting_intent_without_a_job_id_keeps_its_hold_while_an_sbatch_may_be_in_flight _
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submitting_intent_witho0/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f56d3309f60>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submitting_intent_witho0')
+
+    def test_a_submitting_intent_without_a_job_id_keeps_its_hold_while_an_sbatch_may_be_in_flight(subm, monkeypatch, tmp_path):
+        """Codex code r2 finding 7: a killed submitter does not stop its sbatch child, so an intent still 'submitting'
+        with no recorded job id may yet produce a job. abandon keeps the hold and refuses -- naming the exp45- job to look
+        for with squeue / sacct -- while the intent is younger than the grace; after it, with the submitter's lock free
+        and the scheduler showing NO job of that exact name, the hold is released (a job that appears later refuses at its
+        own start: its owner record is gone)."""
+        root = subm
+    
+        def sbatch_then_die(argv, capture_output=True, text=True):
+            if os.path.basename(argv[0]) == "sbatch":
+                raise Crash()                                     # the submitter dies while its sbatch child runs
+            return Sched()(argv, capture_output=capture_output, text=text)
+        with pytest.raises(Crash):
+            _submit(root, runner=sbatch_then_die)
+        od, intent = sub.find_intent(RUN, "FULL", str(root))
+        assert intent["state"] == "submitting" and intent["job_id"] is None and list(_held(root)) == [RUN]
+>       with pytest.raises(sub.SubmitError, match=intent["job_name"]):
+E       Failed: DID NOT RAISE SubmitError
+
+src/tests/test_exp45_storage.py:467: Failed
+______ test_materialise_never_clobbers_a_destination[tracked but missing] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_materialise_never_clobber1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f56d334ba90>
+case = 'tracked but missing'
+
+    @pytest.mark.parametrize("case", ["dangling symlink", "tracked but missing", "created during the race"])
+    def test_materialise_never_clobbers_a_destination(tmp_path, monkeypatch, case):
+        """Codex code r2 finding 9: an existing destination entry (a dangling symlink included, by lexists) refuses; a
+        path tracked in the destination repo's index but missing from its worktree refuses (git ls-files
+        --error-unmatch, read-only); an absent file is published with a no-clobber primitive, so a destination created
+        between the check and the write refuses and keeps its bytes."""
+        import builtins
+        import subprocess
+        root, ev_files = _publication(tmp_path)
+        dest = tmp_path / "generator_root"
+        dest.mkdir()
+        _seed_exp38_files(root, dest)
+        rel = list(ev_files)[1]
+        target = dest / rel
+        os.makedirs(target.parent, exist_ok=True)
+        if case == "dangling symlink":
+            target.symlink_to(tmp_path / "nowhere")
+        elif case == "tracked but missing":
+            subprocess.run(["git", "init", "-q", str(dest)], check=True)
+            target.write_bytes(b"tracked")
+            subprocess.run(["git", "-C", str(dest), "add", "-f", rel], check=True)
+            os.remove(target)                                            # tracked in the index, absent on disk
+        else:
+            real_open, src, seen = builtins.open, os.path.realpath(str(root / rel)), []
+    
+            def racing_open(f, *a, **k):
+                if isinstance(f, (str, os.PathLike)) and os.path.realpath(str(f)) == src:
+                    seen.append(1)
+                    if len(seen) == 2 and not target.exists():           # its copy read: after verify's hashing and
+                        target.write_bytes(b"a concurrent writer's bytes")   # the existence check, before the write
+                return real_open(f, *a, **k)
+            monkeypatch.setattr(builtins, "open", racing_open)
+>       with pytest.raises(ev.EvalError):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:951: Failed
+____ test_materialise_never_clobbers_a_destination[created during the race] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_materialise_never_clobber2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f56d3309330>
+case = 'created during the race'
+
+    @pytest.mark.parametrize("case", ["dangling symlink", "tracked but missing", "created during the race"])
+    def test_materialise_never_clobbers_a_destination(tmp_path, monkeypatch, case):
+        """Codex code r2 finding 9: an existing destination entry (a dangling symlink included, by lexists) refuses; a
+        path tracked in the destination repo's index but missing from its worktree refuses (git ls-files
+        --error-unmatch, read-only); an absent file is published with a no-clobber primitive, so a destination created
+        between the check and the write refuses and keeps its bytes."""
+        import builtins
+        import subprocess
+        root, ev_files = _publication(tmp_path)
+        dest = tmp_path / "generator_root"
+        dest.mkdir()
+        _seed_exp38_files(root, dest)
+        rel = list(ev_files)[1]
+        target = dest / rel
+        os.makedirs(target.parent, exist_ok=True)
+        if case == "dangling symlink":
+            target.symlink_to(tmp_path / "nowhere")
+        elif case == "tracked but missing":
+            subprocess.run(["git", "init", "-q", str(dest)], check=True)
+            target.write_bytes(b"tracked")
+            subprocess.run(["git", "-C", str(dest), "add", "-f", rel], check=True)
+            os.remove(target)                                            # tracked in the index, absent on disk
+        else:
+            real_open, src, seen = builtins.open, os.path.realpath(str(root / rel)), []
+    
+            def racing_open(f, *a, **k):
+                if isinstance(f, (str, os.PathLike)) and os.path.realpath(str(f)) == src:
+                    seen.append(1)
+                    if len(seen) == 2 and not target.exists():           # its copy read: after verify's hashing and
+                        target.write_bytes(b"a concurrent writer's bytes")   # the existence check, before the write
+                return real_open(f, *a, **k)
+            monkeypatch.setattr(builtins, "open", racing_open)
+>       with pytest.raises(ev.EvalError):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:951: Failed
+_ test_the_import_materialiser_never_clobbers_a_destination[tracked but missing] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_import_materialiser_n1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f56d33086d0>
+case = 'tracked but missing'
+
+    @pytest.mark.parametrize("case", ["dangling symlink", "tracked but missing", "created during the race"])
+    def test_the_import_materialiser_never_clobbers_a_destination(tmp_path, monkeypatch, case):
+        """Codex code r2 finding 9: exp45_table.materialise uses lexists (a dangling symlink is an existing entry), refuses
+        a destination tracked in the generator root's index but missing on disk, and publishes absent files with a
+        no-clobber primitive (a file created between the check and the write is never overwritten)."""
+        import builtins
+        import hashlib
+        src = tmp_path / "bundle"
+        rel = "outputs_FLAC/exp38_data_efficiency/eval/de_yaw_f025/x.json"
+        os.makedirs(src / os.path.dirname(rel))
+        (src / rel).write_bytes(b"cell")
+        hashes = {rel: hashlib.sha256(b"cell").hexdigest()}
+        gen = tmp_path / "generator_root"
+        target = gen / rel
+        os.makedirs(target.parent)
+        if case == "dangling symlink":
+            target.symlink_to(tmp_path / "nowhere")
+        elif case == "tracked but missing":
+            subprocess.run(["git", "init", "-q", str(gen)], check=True)
+            target.write_bytes(b"tracked")
+            subprocess.run(["git", "-C", str(gen), "add", "-f", rel], check=True)
+            os.remove(target)
+        else:
+            real_open, s = builtins.open, os.path.realpath(str(src / rel))
+    
+            def racing_open(f, *a, **k):
+                if isinstance(f, (str, os.PathLike)) and os.path.realpath(str(f)) == s and not target.exists():
+                    target.write_bytes(b"a concurrent writer's bytes")
+                return real_open(f, *a, **k)
+            monkeypatch.setattr(builtins, "open", racing_open)
+>       with pytest.raises(tbl.TableError):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp45_table.py:357: Failed
+_ test_the_import_materialiser_never_clobbers_a_destination[created during the race] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_import_materialiser_n2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f56d30caa10>
+case = 'created during the race'
+
+    @pytest.mark.parametrize("case", ["dangling symlink", "tracked but missing", "created during the race"])
+    def test_the_import_materialiser_never_clobbers_a_destination(tmp_path, monkeypatch, case):
+        """Codex code r2 finding 9: exp45_table.materialise uses lexists (a dangling symlink is an existing entry), refuses
+        a destination tracked in the generator root's index but missing on disk, and publishes absent files with a
+        no-clobber primitive (a file created between the check and the write is never overwritten)."""
+        import builtins
+        import hashlib
+        src = tmp_path / "bundle"
+        rel = "outputs_FLAC/exp38_data_efficiency/eval/de_yaw_f025/x.json"
+        os.makedirs(src / os.path.dirname(rel))
+        (src / rel).write_bytes(b"cell")
+        hashes = {rel: hashlib.sha256(b"cell").hexdigest()}
+        gen = tmp_path / "generator_root"
+        target = gen / rel
+        os.makedirs(target.parent)
+        if case == "dangling symlink":
+            target.symlink_to(tmp_path / "nowhere")
+        elif case == "tracked but missing":
+            subprocess.run(["git", "init", "-q", str(gen)], check=True)
+            target.write_bytes(b"tracked")
+            subprocess.run(["git", "-C", str(gen), "add", "-f", rel], check=True)
+            os.remove(target)
+        else:
+            real_open, s = builtins.open, os.path.realpath(str(src / rel))
+    
+            def racing_open(f, *a, **k):
+                if isinstance(f, (str, os.PathLike)) and os.path.realpath(str(f)) == s and not target.exists():
+                    target.write_bytes(b"a concurrent writer's bytes")
+                return real_open(f, *a, **k)
+            monkeypatch.setattr(builtins, "open", racing_open)
+>       with pytest.raises(tbl.TableError):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp45_table.py:357: Failed
+________ test_a_consistent_sdpa_training_chain_is_refused_at_admission _________
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_consistent_sdpa_trainin0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f56d3023520>
+
+    def test_a_consistent_sdpa_training_chain_is_refused_at_admission(tree, monkeypatch):
+        """Codex code r2 finding 12: plan r3 F2 / L5 register backend flash for training (exp_38's seven neuronic FULL
+        launch records at e5a012fa all say backend flash). A fully consistent SDPA chain -- SMOKE_DDP receipt, evidence,
+        logs, training receipt all SDPA -- is refused at admission, and so is any request for an SDPA SMOKE."""
+        rd, log, retained, paths, digests = _full_run(tree, monkeypatch, backend="sdpa")
+        _write_tr(tree, rd, log, retained, paths, digests, backend="sdpa")
+>       with pytest.raises(reg.GateError, match="flash"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp45_receipts.py:474: Failed
+________________ test_an_sdpa_launch_is_refused_before_any_work ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_sdpa_launch_is_refused0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f56d305b970>
+
+    def test_an_sdpa_launch_is_refused_before_any_work(tmp_path, monkeypatch):
+        """Codex code r2 finding 12: the submitter and the supervisor refuse a non-flash SMOKE / SMOKE_DDP / FULL before
+        any scheduler call, lock, record or directory (DRY_RUN stays a diagnostic)."""
+        sys.path.insert(0, EXP)
+        import exp45_submit_neuronic as sub
+        import exp45_supervise as sv
+        import types
+        called = []
+        monkeypatch.setattr(sub, "partition_max_time", lambda runner=None: called.append("scontrol") or "7-00:00:00")
+        monkeypatch.setattr(sub, "preflight", lambda *a: called.append("preflight") or "a" * 40)
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)
+    
+        def no_scheduler(argv, capture_output=True, text=True):      # never a real sbatch, whatever the code does
+            called.append(os.path.basename(argv[0]))
+            return types.SimpleNamespace(returncode=1, stdout="", stderr="no scheduler in this test")
+        for mode in ("SMOKE", "FULL"):
+>           with pytest.raises(sub.SubmitError, match="flash"):
+E           AssertionError: Regex pattern did not match.
+E             Expected regex: 'flash'
+E             Actual message: "sbatch failed (no scheduler in this test); the intent stays 'submitting' -> run reconcile"
+
+src/tests/test_exp45_receipts.py:498: AssertionError
+_______ test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_launcher_writes_no_by0')
+
+    def test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools(tmp_path):
+        """Codex code r2 finding 13: the importing driver (the supervisor the sbatch execs) runs with bytecode writing
+        disabled, so a fresh launch checkout never acquires __pycache__ files under exp_38's folder. The dry-run hook
+        imports the reused exp_38 tools; with PYTHONPYCACHEPREFIX pointed at a scratch dir, any bytecode Python would
+        have written lands there instead of in the repo -- and none for exp_38's folder may appear."""
+        lines = open(SBATCH).read().split("\n")
+        execs = [ln for ln in lines if ln.strip().startswith("exec ")]
+>       assert len(execs) == 2 and all('exec "$PY" -B ' in ln for ln in execs), execs
+E       AssertionError: ['    exec "$PY" "$REPO/$EXP/exp45_supervise.py" --mode DRY_RUN "${ARGS[@]}"', '  exec "$PY" "$REPO/$EXP/exp45_supervise.py" --mode "$MODE" "${ARGS[@]}" --expect-sha "$EXPECT_SHA" \\']
+E       assert (2 == 2 and False)
+E        +  where 2 = len(['    exec "$PY" "$REPO/$EXP/exp45_supervise.py" --mode DRY_RUN "${ARGS[@]}"', '  exec "$PY" "$REPO/$EXP/exp45_supervise.py" --mode "$MODE" "${ARGS[@]}" --expect-sha "$EXPECT_SHA" \\'])
+E        +  and   False = all(<generator object test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools.<locals>.<genexpr> at 0x7f56d3097d10>)
+
+src/tests/test_exp45_launchers.py:452: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_storage.py::test_a_submitting_intent_without_a_job_id_keeps_its_hold_while_an_sbatch_may_be_in_flight
+FAILED src/tests/test_exp45_eval.py::test_materialise_never_clobbers_a_destination[tracked but missing]
+FAILED src/tests/test_exp45_eval.py::test_materialise_never_clobbers_a_destination[created during the race]
+FAILED src/tests/test_exp45_table.py::test_the_import_materialiser_never_clobbers_a_destination[tracked but missing]
+FAILED src/tests/test_exp45_table.py::test_the_import_materialiser_never_clobbers_a_destination[created during the race]
+FAILED src/tests/test_exp45_receipts.py::test_a_consistent_sdpa_training_chain_is_refused_at_admission
+FAILED src/tests/test_exp45_receipts.py::test_an_sdpa_launch_is_refused_before_any_work
+FAILED src/tests/test_exp45_launchers.py::test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools
+8 failed, 2 passed in 80.88s (0:01:20)
+EXIT 1 end 2026-11-15T01:55:39-05:00

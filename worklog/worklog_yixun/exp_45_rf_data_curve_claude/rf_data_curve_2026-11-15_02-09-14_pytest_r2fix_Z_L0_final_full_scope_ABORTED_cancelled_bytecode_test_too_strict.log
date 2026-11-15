@@ -1,0 +1,10 @@
+HEAD 8243bf3085c06ec37c5157b15d6bb492595b8040 tracked-clean=yes host neu323.neuronic.cs.princeton.edu start 2026-11-15T02:10:09-05:00
+cmd: pytest -q src/tests/test_exp45_merge_provenance.py src/tests/test_exp45_registry.py src/tests/test_exp45_supervise.py src/tests/test_exp45_launchers.py src/tests/test_exp45_receipts.py src/tests/test_exp45_eval.py src/tests/test_exp45_ddp_evidence.py src/tests/test_exp45_sampler.py src/tests/test_exp45_command_sheets.py src/tests/test_exp45_storage.py src/tests/test_exp45_table.py src/tests/test_exp45_regression_compare.py src/tests/test_exp45_isolation.py src/tests/test_gen_model_comparison_exp45.py src/tests/test_gen_model_comparison_exp38.py src/tests/test_gen_model_comparison_depth_canon.py src/tests/test_gen_model_comparison_data_curve.py src/tests/test_gen_model_comparison_gate.py src/tests/test_yaw_aug_collect.py src/tests/test_exp40_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict src/tests/test_exp43_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict 
+..............................................s......................... [  7%]
+........................................................................ [ 14%]
+.......................................Fs............................... [ 21%]
+........................................................................ [ 29%]
+..........F............................................................. [ 36%]
+...............s.....s.s................................................ [ 43%]
+........................................................................ [ 51%]
+...........................................................[2026-11-15T02:25:48.718] error: *** JOB 4248304 ON neu323 CANCELLED AT 2026-11-15T02:25:48 DUE to SIGNAL Terminated ***

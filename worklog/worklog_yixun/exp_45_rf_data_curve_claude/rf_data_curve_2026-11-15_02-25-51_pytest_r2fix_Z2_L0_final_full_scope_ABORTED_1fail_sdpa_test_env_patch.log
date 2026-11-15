@@ -1,0 +1,85 @@
+HEAD da55a4a974162c1034d3edc0a729c25afffcf9cc tracked-clean=yes host neu314.neuronic.cs.princeton.edu start 2026-11-15T02:26:11-05:00
+cmd: pytest -q src/tests/test_exp45_merge_provenance.py src/tests/test_exp45_registry.py src/tests/test_exp45_supervise.py src/tests/test_exp45_launchers.py src/tests/test_exp45_receipts.py src/tests/test_exp45_eval.py src/tests/test_exp45_ddp_evidence.py src/tests/test_exp45_sampler.py src/tests/test_exp45_command_sheets.py src/tests/test_exp45_storage.py src/tests/test_exp45_table.py src/tests/test_exp45_regression_compare.py src/tests/test_exp45_isolation.py src/tests/test_gen_model_comparison_exp45.py src/tests/test_gen_model_comparison_exp38.py src/tests/test_gen_model_comparison_depth_canon.py src/tests/test_gen_model_comparison_data_curve.py src/tests/test_gen_model_comparison_gate.py src/tests/test_yaw_aug_collect.py src/tests/test_exp40_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict src/tests/test_exp43_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict 
+..............................................s......................... [  7%]
+........................................................................ [ 14%]
+........................................s............................... [ 21%]
+........................................................................ [ 29%]
+..........F............................................................. [ 36%]
+...............s.....s.s................................................ [ 43%]
+........................................................................ [ 51%]
+........................................................................ [ 58%]
+........................................................................ [ 65%]
+........................................................................ [ 72%]
+........................................................................ [ 80%]
+........................................................................ [ 87%]
+........................................................................ [ 94%]
+....................s..............................                      [100%]
+=================================== FAILURES ===================================
+________ test_a_consistent_sdpa_training_chain_is_refused_at_admission _________
+
+tree = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_consistent_sdpa_trainin0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f574d3e3670>
+
+    def test_a_consistent_sdpa_training_chain_is_refused_at_admission(tree, monkeypatch):
+        """Codex code r2 finding 12: plan r3 F2 / L5 register backend flash for training (exp_38's seven neuronic FULL
+        launch records at e5a012fa all say backend flash). A fully consistent SDPA chain -- SMOKE_DDP receipt, evidence,
+        logs, training receipt all SDPA -- is refused at admission, and so is any request for an SDPA SMOKE."""
+        rd, log, retained, paths, digests = _full_run(tree, monkeypatch, backend="sdpa")
+        _write_tr(tree, rd, log, retained, paths, digests, backend="sdpa")
+        with pytest.raises(reg.GateError, match="flash"):
+            reg.check_training_receipt("exp45_RFf050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"],
+                                       platform="a6000")
+>       _smoke(tree, backend="sdpa")
+
+src/tests/test_exp45_receipts.py:477: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_receipts.py:221: in _smoke
+    return reg.write_smoke_receipt(run, platform, backend, HEAD, str(sd), str(lp), rc, gpus or A6000_GPUS, snap_sha,
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py:1892: in write_smoke_receipt
+    "env_receipt_sha256": _same_env(platform, env_sha, out_repo or repo),
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+platform = 'a6000'
+env_sha = 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
+tree = '/tmp/pytest-of-yh4742/pytest-0/test_a_consistent_sdpa_trainin0'
+
+    def _same_env(platform, env_sha, tree):
+        """The campaign tree's sealed environment receipt is still the one checked at launch."""
+        if env_receipt_sha(platform, tree) != env_sha:
+>           raise GateError("the environment receipt changed during the run")
+E           exp45_registry.GateError: the environment receipt changed during the run
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py:1867: GateError
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_receipts.py::test_a_consistent_sdpa_training_chain_is_refused_at_admission
+1 failed, 980 passed, 6 skipped, 7 warnings in 989.95s (0:16:29)
+EXIT 1 end 2026-11-15T02:42:45-05:00

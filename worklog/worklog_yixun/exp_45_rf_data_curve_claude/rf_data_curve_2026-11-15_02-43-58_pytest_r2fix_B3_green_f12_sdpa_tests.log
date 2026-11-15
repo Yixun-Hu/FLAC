@@ -1,0 +1,5 @@
+HEAD 5b1b2f73e9e17e127efa93aeceefeeb26c7ee1d5 tracked-clean=yes host neu323.neuronic.cs.princeton.edu start 2026-11-15T02:44:14-05:00
+cmd: pytest -q src/tests/test_exp45_receipts.py::test_a_consistent_sdpa_training_chain_is_refused_at_admission src/tests/test_exp45_receipts.py::test_an_sdpa_launch_is_refused_before_any_work 
+..                                                                       [100%]
+2 passed in 4.01s
+EXIT 0 end 2026-11-15T02:44:19-05:00

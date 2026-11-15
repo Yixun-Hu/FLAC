@@ -43,9 +43,31 @@ tool with its tests (G, J, L, M, N) — each a single delta of plan r3 §3.2.
 | `363a5268` | +108 / −17 | fix r1 F15: the plan §8 disclosures, from one source, under every exp_45 table |
 | `0c8ed8f1` | +235 / −13 | fix r1 F12: L8 fetches, checks out / transfers and sha256-verifies the evidence in every root it uses |
 | `2f597012` | +6 / −5 | fix r1 F12 (test): the L8 order check looks up each command where it really stands |
+| `260e566e` | — | records: Coder fix round 1 -- the ledger rows and every fix-round log |
+| `a39ded1c` | — | records: the worklog entry of Coder fix round 1 (pre-checks, logs, disposition table) |
+| `774ec2f0` | — | records: Codex code review r2 (REVISE, 14 findings; r1 verdict table) + the coordinator's 01:45 entry |
+| `84b4ec7c` | +110 / −16 | fix r2-2: written-byte credit holds through the free-space sample; hard links refuse |
+| `af44a265` | +149 / −24 | fix r2-3 + r2-4: the bridge seal binds the compared bytes; every bundle file is read exactly once |
+| `3c8dbc87` | +26 / −1 | fix r2-5: the terminal launch record is frozen before the commit marker is published |
+| `dced6703` | +26 / −5 | fix r2-10: the E0 publication rule admits exactly the 24 registered paths |
+| `376cb3a2` | +73 | fix r2-11: the hygiene gate tolerates a live writer's receipt temp file, and only that |
+| `62d33103` | +117 | fix r2-8: `release --run` frees a sealed run's stranded hold without touching the run |
+| `b9c4c4c9` | +102 / −3 | fix r2-1 + r2-14: L8 never writes main's table; the sheet carries the L1 comparator command |
+| `8e86a885` | +310 / −4 | fix r2-6: every exp_45 output namespace is isolated from exp_38's roots before any mutation |
+| `8b008f4d` | +38 | fix r2-7: a 'submitting' intent without a job id keeps its hold while an sbatch may be in flight |
+| `992d8e43` | +125 / −5 | fix r2-9: materialisation never clobbers -- lexists, the destination's index, a no-clobber publish |
+| `b017eb31` | +72 / −13 | fix r2-12: exp_45 trains with backend flash only -- launches and admission refuse anything else |
+| `8243bf30` | +25 / −2 | fix r2-13: the launcher's supervisor writes no bytecode into exp_38's folder |
+| `da55a4a9` | +3 / −2 | fix r2-13 (test): the bytecode check covers exp_38's folder and the kit folders, not the stdlib |
+| `5b1b2f73` | +1 | fix r2-12 (test): the SDPA-SMOKE half of the admission test uses the SMOKE helper's environment receipt |
 
 Fix round 1 (Codex code r1 findings 1–16): one commit per finding, test and fix together (F8 + F9 and F2 + F3 share
 one: the same function / the same comparison); the red and green CPU Slurm logs are listed in the worklog's
 disposition table. Above the SOP's 200 changed lines: F7 (+318: the recovery path + six crash-window tests), F2 + F3
 (+263: exp_43's own validator, the preimage check, the fixtures' real arrays) and F12 (+235: the collector's
 verify / materialise, the exp_38 code materialisation, the sheet tests) -- each one finding.
+
+Fix round 2 (Codex code r2 findings 1–14): one commit per finding, test and fix together (r2-3 + r2-4 share the
+bridge comparison, r2-1 + r2-14 the neuronic sheet); the red and green logs are in the worklog's round-2 disposition
+table. Above the SOP's 200 changed lines: r2-6 (+310: the isolation helpers, their seven call sites and the new
+isolation test module) -- one finding.
