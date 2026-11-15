@@ -27,6 +27,20 @@ PINNED_SINGLE = {
 
 
 LOSS_HEADER = ["step", "train/std_data", "train/loss", "train/mse_loss", "epoch", "train/lr"]
+# the REAL per-item stream preimages of the unseen split at theta = 0 (Codex code r1 finding 3): exp_40's tracked C16
+# farm sidecars carry the complete 6,337-item input / assignment tuples and offsets, and their input / assignment
+# hashes equal exp45_eval's INPUT_HASH / ASSIGNMENT_HASH pins for every (K, seed) (data properties, read 2026-11-14)
+_HERE_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PREIMAGE_SIDECAR = os.path.join(_HERE_REPO, "outputs_FLAC", "exp40_yaw_aug_c16", "farm", "C16",
+                                "epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K{K}_s{seed}.stream.json")
+_PREIMAGES = {}
+
+
+def stream_sidecar(K, seed):
+    """A complete .stream.json payload (eval_FLAC.build_stream_record's 12 keys) for (K, seed): a fresh copy."""
+    if (K, seed) not in _PREIMAGES:
+        _PREIMAGES[(K, seed)] = json.load(open(PREIMAGE_SIDECAR.format(K=K, seed=seed)))
+    return json.loads(json.dumps(_PREIMAGES[(K, seed)]))
 
 
 def loss_csv(reg, tag="025", header=None, rows=None, fn=None):
@@ -215,6 +229,40 @@ def commit(reg, rd, run, digest, status="COMPLETE"):
     return reg.write_commit_marker(rd, run, digest, lr)
 
 
+def exp43_admission(kit, ckpt_sha256, ckpt_bytes, **over):
+    """An exact exp_43 RF admission record (exp43_kit.admit's ADMISSION_KEYS, record-only valid under
+    admission_reasons(rehash=None)) of the 40k checkpoint ``ckpt_sha256`` / ``ckpt_bytes``, at exp_43's NAS paths;
+    ``over`` replaces any field afterwards."""
+    run_id = "exp43_RF_a6000_2x32"
+    nas = os.path.join(kit.NAS_ROOT, run_id)
+    final = kit.ckpt_name(kit.ENDPOINT)
+    ck = {name: sha(name.encode()) for name in kit.EXPECTED_CKPTS}
+    ck[final] = ckpt_sha256
+    run_dir = "offline-run-20261110_120000-abc123xy"
+    hub = "/sealed_hub"
+    snap = os.path.join(hub, "hub", kit.DINO_REPO_DIR, "snapshots", kit.DINO_REVISION)
+    rec = {"kind": "exp43_admission", "admitted": True, "arm": "RF", "run_id": run_id, "platform": "a6000",
+           "rung": "2x32", "train_sha": "a" * 40, "runtree_digest": "1" * 64, "env_digest": "2" * 64, "nas_dir": nas,
+           "checkpoints": ck, "manifest_sha256": "3" * 64, "ckpt_path": os.path.join(nas, final),
+           "sha256": ckpt_sha256, "bytes": ckpt_bytes, "global_step": 40000, "model_config": kit.ARM_CONFIG,
+           "model_config_sha256": kit.PINS[kit.ARM_CONFIG], "embedded_config_sha256": "4" * 64,
+           "ema_inventory_sha256": "5" * 64, "strict_load": True, "full_evidence_sha256": "6" * 64,
+           "check_sha256": "7" * 64, "audit_sha256": "8" * 64, "historical": dict(kit.HISTORICAL),
+           "current_assets": kit.current_assets(hub, [os.path.join(snap, "model.safetensors"),
+                                                      os.path.join(snap, "config.json")]),
+           "trajectory_equivalence_claim_allowed": False, "note": "", "t": 1762000000.0,
+           "wandb_archive": {"receipt_sha256": "9" * 64, "preserved_receipt_sha256": "a" * 64,
+                             "preserved_dir": f"/home/yixunhu/exp43/wandb_preserved/{run_dir}",
+                             "dest_dir": kit.wandb_dest(run_id), "run_dir_name": run_dir, "files_digest": "b" * 64,
+                             "n_files": 7, "manifest_sha256": "c" * 64, "run_file_sha256": "d" * 64},
+           "train_history": {"tool": kit.TRAIN_HISTORY_TOOL, "tool_sha256": kit.TRAIN_HISTORY_TOOL_SHA256,
+                             "csv": "/home/yixunhu/exp43/history.csv", "csv_sha256": "e" * 64,
+                             "sidecar": "/home/yixunhu/exp43/history.json", "sidecar_sha256": "f" * 64,
+                             "run_file_sha256": "d" * 64, "rows": 400}}
+    rec.update(over)
+    return rec
+
+
 def synthetic_e0(ev, closure):
     """An E0 receipt that passes e0_static_problems (for retained copies of a synthetic campaign)."""
     reg = ev.reg
@@ -308,8 +356,9 @@ def write_dump(ev, cell, msha, ssha, head, shape=None):
     return man
 
 
-def make_cell(ev, cell, campaign, ckpt, log_dir, dump=True, metrics=None, by_scene=None):
-    """Write one complete, admissible cell. ``ckpt`` = (sha256, bytes, training-receipt sha or None)."""
+def make_cell(ev, cell, campaign, ckpt, log_dir, dump=True, metrics=None, by_scene=None, stream_fn=None):
+    """Write one complete, admissible cell. ``ckpt`` = (sha256, bytes, training-receipt sha or None). The stream
+    sidecar is the complete one (real preimages, ``stream_sidecar``); ``stream_fn(stream)`` may edit it first."""
     reg = ev.reg
     os.makedirs(os.path.dirname(ev._abs(cell["metrics"])), exist_ok=True)
     fa = cell["cond"] == "fa_invariant"
@@ -322,8 +371,12 @@ def make_cell(ev, cell, campaign, ckpt, log_dir, dump=True, metrics=None, by_sce
            "orbit_execution": "batched" if fa else "n/a", "source_sha": campaign["head"], "ckpt_path": cell["ckpt_link"],
            "ckpt_sha256_loaded": ckpt[0], "ckpt_bytes_loaded": ckpt[1]}
     json.dump(rec, open(ev._abs(cell["metrics"]), "w"))
-    json.dump({"stream_count": 6337, "input_hash": ev.INPUT_HASH[(cell["K"], cell["seed"])],
-               "assignment_hash": ev.ASSIGNMENT_HASH[(cell["K"], cell["seed"])]}, open(ev._abs(cell["stream"]), "w"))
+    stream = stream_sidecar(cell["K"], cell["seed"])
+    assert (stream["input_hash"], stream["assignment_hash"]) == (ev.INPUT_HASH[(cell["K"], cell["seed"])],
+                                                                 ev.ASSIGNMENT_HASH[(cell["K"], cell["seed"])])
+    if stream_fn:
+        stream_fn(stream)
+    json.dump(stream, open(ev._abs(cell["stream"]), "w"))
     msha, ssha = reg.sha256_file(ev._abs(cell["metrics"])), reg.sha256_file(ev._abs(cell["stream"]))
     man_sha = None
     if cell["dump"]:

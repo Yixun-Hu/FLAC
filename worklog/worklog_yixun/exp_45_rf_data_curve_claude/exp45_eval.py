@@ -164,6 +164,7 @@ RF100_BRIDGE = {
     "sha256": "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6",
     "bytes": 723922731,
     "model_config_sha256": "d6a02ddebdc37c3844038898cc4888b4562e1d9d6669dd52ef021e221ac5086d",
+    "global_step": 40000,                 # the admitted step (Codex code r1 finding 2: bound with sha / bytes / config)
     # bridge cell -> exp_43's reference cell (exp43_cells.json naming, brief §5)
     "cells": {f"{BRIDGE_RUN}_K{K}_s{s}": f"exp43_RF_T_S40000_K{K}_s{s}" for K in (8, 1) for s in SEEDS},
 }
@@ -1059,6 +1060,44 @@ BRIDGE_KEYS = frozenset({"schema", "descriptor", "descriptor_sha256", "bundle", 
                          "bundle_files", "admission_record", "campaign", "cells", "verdict", "written_at"})
 
 
+def exp43_kit():
+    """exp_43's own kit, loaded from the tree's read-only exp_43 folder (reg.EXP43_KIT, in the closure): its
+    admission_reasons is THE validator of an exp_43 admission record."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("exp43_kit_for_exp45", _abs(reg.EXP43_KIT))
+    if spec is None or spec.loader is None:
+        raise EvalError(f"cannot load {reg.EXP43_KIT}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+BRIDGE_ADMISSION_KEYS = ("path", "sha256", "run_id", "ckpt_path", "ckpt_sha256", "bytes", "global_step",
+                         "model_config", "model_config_sha256")
+
+
+def bridge_admission(path, rel):
+    """(binding, problems) of the bundle's exp_43 admission record (Codex code r1 finding 2; deviation 5 rejected:
+    the presence of a hash in a JSON object establishes nothing). exp43_kit.admission_reasons(path, rehash=None) --
+    exp_43's exact ADMISSION_KEYS schema, kind exp43_admission, admitted True, arm RF, the run grammar, every sha
+    field, the 16 cadence names with sha256 == checkpoints[40k], ckpt_path under nas_dir, global_step, the pinned RF
+    config, strict load, the W&B / history bindings (the record only: no NAS file is opened) -- then the admitted
+    checkpoint must be RF100_BRIDGE's: path, sha256, bytes, model config + its sha, step. The binding (the record's
+    own sha256 + the admitted fields) is sealed into the bridge result."""
+    reasons, rec, file_sha = exp43_kit().admission_reasons(path, rehash=None)
+    if reasons:
+        return None, [f"exp_43 admission record {rel}: {r}" for r in reasons]
+    want = {"ckpt_path": RF100_BRIDGE["checkpoint"], "sha256": RF100_BRIDGE["sha256"], "bytes": RF100_BRIDGE["bytes"],
+            "model_config": reg.ARMS["rf"]["config"], "model_config_sha256": RF100_BRIDGE["model_config_sha256"],
+            "global_step": RF100_BRIDGE["global_step"]}
+    probs = [f"exp_43 admission record {rel}: {k} {rec[k]!r} != RF100_BRIDGE's {v!r}" for k, v in want.items()
+             if strict_equal(rec[k], v) is not None]
+    binding = {"path": rel, "sha256": file_sha, "run_id": rec["run_id"], "ckpt_path": rec["ckpt_path"],
+               "ckpt_sha256": rec["sha256"], "bytes": rec["bytes"], "global_step": rec["global_step"],
+               "model_config": rec["model_config"], "model_config_sha256": rec["model_config_sha256"]}
+    return (binding if not probs else None), probs
+
+
 def bridge_ref_stem(ref_cell):
     return f"{os.path.basename(RF100_BRIDGE['checkpoint'])[:-5]}_metrics_1_1.0_{ref_cell}"
 
@@ -1106,12 +1145,54 @@ def bridge_reference_problems(cell, ref, stream):
 
 
 STREAM_ITEMS = ("input_tuples", "offsets", "assignment_tuples")
+STREAM_N, STREAM_IMG_W = 6337, 512
 
 
-def compare_bridge_cell(ours, our_stream, ref, ref_stream):
+def canonical_stream_hash(tuples):
+    """eval_FLAC.canonical_stream_hash, verbatim (the pre-registered cross-machine serialization: one JSON array per
+    tuple, sort_keys, ',' ':' separators, LF-joined, UTF-8)."""
+    payload = "\n".join(json.dumps(list(t), sort_keys=True, separators=(",", ":")) for t in tuples)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _int(x):
+    return type(x) is int
+
+
+def stream_preimage_problems(stream, K, what):
+    """Integrity of one sidecar's per-item preimages (Codex code r1 finding 3): the complete 6,337-item input tuples
+    [i, target, K context ids, 512], assignment tuples [i, target, offset] and offsets, mutually consistent item by
+    item (exp40_eval's structural rule), and re-hashing (canonical_stream_hash) to the sidecar's own input_hash /
+    assignment_hash. Missing evidence is an integrity failure, never an equality."""
+    if not isinstance(stream, dict):
+        return [f"{what}: not a JSON object"]
+    missing = [k for k in STREAM_ITEMS if k not in stream]
+    if missing:
+        return [f"{what}: the per-item {missing} are missing (a stream without its preimages proves nothing)"]
+    it, at, offs = stream["input_tuples"], stream["assignment_tuples"], stream["offsets"]
+    if not (isinstance(it, list) and isinstance(at, list) and isinstance(offs, list)) \
+            or not len(it) == len(at) == len(offs) == STREAM_N:
+        return [f"{what}: the input / assignment tuples and offsets are not all {STREAM_N} items"]
+    for i, (a, b, d) in enumerate(zip(it, at, offs)):
+        if not (isinstance(a, list) and len(a) == 4 and _int(a[0]) and a[0] == i and isinstance(a[1], str)
+                and isinstance(a[2], list) and len(a[2]) == K and all(isinstance(x, str) for x in a[2])
+                and _int(a[3]) and a[3] == STREAM_IMG_W and isinstance(b, list) and len(b) == 3 and _int(b[0])
+                and b[0] == i and b[1] == a[1] and _int(b[2]) and b[2] == d and _int(d) and 0 <= d < STREAM_IMG_W):
+            return [f"{what}: item {i} is malformed or inconsistent (input / assignment / offset)"]
+    if canonical_stream_hash(it) != stream.get("input_hash") or canonical_stream_hash(at) != stream.get("assignment_hash"):
+        return [f"{what}: the per-item tuples do not re-hash to its input_hash / assignment_hash"]
+    return []
+
+
+def compare_bridge_cell(ours, our_stream, ref, ref_stream, K):
     """(integrity problems, metric differences) on the registered projection: every metric key (metrics + by_scene),
     the per-item stream values, the input / assignment hashes and the count; eval-name / path / timestamp fields are
-    not compared. A stream difference is an integrity failure; a metric difference is an evaluator discrepancy."""
+    not compared. Both streams must first carry their complete, self-consistent preimages (finding 3). A stream
+    difference is an integrity failure; a metric difference is an evaluator discrepancy."""
+    integrity = stream_preimage_problems(our_stream, K, "our stream") + \
+        stream_preimage_problems(ref_stream, K, "the reference stream")
+    if integrity:
+        return integrity, {}
     integrity = [f"stream {k} differs from the reference" for k in STREAM_ITEMS + ("input_hash", "assignment_hash",
                                                                                  "stream_count")
                  if strict_equal(our_stream.get(k), ref_stream.get(k)) is not None]
@@ -1132,13 +1213,11 @@ def cmd_bridge(bundle):
     per cell as an "evaluator discrepancy" until explained (plan r3 §3.2, N5)."""
     campaign = validate_e0_receipt()
     files, man_sha, adm = load_bridge_bundle(bundle)
-    try:
-        record = json.load(open(os.path.join(bundle, adm)))
-    except ValueError as err:
-        raise EvalError(f"bridge bundle {adm}: not JSON ({err})")
-    if not isinstance(record, dict) or RF100_BRIDGE["sha256"] not in reg.canonical(record):
-        raise EvalError(f"bridge bundle {adm}: the exp_43 admission record does not name the checkpoint "
-                        f"{RF100_BRIDGE['sha256'][:12]}")
+    admission, probs = bridge_admission(os.path.join(bundle, adm), adm)
+    if probs:
+        raise EvalError("bridge admission: " + "; ".join(probs[:4]))
+    if admission["sha256"] != files[adm]:
+        raise EvalError(f"bridge bundle {adm} changed while it was read")
     cells, integrity = {}, []
     for c in bridge_cells():
         probs = validate_cell(c, campaign)
@@ -1150,7 +1229,7 @@ def cmd_bridge(bundle):
             integrity += probs
             continue
         ours, our_stream = json.load(open(_abs(c["metrics"]))), json.load(open(_abs(c["stream"])))
-        bad, diffs = compare_bridge_cell(ours, our_stream, ref, ref_stream)
+        bad, diffs = compare_bridge_cell(ours, our_stream, ref, ref_stream, c["K"])
         integrity += [f"{c['name']}: {x}" for x in bad]
         cells[c["name"]] = {"reference_cell": RF100_BRIDGE["cells"][c["name"]],
                             "verdict": "equal" if not diffs else "evaluator discrepancy",
@@ -1161,7 +1240,7 @@ def cmd_bridge(bundle):
         raise EvalError("bridge integrity: " + "; ".join(integrity[:6]))
     rec = {"schema": 1, "descriptor": RF100_BRIDGE, "descriptor_sha256": BRIDGE_DESCRIPTOR_SHA256,
            "bundle": os.path.realpath(bundle), "bundle_manifest_sha256": man_sha, "bundle_files": files,
-           "admission_record": adm, "campaign": {k: campaign[k] for k in ("head", "closure_sha256", "sha256")},
+           "admission_record": admission, "campaign": {k: campaign[k] for k in ("head", "closure_sha256", "sha256")},
            "cells": cells, "verdict": "equal" if all(v["verdict"] == "equal" for v in cells.values())
            else "evaluator discrepancy", "written_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     reg.write_sealed(_abs(BRIDGE_RESULT), rec)

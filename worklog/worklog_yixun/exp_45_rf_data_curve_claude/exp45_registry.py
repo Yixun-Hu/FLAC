@@ -1092,7 +1092,12 @@ EXP38_READONLY = (f"{EXP38_DIR}/exp38_registry.py", f"{EXP38_DIR}/exp38_subset_a
                   f"{EXP38_DIR}/exp38_content_manifest.py", SUBSET_AUDIT, SUBSET_AUDIT + ".sha256",
                   AR_CONTENT_MANIFEST, REF_MANIFEST, *(f"{REF_DIR}/{r}" for r in ref_set()),
                   E0A_DECISION, E0A_DECISION + ".sha256")
-EXTERNAL_CONFIGS = EXTERNAL_CONFIGS + EXP38_READONLY
+# exp_43's own admission validator (exp43_kit.admission_reasons) and the AR manifest it reads: the bridge comparison
+# validates exp_43's admission record with it (Codex code r1 finding 2), so both enter the closure read-only
+EXP43_DIR = "worklog/worklog_yixun/exp_43_std_aug_claude"
+EXP43_KIT = f"{EXP43_DIR}/exp43_kit.py"
+EXP43_READONLY = (EXP43_KIT, f"{EXP43_DIR}/exp43_ar_manifest.json")
+EXTERNAL_CONFIGS = EXTERNAL_CONFIGS + EXP38_READONLY + EXP43_READONLY
 
 
 def _git_out(repo, *args):

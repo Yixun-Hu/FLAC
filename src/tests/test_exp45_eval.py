@@ -1035,9 +1035,23 @@ def test_one_checkpoint_dispatcher_for_run_one_and_validate_cell(world, monkeypa
         assert "cell_checkpoint(cell, campaign" in src and "expected_ckpt(" not in src
 
 
-def _bridge_cell(world, K=8, seed=42, dump=True):
+def _bridge_cell(world, K=8, seed=42, dump=True, stream_fn=None):
     cell = [c for c in ev.bridge_cells() if c["K"] == K and c["seed"] == seed][0]
-    return fx.make_cell(ev, cell, world["campaign"], ev.bridge_checkpoint(), str(world["tmp"] / "logs"), dump=dump)
+    return fx.make_cell(ev, cell, world["campaign"], ev.bridge_checkpoint(), str(world["tmp"] / "logs"), dump=dump,
+                        stream_fn=stream_fn)
+
+
+def _exp43_kit():
+    """exp_43's own kit (its admission validator), loaded independently of the module under test."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("exp43_kit_eval_test", os.path.join(
+        REPO, "worklog", "worklog_yixun", "exp_43_std_aug_claude", "exp43_kit.py"))
+    kit = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(kit)
+    return kit
+
+
+KIT43 = _exp43_kit()
 
 
 def test_validate_cell_admits_a_bridge_cell_online_and_offline(world):
@@ -1107,23 +1121,25 @@ def test_prepare_bridge_verifies_sha_bytes_and_the_embedded_config(world, monkey
     assert not os.path.lexists(link)
 
 
-def _bundle(world, mutate=None, admission=None):
-    """Our ten admitted bridge cells + exp_43's reference bundle (references = our values with exp_43's metadata)."""
+def _bundle(world, mutate=None, admission=None, stream_fn=None):
+    """Our ten admitted bridge cells + exp_43's reference bundle (references = our values with exp_43's metadata;
+    the admission record = exp_43's exact admission of the RF100_BRIDGE checkpoint unless ``admission`` is given)."""
     b = world["tmp"] / "bundle"
     (b / "cells").mkdir(parents=True)
     (b / "admission").mkdir()
     for c in ev.bridge_cells():
-        cell = _bridge_cell(world, c["K"], c["seed"])
+        cell = _bridge_cell(world, c["K"], c["seed"], stream_fn=(lambda s, c=c: stream_fn(c, s)) if stream_fn else None)
         stem = ev.bridge_ref_stem(ev.RF100_BRIDGE["cells"][c["name"]])
-        m, s = json.load(open(cell["metrics"])), json.load(open(cell["stream"]))
+        m, s = json.load(open(cell["metrics"])), fx.stream_sidecar(c["K"], c["seed"])      # exp_43's own (pristine) stream
         m.update(eval_name=ev.RF100_BRIDGE["cells"][c["name"]], ckpt_path="/home/yixunhu/x/farm/RF/epoch=8-step=40000.ckpt",
                  source_sha="5f5b493a8ac1" + "0" * 28)                             # metadata only: not compared
         if mutate:
             mutate(c, m, s)
         json.dump(m, open(b / "cells" / f"{stem}.json", "w"))
         json.dump(s, open(b / "cells" / f"{stem}.stream.json", "w"))
-    json.dump(admission if admission is not None else {"run": "exp43_RF_a6000_2x32", "final_ckpt_sha256": ev.RF100_BRIDGE["sha256"]},
-              open(b / "admission" / "exp43_training_admission.json", "w"))
+    if admission is None:
+        admission = fx.exp43_admission(KIT43, ev.RF100_BRIDGE["sha256"], ev.RF100_BRIDGE["bytes"])
+    json.dump(admission, open(b / "admission" / "exp43_admission_RF.json", "w"))
     rels = sorted(os.path.relpath(os.path.join(d, f), b) for d, _, fs in os.walk(b) for f in fs)
     (b / ev.BRIDGE_MANIFEST).write_text("".join(f"{ev.reg.sha256_file(str(b / r))}  {r}\n" for r in rels))
     return b
@@ -1140,7 +1156,13 @@ def test_the_bridge_seals_equal_cells_and_records_the_bundle_hashes(bridge_world
     rec = ev.cmd_bridge(str(b))
     assert rec["verdict"] == "equal" and sorted(rec["cells"]) == sorted(ev.RF100_BRIDGE["cells"])
     assert all(v["verdict"] == "equal" and v["differences"] == {} for v in rec["cells"].values())
-    assert len(rec["bundle_files"]) == 21 and rec["admission_record"] == "admission/exp43_training_admission.json"
+    adm = b / "admission" / "exp43_admission_RF.json"
+    assert len(rec["bundle_files"]) == 21 and rec["admission_record"] == {
+        "path": "admission/exp43_admission_RF.json", "sha256": ev.reg.sha256_file(str(adm)), "run_id": "exp43_RF_a6000_2x32",
+        "ckpt_path": ev.RF100_BRIDGE["checkpoint"], "ckpt_sha256": ev.RF100_BRIDGE["sha256"],
+        "bytes": ev.RF100_BRIDGE["bytes"], "global_step": 40000, "model_config": ev.reg.ARMS["rf"]["config"],
+        "model_config_sha256": ev.RF100_BRIDGE["model_config_sha256"]}
+    assert rec["admission_record"]["sha256"] == rec["bundle_files"]["admission/exp43_admission_RF.json"]
     assert rec["bundle_manifest_sha256"] == ev.reg.sha256_file(str(b / ev.BRIDGE_MANIFEST))
     sealed, _ = ev.reg.read_sealed(ev.BRIDGE_RESULT, ev.BRIDGE_KEYS)
     assert sealed == json.loads(json.dumps(rec)) and sealed["descriptor_sha256"] == ev.BRIDGE_DESCRIPTOR_SHA256
@@ -1198,9 +1220,83 @@ def test_the_bundle_itself_is_integrity_checked(bridge_world):
     assert not os.path.exists(ev.BRIDGE_RESULT)
 
 
-def test_the_admission_record_must_name_the_checkpoint(bridge_world):
-    with pytest.raises(ev.EvalError, match="admission record"):
-        ev.cmd_bridge(str(_bundle(bridge_world, admission={"run": "exp43_RF_a6000_2x32", "final_ckpt_sha256": "0" * 64})))
+def _adm(**over):
+    return fx.exp43_admission(KIT43, ev.RF100_BRIDGE["sha256"], ev.RF100_BRIDGE["bytes"], **over)
+
+
+def _drop(key):
+    rec = _adm()
+    rec.pop(key)
+    return rec
+
+
+@pytest.mark.parametrize("name,admission", [
+    ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+    ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+    ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+    ("another checkpoint", _adm(sha256="0" * 64)),
+    ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                   **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+    ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+    ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+    ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+])
+def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+    """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+    (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+    16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+    checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+    with pytest.raises(ev.EvalError, match="admission"):
+        ev.cmd_bridge(str(_bundle(bridge_world, admission=admission)))
+    assert not os.path.exists(ev.BRIDGE_RESULT)
+
+
+def test_the_fixture_admission_record_passes_exp43s_own_validator(tmp_path):
+    """The negative cases above are meaningful: the fixture record itself is exp_43-valid (record only)."""
+    p = tmp_path / "adm.json"
+    json.dump(_adm(), open(p, "w"))
+    reasons, rec, _ = KIT43.admission_reasons(str(p), rehash=None)
+    assert reasons == [] and set(rec) == KIT43.ADMISSION_KEYS and rec["sha256"] == ev.RF100_BRIDGE["sha256"]
+    assert ev.RF100_BRIDGE["global_step"] == rec["global_step"] == 40000
+
+
+def _strip(s):
+    for k in ev.STREAM_ITEMS:
+        s.pop(k)
+
+
+def _short(s):
+    for k in ev.STREAM_ITEMS:
+        s[k] = s[k][:-1]
+
+
+def _retarget(s):                                     # a changed item, input AND assignment tuple alike
+    s["input_tuples"][7][1] = "Cafe/Cafe_idx_0/S000_R999_hybrid_IR.wav"
+    s["assignment_tuples"][7][1] = "Cafe/Cafe_idx_0/S000_R999_hybrid_IR.wav"
+
+
+def _offsets(s):
+    s["offsets"][3] = 1
+
+
+def _position(s):
+    s["input_tuples"][0][0] = 1
+    s["assignment_tuples"][0][0] = 1
+
+
+@pytest.mark.parametrize("side,fn", [("both", _strip), ("ours", _strip), ("reference", _strip), ("both", _short),
+                                     ("reference", _short), ("both", _retarget), ("ours", _retarget),
+                                     ("reference", _offsets), ("both", _position)])
+def test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures(bridge_world, side, fn):
+    """Codex code r1 finding 3: the bridge compares COMPLETE per-item preimages -- the 6,337-item input tuples,
+    assignment tuples and offsets, structurally valid and re-hashing to the sidecar's input / assignment hash. Missing
+    on both sides they no longer compare equal; changed identically on both sides they fail their own hashes."""
+    target = "exp45_RF100bridge_K8_s44"
+    ours = (lambda c, s: fn(s) if c["name"] == target else None) if side in ("ours", "both") else None
+    ref = (lambda c, m, s: fn(s) if c["name"] == target else None) if side in ("reference", "both") else None
+    with pytest.raises(ev.EvalError, match="bridge integrity"):
+        ev.cmd_bridge(str(_bundle(bridge_world, ref, stream_fn=ours)))
+    assert not os.path.exists(ev.BRIDGE_RESULT)
 
 
 def test_an_unadmitted_bridge_cell_refuses_the_comparison(bridge_world):
