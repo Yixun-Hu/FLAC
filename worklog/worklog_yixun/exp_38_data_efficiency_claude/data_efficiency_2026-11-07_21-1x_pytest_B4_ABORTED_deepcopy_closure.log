@@ -1,0 +1,92 @@
+......FF                                                                 [100%]
+=================================== FAILURES ===================================
+___________ test_worker_seeding_depends_only_on_seed_rank_and_worker ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e128b917610>
+
+    def test_worker_seeding_depends_only_on_seed_rank_and_worker(monkeypatch):
+        import random
+        import numpy as np
+        from lightning_fabric.utilities.seed import pl_worker_init_function
+    
+        def draw(rank, worker):
+            monkeypatch.setenv("PL_GLOBAL_SEED", "42")
+            pl_worker_init_function(worker, rank=rank)
+            return random.random(), float(np.random.rand()), float(torch.rand(1))
+>       assert draw(1, 3) == draw(1, 3)
+E       assert (0.9038172137...7495307922363) == (0.4125694657...9531373977661)
+E         
+E         At index 0 diff: 0.9038172137452599 != 0.4125694657900405
+E         Use -v to get more diff
+
+src/tests/test_exp38_sampler.py:115: AssertionError
+_______ test_loop_and_cap_equal_batch_are_bit_identical_in_training_mode _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e1295736a10>
+
+    def test_loop_and_cap_equal_batch_are_bit_identical_in_training_mode(monkeypatch):
+        from src.models.conditioners import create_multi_conditioner_from_conditioning_config
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        cfg = json.load(open(CFG))
+        assert cfg["training"]["frame_avg_max_fwd_samples"] == 32
+        torch.manual_seed(0)
+        cond_a = create_multi_conditioner_from_conditioning_config(cfg["model"]["conditioning"])
+        cond_b = copy.deepcopy(cond_a)
+        cond_a.train(); cond_b.train()
+        calls = []
+        real_ckpt = torch.utils.checkpoint.checkpoint
+    
+        def spy(fn, *a, **k):
+            calls.append(k.get("use_reentrant", "UNSET"))
+            return real_ckpt(fn, *a, **k)
+        monkeypatch.setattr(torch.utils.checkpoint, "checkpoint", spy)
+        batch, n_ctx = 2, 2
+        md = _metadata(batch, n_ctx, torch.Generator().manual_seed(7))
+        out_a, loss_a, fwd_a, bwd_a = _run(cond_a, md, "loop", batch)
+        n_calls_loop = len(calls)
+        out_b, loss_b, fwd_b, bwd_b = _run(cond_b, md, "batched", batch)
+        assert n_calls_loop > 0 and len(calls) == 2 * n_calls_loop and set(calls) == {False}
+        assert set(out_a) == set(out_b)
+        for key in out_a:
+            assert torch.equal(out_a[key][0], out_b[key][0]), key
+            ma, mb = out_a[key][1], out_b[key][1]
+            assert (ma is None and mb is None) or torch.equal(ma, mb), key
+        assert torch.equal(loss_a, loss_b) and math.isfinite(float(loss_a))
+        assert torch.equal(fwd_a, fwd_b) and torch.equal(bwd_a, bwd_b)
+        pa, pb = dict(cond_a.named_parameters()), dict(cond_b.named_parameters())
+        n_grads = 0
+        for name, p in pa.items():
+            ga, gb = p.grad, pb[name].grad
+>           assert (ga is None) == (gb is None), name
+E           AssertionError: conditioners.source_vit.vit.layer.0.norm1.weight
+E           assert (tensor([-4.6400e-04, -4.9825e-05,  1.8839e-04,  5.2092e-05, -2.8765e-05,\n         1.5268e-05, -1.2336e-04, -1.7744e-05...4e-06, -2.5420e-06, -1.9859e-05,  1.3841e-05,  1.1364e-04,\n        -6.4427e-05, -2.3298e-04,  1.1615e-04,  7.3837e-05]) is None) == (None is None)
+
+src/tests/test_exp38_bf_orbit_equivalence.py:99: AssertionError
+----------------------------- Captured stdout call -----------------------------
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+=============================== warnings summary ===============================
+src/tests/test_exp38_sampler.py::test_both_rungs_consume_the_same_unique_prefix_and_global_batches
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp38_sampler.py::test_both_rungs_consume_the_same_unique_prefix_and_global_batches
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp38_sampler.py::test_both_rungs_consume_the_same_unique_prefix_and_global_batches
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp38_bf_orbit_equivalence.py::test_loop_and_cap_equal_batch_are_bit_identical_in_training_mode
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp38_bf_orbit_equivalence.py::test_loop_and_cap_equal_batch_are_bit_identical_in_training_mode
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp38_sampler.py::test_worker_seeding_depends_only_on_seed_rank_and_worker
+FAILED src/tests/test_exp38_bf_orbit_equivalence.py::test_loop_and_cap_equal_batch_are_bit_identical_in_training_mode
+2 failed, 6 passed, 5 warnings in 21.42s

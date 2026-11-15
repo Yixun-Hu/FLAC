@@ -1,0 +1,25 @@
+# exp_38 code r1 fix round — CPU proof that a closure snapshot is a complete launch root (H5)
+# snapshot built by exp38_registry.snapshot_tools from the dev tree c8c22818fbff5f05079f1772978387f952154299 + working-tree edits
+# 134 closure files; links:
+#   /media/diskstation/yixunhu/FLAC/AcousticRooms  AcousticRooms
+#   /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.safetensors  weights/FLAC/VAE.safetensors
+$ cd <snapshot> && python -c 'import train'
+train imported from /tmp/claude-1007/-home-yixunhu-codespace/fc686843-cc22-4d3b-b0a4-8fb93c7f072c/scratchpad/snapproof/snap
+$ cd <snapshot> && CUDA_VISIBLE_DEVICES= python worklog/.../exp38_init_digest.py --run de_bf_f025   (train.py's construction order: dataloader via the AcousticRooms link, model, VAE via its link, wrapper)
+{
+ "n_state_tensors": 1279,
+ "rng_after_build": {
+  "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+  "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+  "torch_cpu": "7461f975015a0a9df867cc0521d9a6bc71fc82a8f2e47da7289e94a0645b15b6"
+ },
+ "run": "de_bf_f025",
+ "sobol": {
+  "dimension": 1,
+  "num_generated": 0,
+  "scramble": true,
+  "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+ },
+ "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
+}
+# == the registered INIT_STATE_SHA256 / INIT_SOBOL_SHA256 and the single-rank smokes' torch_cpu 7461f975 (identical to the tree build)

@@ -1,0 +1,80 @@
+{
+ "base_ar_md_equals_exp14_base": true,
+ "bound": {
+  "data/AR/train_frac_manifest_s2026.json": "553534ea7fec8efe65207d6f2a81c7bbb92b9e1ac8e72e14a7cf8defea3048ae",
+  "src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json": "7ac8243f94cf9abc652e1a667c51263436041ea7a1fb0e8ed868c7e07fae7a21",
+  "src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json": "b74687f7a8f314436a4220eb461a0bf222f65276fb33eff4486a51e6d32a4025",
+  "src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json": "cc0e5fb8b5f221f393f19122d60c862763688f088329bcf0e42fb4ac338a17b5",
+  "src/configs/dataset_configs/custom_metadata/AR_md.py": "fb2f68821e24f3e9d7f5c38ab2ecaee0235d4c9a36734c5bf4fe35fa86198310",
+  "src/data/dataset.py": "dbb9430f4a21ceefd16b6528c45ee0261b7eed866db5da59c6dabb2e457bafbf"
+ },
+ "fractions": {
+  "025": {
+   "candidates_removed_by_restriction": 2494862,
+   "context_histogram": {
+    "0": 0,
+    "1-7": 16890,
+    ">=8": 56583
+   },
+   "empty_restricted_pools": 0,
+   "n_targets": 73473,
+   "on_disk_candidates_outside_split": 2494862,
+   "ordered_targets_sha256": "ca3087eb811bd064e1a1c0f5ea8b19d07fa7da9064de3bb6e0cf4f3a5e419bfd",
+   "restricted": true,
+   "rooms": 243,
+   "split": "data/AR/train_frac025_s2026.json",
+   "split_sha256": "ce33f34f74b055d98a576c5aa5398d058c698d4cce9049e9648bcf3edf27122d"
+  },
+  "050": {
+   "candidates_removed_by_restriction": 3321265,
+   "context_histogram": {
+    "0": 0,
+    "1-7": 14303,
+    ">=8": 131362
+   },
+   "empty_restricted_pools": 0,
+   "n_targets": 145665,
+   "on_disk_candidates_outside_split": 3321265,
+   "ordered_targets_sha256": "ac9a3cfcc92018bab6065283be11084fe5afb5cca4a9b1e6728ec6aebac38495",
+   "restricted": true,
+   "rooms": 243,
+   "split": "data/AR/train_frac050_s2026.json",
+   "split_sha256": "bf33084671130a87735a47f97ff9c5851676f65fe1828bc8f8916e55af113ce4"
+  },
+  "075": {
+   "candidates_removed_by_restriction": 2488920,
+   "context_histogram": {
+    "0": 0,
+    "1-7": 17430,
+    ">=8": 201033
+   },
+   "empty_restricted_pools": 0,
+   "n_targets": 218463,
+   "on_disk_candidates_outside_split": 2488920,
+   "ordered_targets_sha256": "e6f0899afac25f1d9d938b90edf714228d601f48bdb5e8e775449a2c3e664206",
+   "restricted": true,
+   "rooms": 243,
+   "split": "data/AR/train_frac075_s2026.json",
+   "split_sha256": "57388ce870f63d9d64fda0c6722f85625580f5572b44b85add4130a8788d26c1"
+  }
+ },
+ "full_split": {
+  "candidates_removed_by_restriction": 0,
+  "context_histogram_in_split": {
+   "0": 0,
+   "1-7": 972,
+   ">=8": 290238
+  },
+  "empty_restricted_pools": 0,
+  "n_targets": 291210,
+  "on_disk_candidates_outside_split": 0,
+  "ordered_targets_sha256": "b9a62e013b5d51aab7092d99e49d4d5ced12ffda1fb187f2ec83b99310c015cb",
+  "restricted": false,
+  "rooms": 243,
+  "split": "data/AR/train.json",
+  "split_sha256": "aa4e52d616fc42e88d5e4952c7e7ff266347615a60f93a0590b707f5eeaead03"
+ },
+ "problems": [],
+ "schema": 1,
+ "verdict": "PASS"
+}

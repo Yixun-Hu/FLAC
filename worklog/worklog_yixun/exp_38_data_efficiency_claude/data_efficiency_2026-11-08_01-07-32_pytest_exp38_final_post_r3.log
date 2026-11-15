@@ -1,0 +1,49 @@
+HEAD 62b0de4ace8d4c0dfe33e4ff49caf3df86b96a30 tracked-clean=yes
+........................................................................ [ 11%]
+........................................................................ [ 23%]
+........................................................................ [ 35%]
+........................................................................ [ 46%]
+........................................................................ [ 58%]
+........................................................................ [ 70%]
+........................................................................ [ 81%]
+........................................................................ [ 93%]
+.......................................                                  [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82
+
+src/tests/test_exp38_bf_orbit_equivalence.py::test_loop_and_cap_equal_batch_are_bit_identical_in_training_mode
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-2x32]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-8x8]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[p1-2x32]
+src/tests/test_exp38_registry.py::test_audit_ckpt_admits_exp14s_real_dc_van_f025_endpoint
+
+src/tests/test_exp38_bf_orbit_equivalence.py::test_loop_and_cap_equal_batch_are_bit_identical_in_training_mode
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-2x32]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-8x8]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[p1-2x32]
+src/tests/test_exp38_registry.py::test_audit_ckpt_admits_exp14s_real_dc_van_f025_endpoint
+
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-2x32]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-8x8]
+src/tests/test_exp38_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[p1-2x32]
+src/tests/test_exp38_registry.py::test_audit_ckpt_admits_exp14s_real_dc_van_f025_endpoint
+
+src/tests/test_ar_md_restrict_context.py::test_B6_two_workers_two_epochs_only_draw_in_split_contexts
+src/tests/test_ar_md_restrict_context.py::test_B7a_room_removed_from_the_split_after_construction_is_fatal
+src/tests/test_ar_md_restrict_context.py::test_B7b_empty_context_pool_in_a_worker_is_fatal
+src/tests/test_ar_md_restrict_context.py::test_B7b_without_the_flag_the_same_split_trains_happily
+src/tests/test_ar_md_restrict_context.py::test_B9_split_replaced_by_malformed_json_after_construction_is_fatal
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+615 passed, 27 warnings in 679.92s (0:11:19)
