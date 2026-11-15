@@ -925,6 +925,11 @@ def storage_gate(platform, path, need_bytes, tag="exp38"):
 #     free - sum(outstanding of all reservations, its own included) >= floor
 # (no extra candidate term; idempotent). outstanding = reserved - bytes already written in the run dir. A
 # reservation is released only when its run is sealed (supervisor) or abandoned (submitter); a crash keeps it held.
+# Codex code r1 finding 5: the ledger lock excludes competing SUBMITTERS, not trainers, so both checks count the
+# credited written bytes FIRST and sample free space AFTER (a checkpoint landing between the two observations then
+# shrinks the computed headroom, never grows it), and a file is credited only with the bytes the filesystem has
+# allocated to it (min(apparent size, allocated blocks)): a sparse, preallocated-on-the-side or not-yet-flushed file
+# never earns credit it has not taken from the free space.
 STORAGE_LEDGER = ".exp45_storage.json"
 STORAGE_LOCK = ".exp45_storage.lock"
 STORAGE_FLOOR_BYTES = TRAIN_FREE_GIB * 2**30
@@ -939,12 +944,14 @@ def free_bytes(path):
 
 
 def written_bytes(path):
-    """Bytes already written under a run dir (lstat sizes, links not followed; 0 if absent)."""
+    """Bytes already written under a run dir, counted conservatively: per regular file min(apparent size, allocated
+    blocks x 512) (lstat, links not followed; 0 if absent)."""
     total = 0
     for d, _, files in os.walk(path, followlinks=False):
         for name in files:
+            st = os.lstat(os.path.join(d, name))
             if not os.path.islink(os.path.join(d, name)):
-                total += os.lstat(os.path.join(d, name)).st_size
+                total += min(st.st_size, st.st_blocks * 512)
     return total
 
 
@@ -995,7 +1002,8 @@ def reserve_storage(run, token, run_dir, root, need=RUN_RESERVE_BYTES, floor=STO
     with _Ledger(root) as led:
         if run in led.data["reservations"]:
             raise GateError(f"{run} already holds a storage reservation (abandon / seal it first)")
-        free, out = free_bytes(root), led.outstanding()
+        out = led.outstanding()                          # the written bytes FIRST, then the free space (finding 5)
+        free = free_bytes(root)
         if free - out - need < floor:
             raise GateError(f"storage: {free / 2**30:.1f} GiB free - {out / 2**30:.1f} GiB outstanding - "
                             f"{need / 2**30:.1f} GiB needed < the {floor / 2**30:.0f} GiB floor")
@@ -1012,7 +1020,8 @@ def recheck_storage(run, token, root, floor=STORAGE_FLOOR_BYTES):
         mine = led.data["reservations"].get(run)
         if mine is None or mine["token"] != token:
             raise GateError(f"{run} holds no storage reservation of token {str(token)[:8]}")
-        free, out = free_bytes(root), led.outstanding()
+        out = led.outstanding()                          # the written bytes FIRST, then the free space (finding 5)
+        free = free_bytes(root)
         if free - out < floor:
             raise GateError(f"storage: {free / 2**30:.1f} GiB free - {out / 2**30:.1f} GiB outstanding "
                             f"< the {floor / 2**30:.0f} GiB floor")

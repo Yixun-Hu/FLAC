@@ -88,22 +88,84 @@ def test_one_run_from_submission_through_full_start_is_counted_once(fs):
         reg.recheck_storage(RUNS[1], TOKENS[RUNS[1]], str(root))                     # someone else used 2 GiB
 
 
+KIB = 1024
+
+
 def test_partially_written_runs_count_only_their_outstanding_bytes(fs):
+    """outstanding = reserved - bytes already written, counted as ALLOCATED bytes (Codex code r1 finding 5); KiB
+    scale (real bytes, so the allocation is real): three 64-KiB reservations, 20 KiB written by the first run."""
     root, set_free = fs
+    need = 64 * KIB
     for r in RUNS:
-        reg.reserve_storage(r, TOKENS[r], _rd(root, r), str(root))
+        reg.reserve_storage(r, TOKENS[r], _rd(root, r), str(root), need=need, floor=0)
     d = root / RUNS[0]
     d.mkdir()
-    with open(d / "epoch=2-step=2500.ckpt", "wb") as fh:                             # a sparse 5 GiB "checkpoint"
-        fh.truncate(5 * GIB)
+    (d / "epoch=2-step=2500.ckpt").write_bytes(os.urandom(20 * KIB))
     os.symlink("/nonexistent/target", d / "link")                                   # links are not counted
-    set_free(70 * GIB - 5 * GIB)                                                     # the run wrote those bytes
-    out = reg.recheck_storage(RUNS[2], TOKENS[RUNS[2]], str(root))
-    assert out["outstanding_bytes"] == 3 * NEED - 5 * GIB and out["free_bytes"] == 65 * GIB
-    assert reg.written_bytes(str(d)) == 5 * GIB and reg.written_bytes(str(root / "absent")) == 0
-    with open(d / "epoch=4-step=5000.ckpt", "wb") as fh:                             # written beyond the reservation
-        fh.truncate(NEED)
-    assert reg.recheck_storage(RUNS[2], TOKENS[RUNS[2]], str(root))["outstanding_bytes"] == 2 * NEED
+    set_free(70 * GIB - 20 * KIB)                                                    # the run wrote those bytes
+    out = reg.recheck_storage(RUNS[2], TOKENS[RUNS[2]], str(root), floor=0)
+    assert out["outstanding_bytes"] == 3 * need - 20 * KIB and out["free_bytes"] == 70 * GIB - 20 * KIB
+    assert reg.written_bytes(str(d)) == 20 * KIB and reg.written_bytes(str(root / "absent")) == 0
+    (d / "epoch=4-step=5000.ckpt").write_bytes(os.urandom(need))                     # written beyond the reservation
+    assert reg.recheck_storage(RUNS[2], TOKENS[RUNS[2]], str(root), floor=0)["outstanding_bytes"] == 2 * need
+
+
+def test_written_bytes_credit_only_allocated_bytes(tmp_path):
+    """Conservative credit (Codex code r1 finding 5): a file's credit is min(apparent size, allocated blocks) -- a
+    sparse or not-yet-allocated file credits nothing it has not taken from the filesystem."""
+    d = tmp_path / "rd"
+    d.mkdir()
+    with open(d / "sparse.ckpt", "wb") as fh:                                       # apparent 5 GiB, nothing allocated
+        fh.truncate(5 * GIB)
+    (d / "real.ckpt").write_bytes(os.urandom(64 * KIB))
+    os.symlink("/nonexistent/target", d / "link")
+    assert reg.written_bytes(str(d)) == 64 * KIB
+
+
+@pytest.mark.parametrize("where", ["after the free-space sample", "after the written-bytes scan"])
+@pytest.mark.parametrize("check", ["reserve", "recheck"])
+def test_a_write_between_the_two_observations_is_never_credited_against_older_free_space(tmp_path, monkeypatch,
+                                                                                          where, check):
+    """Codex code r1 finding 5: the credited written bytes are counted BEFORE free space is sampled, so an 8-KiB
+    checkpoint landing between the two observations can only shrink the computed headroom. KiB scale: run A holds a
+    20-KiB reservation with nothing written, 25 KiB are free, the floor is 10 KiB; after the write the true headroom is
+    (25 - 8) - (20 - 8) = 5 KiB (recheck) or 5 - 1 = 4 KiB (a 1-KiB candidate): both refuse, whichever observation
+    the write lands after (free sampled before the scan would credit the 8 KiB against the older 25 KiB: 13 / 12)."""
+    root = tmp_path / "root"
+    root.mkdir()
+    run_a, run_b = RUNS[0], RUNS[1]
+    d = root / run_a
+    real_written = reg.written_bytes
+    state = {"free": 1024 * KIB, "armed": False, "landed": False}
+
+    def land():
+        if state["armed"] and not state["landed"]:
+            d.mkdir(exist_ok=True)
+            (d / "epoch=0-step=2500.ckpt").write_bytes(os.urandom(8 * KIB))     # the trainer's write, mid-check
+            state["landed"] = True
+
+    def free(path):
+        f = state["free"] - real_written(str(d))         # every written byte has left the free space
+        if where == "after the free-space sample":
+            land()
+        return f
+
+    def written(path):
+        n = real_written(path)
+        if where == "after the written-bytes scan" and path == str(d):
+            land()
+        return n
+    monkeypatch.setattr(reg, "free_bytes", free)
+    monkeypatch.setattr(reg, "written_bytes", written)
+    reg.reserve_storage(run_a, TOKENS[run_a], str(d), str(root), need=20 * KIB, floor=10 * KIB)   # 1 MiB free: fine
+    state.update(free=25 * KIB, armed=True)
+    with pytest.raises(reg.GateError, match="floor"):
+        if check == "recheck":
+            reg.recheck_storage(run_a, TOKENS[run_a], str(root), floor=10 * KIB)
+        else:
+            reg.reserve_storage(run_b, TOKENS[run_b], str(root / run_b), str(root), need=1 * KIB, floor=10 * KIB)
+    assert state["landed"]
+    assert sorted(json.load(open(root / reg.STORAGE_LEDGER))["reservations"]) == [run_a]
 
 
 def test_repeated_rechecks_give_the_same_answer_and_change_nothing(fs):
