@@ -1,0 +1,62 @@
+HEAD 89225107335be1e3ce0bbcd43a29fd396d74ae4a tracked-clean=no host neu332.neuronic.cs.princeton.edu start 2026-11-14T22:17:41-05:00
+cmd: pytest -q src/tests/test_exp45_command_sheets.py 
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_____ test_the_sheet_is_well_formed_and_current[rf_data_curve_command.md] ______
+
+name = 'rf_data_curve_command.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_the_sheet_is_well_formed_and_current(name):
+>       text = open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_command.md'
+
+src/tests/test_exp45_command_sheets.py:41: FileNotFoundError
+_ test_the_sheet_is_well_formed_and_current[rf_data_curve_neuronic_commands.md] _
+
+name = 'rf_data_curve_neuronic_commands.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_the_sheet_is_well_formed_and_current(name):
+>       text = open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_neuronic_commands.md'
+
+src/tests/test_exp45_command_sheets.py:41: FileNotFoundError
+____________________ test_d1_the_a6000_sheet_trains_nothing ____________________
+
+    def test_d1_the_a6000_sheet_trains_nothing():
+        assert reg.TRAINING_PLATFORM == "neuronic"
+>       blocks = _blocks("rf_data_curve_command.md")
+
+src/tests/test_exp45_command_sheets.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'rf_data_curve_command.md'
+
+    def _blocks(name):
+>       return "\n".join(re.findall(r"```bash\n(.*?)\n```", open(os.path.join(EXP, name)).read(), flags=re.S))
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_command.md'
+
+src/tests/test_exp45_command_sheets.py:56: FileNotFoundError
+____ test_d1_the_neuronic_sheet_submits_every_campaign_run_smoke_then_full _____
+
+    def test_d1_the_neuronic_sheet_submits_every_campaign_run_smoke_then_full():
+>       blocks = _blocks("rf_data_curve_neuronic_commands.md")
+
+src/tests/test_exp45_command_sheets.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'rf_data_curve_neuronic_commands.md'
+
+    def _blocks(name):
+>       return "\n".join(re.findall(r"```bash\n(.*?)\n```", open(os.path.join(EXP, name)).read(), flags=re.S))
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_neuronic_commands.md'
+
+src/tests/test_exp45_command_sheets.py:56: FileNotFoundError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_command_sheets.py::test_the_sheet_is_well_formed_and_current[rf_data_curve_command.md]
+FAILED src/tests/test_exp45_command_sheets.py::test_the_sheet_is_well_formed_and_current[rf_data_curve_neuronic_commands.md]
+FAILED src/tests/test_exp45_command_sheets.py::test_d1_the_a6000_sheet_trains_nothing
+FAILED src/tests/test_exp45_command_sheets.py::test_d1_the_neuronic_sheet_submits_every_campaign_run_smoke_then_full
+4 failed in 6.16s
+EXIT 1 end 2026-11-14T22:17:49-05:00
