@@ -1069,6 +1069,40 @@ def release_storage(run, token, root, reason="released"):
         return entry
 
 
+# ---------------------------------------------------------------- the plan r3 §8 disclosures (ONE source)
+# printed under every exp_45 table -- exp45_collect.py's results Markdown, exp45_table.py's comparison table and the
+# shared generator's exp_45 block (Codex code r1 finding 15): brief §9 items 1-7 + plan r3 §8 items 8-11, written
+# here only, so the three cannot drift apart
+DISCLOSURES = (
+    "1. One training seed and one subset draw per point; the SD is evaluation randomness only (eval seeds 42-46): no "
+    "significance claim is made, paired per-seed deltas are descriptive only.",
+    "2. Nominal fractions; the effective item fractions are 25.2302 / 50.0206 / 75.0191 %.",
+    "3. Fixed 40,000 updates, not matched epochs (≈ 34.84 / 17.57 / 11.72 epochs vs 8.79 at 100 %).",
+    "4. RF 25 / 50 / 75 % trained on 2 x L40 (neuronic); RF 100 % on 2 x A6000 with the unrestricted 100 % config "
+    "(exp_38's subset audit: removed = 0, outside = 0 at 100 %); the curve is cross-platform at 100 % -- see the bridge.",
+    "5. The RF frame audit passed under gate A2, adopted after the originally registered gate failed.",
+    "6. Item-weighted aggregation over the 6,337 unseen items, not the paper's per-scene protocol.",
+    "7. OrbitRIR rows use their own fa_invariant inference protocol: the comparison is descriptive, not an "
+    "augmentation-only controlled comparison.",
+    "8. Cross-lineage tree: RF's training path is exp_43's, the data side exp_38's (byte-identical to their parents, tested).",
+    "9. RF's loss record comes from PL's CSV logger (exp_43's from W&B offline); same quantity and cadence.",
+    "10. Launcher difference vs RF 100 % (torchrun vs PL spawn), as between exp_38's fraction and 100 % rows.",
+    "11. E0 cells carry no waveform dumps (N10), as exp_38's registered E0.")
+# where each applies: the collector's table (RF 25 / 50 / 75 % + the RF-100 bridge) has no OrbitRIR row, so item 7
+# does not apply there; the comparison table and the shared generator table carry OrbitRIR rows
+DISCLOSURE_ITEMS = {"collect": (1, 2, 3, 4, 5, 6, 8, 9, 10, 11), "table": tuple(range(1, 12)),
+                    "generator": tuple(range(1, 12))}
+
+
+def disclosures(table):
+    """The plan r3 §8 disclosures that apply under ``table`` ("collect" / "table" / "generator")."""
+    return tuple(DISCLOSURES[i - 1] for i in DISCLOSURE_ITEMS[table])
+
+
+def disclosure_block(table):
+    return ["## Disclosures (plan_rf_data_curve.md r3 §8)", ""] + list(disclosures(table))
+
+
 # ---------------------------------------------------------------- campaign closure + immutable snapshot
 # AGREE/: the metric code imports `AGREE.AGREE` -- every reference cell ran with the repo root (so the
 # repo copy, not the site-packages one) first on sys.path; the snapshots keep that

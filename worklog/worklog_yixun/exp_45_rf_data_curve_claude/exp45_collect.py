@@ -150,7 +150,7 @@ def render(rows, pending, bridge=None):
             out.append(f"- {cell}: " + "; ".join(f"{k} ours {v['ours']!r} / reference {v['reference']!r}"
                                                 for k, v in sorted(diffs.items())))
         out.append("")
-    return "\n".join(out) + "\n"
+    return "\n".join(out + reg.disclosure_block("collect")) + "\n"            # plan r3 §8 (finding 15)
 
 
 def publish(rows, pending, manifest, repo=None):

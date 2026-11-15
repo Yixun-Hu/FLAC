@@ -1077,6 +1077,22 @@ def check_exp45_round(rendered, exp45_cells):
     return started - ready, problems
 
 
+def exp45_disclosure_lines(rendered, exp45_withheld, repo_root=None):
+    """``(lines, problems)``: the plan r3 §8 disclosures under the shared table's exp_45 rows (Codex code r1 finding
+    15), loaded from the exp_45 kit at the generator root -- exp45_registry.disclosures("generator"), the one source
+    the exp_45 tables print -- whenever an exp_45 row is published; nothing while every exp_45 row is pending or
+    withheld. A published row whose disclosures cannot be loaded is a problem (the gate must not fail open)."""
+    published = [r for r in rendered if r.get("contract") == "exp45" and r["label"] not in exp45_withheld
+                 and "*pending" not in r["line"] and "BLOCKED" not in r["line"] and "WITHHELD" not in r["line"]]
+    if not published:
+        return [], []
+    try:
+        items = _load_exp45_eval(repo_root).reg.disclosures("generator")
+    except Exception as exc:                       # noqa: BLE001 -- the gate must not fail open
+        return [], [f"cannot load the exp_45 disclosures ({exc})"]
+    return ["", "**exp_45 rows — disclosures (plan_rf_data_curve.md r3 §8):**", ""] + list(items), []
+
+
 def render_row(label, proto, K, files, repo_root=None, validator_path=None, contract="table"):
     """``(markdown_line, blocked)`` for one row, gating exp_11 and exp_14 evidence."""
     # exp_14 FIRST and exclusively: its cells sit inside outputs_FLAC/exp11_<ARM>/,
@@ -1471,6 +1487,17 @@ def main(argv=None):
                                          "an exp_45 run publishes only as a complete two-K pair "
                                          "at the one evaluator pin")
         lines_tail += ["", "**exp_45 rows WITHHELD:** " + "; ".join(exp45_problems)]
+    exp45_notes, exp45_note_problems = exp45_disclosure_lines(rendered, exp45_withheld, root)
+    if exp45_note_problems:                         # published exp_45 rows need their disclosures (finding 15)
+        print("exp_45 rows not publishable:", file=sys.stderr)
+        for problem in exp45_note_problems:
+            print("  -", problem, file=sys.stderr)
+        for r in rendered:
+            if r.get("contract") == "exp45":
+                r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
+                                         "the exp_45 disclosures could not be loaded")
+        lines_tail += ["", "**exp_45 rows WITHHELD:** " + "; ".join(exp45_note_problems)]
+    lines_tail += exp45_notes
     two_k = check_two_k_coverage(exp11_status)
     if two_k:
         bad_labels = {p.split(":")[0] for p in two_k}

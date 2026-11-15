@@ -62,21 +62,7 @@ METHODS = {"rf": "Roll + Flip (RF), exp_45", "yaw": "YAW-Aug, exp_38", "bf": "Or
 FRACS = ("025", "050", "075")
 HEADLINE = (("EDT", "EDT (ms) ↓", 3), ("C50", "C50 (dB) ↓", 4), ("T60", "T60 (%) ↓", 3),
             ("RIR_to_GT_RIR_R@1", "R@1 ↑", 3), ("RIR_to_GT_RIR_R@5", "R@5 ↑", 3), ("RIR_to_GT_RIR_R@10", "R@10 ↑", 3))
-DISCLOSURES = (
-    "1. One training seed and one subset draw per point; the SD is evaluation randomness only (eval seeds 42-46): no "
-    "significance claim is made, paired per-seed deltas are descriptive only.",
-    "2. Nominal fractions; the effective item fractions are 25.2302 / 50.0206 / 75.0191 %.",
-    "3. Fixed 40,000 updates, not matched epochs (≈ 34.84 / 17.57 / 11.72 epochs vs 8.79 at 100 %).",
-    "4. RF 25 / 50 / 75 % trained on 2 x L40 (neuronic); RF 100 % on 2 x A6000 with the unrestricted 100 % config "
-    "(exp_38's subset audit: removed = 0, outside = 0 at 100 %); the curve is cross-platform at 100 % -- see the bridge.",
-    "5. The RF frame audit passed under gate A2, adopted after the originally registered gate failed.",
-    "6. Item-weighted aggregation over the 6,337 unseen items, not the paper's per-scene protocol.",
-    "7. OrbitRIR rows use their own fa_invariant inference protocol: the comparison is descriptive, not an "
-    "augmentation-only controlled comparison.",
-    "8. Cross-lineage tree: RF's training path is exp_43's, the data side exp_38's (byte-identical to their parents, tested).",
-    "9. RF's loss record comes from PL's CSV logger (exp_43's from W&B offline); same quantity and cadence.",
-    "10. Launcher difference vs RF 100 % (torchrun vs PL spawn), as between exp_38's fraction and 100 % rows.",
-    "11. E0 cells carry no waveform dumps (N10), as exp_38's registered E0.")
+DISCLOSURES = reg.disclosures("table")          # the ONE source: exp45_registry.DISCLOSURES (finding 15)
 
 
 class TableError(RuntimeError):
@@ -420,7 +406,7 @@ def render(rows, rec, rec_sha, campaign):
                 out.append(f"| {label} | {int(t)} % | " + " | ".join(f"{st[k][0]:.{d}f} ± {st[k][1]:.{d}f}"
                                                                     for k, _, d in HEADLINE) + " |")
         out.append("")
-    return "\n".join(out + ["## Disclosures", ""] + list(DISCLOSURES)) + "\n"
+    return "\n".join(out + reg.disclosure_block("table")) + "\n"
 
 
 def main(argv=None):

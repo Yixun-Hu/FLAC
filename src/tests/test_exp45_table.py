@@ -297,6 +297,28 @@ def test_build_reopens_the_bundle_blobs_at_the_requested_commit(built):
     assert sha[:12] in tbl.build(sha, repo=repo)                     # the true record still builds
 
 
+def test_the_disclosures_have_one_source_and_appear_under_every_exp45_table(built):
+    """Codex code r1 finding 15: the plan r3 §8 disclosures live in ONE place (exp45_registry.DISCLOSURES) and print
+    under every exp_45 table -- this comparison table, the collector's results Markdown (all but item 7: it has no
+    OrbitRIR row) and the shared generator's exp_45 block (test_gen_model_comparison_exp45.py) -- so they cannot drift."""
+    reg = tbl.reg
+    assert len(reg.DISCLOSURES) == 11 and tbl.DISCLOSURES == reg.disclosures("table") == reg.DISCLOSURES
+    assert reg.disclosures("collect") == tuple(d for i, d in enumerate(reg.DISCLOSURES, 1) if i != 7)
+    gen = os.path.join(REPO, "worklog", "worklog_yixun", "gen_model_comparison.py")
+    for d in reg.DISCLOSURES:                            # the text itself is written once, in the registry
+        needle = d[3:60]
+        holders = sorted(f for f in os.listdir(EXP) if f.endswith(".py") and needle in open(os.path.join(EXP, f)).read())
+        assert holders == ["exp45_registry.py"] and needle not in open(gen).read(), (needle, holders)
+    repo, sha, _ = built
+    md = tbl.build(sha, repo=repo)
+    assert all(d in md for d in reg.disclosures("table"))
+    import exp45_collect as col
+    rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in tbl.ev.METRIC_KEYS}, "source": "s"}
+            for m, f in [("rf", t) for t in tbl.FRACS] + [("rf_bridge", "100")] for K in (8, 1)}
+    cmd = col.render(rows, [])
+    assert all(d in cmd for d in reg.disclosures("collect")) and reg.DISCLOSURES[6] not in cmd
+
+
 def test_build_refuses_a_missing_cell(built, monkeypatch):
     repo, sha, _ = built
     real = tbl.rf_rows

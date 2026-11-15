@@ -133,6 +133,28 @@ def test_offline_admission_needs_the_e0_receipt_the_training_receipt_and_its_los
     assert not ok and any("e0_receipt" in p for p in probs)
 
 
+def test_published_exp45_rows_carry_the_registered_disclosures(tmp_path, monkeypatch):
+    """Codex code r1 finding 15: under the shared table, published exp_45 rows carry the plan r3 §8 disclosures,
+    loaded from the exp_45 kit at the generator root (exp45_registry.disclosures("generator") -- the one source the
+    exp_45 tables print); none while every exp_45 row is pending or withheld; fail closed when they cannot be loaded."""
+    root, ev = _tmp_root(tmp_path, monkeypatch)
+    label = gen.EXP45_LABELS["025"]
+    rendered = [{"label": label, "K": k, "line": "| ok |", "contract": "exp45"} for k in (8, 1)]
+    lines, probs = gen.exp45_disclosure_lines(rendered, set(), str(root))
+    assert probs == [] and len(ev.reg.disclosures("generator")) == 11
+    assert all(d in lines for d in ev.reg.disclosures("generator"))
+    pending = [dict(r, line=f"| {label} | x | {r['K']} | 0 | *pending (0/5 seeds on disk)* | | | | | |") for r in rendered]
+    assert gen.exp45_disclosure_lines(pending, set(), str(root)) == ([], [])
+    assert gen.exp45_disclosure_lines(rendered, {label}, str(root)) == ([], [])
+    other = [dict(r, contract="exp38") for r in rendered]
+    assert gen.exp45_disclosure_lines(other, set(), str(root)) == ([], [])
+    lines, probs = gen.exp45_disclosure_lines(rendered, set(), str(tmp_path / "nowhere"))
+    assert lines == [] and probs and "disclosures" in probs[0]
+    import inspect
+    src = inspect.getsource(gen.main)                  # main() appends them after the exp_45 round gate
+    assert src.index("check_exp45_round(rendered") < src.index("exp45_disclosure_lines(rendered")
+
+
 def test_round_gate_publishes_only_complete_pairs_at_one_pin(tmp_path):
     label = gen.EXP45_LABELS["025"]
     rendered = [{"label": label, "K": 8, "line": "| ok |", "contract": "exp45"},
