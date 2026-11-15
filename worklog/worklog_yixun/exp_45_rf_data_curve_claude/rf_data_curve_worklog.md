@@ -90,3 +90,24 @@
 - **Result** — passed (L0). Not run (out of scope, per the round brief): L1 (three full CPU suites + `exp45_regression_compare.py`), L2–L8, any sbatch of training / evaluation, any dry-run, NAS access.
 - **Analysis — for the reviewer** — flagged choices / deviations: (1) the depth_canon byte-identity filter for the six exp_45 generator rows (path outside plan §3.1's list); (2) the log gate's loader-length check (from §5 L5, not in the §3.2 table); (3) SMOKE submissions take no storage reservation; (4) the exp_38 import extracts the bundle with `git archive` (no git worktree); (5) the bridge admission record is checked only for naming the checkpoint sha256 (its schema is not visible here); (6) commits B, C, G, J, K, L, M, N exceed 200 changed code lines (tests dominate). Environment notes: pytest jobs set `TMPDIR=/tmp` (the NFS tmp refuses `renameat2(RENAME_NOREPLACE)`, which `test_exp40_eval.py` needs); this worktree carries two untracked data links (`AcousticRooms`, `weights/FLAC/VAE.safetensors`) for the snapshot tests.
 - **Next** — Codex code round 1 on the whole round; then L1.
+
+## 2026-11-14T22:35:00-05:00 — coordinator: D7-A pushed (exp_38); Coder round 1 accepted for review; Codex code round 1 started
+- **Goal** — record the D7-A push (plan §10, N7) and start code review round 1 of at most 3.
+- **Version Control**
+  - D7-A, pushed to `origin/exp-38-data-efficiency` (`3593f34c..e5a012fa`) at Yixun's go (N7):
+    - `0cba2a39`: the records-only commit, 201 added files under `worklog/worklog_yixun/exp_38_data_efficiency_claude/` (untracked campaign records + `neuronic_records/` with `MANIFEST.sha256` and per-run `PROVENANCE.json`);
+    - `e5a012fa`: the ledger row in `commits_data_efficiency.md`.
+    - The exp_38 closure digest is unchanged (`31142c79…6694`).
+    - The helper scripts used are outside the repo, in the coordinator's scratchpad `exp38rec/`, and are in this code round's scope.
+  - exp_45: HEAD `23110d74`, the Coder's 19 first-parent commits after `738a5de7`; nothing pushed.
+- **Command / Validation**
+  - The coordinator checked:
+    - `git log --first-parent 738a5de7..HEAD`: 19 commits;
+    - `git status`: clean except the untracked data link `AcousticRooms`;
+    - the final L0 log tail: `867 passed, 6 skipped`, `EXIT 0`.
+  - Codex code round 1:
+    - prompt `rf_data_curve_codex_code_r1_prompt.md`;
+    - review → `rf_data_curve_codex_code_r1_review.md`.
+- **Result** — Codex code r1 verdict **REVISE**: 17 findings (1 BLOCKING, 4 HIGH, 10 MEDIUM, 2 NIT); log `rf_data_curve_2026-11-14_22-30-26_codex_code_r1.log.gz` (addresses redacted). Merge, commit A, argv rule, RF banner, loss CSV, FULL move, loader totals (1,148 / 2,276 / 3,413) and the exp_40 inherited-failure diagnosis confirmed. Deviations: 1–4 and 6–9 accepted (2 with change = finding 11), 5 rejected (= finding 2). D7-A result accepted (201 additions in exp_38 records, 200 manifest hashes match, closure 31142c79…6694 unchanged, no address pattern).
+- **Analysis — triage (coordinator)** — findings 1–16 go to the Coder fix round, all to be fixed. Finding 17 (`build_list.py` refusals are notes) is disposed as no-change: a one-off scratch helper outside the repo, already used, its output accepted by the reviewer; it is not reused. Deviation 1 (depth_canon filter) is a plan-path deviation accepted by the reviewer; kept pending Yixun's acknowledgement.
+- **Next** — Coder fix round (r1 findings 1–16, TDD, CPU Slurm tests) → Codex code round 2 → L1.
