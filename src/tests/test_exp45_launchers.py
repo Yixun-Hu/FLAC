@@ -63,18 +63,51 @@ def test_launcher_body_is_one_function_called_last():
 
 @pytest.mark.parametrize("run,mode", [("exp45_RFf025_l40_2x32", "FULL"), ("exp45_RFf050_l40_2x32", "SMOKE"), ("exp45_RFf075_l40_2x32", "FULL")])
 def test_sbatch_dry_run_prints_the_torchrun_lines(run, mode, tmp_path):
+    """Codex code r1 finding 10: the sbatch test hook routes the dry run through an ISOLATED save root
+    (EXP38_DRY_SAVE_ROOT -> --dry-save-root), so the result does not depend on the live run directories."""
+    iso = tmp_path / "dry_save_root"
+    iso.mkdir()
     env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN=run, MODE=mode, EXPECT_SHA="a" * 40,
                EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
-               SAVE_DIR=str(tmp_path / run), ALLOW_NONMATCHED_RUNG=0)
+               SAVE_DIR=str(tmp_path / run), ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(iso))
     env.pop("SLURM_JOB_ID", None)
     r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
     assert r.returncode == 0, r.stderr
     n = 2
     full = [l for l in r.stdout.split("\n") if l.startswith("FULL (cwd = the closure snapshot):")][0]
     assert f"-m torch.distributed.run --standalone --nnodes=1 --nproc_per_node={n} train.py" in full
-    assert full.endswith(" ".join(reg.build_train_argv(run, "neuronic")))
+    assert full.endswith(" ".join(reg.build_train_argv(run, "neuronic", str(iso))))
     smoke = [l for l in r.stdout.split("\n") if l.startswith("SMOKE (cwd = the closure snapshot):")][0]
-    assert "--max-steps 30" in smoke and f"/exp45_rf_data_curve/{run}_smoke" in smoke
+    assert "--max-steps 30" in smoke and f"{iso}/{run}_smoke" in smoke
+    assert f"run dir {iso}/{run}: fresh" in r.stdout
+    assert reg.PLATFORMS["neuronic"]["save_root"] not in full + smoke                # nothing of the live root
+
+
+def test_the_dry_run_checks_its_isolated_root_even_with_the_production_run_dir_occupied(tmp_path, monkeypatch, capsys):
+    """Codex code r1 finding 10: with the production FULL directory occupied (a run's checkpoint in it), the dry run
+    on an isolated save root still passes -- it checks, and prints, only the isolated root -- while the same dry run
+    against the production root refuses."""
+    sv = _load("exp45_supervise")
+    run = "exp45_RFf025_l40_2x32"
+    prod, iso = tmp_path / "production_save_root", tmp_path / "dry_save_root"
+    (prod / run).mkdir(parents=True)
+    (prod / run / reg.ckpt_name(2500, "025")).write_bytes(b"a live run's checkpoint")
+    iso.mkdir()
+    monkeypatch.setitem(reg.PLATFORMS["neuronic"], "save_root", str(prod))
+    monkeypatch.setattr(sv, "interpreter_gate", lambda platform, expect=None: sys.executable)
+    import exp38_subset_audit as sa
+    monkeypatch.setattr(sa, "verify", lambda *a, **k: [])
+    monkeypatch.setattr(reg, "vae_check", lambda *a, **k: {})
+    monkeypatch.setattr(reg, "vit_pin_check", lambda *a, **k: {})
+    monkeypatch.setattr(sv, "backend_gate", lambda *a, **k: {})
+    monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": "c" * 64})
+    a = sv.parse(["--platform", "neuronic", "--mode", "DRY_RUN", "--run", run, "--dry-save-root", str(iso)])
+    assert sv.mode_dry_run(a, "neuronic") == 0
+    out = capsys.readouterr().out
+    assert f"run dir {iso}/{run}: fresh" in out and f"--save-dir {iso}/{run}" in out and f"{iso}/{run}_smoke" in out
+    assert str(prod) not in out
+    with pytest.raises(reg.GateError, match="checkpoints"):
+        sv.mode_dry_run(sv.parse(["--platform", "neuronic", "--mode", "DRY_RUN", "--run", run]), "neuronic")
 
 
 def test_sbatch_refuses_unregistered_runs_and_an_unallowed_rung():

@@ -473,8 +473,10 @@ def mode_dry_run(a, platform):
     print(f"closure: {json.dumps(reg.closure_digest())}")
     print(f"run dir {d['argv'][d['argv'].index('--save-dir') + 1]}: {d['run_dir_state']}")
     full = launch_cmd(platform, ngpu, reg.build_train_argv(a.run, platform, a.dry_save_root, a.allow_nonmatched_rung))
-    smoke_dir = (os.path.join(reg.PLATFORMS[platform]["save_root"], f"{a.run}_smoke") if platform == "neuronic"
-                 else f"outputs_FLAC/exp38_smoke/{a.run}_ddp_<ts>")
+    # the isolated --dry-save-root, when given, for the SMOKE dir too (Codex code r1 finding 10): the dry run then
+    # names and checks nothing of the live save root
+    smoke_dir = (os.path.join(a.dry_save_root or reg.PLATFORMS[platform]["save_root"], f"{a.run}_smoke")
+                 if platform == "neuronic" else f"outputs_FLAC/exp38_smoke/{a.run}_ddp_<ts>")
     smoke = launch_cmd(platform, ngpu, reg.build_smoke_argv(a.run, reg.SMOKE_STEPS_DDP, smoke_dir, True, platform))
     print("FULL (cwd = the closure snapshot): " + " ".join(full))
     print(f"{'SMOKE' if platform == 'neuronic' else 'SMOKE_DDP'} (cwd = the closure snapshot): " + " ".join(smoke))

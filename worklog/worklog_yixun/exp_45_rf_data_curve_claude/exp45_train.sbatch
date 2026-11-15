@@ -12,7 +12,8 @@
 # This script only sanitises the environment and execs exp38_supervise.py, which exact-compares the
 # allocation and the environment with the owner intent, launches torchrun FROM a closure snapshot
 # in the run dir, owns its process group (TERM/INT/HUP forwarded, bounded KILL) and publishes the
-# receipts. Test hook (refused under a real allocation): EXP38_SBATCH_DRYRUN=1 -> MODE=DRY_RUN.
+# receipts. Test hook (refused under a real allocation): EXP38_SBATCH_DRYRUN=1 -> MODE=DRY_RUN, on the isolated
+# save root EXP38_DRY_SAVE_ROOT when set (--dry-save-root; Codex code r1 finding 10).
 # Exit codes: see exp38_supervise.py.
 # ============================================================================
 #SBATCH --partition=all
@@ -54,6 +55,7 @@ main() {
               --expect-flash-version "${EXPECT_FLASH_VERSION:-}")
   [ "$ALLOW" = 1 ] && ARGS+=(--allow-nonmatched-rung)
   if [ "$DRY" = 1 ]; then
+    [ -n "${EXP38_DRY_SAVE_ROOT:-}" ] && ARGS+=(--dry-save-root "$EXP38_DRY_SAVE_ROOT")
     exec "$PY" "$REPO/$EXP/exp45_supervise.py" --mode DRY_RUN "${ARGS[@]}"
   fi
   exec "$PY" "$REPO/$EXP/exp45_supervise.py" --mode "$MODE" "${ARGS[@]}" --expect-sha "$EXPECT_SHA" \
