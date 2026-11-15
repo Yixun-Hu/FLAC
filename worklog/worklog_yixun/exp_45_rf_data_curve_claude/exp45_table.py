@@ -21,7 +21,9 @@ constant here: this file is closure code, frozen at the launch commit X.
 
 ``build``: RF from exp_45's admitted cells (exp45_eval's offline admission, re-derived and compared with the sealed
 collector JSON); YAW-Aug / OrbitRIR ONLY from the sealed import record of the given exp_38 commit (its sidecar, its
-commit, its rows re-derived from its per-cell values). Refuses a missing (method x fraction x K) cell, a value that
+commit, its rows re-derived from its per-cell values) -- and the record is bound back to that commit (Codex code r1
+finding 6): the bundle is re-extracted at the commit (git archive, read-only) and every recorded file hash, every
+cell's metrics, the checkpoint / dump-manifest attestations and the E0 campaign are re-verified against those blobs. Refuses a missing (method x fraction x K) cell, a value that
 differs from its source, an import record whose hash or commit does not match. Never reads exp_38's preliminary
 files (plan F9) and never re-runs exp_38's closure checks against the exp_45 tree (Codex plan r1 finding 8).
 Writes rf_data_curve_table.md (+ the sealed rf_data_curve_table_evidence.json) and prints the §8 disclosures.
@@ -328,6 +330,47 @@ def _same(a, b):
     return json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
 
 
+def verify_record_at_commit(rec, repo=None):
+    """Codex code r1 finding 6: the sealed import record against the IMMUTABLE blobs of its commit. The bundle is
+    re-extracted at ``rec["commit"]`` (git archive into a temporary directory; the repository is only read): the
+    record's file set must be EXP38_IMPORT_FILES of that tree, every recorded sha256 must re-hash, every cell's
+    (run, K, seed, metrics) must be its metrics file's, its checkpoint / dump-manifest attestations its receipt's,
+    and the campaign the E0 receipt's. Raises TableError."""
+    tmp = tempfile.mkdtemp(prefix="exp45_table_build_")
+    try:
+        commit = extract_bundle(rec["commit"], tmp, repo)
+        try:
+            files = exp38_import_files(tmp)
+        except (OSError, ValueError, KeyError) as err:
+            raise TableError(f"the bundle at {commit[:12]} is incomplete: {err}")
+        if sorted(rec["files"]) != files:
+            raise TableError(f"the import record's file set != EXP38_IMPORT_FILES at {commit[:12]}")
+        bad = [f for f in files if not os.path.isfile(os.path.join(tmp, f))
+               or reg.sha256_file(os.path.join(tmp, f)) != rec["files"][f]]
+        if bad:
+            raise TableError(f"{len(bad)} recorded sha256 differ from the blobs at {commit[:12]}, e.g. {bad[:3]}")
+        stems = exp38_cell_stems()
+        if sorted(rec["cells"]) != sorted(stems):
+            raise TableError(f"the import record's cells != the 60 exp_38 fraction cells")
+        att = rec["attestations"]
+        for name, (run, K, seed, stem) in sorted(stems.items()):
+            cell = rec["cells"][name]
+            metrics = json.load(open(os.path.join(tmp, stem + ".json"))).get("metrics")
+            if (cell.get("run"), cell.get("K"), cell.get("seed")) != (run, K, seed) or not _same(cell.get("metrics"), metrics):
+                raise TableError(f"{name}: the recorded values differ from its metrics file at {commit[:12]}")
+            receipt = json.load(open(os.path.join(tmp, stem + ".receipt.json")))
+            if (att["checkpoints"].get(name), att["waveform_dump_manifests"].get(name)) != \
+                    (receipt.get("ckpt_sha256"), receipt.get("dump_manifest_sha256")):
+                raise TableError(f"{name}: the recorded attestations differ from its receipt at {commit[:12]}")
+        e0_rel = f"{reg.EXP38_DIR}/data_efficiency_e0_receipt.json"
+        e0 = json.load(open(os.path.join(tmp, e0_rel)))
+        if not _same(rec["campaign"], {"head": e0.get("head"), "closure_sha256": e0.get("closure_sha256"),
+                                       "sha256": rec["files"][e0_rel]}):
+            raise TableError(f"the recorded campaign differs from the E0 receipt at {commit[:12]}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def build(exp38_commit, repo=None):
     repo = repo or reg.REPO
     if not (isinstance(exp38_commit, str) and len(exp38_commit) == 40):
@@ -337,6 +380,7 @@ def build(exp38_commit, repo=None):
         raise TableError(f"the import record is of commit {str(rec['commit'])[:12]}, not {exp38_commit[:12]}")
     if not _same(exp38_rows(rec["cells"]), rec["rows"]):
         raise TableError("the import record's rows differ from its own per-cell values")
+    verify_record_at_commit(rec, repo)                   # ... and its values are the commit's blobs (finding 6)
     campaign = ev.validate_e0_receipt(offline=True)
     rows = dict(rf_rows(campaign))
     results = os.path.join(repo, f"{reg.EXP_DIR}/rf_data_curve_results.json")

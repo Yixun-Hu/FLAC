@@ -240,6 +240,63 @@ def test_build_refuses_a_wrong_commit_a_resealed_record_or_a_changed_value(built
         tbl.build(sha, repo=repo)
 
 
+def _reseal_import(repo, rec):
+    p = os.path.join(repo, tbl.IMPORT_RECORD)
+    for f in (p, p + ".sha256"):
+        os.remove(f)
+    tbl.reg.write_sealed(p, rec)
+
+
+def _tracked_variant(repo, sha, fn, msg):
+    """A commit on top of ``sha`` changing tracked files only (the untracked import record / results stay put)."""
+    fn(repo)
+    _git(repo, "-c", "user.name=exp45-test", "-c", "user.email=exp45-test", "commit", "-q", "-a", "-m", msg)
+    new = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "reset", "-q", "--hard", sha)
+    return new
+
+
+def test_build_reopens_the_bundle_blobs_at_the_requested_commit(built):
+    """Codex code r1 finding 6: build re-extracts the bundle at the requested commit (git archive, read-only) and
+    re-verifies the record against those blobs -- every EXP38_IMPORT_FILES hash, every cell's metrics, the
+    attestations its receipts carry and the E0 campaign -- so a record whose cells AND rows were changed together,
+    whose file hash or attestation was edited, or which was relabelled to another commit, refuses after resealing."""
+    repo, sha, _ = built
+    good = json.load(open(os.path.join(repo, tbl.IMPORT_RECORD)))
+    name = "de_yaw_f050_K8_s43"
+
+    def mutated(fn):
+        rec = json.loads(json.dumps(good))
+        fn(rec)
+        return rec
+
+    def cells_and_rows(r):
+        r["cells"][name]["metrics"]["T60"] += 0.5
+        r["rows"] = tbl.exp38_rows(r["cells"])                      # internally consistent again
+    some_file = sorted(good["files"])[0]
+    cases = [(cells_and_rows, name),
+             (lambda r: r["files"].update({some_file: "0" * 64}), "sha256"),
+             (lambda r: r["attestations"]["checkpoints"].update({name: "0" * 64}), name),
+             (lambda r: r["campaign"].update(head="0" * 40), "campaign")]
+    for fn, needle in cases:
+        _reseal_import(repo, mutated(fn))
+        with pytest.raises(tbl.TableError, match=needle):
+            tbl.build(sha, repo=repo)
+    stems = tbl.exp38_cell_stems()
+
+    def bump(r):
+        p = os.path.join(r, stems[name][3] + ".json")
+        d = json.load(open(p))
+        d["metrics"]["T60"] += 0.5
+        json.dump(d, open(p, "w"))
+    other = _tracked_variant(repo, sha, bump, "a later bundle commit with another value")
+    _reseal_import(repo, mutated(lambda r: r.update(commit=other)))  # the record relabelled to that commit
+    with pytest.raises(tbl.TableError, match="sha256"):
+        tbl.build(other, repo=repo)
+    _reseal_import(repo, good)
+    assert sha[:12] in tbl.build(sha, repo=repo)                     # the true record still builds
+
+
 def test_build_refuses_a_missing_cell(built, monkeypatch):
     repo, sha, _ = built
     real = tbl.rf_rows
