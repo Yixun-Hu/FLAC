@@ -62,11 +62,15 @@ SUPERSEDED = {CANON_TEST: {"    rest = [ln for ln in cur if ln not in exp25 and 
 # ---- paths a commit after the merge may touch (plan §3.1)
 ALLOWED_AFTER_MERGE = (f"{EXPREL}/*", "src/tests/test_exp45_*.py", "src/tests/exp45_fixtures.py",
                        "src/tests/test_exp40_kit.py", "src/tests/test_exp43_kit.py", GEN,
-                       "src/tests/test_gen_model_comparison_exp45.py")
+                       "src/tests/test_gen_model_comparison_exp45.py",
+                       CANON_TEST)     # DEVIATION (flagged for review): the exp45 rows' additive filter, below
 RESULTS_ONLY = ("outputs_FLAC/exp45_rf_data_curve/eval/*", "worklog/worklog_yixun/model_comparison.md")
 RESULTS_SUBJECT = "exp_45 results publication"            # the subject prefix of a results-publication commit
 COMPAT_EDITS = {"src/tests/test_exp40_kit.py": "test_prefigure_parse_matches_the_expected_values_type_strict",
-                "src/tests/test_exp43_kit.py": "test_prefigure_parse_matches_the_expected_values_type_strict"}
+                "src/tests/test_exp43_kit.py": "test_prefigure_parse_matches_the_expected_values_type_strict",
+                # the generator contract's six exp_45 rows need the byte-identity test to set them aside, exactly as
+                # exp_38 and exp_40 each did (plan §3.1 lists no such path: a deviation, confined to this function)
+                CANON_TEST: "test_every_pre_exp25_row_renders_byte_identically"}
 
 
 def git(*args):

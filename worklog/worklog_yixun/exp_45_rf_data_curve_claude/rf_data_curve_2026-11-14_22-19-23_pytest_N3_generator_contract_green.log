@@ -1,0 +1,21 @@
+HEAD 11a447fd44ac4959de68a15953a625b7113fb27c tracked-clean=no host neu316.neuronic.cs.princeton.edu start 2026-11-14T22:19:41-05:00
+cmd: pytest -q src/tests/test_gen_model_comparison_exp45.py src/tests/test_gen_model_comparison_exp38.py src/tests/test_gen_model_comparison_depth_canon.py src/tests/test_gen_model_comparison_data_curve.py src/tests/test_gen_model_comparison_gate.py src/tests/test_yaw_aug_collect.py src/tests/test_exp45_merge_provenance.py 
+........................................................................ [ 27%]
+........................................................................ [ 54%]
+........................................................................ [ 81%]
+............s.....................................                       [100%]
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+265 passed, 1 skipped, 3 warnings in 45.48s
+EXIT 0 end 2026-11-14T22:20:28-05:00

@@ -232,7 +232,11 @@ def test_every_pre_exp25_row_renders_byte_identically(tmp_path, monkeypatch):
     # exp_38 appended its own additive block of twelve preregistered rows (pending until its cells land)
     data_eff = [ln for ln in cur if any(ln.startswith(f"| {label} |") for label in G.EXP38_LABELS.values())]
     assert len(data_eff) == 12
-    rest = [ln for ln in cur if ln not in exp25 and ln not in data_curve and ln not in exp40 and ln not in data_eff]
+    # exp_45 appended its own additive block of six preregistered RF rows (pending until its cells land)
+    exp45 = [ln for ln in cur if any(ln.startswith(f"| {label} |") for label in G.EXP45_LABELS.values())]
+    assert len(exp45) == 6
+    rest = [ln for ln in cur if ln not in exp25 and ln not in data_curve and ln not in exp40 and ln not in data_eff
+            and ln not in exp45]
     digest = lambda lines: hashlib.sha256("\n".join(lines).encode()).hexdigest()  # noqa: E731
     assert digest(rest) == digest(base) and rest == base
     rows = [ln for ln in base if ln.startswith("| ") and not ln.startswith("| Model")]

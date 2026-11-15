@@ -1,0 +1,103 @@
+HEAD e8eadda48bdfd3030ebfba74119cc3d9e0793ead tracked-clean=no host neu316.neuronic.cs.princeton.edu start 2026-11-14T22:16:41-05:00
+cmd: pytest -q src/tests/test_gen_model_comparison_exp45.py 
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_________________ test_six_preregistered_rows_with_exact_globs _________________
+
+    def test_six_preregistered_rows_with_exact_globs():
+        rows = [r for r in gen.ROWS if len(r) > 4 and r[4] == "exp45"]
+>       assert len(rows) == 6 and sorted({gen.exp45_run_of(r[0]) for r in rows}) == RUNS
+E       assert (0 == 6)
+E        +  where 0 = len([])
+
+src/tests/test_gen_model_comparison_exp45.py:33: AssertionError
+_______________________ test_validate_exp45_cell_offline _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_exp45_cell_offli0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fbfa7ba6cb0>
+
+    def test_validate_exp45_cell_offline(tmp_path, monkeypatch):
+>       root, ev = _tmp_root(tmp_path, monkeypatch)
+
+src/tests/test_gen_model_comparison_exp45.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_exp45_cell_offli0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fbfa7ba6cb0>
+
+    def _tmp_root(tmp_path, monkeypatch):
+        """A self-contained root holding only what OFFLINE admission reads: the exp_45 kit, the RF + E0 configs, exp_38's
+        read-only reference cells and E0a decision; the cached exp45 modules are set aside so the root's own copies
+        (REPO = this root) are the ones the loaded validator uses."""
+        root = tmp_path / "repo"
+        (root / ".git").mkdir(parents=True)
+        for rel in (os.path.join(EXP_REL, "exp45_eval.py"), os.path.join(EXP_REL, "exp45_registry.py"),
+                    "worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json",
+                    "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json",
+                    "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json",
+                    "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json",
+                    os.path.join(EXP38_REL, "data_efficiency_e0a_decision.json"),
+                    os.path.join(EXP38_REL, "data_efficiency_e0a_decision.json.sha256")):
+            (root / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(os.path.join(REPO, rel), root / rel)
+        shutil.copytree(os.path.join(REPO, EXP38_REL, "ref_cells"), root / EXP38_REL / "ref_cells")
+        for name in ("exp45_registry", "exp45_eval"):
+            monkeypatch.delitem(sys.modules, name, raising=False)
+        monkeypatch.setattr(sys, "path", list(sys.path))
+>       ev = gen._load_exp45_eval(str(root))
+E       AttributeError: module 'gen_model_comparison_exp45_test' has no attribute '_load_exp45_eval'. Did you mean: '_load_exp38_eval'?
+
+src/tests/test_gen_model_comparison_exp45.py:64: AttributeError
+_ test_offline_admission_needs_the_e0_receipt_the_training_receipt_and_its_loss_record _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_offline_admission_needs_t0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fbfa7bd2f20>
+
+    def test_offline_admission_needs_the_e0_receipt_the_training_receipt_and_its_loss_record(tmp_path, monkeypatch):
+>       root, ev = _tmp_root(tmp_path, monkeypatch)
+
+src/tests/test_gen_model_comparison_exp45.py:117: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_offline_admission_needs_t0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fbfa7bd2f20>
+
+    def _tmp_root(tmp_path, monkeypatch):
+        """A self-contained root holding only what OFFLINE admission reads: the exp_45 kit, the RF + E0 configs, exp_38's
+        read-only reference cells and E0a decision; the cached exp45 modules are set aside so the root's own copies
+        (REPO = this root) are the ones the loaded validator uses."""
+        root = tmp_path / "repo"
+        (root / ".git").mkdir(parents=True)
+        for rel in (os.path.join(EXP_REL, "exp45_eval.py"), os.path.join(EXP_REL, "exp45_registry.py"),
+                    "worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json",
+                    "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json",
+                    "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json",
+                    "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json",
+                    os.path.join(EXP38_REL, "data_efficiency_e0a_decision.json"),
+                    os.path.join(EXP38_REL, "data_efficiency_e0a_decision.json.sha256")):
+            (root / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(os.path.join(REPO, rel), root / rel)
+        shutil.copytree(os.path.join(REPO, EXP38_REL, "ref_cells"), root / EXP38_REL / "ref_cells")
+        for name in ("exp45_registry", "exp45_eval"):
+            monkeypatch.delitem(sys.modules, name, raising=False)
+        monkeypatch.setattr(sys, "path", list(sys.path))
+>       ev = gen._load_exp45_eval(str(root))
+E       AttributeError: module 'gen_model_comparison_exp45_test' has no attribute '_load_exp45_eval'. Did you mean: '_load_exp38_eval'?
+
+src/tests/test_gen_model_comparison_exp45.py:64: AttributeError
+___________ test_round_gate_publishes_only_complete_pairs_at_one_pin ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_round_gate_publishes_only0')
+
+    def test_round_gate_publishes_only_complete_pairs_at_one_pin(tmp_path):
+>       label = gen.EXP45_LABELS["025"]
+E       AttributeError: module 'gen_model_comparison_exp45_test' has no attribute 'EXP45_LABELS'. Did you mean: 'EXP25_LABELS'?
+
+src/tests/test_gen_model_comparison_exp45.py:137: AttributeError
+=========================== short test summary info ============================
+FAILED src/tests/test_gen_model_comparison_exp45.py::test_six_preregistered_rows_with_exact_globs
+FAILED src/tests/test_gen_model_comparison_exp45.py::test_validate_exp45_cell_offline
+FAILED src/tests/test_gen_model_comparison_exp45.py::test_offline_admission_needs_the_e0_receipt_the_training_receipt_and_its_loss_record
+FAILED src/tests/test_gen_model_comparison_exp45.py::test_round_gate_publishes_only_complete_pairs_at_one_pin
+4 failed in 3.70s
+EXIT 1 end 2026-11-14T22:16:46-05:00

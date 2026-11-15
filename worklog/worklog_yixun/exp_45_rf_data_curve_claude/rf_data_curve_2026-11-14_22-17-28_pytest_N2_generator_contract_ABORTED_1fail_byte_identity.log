@@ -1,0 +1,56 @@
+HEAD 89225107335be1e3ce0bbcd43a29fd396d74ae4a tracked-clean=no host neu316.neuronic.cs.princeton.edu start 2026-11-14T22:17:41-05:00
+cmd: pytest -q src/tests/test_gen_model_comparison_exp45.py src/tests/test_gen_model_comparison_exp38.py src/tests/test_gen_model_comparison_depth_canon.py src/tests/test_gen_model_comparison_data_curve.py src/tests/test_gen_model_comparison_gate.py src/tests/test_yaw_aug_collect.py 
+....................F................................................... [ 28%]
+........................................................................ [ 56%]
+........................................................................ [ 84%]
+............s............................                                [100%]
+=================================== FAILURES ===================================
+______________ test_every_pre_exp25_row_renders_byte_identically _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_pre_exp25_row_rende0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fda9f20fd30>
+
+    def test_every_pre_exp25_row_renders_byte_identically(tmp_path, monkeypatch):
+        base_mod = _generator_at(BASE_COMMIT)
+        base = _render_lines(base_mod, tmp_path / "base.md", monkeypatch)
+        cur = _render_lines(G, tmp_path / "cur.md", monkeypatch)
+        exp25 = [ln for ln in cur if any(ln.startswith(f"| {label} |") for label in G.EXP25_LABELS.values())]
+        assert len(exp25) == 6                                               # the additive rows, nothing else
+        # exp_14 round P appended its own additive block after exp_25's: the twelve data-curve rows
+        data_curve = [ln for ln in cur if ln.startswith("| data-curve ")]
+        assert len(data_curve) == 12
+        # exp_40 appended its own additive block (the two C16 theta=0 rows, contract exp40)
+        exp40 = [ln for ln in cur if ln.startswith(f"| {G.EXP40_LABEL} |")]
+        assert len(exp40) == 2
+        # exp_38 appended its own additive block of twelve preregistered rows (pending until its cells land)
+        data_eff = [ln for ln in cur if any(ln.startswith(f"| {label} |") for label in G.EXP38_LABELS.values())]
+        assert len(data_eff) == 12
+        rest = [ln for ln in cur if ln not in exp25 and ln not in data_curve and ln not in exp40 and ln not in data_eff]
+        digest = lambda lines: hashlib.sha256("\n".join(lines).encode()).hexdigest()  # noqa: E731
+>       assert digest(rest) == digest(base) and rest == base
+E       AssertionError: assert ('1a1c9a412434...4b5ebf3caa5a1' == '08885ae7dd8c...8eb53d9c2a0be'
+E         
+E         - 08885ae7dd8cbbb281a8e710a37805b67704a2155f531b7083e8eb53d9c2a0be
+E         + 1a1c9a4124346d0b8bf994daaa1591e8306231d5c49538ef57e4b5ebf3caa5a1)
+
+src/tests/test_gen_model_comparison_depth_canon.py:237: AssertionError
+----------------------------- Captured stdout call -----------------------------
+wrote /tmp/pytest-of-yh4742/pytest-0/test_every_pre_exp25_row_rende0/base.md
+wrote /tmp/pytest-of-yh4742/pytest-0/test_every_pre_exp25_row_rende0/cur.md
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically
+1 failed, 255 passed, 1 skipped, 3 warnings in 68.32s (0:01:08)
+EXIT 1 end 2026-11-14T22:18:51-05:00
