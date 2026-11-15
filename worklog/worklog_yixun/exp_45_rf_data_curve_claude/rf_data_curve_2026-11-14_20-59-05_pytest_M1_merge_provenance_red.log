@@ -1,0 +1,125 @@
+HEAD 738a5de77809dd8c4fffbea22354060ce00f50db tracked-clean=yes host neu310.neuronic.cs.princeton.edu start 2026-11-14T20:59:31-05:00
+cmd: pytest -q src/tests/test_exp45_merge_provenance.py 
+F.FFFFF..                                                                [100%]
+=================================== FAILURES ===================================
+_____ test_the_merge_is_exp38s_tip_into_the_exp45_branch_and_nothing_else ______
+
+    def test_the_merge_is_exp38s_tip_into_the_exp45_branch_and_nothing_else():
+>       m = merge_commit()
+
+src/tests/test_exp45_merge_provenance.py:117: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def merge_commit():
+        """The single merge commit after FIRST_PARENT; its parents must be exactly (FIRST_PARENT, EXP38_TIP)."""
+        rows = [ln.split() for ln in git("rev-list", "--merges", "--parents", "--ancestry-path",
+                                         f"{FIRST_PARENT}..HEAD").split("\n") if ln.strip()]
+>       assert len(rows) == 1, f"expected exactly one merge after {FIRST_PARENT[:8]}, found {len(rows)}"
+E       AssertionError: expected exactly one merge after 738a5de7, found 0
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+src/tests/test_exp45_merge_provenance.py:106: AssertionError
+_____ test_every_path_of_the_merge_commit_comes_from_its_registered_parent _____
+
+    def test_every_path_of_the_merge_commit_comes_from_its_registered_parent():
+>       m = merge_commit()
+
+src/tests/test_exp45_merge_provenance.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def merge_commit():
+        """The single merge commit after FIRST_PARENT; its parents must be exactly (FIRST_PARENT, EXP38_TIP)."""
+        rows = [ln.split() for ln in git("rev-list", "--merges", "--parents", "--ancestry-path",
+                                         f"{FIRST_PARENT}..HEAD").split("\n") if ln.strip()]
+>       assert len(rows) == 1, f"expected exactly one merge after {FIRST_PARENT[:8]}, found {len(rows)}"
+E       AssertionError: expected exactly one merge after 738a5de7, found 0
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+src/tests/test_exp45_merge_provenance.py:106: AssertionError
+_ test_the_conflict_resolutions_are_the_declared_unions[src/tests/test_gen_model_comparison_depth_canon.py] _
+
+path = 'src/tests/test_gen_model_comparison_depth_canon.py'
+
+    @pytest.mark.parametrize("path", sorted(CONFLICTS))
+    def test_the_conflict_resolutions_are_the_declared_unions(path):
+>       m = merge_commit()
+
+src/tests/test_exp45_merge_provenance.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def merge_commit():
+        """The single merge commit after FIRST_PARENT; its parents must be exactly (FIRST_PARENT, EXP38_TIP)."""
+        rows = [ln.split() for ln in git("rev-list", "--merges", "--parents", "--ancestry-path",
+                                         f"{FIRST_PARENT}..HEAD").split("\n") if ln.strip()]
+>       assert len(rows) == 1, f"expected exactly one merge after {FIRST_PARENT[:8]}, found {len(rows)}"
+E       AssertionError: expected exactly one merge after 738a5de7, found 0
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+src/tests/test_exp45_merge_provenance.py:106: AssertionError
+_ test_the_conflict_resolutions_are_the_declared_unions[worklog/worklog_yixun/gen_model_comparison.py] _
+
+path = 'worklog/worklog_yixun/gen_model_comparison.py'
+
+    @pytest.mark.parametrize("path", sorted(CONFLICTS))
+    def test_the_conflict_resolutions_are_the_declared_unions(path):
+>       m = merge_commit()
+
+src/tests/test_exp45_merge_provenance.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def merge_commit():
+        """The single merge commit after FIRST_PARENT; its parents must be exactly (FIRST_PARENT, EXP38_TIP)."""
+        rows = [ln.split() for ln in git("rev-list", "--merges", "--parents", "--ancestry-path",
+                                         f"{FIRST_PARENT}..HEAD").split("\n") if ln.strip()]
+>       assert len(rows) == 1, f"expected exactly one merge after {FIRST_PARENT[:8]}, found {len(rows)}"
+E       AssertionError: expected exactly one merge after 738a5de7, found 0
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+src/tests/test_exp45_merge_provenance.py:106: AssertionError
+____________ test_later_exp45_commits_touch_only_the_allowed_paths _____________
+
+    def test_later_exp45_commits_touch_only_the_allowed_paths():
+>       m = merge_commit()
+
+src/tests/test_exp45_merge_provenance.py:197: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def merge_commit():
+        """The single merge commit after FIRST_PARENT; its parents must be exactly (FIRST_PARENT, EXP38_TIP)."""
+        rows = [ln.split() for ln in git("rev-list", "--merges", "--parents", "--ancestry-path",
+                                         f"{FIRST_PARENT}..HEAD").split("\n") if ln.strip()]
+>       assert len(rows) == 1, f"expected exactly one merge after {FIRST_PARENT[:8]}, found {len(rows)}"
+E       AssertionError: expected exactly one merge after 738a5de7, found 0
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+src/tests/test_exp45_merge_provenance.py:106: AssertionError
+_ test_the_exp38_exp40_exp43_folders_are_byte_frozen[worklog/worklog_yixun/exp_38_data_efficiency_claude-3593f34cad4e6e4415a572e93d16ee83465f8ae8] _
+
+folder = 'worklog/worklog_yixun/exp_38_data_efficiency_claude'
+parent = '3593f34cad4e6e4415a572e93d16ee83465f8ae8'
+
+    @pytest.mark.parametrize("folder,parent", [(EXP38REL, EXP38_TIP), (EXP40REL, EXP43_PIN), (EXP43REL, EXP43_PIN)])
+    def test_the_exp38_exp40_exp43_folders_are_byte_frozen(folder, parent):
+        for args in (("diff", "--quiet", parent, "HEAD", "--", folder), ("diff", "--quiet", parent, "--", folder)):
+>           assert subprocess.run(["git", "-C", REPO, *args]).returncode == 0, f"{folder} differs from {parent[:8]}"
+E           AssertionError: worklog/worklog_yixun/exp_38_data_efficiency_claude differs from 3593f34c
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['git', '-C', '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'diff', '--quiet', '3593f34cad4e6e4415a572e93d16ee83465f8ae8', 'HEAD', '--', 'worklog/worklog_yixun/exp_38_data_efficiency_claude'], returncode=1).returncode
+E            +    where CompletedProcess(args=['git', '-C', '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'diff', '--quiet', '3593f34cad4e6e4415a572e93d16ee83465f8ae8', 'HEAD', '--', 'worklog/worklog_yixun/exp_38_data_efficiency_claude'], returncode=1) = <function run at 0x7fb94bffee60>(['git', '-C', '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'diff', '--quiet', '3593f34cad4e6e4415a572e93d16ee83465f8ae8', ...])
+E            +      where <function run at 0x7fb94bffee60> = subprocess.run
+
+src/tests/test_exp45_merge_provenance.py:224: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_merge_provenance.py::test_the_merge_is_exp38s_tip_into_the_exp45_branch_and_nothing_else
+FAILED src/tests/test_exp45_merge_provenance.py::test_every_path_of_the_merge_commit_comes_from_its_registered_parent
+FAILED src/tests/test_exp45_merge_provenance.py::test_the_conflict_resolutions_are_the_declared_unions[src/tests/test_gen_model_comparison_depth_canon.py]
+FAILED src/tests/test_exp45_merge_provenance.py::test_the_conflict_resolutions_are_the_declared_unions[worklog/worklog_yixun/gen_model_comparison.py]
+FAILED src/tests/test_exp45_merge_provenance.py::test_later_exp45_commits_touch_only_the_allowed_paths
+FAILED src/tests/test_exp45_merge_provenance.py::test_the_exp38_exp40_exp43_folders_are_byte_frozen[worklog/worklog_yixun/exp_38_data_efficiency_claude-3593f34cad4e6e4415a572e93d16ee83465f8ae8]
+6 failed, 3 passed in 79.00s (0:01:18)
+EXIT 1 end 2026-11-14T21:01:06-05:00

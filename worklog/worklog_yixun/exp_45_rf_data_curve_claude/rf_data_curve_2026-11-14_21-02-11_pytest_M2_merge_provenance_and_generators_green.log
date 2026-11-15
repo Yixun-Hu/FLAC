@@ -1,0 +1,432 @@
+HEAD ed9e1770fe2b1e4606ae5798ba166210a2016673 tracked-clean=yes host neu312.neuronic.cs.princeton.edu start 2026-11-14T21:02:31-05:00
+cmd: pytest -q src/tests/test_exp45_merge_provenance.py src/tests/test_gen_model_comparison_exp38.py src/tests/test_gen_model_comparison_depth_canon.py src/tests/test_gen_model_comparison_data_curve.py src/tests/test_gen_model_comparison_gate.py src/tests/test_yaw_aug_collect.py src/tests/test_exp40_eval.py 
+........................................................................ [ 20%]
+........................................................................ [ 41%]
+........................................................................ [ 61%]
+.................s...................................................... [ 82%]
+..............................F.....FFF..FFF..FFFFF..F....F..F           [100%]
+=================================== FAILURES ===================================
+____________________________ test_e0_gate_is_strict ____________________________
+
+run_env = ({'tree': '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'farm': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-40...in/python', 'hf_sealed': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_e0_gate_is_strict0/hf', ...}, [])
+manifest = {'block_counts': {'C4': 30, 'E0': 3, 'FILL': 16, 'G45': 8, ...}, 'cells': [{'K': 1, 'arm': 'YAW', 'block': 'E0', 'cell...'block': 'T', 'cell': 'exp40_C16_T_S40000_K1_s44', ...}, ...], 'count': 85, 'plan': 'plan_yaw_aug_c16.md r2 §5.2', ...}
+
+    def test_e0_gate_is_strict(run_env, manifest):
+        ctx, _ = run_env
+>       path, doc = _write_e0(ctx, manifest)
+
+src/tests/test_exp40_eval.py:540: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ctx = {'tree': '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'farm': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-409...lac/bin/python', 'hf_sealed': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_e0_gate_is_strict0/hf', ...}
+manifest = {'block_counts': {'C4': 30, 'E0': 3, 'FILL': 16, 'G45': 8, ...}, 'cells': [{'K': 1, 'arm': 'YAW', 'block': 'E0', 'cell...'block': 'T', 'cell': 'exp40_C16_T_S40000_K1_s44', ...}, ...], 'count': 85, 'plan': 'plan_yaw_aug_c16.md r2 §5.2', ...}
+over = {}
+
+    def _write_e0(ctx, manifest, **over):
+        """Run the three E0 cells through run_cells (fake evaluator) and write their E0 receipt
+        from the real cell receipts (the run's own derivation)."""
+        ident = ctx["ident"]
+        e0c = _e0_cells(manifest)
+        if not all(Path(ev.cell_paths(c, ident["farm"], TREE, ctx["dump_root"])["receipt"]).exists() for c in e0c):
+>           assert ev.run_cells(e0c, ctx) == []
+E           AssertionError: assert [('exp40_E0_Y...d argument'])] == []
+E             
+E             Left contains 3 more items, first extra item: ('exp40_E0_YAW_C4_S40000_K8_s42_th90', ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh474...kpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument'])
+E             Use -v to get more diff
+
+src/tests/test_exp40_eval.py:520: AssertionError
+----------------------------- Captured stdout call -----------------------------
+FAIL exp40_E0_YAW_C4_S40000_K8_s42_th90: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_e0_gate_is_strict0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt.tmp-3906911-139929229194816-90a098c48bf14721a6d3853832f055da -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_e0_gate_is_strict0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument']
+FAIL exp40_E0_YAW_T_S40000_K1_s42: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_e0_gate_is_strict0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt.tmp-3906911-139929446250048-ca49d7ff21c34a71bfaf872433e3f0fb -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_e0_gate_is_strict0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument']
+FAIL exp40_E0_YAW_R_S40000_K8_s42: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_e0_gate_is_strict0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt.tmp-3906911-139929229194816-0a42b9d8f1f54d66b29201ba511af3e7 -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_e0_gate_is_strict0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument']
+________ test_cache_under_concurrent_threads_has_one_entry_and_one_link ________
+
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_cache_under_concurrent_th0')
+
+    def test_cache_under_concurrent_threads_has_one_entry_and_one_link(tmp_path):
+        src, sha, nbytes = _ckpt(tmp_path)
+        farm = tmp_path / "farm"
+        barrier, out, errs = threading.Barrier(8), [], []
+    
+        def go():
+            try:
+                barrier.wait()
+                out.append(ev.cache_checkpoint("C16", TREE, str(farm), src, sha, nbytes))
+            except Exception as err:          # pragma: no cover - reported below
+                errs.append(err)
+        ts = [threading.Thread(target=go) for _ in range(8)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+>       assert errs == [] and len(out) == 8 and len(set(out)) == 1
+E       AssertionError: assert ([Refused('ren...gument'), ...] == []
+E         
+E         Left contains 8 more items, first extra item: Refused('renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_cache_under_concurrent_th0/farm/.ckpt_c...ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument')
+E         Use -v to get more diff)
+
+src/tests/test_exp40_eval.py:767: AssertionError
+____________ test_cache_refuses_wrong_bytes_config_and_stale_links _____________
+
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_cache_refuses_wrong_bytes0')
+
+    def test_cache_refuses_wrong_bytes_config_and_stale_links(tmp_path):
+        src, sha, nbytes = _ckpt(tmp_path)
+        with pytest.raises(ev.Refused, match="not the pinned"):
+            ev.cache_checkpoint("C16", TREE, str(tmp_path / "f1"), src, "0" * 64, nbytes)
+        with pytest.raises(ev.Refused, match="not the pinned"):
+            ev.cache_checkpoint("C16", TREE, str(tmp_path / "f1"), src, sha, nbytes + 1)
+        ysrc, ysha, ybytes = _ckpt(tmp_path, arm="YAW")
+        with pytest.raises(ev.Refused, match="embedded model_config"):
+            ev.cache_checkpoint("C16", TREE, str(tmp_path / "f2"), ysrc, ysha, ybytes)
+        farm = tmp_path / "f3"
+        (farm / "C16").mkdir(parents=True)
+        (farm / "C16" / "epoch=8-step=40000.ckpt").write_bytes(b"stale")
+>       with pytest.raises(ev.Refused, match="stale farm entry"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'stale farm entry'
+E         Actual message: 'renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_cache_refuses_wrong_bytes0/f3/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139934161401664-3a2a300aaa664f428fc35ddb4a7c286b -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_cache_refuses_wrong_bytes0/f3/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument'
+
+src/tests/test_exp40_eval.py:787: AssertionError
+_________________________ test_lane_state_and_acquire __________________________
+
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_lane_state_and_acquire0')
+
+    def test_lane_state_and_acquire(tmp_path):
+        hs = tmp_path / "hs"
+        hs.mkdir()
+        assert ev.lane_state(0, _query()) == (UUIDS[0], [])
+        assert ev.lane_state(1, _query(apps=[{"uuid": UUIDS[1], "pid": 7, "used": "1"}]))[1]
+        assert ev.lane_state(0, _query(name="NVIDIA L40"))[1]
+        assert ev.lane_state(0, _query(free=100))[1]
+        assert ev.lane_state(3, _query())[1]
+        got, r = ev.acquire_lane(0, {"x": 1}, _query(), str(hs))
+        assert r == [] and got[0] == UUIDS[0] and (hs / f"GPU_LOCK_{UUIDS[0]}").exists()
+        assert ev.acquire_lane(0, {"x": 2}, _query(), str(hs))[0] is None             # held by the first
+>       kit.release_gpu_locks(got[2], got[1])
+
+src/tests/test_exp40_eval.py:813: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+paths = ['/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_lane_state_and_acquire0/hs/GPU_LOCK_GPU-00000000-0000-0000-0000-000000000000']
+token = '0d76e61ba0184daf8e5eb7e8a488bbee'
+
+    def release_gpu_locks(paths, token):
+        errors = []
+        for path in paths:
+            try:
+                _release_one(path, token)
+            except Refused as err:
+                errors.append(str(err))
+        if errors:
+>           raise Refused("; ".join(errors))
+E           exp40_kit.Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_lane_state_and_acquire0/hs/GPU_LOCK_GPU-00000000-0000-0000-0000-000000000000 -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_lane_state_and_acquire0/hs/released/GPU_LOCK_GPU-00000000-0000-0000-0000-000000000000.released-2026-11-14_21-05-54-0d76e61b, NOREPLACE) failed: Invalid argument
+
+worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/exp40_kit.py:2596: Refused
+_____________ test_run_cells_writes_strict_receipts_that_reverify ______________
+
+run_env = ({'tree': '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'farm': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-40...n', 'hf_sealed': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cells_writes_strict_r0/hf', ...}, [])
+manifest = {'block_counts': {'C4': 30, 'E0': 3, 'FILL': 16, 'G45': 8, ...}, 'cells': [{'K': 1, 'arm': 'YAW', 'block': 'E0', 'cell...'block': 'T', 'cell': 'exp40_C16_T_S40000_K1_s44', ...}, ...], 'count': 85, 'plan': 'plan_yaw_aug_c16.md r2 §5.2', ...}
+
+    def test_run_cells_writes_strict_receipts_that_reverify(run_env, manifest):
+        ctx, calls = run_env
+        cells = _c16(manifest, "exp40_C16_T_S40000_K1_s42", "exp40_C16_C4_S40000_K8_s43_th90", "exp40_C16_R_S40000_K8_s44")
+>       assert ev.run_cells(cells, ctx) == []
+E       AssertionError: assert [('exp40_C16_...d argument'])] == []
+E         
+E         Left contains 3 more items, first extra item: ('exp40_C16_C4_S40000_K8_s43_th90', ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/p...kpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument'])
+E         Use -v to get more diff
+
+src/tests/test_exp40_eval.py:889: AssertionError
+----------------------------- Captured stdout call -----------------------------
+FAIL exp40_C16_C4_S40000_K8_s43_th90: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cells_writes_strict_r0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139929187231296-2378017460c547808cfb5b4aca83e429 -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cells_writes_strict_r0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument']
+FAIL exp40_C16_T_S40000_K1_s42: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cells_writes_strict_r0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139929229194816-087a6e48fd9f419b8234f9c47f11c697 -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cells_writes_strict_r0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument']
+FAIL exp40_C16_R_S40000_K8_s44: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cells_writes_strict_r0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139929187231296-5edf981ba9a44ef8ac766bf2d1ef6221 -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cells_writes_strict_r0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument']
+____________ test_receipt_validator_rejects_every_identity_mutation ____________
+
+run_env = ({'tree': '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'farm': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-40...n', 'hf_sealed': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_receipt_validator_rejects0/hf', ...}, [])
+manifest = {'block_counts': {'C4': 30, 'E0': 3, 'FILL': 16, 'G45': 8, ...}, 'cells': [{'K': 1, 'arm': 'YAW', 'block': 'E0', 'cell...'block': 'T', 'cell': 'exp40_C16_T_S40000_K1_s44', ...}, ...], 'count': 85, 'plan': 'plan_yaw_aug_c16.md r2 §5.2', ...}
+
+    def test_receipt_validator_rejects_every_identity_mutation(run_env, manifest):
+        ctx, _ = run_env
+        cell = _c16(manifest, "exp40_C16_T_S40000_K1_s42")[0]
+>       assert ev.run_cells([cell], ctx) == []
+E       AssertionError: assert [('exp40_C16_...d argument'])] == []
+E         
+E         Left contains one more item: ('exp40_C16_T_S40000_K1_s42', ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-...kpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument'])
+E         Use -v to get more diff
+
+src/tests/test_exp40_eval.py:908: AssertionError
+----------------------------- Captured stdout call -----------------------------
+FAIL exp40_C16_T_S40000_K1_s42: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_receipt_validator_rejects0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139929187231296-596bc332d242439d834a47b1b7c596bc -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_receipt_validator_rejects0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument']
+_________ test_receipt_runtime_identity_is_proven_not_just_well_formed _________
+
+run_env = ({'tree': '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'farm': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-40...n', 'hf_sealed': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_receipt_runtime_identity_0/hf', ...}, [])
+manifest = {'block_counts': {'C4': 30, 'E0': 3, 'FILL': 16, 'G45': 8, ...}, 'cells': [{'K': 1, 'arm': 'YAW', 'block': 'E0', 'cell...'block': 'T', 'cell': 'exp40_C16_T_S40000_K1_s44', ...}, ...], 'count': 85, 'plan': 'plan_yaw_aug_c16.md r2 §5.2', ...}
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_receipt_runtime_identity_0')
+
+    def test_receipt_runtime_identity_is_proven_not_just_well_formed(run_env, manifest, tmp_path):
+        """code-r2 B4 / M3: the runtime-input digest is recomputed, the nested entries are exact and
+        still hold their bytes, the admission is the validated one and predates the cell, the AR
+        receipt was 0..48 h old at the CELL'S start -- each a named refusal."""
+        ctx, _ = run_env
+        cell = _c16(manifest, "exp40_C16_T_S40000_K8_s42")[0]
+>       assert ev.run_cells([cell], ctx) == []
+E       AssertionError: assert [('exp40_C16_...d argument'])] == []
+E         
+E         Left contains one more item: ('exp40_C16_T_S40000_K8_s42', ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-...kpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument'])
+E         Use -v to get more diff
+
+src/tests/test_exp40_eval.py:937: AssertionError
+----------------------------- Captured stdout call -----------------------------
+FAIL exp40_C16_T_S40000_K8_s42: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_receipt_runtime_identity_0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139929187231296-fa9a047f2b5d4991929e88ed6398ed0b -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_receipt_runtime_identity_0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument']
+__________________ test_a_stale_ar_receipt_refuses_the_spawn ___________________
+
+run_env = ({'tree': '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'farm': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-40...n', 'hf_sealed': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_a_stale_ar_receipt_refuse0/hf', ...}, [])
+manifest = {'block_counts': {'C4': 30, 'E0': 3, 'FILL': 16, 'G45': 8, ...}, 'cells': [{'K': 1, 'arm': 'YAW', 'block': 'E0', 'cell...'block': 'T', 'cell': 'exp40_C16_T_S40000_K1_s44', ...}, ...], 'count': 85, 'plan': 'plan_yaw_aug_c16.md r2 §5.2', ...}
+
+    def test_a_stale_ar_receipt_refuses_the_spawn(run_env, manifest):
+        ctx, calls = run_env
+        _ar_receipt(ctx["inputs"]["ar_verify"]["path"], t=time.time() - 49 * 3600)
+        ctx["inputs"]["ar_verify"] = _pin(ctx["inputs"]["ar_verify"]["path"])
+        ctx["inputs_sha"] = ev.inputs_digest(ctx["inputs"])
+        f = ev.run_cells(_c16(manifest, "exp40_C16_T_S40000_K1_s43"), ctx)
+>       assert f and f[0][1][0] == "runtime inputs refused at the cell's start" and calls == []
+E       assert ([('exp40_C16_T_S40000_K1_s43', ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest...pt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument'])] and 'worker excep...alid argument' == "runtime inpu... cell's start"
+E         
+E         - runtime inputs refused at the cell's start
+E         + worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_a_stale_ar_receipt_refuse0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139929187231296-c27cccb055b5451dba1b62daf3aa398b -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_a_stale_ar_receipt_refuse0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument)
+
+src/tests/test_exp40_eval.py:1017: AssertionError
+----------------------------- Captured stdout call -----------------------------
+FAIL exp40_C16_T_S40000_K1_s43: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_a_stale_ar_receipt_refuse0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139929187231296-c27cccb055b5451dba1b62daf3aa398b -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_a_stale_ar_receipt_refuse0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument']
+________ test_full_cell_reasons_catch_artifact_drift_after_the_receipt _________
+
+run_env = ({'tree': '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'farm': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-40...n', 'hf_sealed': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_full_cell_reasons_catch_a0/hf', ...}, [])
+manifest = {'block_counts': {'C4': 30, 'E0': 3, 'FILL': 16, 'G45': 8, ...}, 'cells': [{'K': 1, 'arm': 'YAW', 'block': 'E0', 'cell...'block': 'T', 'cell': 'exp40_C16_T_S40000_K1_s44', ...}, ...], 'count': 85, 'plan': 'plan_yaw_aug_c16.md r2 §5.2', ...}
+
+    def test_full_cell_reasons_catch_artifact_drift_after_the_receipt(run_env, manifest):
+        ctx, _ = run_env
+        cell = _c16(manifest, "exp40_C16_C4_S40000_K8_s43_th90")[0]
+>       assert ev.run_cells([cell], ctx) == []
+E       AssertionError: assert [('exp40_C16_...d argument'])] == []
+E         
+E         Left contains one more item: ('exp40_C16_C4_S40000_K8_s43_th90', ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/p...kpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument'])
+E         Use -v to get more diff
+
+src/tests/test_exp40_eval.py:1025: AssertionError
+----------------------------- Captured stdout call -----------------------------
+FAIL exp40_C16_C4_S40000_K8_s43_th90: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_full_cell_reasons_catch_a0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139929187231296-c69e48dbc1724f82a79940169fdb9aba -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_full_cell_reasons_catch_a0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument']
+_________ test_worker_exceptions_and_failed_verification_are_failures __________
+
+run_env = ({'tree': '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'farm': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-40...n', 'hf_sealed': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_worker_exceptions_and_fai0/hf', ...}, [])
+manifest = {'block_counts': {'C4': 30, 'E0': 3, 'FILL': 16, 'G45': 8, ...}, 'cells': [{'K': 1, 'arm': 'YAW', 'block': 'E0', 'cell...'block': 'T', 'cell': 'exp40_C16_T_S40000_K1_s44', ...}, ...], 'count': 85, 'plan': 'plan_yaw_aug_c16.md r2 §5.2', ...}
+
+    def test_worker_exceptions_and_failed_verification_are_failures(run_env, manifest):
+        ctx, calls = run_env
+        cells = _c16(manifest, "exp40_C16_T_S40000_K1_s43", "exp40_C16_T_S40000_K1_s44")
+        good = ctx["spawn"]
+    
+        def spawn(c2, cell, link, lane, log_path):
+            if cell["cell"].endswith("s43"):
+                raise RuntimeError("boom")
+            return good(c2, cell, link, lane, log_path)
+        ctx["spawn"] = spawn
+        f = dict(ev.run_cells(cells, ctx))
+>       assert "worker exception RuntimeError: boom" in f["exp40_C16_T_S40000_K1_s43"][0]
+E       AssertionError: assert 'worker exception RuntimeError: boom' in 'worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_worker_exceptions_and....ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument'
+
+src/tests/test_exp40_eval.py:1043: AssertionError
+----------------------------- Captured stdout call -----------------------------
+FAIL exp40_C16_T_S40000_K1_s44: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_worker_exceptions_and_fai0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139929229194816-f9b9ccbdef504492a6598d0dfe3acd96 -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_worker_exceptions_and_fai0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument']
+FAIL exp40_C16_T_S40000_K1_s43: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_worker_exceptions_and_fai0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139929187231296-19dfff1abaa547b4b78405e2c6553dc5 -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_worker_exceptions_and_fai0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument']
+_______________ test_busy_lane_waits_then_fails_without_spawning _______________
+
+run_env = ({'tree': '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'farm': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-40...n', 'hf_sealed': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_busy_lane_waits_then_fail0/hf', ...}, [])
+manifest = {'block_counts': {'C4': 30, 'E0': 3, 'FILL': 16, 'G45': 8, ...}, 'cells': [{'K': 1, 'arm': 'YAW', 'block': 'E0', 'cell...'block': 'T', 'cell': 'exp40_C16_T_S40000_K1_s44', ...}, ...], 'count': 85, 'plan': 'plan_yaw_aug_c16.md r2 §5.2', ...}
+
+    def test_busy_lane_waits_then_fails_without_spawning(run_env, manifest):
+        ctx, calls = run_env
+        ctx.update(lanes=[0], query=_query(apps=[{"uuid": UUIDS[0], "pid": 99, "used": "500"}]), max_wait_s=3.0)
+        slept = []
+        ctx["sleep"] = slept.append
+        f = ev.run_cells(_c16(manifest, "exp40_C16_T_S40000_K8_s42"), ctx)
+>       assert f and "not free" in f[0][1][0] and calls == [] and slept == [1.0, 1.0, 1.0]
+E       AssertionError: assert ([('exp40_C16_T_S40000_K8_s42', ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest...pt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument'])] and 'not free' in 'worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_busy_lane_waits_then_....ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument')
+
+src/tests/test_exp40_eval.py:1060: AssertionError
+----------------------------- Captured stdout call -----------------------------
+FAIL exp40_C16_T_S40000_K8_s42: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_busy_lane_waits_then_fail0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139929187231296-ad0b9d8b3fd147ecacc192ca3dcf58ed -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_busy_lane_waits_then_fail0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument']
+_____________________ test_worktree_drift_stops_every_lane _____________________
+
+run_env = ({'tree': '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'farm': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-40...n', 'hf_sealed': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_worktree_drift_stops_ever0/hf', ...}, [])
+manifest = {'block_counts': {'C4': 30, 'E0': 3, 'FILL': 16, 'G45': 8, ...}, 'cells': [{'K': 1, 'arm': 'YAW', 'block': 'E0', 'cell...'block': 'T', 'cell': 'exp40_C16_T_S40000_K1_s44', ...}, ...], 'count': 85, 'plan': 'plan_yaw_aug_c16.md r2 §5.2', ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f43e61c9d50>
+
+    def test_worktree_drift_stops_every_lane(run_env, manifest, monkeypatch):
+        ctx, calls = run_env
+        monkeypatch.setattr(ev, "eval_worktree_reasons", lambda *a, **k: ["eval worktree not clean: '?? x'"])
+        f = ev.run_cells(_c16(manifest, "exp40_C16_T_S40000_K8_s43", "exp40_C16_T_S40000_K8_s44"), ctx)
+>       assert f and any("drifted" in rs[0] for _, rs in f) and calls == [] and ctx["children"].stop.is_set()
+E       AssertionError: assert ([('exp40_C16_T_S40000_K8_s44', ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest...pt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument'])] and False)
+E        +  where False = any(<generator object test_worktree_drift_stops_every_lane.<locals>.<genexpr> at 0x7f43e4172f80>)
+
+src/tests/test_exp40_eval.py:1067: AssertionError
+----------------------------- Captured stdout call -----------------------------
+FAIL exp40_C16_T_S40000_K8_s44: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_worktree_drift_stops_ever0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139929229194816-fcdc978d7dc34ad5b69193380a5e015f -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_worktree_drift_stops_ever0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument']
+FAIL exp40_C16_T_S40000_K8_s43: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_worktree_drift_stops_ever0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt.tmp-3906911-139929187231296-9742e6378392406184b70b35da8c0b9a -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_worktree_drift_stops_ever0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/e83ce39bea4a45db80c17c353cb108722de4229302ff3378186c31208650358c.ckpt, NOREPLACE) failed: Invalid argument']
+____________ test_authoritative_validator_pins_are_the_source_blobs ____________
+
+    def test_authoritative_validator_pins_are_the_source_blobs():
+        for src, s in ev.SOURCES.items():
+>           assert kit.git(TREE, "rev-parse", f"{s['pin']}:{ev.VALIDATOR}").strip() == s["validator_blob"]
+
+src/tests/test_exp40_eval.py:1166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+repo = '/n/fs/gatrdp/codespace/exp-45-rf-data-curve'
+args = ('rev-parse', '6be49f46ec31e899f1bee01f72c6a5827e701c6c:worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py')
+
+    def git(repo, *args):
+        rc, out, err = run(["git", *args], cwd=repo)
+        if rc != 0:
+>           raise Refused(f"git {' '.join(args)} failed in {repo}: {err.strip()}")
+E           exp40_kit.Refused: git rev-parse 6be49f46ec31e899f1bee01f72c6a5827e701c6c:worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py failed in /n/fs/gatrdp/codespace/exp-45-rf-data-curve: fatal: path 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py' exists on disk, but not in '6be49f46ec31e899f1bee01f72c6a5827e701c6c'
+
+worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/exp40_kit.py:202: Refused
+_______________ test_collect_freeze_and_validate_row_end_to_end ________________
+
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_collect_freeze_and_valida0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f43e6352a40>
+manifest = {'block_counts': {'C4': 30, 'E0': 3, 'FILL': 16, 'G45': 8, ...}, 'cells': [{'K': 1, 'arm': 'YAW', 'block': 'E0', 'cell...'block': 'T', 'cell': 'exp40_C16_T_S40000_K1_s44', ...}, ...], 'count': 85, 'plan': 'plan_yaw_aug_c16.md r2 §5.2', ...}
+hashes = {(1, 42): ('26cdc732a84fee9fb998ff396bad7b5599aa470c439432396081d61f5157ec6f', 'ddc627f379f25896932679cf202dc95b17fb56...3ef3478d71c3d5032a410edb04a293211802d2422fa', 'ef5d2cb273c6f8366363e9f5960042ad0a1758a2c4d89652de889abdc99516a7'), ...}
+run_env = ({'tree': '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'farm': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-40...n', 'hf_sealed': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_collect_freeze_and_valida0/hf', ...}, [])
+
+    def test_collect_freeze_and_validate_row_end_to_end(tmp_path, monkeypatch, manifest, hashes, run_env):
+        ctx, _ = run_env
+        sources, verdicts, validate = _sources(tmp_path / "src", monkeypatch)
+        reg = ev.register_comparators(TREE, sources=sources, validate=validate, verdicts=verdicts)
+        reg_path = tmp_path / "comparators.json"
+        kit.atomic_write_json(str(reg_path), reg)
+        monkeypatch.setattr(ev, "SOURCES", sources)
+        monkeypatch.setattr(ev, "tree_identity_reasons", lambda *a: [])
+        monkeypatch.setattr(ev, "closure_digest", lambda *a: "c" * 64)
+        monkeypatch.setattr(ev, "expected_hashes", lambda ref: hashes)
+        monkeypatch.setattr(ev, "DUMP_ROOT", ctx["dump_root"])
+        ident = ctx["ident"]
+        repo = Path(ident["farm"]).parents[2]
+>       e0_path, _ = _write_e0(ctx, manifest)
+
+src/tests/test_exp40_eval.py:1263: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ctx = {'tree': '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', 'farm': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-409...python', 'hf_sealed': '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_collect_freeze_and_valida0/hf', ...}
+manifest = {'block_counts': {'C4': 30, 'E0': 3, 'FILL': 16, 'G45': 8, ...}, 'cells': [{'K': 1, 'arm': 'YAW', 'block': 'E0', 'cell...'block': 'T', 'cell': 'exp40_C16_T_S40000_K1_s44', ...}, ...], 'count': 85, 'plan': 'plan_yaw_aug_c16.md r2 §5.2', ...}
+over = {}
+
+    def _write_e0(ctx, manifest, **over):
+        """Run the three E0 cells through run_cells (fake evaluator) and write their E0 receipt
+        from the real cell receipts (the run's own derivation)."""
+        ident = ctx["ident"]
+        e0c = _e0_cells(manifest)
+        if not all(Path(ev.cell_paths(c, ident["farm"], TREE, ctx["dump_root"])["receipt"]).exists() for c in e0c):
+>           assert ev.run_cells(e0c, ctx) == []
+E           AssertionError: assert [('exp40_E0_Y...d argument'])] == []
+E             
+E             Left contains 3 more items, first extra item: ('exp40_E0_YAW_C4_S40000_K8_s42_th90', ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh474...kpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument'])
+E             Use -v to get more diff
+
+src/tests/test_exp40_eval.py:520: AssertionError
+----------------------------- Captured stdout call -----------------------------
+FAIL exp40_E0_YAW_C4_S40000_K8_s42_th90: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_collect_freeze_and_valida0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt.tmp-3906911-139929229194816-3ceaea9a66904f378fe219df500aee98 -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_collect_freeze_and_valida0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument']
+FAIL exp40_E0_YAW_T_S40000_K1_s42: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_collect_freeze_and_valida0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt.tmp-3906911-139929187231296-69ba406d28304aaa8543cf3af002e312 -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_collect_freeze_and_valida0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument']
+FAIL exp40_E0_YAW_R_S40000_K8_s42: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_collect_freeze_and_valida0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt.tmp-3906911-139929229194816-88a27051919d48fdb1b323979906d39f -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_collect_freeze_and_valida0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument']
+____________________ test_run_cli_e0_then_rest_then_verify _____________________
+
+tmp_path = PosixPath('/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f43e646fcd0>
+manifest = {'block_counts': {'C4': 30, 'E0': 3, 'FILL': 16, 'G45': 8, ...}, 'cells': [{'K': 1, 'arm': 'YAW', 'block': 'E0', 'cell...'block': 'T', 'cell': 'exp40_C16_T_S40000_K1_s44', ...}, ...], 'count': 85, 'plan': 'plan_yaw_aug_c16.md r2 §5.2', ...}
+hashes = {(1, 42): ('26cdc732a84fee9fb998ff396bad7b5599aa470c439432396081d61f5157ec6f', 'ddc627f379f25896932679cf202dc95b17fb56...3ef3478d71c3d5032a410edb04a293211802d2422fa', 'ef5d2cb273c6f8366363e9f5960042ad0a1758a2c4d89652de889abdc99516a7'), ...}
+
+    def test_run_cli_e0_then_rest_then_verify(tmp_path, monkeypatch, manifest, hashes):
+        ysrc, ysha, ybytes = _ckpt(tmp_path, arm="YAW")
+        monkeypatch.setitem(ev.ARMS, "YAW", {**ev.ARMS["YAW"], "ckpt": ysrc, "ckpt_sha256": ysha, "ckpt_bytes": ybytes})
+        csrc, csha, cbytes = _ckpt(tmp_path, arm="C16")
+        adm_path, adm = _admission_file(tmp_path, csha, cbytes)
+        adm = {**adm, "ckpt_path": csrc}
+        ar = _ar_receipt(tmp_path / "ar_verify.json")
+        inputs = _inputs_file(tmp_path, {"ar_verify": _pin(ar), "admission": _pin(adm_path)})
+        monkeypatch.setattr(ev, "eval_worktree_reasons", lambda *a, **k: [])
+        monkeypatch.setattr(ev, "tree_identity_reasons", lambda *a, **k: [])
+        monkeypatch.setattr(ev, "ar_gate_reasons", lambda *a, **k: [])
+        monkeypatch.setattr(ev, "eval_environment", lambda *a, **k: ([], {"env_digest": "d" * 64}))
+        monkeypatch.setattr(ev, "closure_digest", lambda *a: "c" * 64)
+        monkeypatch.setattr(ev, "expected_hashes", lambda ref: hashes)
+        monkeypatch.setattr(ev, "admission_of", lambda inp, nas_root=None, rehash="final": (adm, kit.sha256_file(adm_path)))
+        monkeypatch.setattr(ev, "replay_reasons", lambda cell, d, ref: [])
+        monkeypatch.setattr(ev, "DUMP_ROOT", str(tmp_path / "dumps"))
+        monkeypatch.setattr(kit, "CARDS_LOCK", str(tmp_path / "cards.lock"))
+        monkeypatch.setattr(kit, "HANDSHAKE_DIR", str(tmp_path / "hs"))
+        monkeypatch.setattr(kit, "query_gpus", _query())
+        (tmp_path / "hs").mkdir()
+        repo = tmp_path / "repo"
+        spawned = []
+    
+        def spawn(ctx, cell, link, lane, log_path):
+            spawned.append(cell["cell"])
+            sha, nb = (ysha, ybytes) if cell["arm"] == "YAW" else (csha, cbytes)
+            make_artifacts(cell, ctx["farm"], ctx["dump_root"], log_path, HEAD, link, sha, nb)
+            return 0
+        monkeypatch.setattr(ev, "default_spawn", spawn)
+        base = ["--repo", str(repo), "--eval-worktree", TREE, "--eval-sha", HEAD, "--runtime-inputs", inputs]
+        run = base + ["--hf-sealed", str(tmp_path / "hf"), "--lanes", "0,1"]
+        c16 = "exp40_C16_T_S40000_K1_s42,exp40_C16_R_S40000_K8_s43"
+        assert ev.main(["run"] + run + ["--only", c16]) == 2                         # no E0 receipt yet: refused
+        assert ev.main(["run"] + run + ["--dry-run", "--only", c16]) == 2            # code-r2 M2: the dry run too
+        assert spawned == []
+>       assert ev.main(["run"] + run + ["--blocks", "E0"]) == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = <function main at 0x7f43e4494790>(((['run'] + ['--repo', '/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo', '--eval-worktree', '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', '--eval-sha', 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', ...]) + ['--blocks', 'E0']))
+E        +    where <function main at 0x7f43e4494790> = ev.main
+
+src/tests/test_exp40_eval.py:1391: AssertionError
+----------------------------- Captured stdout call -----------------------------
+REFUSED: no E0 receipt /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/receipts/e0_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.json: run --blocks E0 first
+REFUSED: no E0 receipt /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/receipts/e0_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.json: run --blocks E0 first
+FAIL exp40_E0_YAW_C4_S40000_K8_s42_th90: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt.tmp-3906911-139929187231296-1f7ceb70ad3e4e6a926b76d7e879e9e1 -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument']
+FAIL exp40_E0_YAW_T_S40000_K1_s42: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt.tmp-3906911-139929229194816-17fb9f99a60b46fa8d5999717ce6806f -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument']
+FAIL exp40_E0_YAW_R_S40000_K8_s42: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt.tmp-3906911-139929187231296-f5fd7bc09b2a44a898cd83185d286a44 -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument']
+FAILED exp40_E0_YAW_C4_S40000_K8_s42_th90: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt.tmp-3906911-139929187231296-1f7ceb70ad3e4e6a926b76d7e879e9e1 -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument']
+FAILED exp40_E0_YAW_T_S40000_K1_s42: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt.tmp-3906911-139929229194816-17fb9f99a60b46fa8d5999717ce6806f -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument']
+FAILED exp40_E0_YAW_R_S40000_K8_s42: ['worker exception Refused: renameat2(/n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt.tmp-3906911-139929187231296-f5fd7bc09b2a44a898cd83185d286a44 -> /n/fs/rfmprog/.tmp/yh4742/pytest-of-yh4742/pytest-4099/test_run_cli_e0_then_rest_then0/repo/outputs_FLAC/exp40_yaw_aug_c16/farm/.ckpt_cache/6b7596b42cbed78a6069cb5ef61846df817490232496d947e2f05e3fe649aa13.ckpt, NOREPLACE) failed: Invalid argument']
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp40_eval.py::test_e0_gate_is_strict - AssertionError:...
+FAILED src/tests/test_exp40_eval.py::test_cache_under_concurrent_threads_has_one_entry_and_one_link
+FAILED src/tests/test_exp40_eval.py::test_cache_refuses_wrong_bytes_config_and_stale_links
+FAILED src/tests/test_exp40_eval.py::test_lane_state_and_acquire - exp40_kit....
+FAILED src/tests/test_exp40_eval.py::test_run_cells_writes_strict_receipts_that_reverify
+FAILED src/tests/test_exp40_eval.py::test_receipt_validator_rejects_every_identity_mutation
+FAILED src/tests/test_exp40_eval.py::test_receipt_runtime_identity_is_proven_not_just_well_formed
+FAILED src/tests/test_exp40_eval.py::test_a_stale_ar_receipt_refuses_the_spawn
+FAILED src/tests/test_exp40_eval.py::test_full_cell_reasons_catch_artifact_drift_after_the_receipt
+FAILED src/tests/test_exp40_eval.py::test_worker_exceptions_and_failed_verification_are_failures
+FAILED src/tests/test_exp40_eval.py::test_busy_lane_waits_then_fails_without_spawning
+FAILED src/tests/test_exp40_eval.py::test_worktree_drift_stops_every_lane - A...
+FAILED src/tests/test_exp40_eval.py::test_authoritative_validator_pins_are_the_source_blobs
+FAILED src/tests/test_exp40_eval.py::test_collect_freeze_and_validate_row_end_to_end
+FAILED src/tests/test_exp40_eval.py::test_run_cli_e0_then_rest_then_verify - ...
+15 failed, 334 passed, 1 skipped, 3 warnings in 220.84s (0:03:40)
+EXIT 1 end 2026-11-14T21:06:14-05:00
