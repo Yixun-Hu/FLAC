@@ -939,7 +939,11 @@ def storage_gate(platform, path, need_bytes, tag="exp38"):
 # credited written bytes FIRST and sample free space AFTER (a checkpoint landing between the two observations then
 # shrinks the computed headroom, never grows it), and a file is credited only with the bytes the filesystem has
 # allocated to it (min(apparent size, allocated blocks)): a sparse, preallocated-on-the-side or not-yet-flushed file
-# never earns credit it has not taken from the free space.
+# never earns credit it has not taken from the free space. Codex code r2 finding 2: the credit must also hold through
+# the free-space sample, so every reserved run dir is scanned twice, BEFORE and AFTER the sample, and a file earns
+# its credit only if it is the same file, unchanged, in both scans (same st_dev, st_ino and st_ctime_ns): a file that
+# appeared, disappeared, shrank, was replaced (even into a reused inode) or is still being written earns nothing.
+# A regular file with more than one hard link refuses outright (its allocation would be credited once per name).
 STORAGE_LEDGER = ".exp45_storage.json"
 STORAGE_LOCK = ".exp45_storage.lock"
 STORAGE_FLOOR_BYTES = TRAIN_FREE_GIB * 2**30
@@ -955,16 +959,30 @@ def free_bytes(path):
     return st.f_bavail * st.f_frsize
 
 
-def written_bytes(path):
-    """Bytes already written under a run dir, counted conservatively: per regular file min(apparent size, allocated
-    blocks x 512) (lstat, links not followed; 0 if absent)."""
-    total = 0
+def _file_credits(path):
+    """{(st_dev, st_ino, st_ctime_ns): credited bytes} of the regular files under a run dir -- min(apparent size,
+    allocated blocks x 512), links not followed, nothing if absent. A regular file with more than one hard link
+    refuses (GateError): its allocation would be credited once per name, or once per reservation."""
+    import stat
+    out = {}
     for d, _, files in os.walk(path, followlinks=False):
         for name in files:
-            st = os.lstat(os.path.join(d, name))
-            if not os.path.islink(os.path.join(d, name)):
-                total += min(st.st_size, st.st_blocks * 512)
-    return total
+            p = os.path.join(d, name)
+            try:
+                st = os.lstat(p)
+            except FileNotFoundError:
+                continue                                     # gone between the listing and the lstat: no credit
+            if not stat.S_ISREG(st.st_mode):
+                continue
+            if st.st_nlink > 1:
+                raise GateError(f"{p} has {st.st_nlink} hard links: refused (a reserved run dir credits each file once)")
+            out[(st.st_dev, st.st_ino, st.st_ctime_ns)] = min(st.st_size, st.st_blocks * 512)
+    return out
+
+
+def written_bytes(path):
+    """Bytes already written under a run dir in ONE scan, counted conservatively (see _file_credits)."""
+    return sum(_file_credits(path).values())
 
 
 class _Ledger:
@@ -999,6 +1017,18 @@ class _Ledger:
         return sum(max(0, r["reserved_bytes"] - written_bytes(r["run_dir"]))
                    for key, r in self.data["reservations"].items() if key != exclude)
 
+    def headroom_terms(self, root):
+        """(free bytes, outstanding bytes) with the free-space sample BRACKETED by two scans of every reserved run dir
+        (Codex code r2 finding 2): a file earns its credit only if it is identical in both scans."""
+        first = {key: _file_credits(r["run_dir"]) for key, r in self.data["reservations"].items()}
+        free = free_bytes(root)
+        out = 0
+        for key, r in self.data["reservations"].items():
+            second = _file_credits(r["run_dir"])
+            credit = sum(min(v, second[ident]) for ident, v in first[key].items() if ident in second)
+            out += max(0, r["reserved_bytes"] - credit)
+        return free, out
+
     def save(self):
         atomic_write_bytes(self.path, (json.dumps(self.data, indent=1, sort_keys=True) + "\n").encode())
 
@@ -1017,8 +1047,7 @@ def reserve_storage(run, token, run_dir, root, need=RUN_RESERVE_BYTES, floor=STO
     with _Ledger(root) as led:
         if run in led.data["reservations"]:
             raise GateError(f"{run} already holds a storage reservation (abandon / seal it first)")
-        out = led.outstanding()                          # the written bytes FIRST, then the free space (finding 5)
-        free = free_bytes(root)
+        free, out = led.headroom_terms(root)             # scan, sample, scan (r1 finding 5, r2 finding 2)
         if free - out - need < floor:
             raise GateError(f"storage: {free / 2**30:.1f} GiB free - {out / 2**30:.1f} GiB outstanding - "
                             f"{need / 2**30:.1f} GiB needed < the {floor / 2**30:.0f} GiB floor")
@@ -1044,8 +1073,7 @@ def recheck_storage(run, token, root, floor=STORAGE_FLOOR_BYTES):
         mine = led.data["reservations"].get(run)
         if mine is None or mine["token"] != token:
             raise GateError(f"{run} holds no storage reservation of token {str(token)[:8]}")
-        out = led.outstanding()                          # the written bytes FIRST, then the free space (finding 5)
-        free = free_bytes(root)
+        free, out = led.headroom_terms(root)             # scan, sample, scan (r1 finding 5, r2 finding 2)
         if free - out < floor:
             raise GateError(f"storage: {free / 2**30:.1f} GiB free - {out / 2**30:.1f} GiB outstanding "
                             f"< the {floor / 2**30:.0f} GiB floor")

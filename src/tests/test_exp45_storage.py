@@ -150,13 +150,15 @@ def test_a_write_between_the_two_observations_is_never_credited_against_older_fr
             land()
         return f
 
-    def written(path):
-        n = real_written(path)
+    real_credits = reg._file_credits
+
+    def credits(path):
+        n = real_credits(path)
         if where == "after the written-bytes scan" and path == str(d):
             land()
         return n
     monkeypatch.setattr(reg, "free_bytes", free)
-    monkeypatch.setattr(reg, "written_bytes", written)
+    monkeypatch.setattr(reg, "_file_credits", credits)
     reg.reserve_storage(run_a, TOKENS[run_a], str(d), str(root), need=20 * KIB, floor=10 * KIB)   # 1 MiB free: fine
     state.update(free=25 * KIB, armed=True)
     with pytest.raises(reg.GateError, match="floor"):
@@ -212,6 +214,70 @@ def test_a_refused_candidate_is_not_inserted_and_the_ledger_is_strict(fs):
             reg.reserve_storage(bad_run, bad_token, "/x", str(root))
     with pytest.raises(reg.GateError, match="does not exist"):
         reg.reserve_storage(RUNS[0], TOKENS[RUNS[0]], "/x", str(root / "missing"))
+
+
+@pytest.mark.parametrize("change", ["truncation", "replacement", "deletion"])
+@pytest.mark.parametrize("check", ["reserve", "recheck"])
+def test_a_file_changing_across_the_free_space_sample_earns_only_its_smaller_credit(tmp_path, monkeypatch, change, check):
+    """Codex code r2 finding 2: written-byte credit is the MINIMUM of two scans that bracket the free-space sample,
+    per file identity (st_dev, st_ino). KiB scale: run A holds 20 KiB with an 8-KiB checkpoint written; 17 KiB are
+    free; just before free space is sampled the checkpoint is truncated / replaced by a new file / deleted -- the
+    sample then reads 25 KiB, while the first scan saw 8 KiB. Credited once against the later sample, the headroom
+    would read 25 - (20 - 8) = 13 KiB (12 with a 1-KiB candidate) over a 10-KiB floor; the true one is 25 - 20 = 5."""
+    root = tmp_path / "root"
+    root.mkdir()
+    run_a, run_b = RUNS[0], RUNS[1]
+    d = root / run_a
+    d.mkdir()
+    ck = d / "epoch=0-step=2500.ckpt"
+    ck.write_bytes(os.urandom(8 * KIB))
+    state = {"free": 1024 * KIB, "armed": False, "done": False}
+
+    def real_credits_total():                                       # the filesystem's own view: allocated bytes
+        return sum(min(st.st_size, st.st_blocks * 512) for st in (os.lstat(os.path.join(d, f)) for f in os.listdir(d)))
+
+    def free(path):
+        if state["armed"] and not state["done"]:
+            state["done"] = True
+            if change == "truncation":
+                open(ck, "r+b").truncate(0)
+            elif change == "replacement":
+                os.remove(ck)
+                sample = state["free"] - real_credits_total()
+                ck.write_bytes(os.urandom(8 * KIB))                   # a NEW file, after the sample
+                return sample
+            else:
+                os.remove(ck)
+        return state["free"] - real_credits_total()
+    monkeypatch.setattr(reg, "free_bytes", free)
+    reg.reserve_storage(run_a, TOKENS[run_a], str(d), str(root), need=20 * KIB, floor=10 * KIB)
+    state.update(free=25 * KIB, armed=True)                          # 25 KiB capacity, 8 of them written: 17 free
+    with pytest.raises(reg.GateError, match="floor"):
+        if check == "recheck":
+            reg.recheck_storage(run_a, TOKENS[run_a], str(root), floor=10 * KIB)
+        else:
+            reg.reserve_storage(run_b, TOKENS[run_b], str(root / run_b), str(root), need=1 * KIB, floor=10 * KIB)
+    assert state["done"]
+
+
+@pytest.mark.parametrize("where", ["inside one run dir", "across two reservations"])
+def test_a_hard_linked_file_under_a_reserved_run_dir_refuses(tmp_path, monkeypatch, where):
+    """Codex code r2 finding 2: a regular file with more than one hard link would earn its allocation once per name
+    (or once per reservation): any such file under a reserved run dir refuses the storage check (GateError)."""
+    root = tmp_path / "root"
+    root.mkdir()
+    monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 12)
+    for r in RUNS[:2]:
+        (root / r).mkdir()
+        reg.reserve_storage(r, TOKENS[r], str(root / r), str(root), need=64 * KIB, floor=0)
+    ck = root / RUNS[0] / "epoch=0-step=2500.ckpt"
+    ck.write_bytes(os.urandom(8 * KIB))
+    os.link(ck, (root / RUNS[0] / "copy.ckpt") if where == "inside one run dir" else (root / RUNS[1] / "copy.ckpt"))
+    for fn in (lambda: reg.recheck_storage(RUNS[0], TOKENS[RUNS[0]], str(root), floor=0),
+               lambda: reg.reserve_storage(RUNS[2], TOKENS[RUNS[2]], str(root / RUNS[2]), str(root), need=KIB, floor=0)):
+        with pytest.raises(reg.GateError, match="hard link"):
+            fn()
+    assert sorted(json.load(open(root / reg.STORAGE_LEDGER))["reservations"]) == sorted(RUNS[:2])
 
 
 # ------------------------------------------------------------------ crash recovery of the submitter (Codex code r1 finding 7)
