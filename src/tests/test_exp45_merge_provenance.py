@@ -15,6 +15,7 @@ import ast
 import difflib
 import fnmatch
 import os
+import re
 import subprocess
 
 import pytest
@@ -66,6 +67,12 @@ ALLOWED_AFTER_MERGE = (f"{EXPREL}/*", "src/tests/test_exp45_*.py", "src/tests/ex
                        CANON_TEST)     # DEVIATION (flagged for review): the exp45 rows' additive filter, below
 RESULTS_ONLY = ("outputs_FLAC/exp45_rf_data_curve/eval/*", "worklog/worklog_yixun/model_comparison.md")
 RESULTS_SUBJECT = "exp_45 results publication"            # the subject prefix of a results-publication commit
+# the E0 publication commit Y (rf_data_curve_command.md step 1; Codex code r1 finding 13): ITS registered subject, and
+# besides the exp_45 folder ONLY the 24 files of the eight E0 cells (metrics, stream, receipt of de_E0{a..d}_K{8,1}_s42
+# in their own gate's directory) -- the results-publication rule above is not widened
+E0_SUBJECT = re.compile(r"exp_45 records: E0 PASS at [0-9a-f]{40}")
+E0_ONLY = re.compile(r"outputs_FLAC/exp45_rf_data_curve/eval/(E0[a-d])/epoch=(?:34|8)-step=40000_metrics_1_1\.0_de_\1"
+                     r"_K[18]_s42(?:_fa_invariant_a4)?\.(?:json|stream\.json|receipt\.json)")
 COMPAT_EDITS = {"src/tests/test_exp40_kit.py": "test_prefigure_parse_matches_the_expected_values_type_strict",
                 "src/tests/test_exp43_kit.py": "test_prefigure_parse_matches_the_expected_values_type_strict",
                 # the generator contract's six exp_45 rows need the byte-identity test to set them aside, exactly as
@@ -101,6 +108,15 @@ def side_of(path):
     sides = [name for name, pats in (("exp38", EXP38_SIDE), ("exp43", EXP43_SIDE), ("exp45", EXP45_SIDE))
              if matches(path, pats)]
     return sides
+
+
+def path_allowed(path, subject):
+    """May a commit after the merge with this ``subject`` touch ``path``? (plan §3.1 + the E0 rule, finding 13)"""
+    if matches(path, ALLOWED_AFTER_MERGE):
+        return True
+    if matches(path, RESULTS_ONLY) and subject.startswith(RESULTS_SUBJECT):
+        return True
+    return E0_SUBJECT.fullmatch(subject) is not None and E0_ONLY.fullmatch(path) is not None
 
 
 def merge_commit():
@@ -204,13 +220,8 @@ def test_later_exp45_commits_touch_only_the_allowed_paths():
     for commit in git("rev-list", f"{m}..HEAD").split():
         subject = git("log", "-1", "--format=%s", commit).strip()
         for path in git("diff-tree", "--no-commit-id", "-r", "--name-only", commit).split("\n"):
-            if not path:
-                continue
-            if matches(path, ALLOWED_AFTER_MERGE):
-                continue
-            if matches(path, RESULTS_ONLY) and subject.startswith(RESULTS_SUBJECT):
-                continue
-            problems.append(f"{commit[:10]} ({subject[:40]}): {path}")
+            if path and not path_allowed(path, subject):
+                problems.append(f"{commit[:10]} ({subject[:40]}): {path}")
     for path in git("diff", "--name-only", "HEAD").split("\n"):      # uncommitted tracked edits too
         if path and not matches(path, ALLOWED_AFTER_MERGE):
             problems.append(f"working tree: {path}")
@@ -220,6 +231,44 @@ def test_later_exp45_commits_touch_only_the_allowed_paths():
     assert not num or num[1] == "0", f"{GEN}: {num[1]} merged line(s) removed after the merge"
     for path, fn in COMPAT_EDITS.items():                            # the compat edits stay inside their test
         assert _function_free(blob("HEAD", path).decode(), fn) == _function_free(blob(m, path).decode(), fn)
+
+
+def _e0_cell_files():
+    """The 24 files of the eight E0 cells (metrics, stream, receipt) at their farm paths, by exp45_eval's own naming."""
+    import importlib.util
+    import sys
+    sys.path.insert(0, os.path.join(REPO, EXPREL))
+    spec = importlib.util.spec_from_file_location("exp45_eval_provenance", os.path.join(REPO, EXPREL, "exp45_eval.py"))
+    ev = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ev)
+    return sorted(c[k] for c in ev.e0_cells() for k in ("metrics", "stream", "receipt"))
+
+
+def test_the_e0_publication_commit_is_registered_for_the_e0_files_only():
+    """Codex code r1 finding 13: the A6000 sheet's records commit Y (the E0 receipt + the 24 E0-cell files) passes the
+    permanent audit under its own registered subject -- and only for those files: a result cell, the shared table or
+    a stray file in an E0-subject commit fails, and the results-publication rule is not widened."""
+    import re
+    sheet = open(os.path.join(REPO, EXPREL, "rf_data_curve_command.md")).read()
+    subj = re.search(r'git commit -m "(exp_45 records: E0 PASS at \$X)"', sheet)
+    assert subj, "the sheet's step 1 commits Y with the registered E0 subject"
+    subject = subj.group(1).replace("$X", "0123456789abcdef" * 2 + "01234567")
+    e0 = _e0_cell_files()
+    assert len(e0) == 24 and all(p.startswith("outputs_FLAC/exp45_rf_data_curve/eval/E0") for p in e0)
+    assert all(path_allowed(p, subject) for p in e0 + [f"{EXPREL}/rf_data_curve_e0_receipt.json",
+                                                       f"{EXPREL}/rf_data_curve_e0_receipt.json.sha256"])
+    stray = ["outputs_FLAC/exp45_rf_data_curve/eval/exp45_RFf025_l40_2x32/epoch=34-step=40000_metrics_1_1.0_"
+             "exp45_RFf025_l40_2x32_K8_s42.json", "worklog/worklog_yixun/model_comparison.md",
+             "outputs_FLAC/exp45_rf_data_curve/eval/E0a/extra.json", e0[0].replace("/E0a/", "/E0b/"),
+             re.sub(r"_K[18]_", "_K4_", e0[0]), e0[0].replace("_s42", "_s43"),
+             e0[0][:-len(".json")] + ".dump_manifest.json", "src/data/dataset.py"]
+    for path in stray:
+        assert not path_allowed(path, subject), path
+    for other in ("exp_45 records: E0 PASS at X", "exp_45 records: E0 PASS at " + "a" * 39, "exp_45 records: notes"):
+        assert not any(path_allowed(p, other) for p in e0), other           # the E0 rule needs ITS subject
+    # the results-publication rule is unchanged: eval/* + the table under its own subject, nothing else
+    assert path_allowed(stray[0], RESULTS_SUBJECT + ": 30 cells") and path_allowed(stray[1], RESULTS_SUBJECT + ": x")
+    assert not path_allowed("src/data/dataset.py", RESULTS_SUBJECT + ": x")
 
 
 @pytest.mark.parametrize("folder,parent", [(EXP38REL, EXP38_TIP), (EXP40REL, EXP43_PIN), (EXP43REL, EXP43_PIN)])

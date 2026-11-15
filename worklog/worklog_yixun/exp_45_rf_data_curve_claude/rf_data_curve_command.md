@@ -36,7 +36,9 @@ for g in E0a E0b E0c E0d; do mkdir -p outputs_FLAC/exp45_rf_data_curve/eval/$g
   cp ~/codespace/exp-45-campaign/outputs_FLAC/exp45_rf_data_curve/eval/$g/*_metrics_1_1.0_de_${g}_K[18]_s42*.json \
      outputs_FLAC/exp45_rf_data_curve/eval/$g/; done          # metrics + stream + receipt: 6 per gate, 24 in all
 git add -f $E/rf_data_curve_e0_receipt.json{,.sha256} outputs_FLAC/exp45_rf_data_curve/eval/E0{a,b,c,d}
-#    commit "exp_45 records: E0 PASS at X" -> Y; check closure(Y) == closure(X); push on Yixun's go; then neuronic
+git diff --cached --name-only            # exactly the E0 receipt + sidecar and the 24 E0-cell files, nothing else
+git commit -m "exp_45 records: E0 PASS at $X"     # the registered E0-publication subject (full 40-hex X) -> Y
+#    check closure(Y) == closure(X); push on Yixun's go; then neuronic
 
 # 2. the RF-100 bridge (N5) in tree 45, after E0: verify + link the checkpoint, K8 s42 first, then the rest;
 #    exp_43's admission record + its ten reference cells arrive as a bundle dir with BRIDGE_MANIFEST.sha256
