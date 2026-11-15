@@ -721,6 +721,9 @@ def parse(argv=None):
         p.error("--dry-save-root / --lockdir are DRY_RUN-only test hooks")
     if not 1 <= a.smoke_steps <= 99:
         p.error("--smoke-steps must be 1..99")
+    if a.mode != "DRY_RUN" and a.backend != reg.TRAINING_BACKEND:      # Codex code r2 finding 12
+        p.error(f"exp_45 trains with backend {reg.TRAINING_BACKEND} only (plan r3 F2, L5): --backend {a.backend} "
+                "is refused for SMOKE / SMOKE_DDP / FULL")
     if a.platform == "neuronic" and a.mode == "SMOKE_DDP":
         p.error("neuronic's production-topology smoke is MODE=SMOKE")
     if a.platform == "neuronic" and a.mode in ("SMOKE", "FULL") and not (a.token and re.fullmatch(r"[0-9a-f]{32}", a.token) and a.save_dir):

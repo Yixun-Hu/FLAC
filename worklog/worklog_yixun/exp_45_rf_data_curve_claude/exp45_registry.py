@@ -1958,9 +1958,18 @@ def smoke_receipt_problems(rec, run, platform, backend, head, gpus=None, repo=No
     return p
 
 
+# Codex code r2 finding 12: plan r3 F2 / L5 register backend flash for exp_45 training (exp_38's seven neuronic FULL
+# launch records at e5a012fa all say backend flash); SMOKE / FULL launches and their receipts' admission refuse any
+# other training backend (the evaluator's no-flash overlay is evaluation, untouched)
+TRAINING_BACKEND = "flash"
+
+
 def check_smoke_receipt(run, platform, backend, head, gpus=None, repo=None):
     """The newest sealed SMOKE_DDP receipt for (run, platform) must pass every field check; an
-    older PASS cannot stand in for a newer FAIL (the newest receipt decides)."""
+    older PASS cannot stand in for a newer FAIL (the newest receipt decides). Flash only (r2 finding 12)."""
+    if backend != TRAINING_BACKEND:
+        raise GateError(f"exp_45 trains with backend {TRAINING_BACKEND} only (plan r3 F2, L5): a {backend!r} SMOKE "
+                        "cannot authorise a FULL")
     paths = sorted(glob.glob(_abs(f"{EXP_DIR}/rf_data_curve_smoke_{run}_{platform}_*.json", repo)))
     if not paths:
         raise GateError(f"no SMOKE_DDP receipt for {run} on {platform}")
@@ -2168,8 +2177,9 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
     final = ckpt_name(MAX_STEPS, tag)
     p = []
     plat, backend = rec["platform"], rec["backend"]
-    if plat not in PLATFORMS or (platform is not None and plat != platform) or backend not in ("flash", "sdpa"):
-        raise GateError(f"{run} training receipt: platform {plat!r} / backend {backend!r}")
+    if plat not in PLATFORMS or (platform is not None and plat != platform) or backend != TRAINING_BACKEND:
+        raise GateError(f"{run} training receipt: platform {plat!r} / backend {backend!r} (exp_45 trains with backend "
+                        f"{TRAINING_BACKEND} only, plan r3 F2 / L5)")
     want = {"schema": 1, "run": run, "rc": 0, "log_gate": "PASS", "evidence_gate": "PASS", "final_ckpt": final,
             "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung))),
             "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"],

@@ -190,6 +190,9 @@ def partition_max_time(runner=subprocess.run):
 def submit(run, mode, time_limit, backend, flash_version, allow_nonmatched, dry, root=None, runner=subprocess.run):
     if mode not in ("SMOKE", "FULL"):
         raise SubmitError("mode must be SMOKE or FULL")
+    if backend != reg.TRAINING_BACKEND:                   # plan r3 F2 / L5 (Codex code r2 finding 12)
+        raise SubmitError(f"exp_45 trains with backend {reg.TRAINING_BACKEND} only (plan r3 F2, L5): --backend "
+                          f"{backend} is refused")
     reg.check_isolation(save_root(root), "the exp_45 save root")     # before ANY mutation (Codex code r2 finding 6)
     want_s = slurm_seconds(time_limit)
     if want_s is None:

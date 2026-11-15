@@ -386,7 +386,7 @@ def test_a_neuronic_smoke_receipt_needs_its_l40_allocation(tree):
 import exp45_eval  # noqa: E402  (E0_KEYS for the retained E0 copy)
 
 
-def _admitted(tree, monkeypatch, run="exp45_RFf050_l40_2x32"):
+def _admitted(tree, monkeypatch, run="exp45_RFf050_l40_2x32", backend="flash"):
     """The sealed E0 / environment / SMOKE_DDP receipts a FULL launch validated, in the campaign tree,
     mutually consistent; returns (paths, digests)."""
     exp = tree / reg.EXP_DIR
@@ -399,21 +399,21 @@ def _admitted(tree, monkeypatch, run="exp45_RFf050_l40_2x32"):
     argv = reg.build_train_argv(run, "a6000")
     smk_path = str(exp / f"rf_data_curve_smoke_{run}_a6000_2026-11-08_04-00-00.json")
     slog = exp / f"rf_data_curve_2026-11-08_03-00-00_{run}_a6000_SMOKE_DDP_train.log"
-    slog.write_text(smoke_log(run))
+    slog.write_text(smoke_log(run, backend=backend))
     _, smkd = fx.sealed(reg, smk_path, reg.SMOKE_KEYS, schema=1, mode="SMOKE_DDP", run=run, platform="a6000",
-                        backend="flash", head=HEAD, closure_sha256=CLOSURE, env_receipt_sha256=envd, rc=0,
+                        backend=backend, head=HEAD, closure_sha256=CLOSURE, env_receipt_sha256=envd, rc=0,
                         checkpoints_written=0, log_gate="PASS", evidence_gate="PASS", verdict="PASS",
                         logger_gate="PASS", smoke_dir=str(tree / "smoke"),
                         argv_projection=reg.argv_projection(argv), gpus=A6000_GPUS, snapshot_sha256="7" * 64,
                         log=str(slog), log_sha256=reg.sha256_file(str(slog)),
                         launched_at="2026-11-06T03:00:00-0500", finished_at="2026-11-06T03:30:00-0500",
-                        evidence={str(r): e for r, e in records(run).items()})
+                        evidence={str(r): e for r, e in records(run, backend=backend).items()})
     paths = {"e0": str(exp / "rf_data_curve_e0_receipt.json"), "smoke": smk_path,
              "env": str(exp / "rf_data_curve_env_receipt_a6000.json")}
     return paths, {"e0": e0d, "env": envd, "smoke": smkd, "smoke_log": str(slog)}
 
 
-def _full_run(tree, monkeypatch, run="exp45_RFf050_l40_2x32", losses=60, rc=0, drop=None):
+def _full_run(tree, monkeypatch, run="exp45_RFf050_l40_2x32", losses=60, rc=0, drop=None, backend="flash"):
     arm, tag, _ = reg.parse_run_id(run)
     rd = tree / run
     rd.mkdir()
@@ -421,20 +421,21 @@ def _full_run(tree, monkeypatch, run="exp45_RFf050_l40_2x32", losses=60, rc=0, d
         if s_ != drop:
             (rd / reg.ckpt_name(s_, tag)).write_bytes(f"ckpt {s_}".encode())
     (rd / ".exp38_lock").mkdir()
-    write_evidence(str(rd / "evidence"), records(run, max_steps=40000))
+    write_evidence(str(rd / "evidence"), records(run, max_steps=40000, backend=backend))
     log = tree / f"{run}.log"
-    log.write_text(smoke_log(run, steps=40000, losses=losses))
+    log.write_text(smoke_log(run, steps=40000, losses=losses, backend=backend))
     monkeypatch.setattr(reg, "audit_ckpt", lambda path, run, step, repo=None, run_dir=None: {
         "sha256": reg.sha256_file(path), "bytes": os.path.getsize(path), "global_step": step})
-    paths, digests = _admitted(tree, monkeypatch, run)
+    paths, digests = _admitted(tree, monkeypatch, run, backend=backend)
     retained = reg.retain_receipts(str(rd), paths, plain={"smoke_log": digests["smoke_log"]})
     digests["snapshot"] = fx.write_snapshot_manifests(reg, str(tree))     # the launched snapshot's manifests
     digests["loss"] = fx.write_loss_record(reg, str(rd / reg.RECEIPTS_DIR), tag)   # what the supervisor moved in
     return rd, log, retained, paths, digests
 
 
-def _write_tr(tree, rd, log, retained, paths, digests, run="exp45_RFf050_l40_2x32", rc=0, content=None, commit=True):
-    rec = reg.write_training_receipt(run, "a6000", "flash", HEAD, str(rd), str(log), rc, digests["snapshot"],
+def _write_tr(tree, rd, log, retained, paths, digests, run="exp45_RFf050_l40_2x32", rc=0, content=None, commit=True,
+              backend="flash"):
+    rec = reg.write_training_receipt(run, "a6000", backend, HEAD, str(rd), str(log), rc, digests["snapshot"],
                                      digests["e0"], {"smoke_receipt": paths["smoke"], "sha256": digests["smoke"]},
                                      A6000_GPUS, "2026-11-07T04:00:00-0500", digests["env"], retained,
                                      reg.AR_CONTENT_SHA256 if content is None else content,
@@ -462,6 +463,48 @@ def test_the_training_receipt_is_published_only_after_every_end_audit(tree, monk
         _write_tr(tree, rd, log, retained, paths, digests)                       # written once
     with pytest.raises(reg.GateError):
         reg.retain_receipts(str(rd), paths)                                      # retained once
+
+
+def test_a_consistent_sdpa_training_chain_is_refused_at_admission(tree, monkeypatch):
+    """Codex code r2 finding 12: plan r3 F2 / L5 register backend flash for training (exp_38's seven neuronic FULL
+    launch records at e5a012fa all say backend flash). A fully consistent SDPA chain -- SMOKE_DDP receipt, evidence,
+    logs, training receipt all SDPA -- is refused at admission, and so is any request for an SDPA SMOKE."""
+    rd, log, retained, paths, digests = _full_run(tree, monkeypatch, backend="sdpa")
+    _write_tr(tree, rd, log, retained, paths, digests, backend="sdpa")
+    with pytest.raises(reg.GateError, match="flash"):
+        reg.check_training_receipt("exp45_RFf050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"],
+                                   platform="a6000")
+    _smoke(tree, backend="sdpa")
+    with pytest.raises(reg.GateError, match="flash"):
+        reg.check_smoke_receipt("exp45_RFf025_l40_2x32", "a6000", "sdpa", HEAD, A6000_GPUS, repo=str(tree))
+
+
+def test_an_sdpa_launch_is_refused_before_any_work(tmp_path, monkeypatch):
+    """Codex code r2 finding 12: the submitter and the supervisor refuse a non-flash SMOKE / SMOKE_DDP / FULL before
+    any scheduler call, lock, record or directory (DRY_RUN stays a diagnostic)."""
+    sys.path.insert(0, EXP)
+    import exp45_submit_neuronic as sub
+    import exp45_supervise as sv
+    import types
+    called = []
+    monkeypatch.setattr(sub, "partition_max_time", lambda runner=None: called.append("scontrol") or "7-00:00:00")
+    monkeypatch.setattr(sub, "preflight", lambda *a: called.append("preflight") or "a" * 40)
+    monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)
+
+    def no_scheduler(argv, capture_output=True, text=True):      # never a real sbatch, whatever the code does
+        called.append(os.path.basename(argv[0]))
+        return types.SimpleNamespace(returncode=1, stdout="", stderr="no scheduler in this test")
+    for mode in ("SMOKE", "FULL"):
+        with pytest.raises(sub.SubmitError, match="flash"):
+            sub.submit("exp45_RFf025_l40_2x32", mode, "01:00:00", "sdpa", "", False, False, root=str(tmp_path / "r"),
+                       runner=no_scheduler)
+    assert called == [] and not (tmp_path / "r").exists()
+    for argv in (["--platform", "neuronic", "--mode", "SMOKE", "--token", "a" * 32, "--save-dir", "/x"],
+                 ["--platform", "neuronic", "--mode", "FULL", "--token", "a" * 32, "--save-dir", "/x"],
+                 ["--platform", "a6000", "--mode", "SMOKE_DDP"], ["--platform", "a6000", "--mode", "FULL"]):
+        with pytest.raises(SystemExit):
+            sv.parse(argv + ["--run", "exp45_RFf025_l40_2x32", "--backend", "sdpa"])
+    sv.parse(["--platform", "neuronic", "--mode", "DRY_RUN", "--run", "exp45_RFf025_l40_2x32", "--backend", "sdpa"])
 
 
 @pytest.mark.parametrize("case", ["rc", "few losses", "missing ckpt", "bad evidence", "sdpa evidence", "content"])
