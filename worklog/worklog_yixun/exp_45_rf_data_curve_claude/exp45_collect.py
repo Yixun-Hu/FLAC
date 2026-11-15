@@ -235,8 +235,25 @@ def materialise(dest, root=None):
     root = os.path.realpath(root or reg.REPO)
     if not os.path.isdir(dest):
         raise ev.EvalError(f"destination {dest} does not exist")
+    probs = reg.isolation_problems(dest, "the materialise destination", trees=[root, dest], contains=False)
+    if probs:
+        raise ev.EvalError("isolation from exp_38 (Codex code r2 finding 6): " + "; ".join(probs))
     files = verify(root)
     files.update({rel: reg.sha256_file(os.path.join(root, rel)) for rel in generator_static()})
+    # every file is checked BEFORE any write (r2 finding 6): exp_38's own files (its reference cells, its E0a decision)
+    # are verify-only -- exp_45 never writes into exp_38's namespaces -- and nothing is written through an alias
+    exp38_owned = {rel for rel in files if rel.startswith((reg.EXP38_DIR + "/", reg.EXP38_FARM + "/"))}
+    for rel in sorted(files):
+        target = os.path.join(dest, rel)
+        if rel in exp38_owned:
+            if os.path.islink(target) or not os.path.isfile(target) or reg.sha256_file(target) != files[rel]:
+                raise ev.EvalError(f"{target}: exp_38's read-only file is not in the destination at identical bytes; "
+                                   "exp_45 never writes into exp_38's namespaces (it reaches a generator root only "
+                                   "through exp_38's own publication, import-exp38 --generator-root)")
+            continue
+        problem = reg.alias_problem(dest, rel)
+        if problem:
+            raise ev.EvalError(f"{problem}: refused, nothing written")
     copied = same = 0
     for rel, digest in sorted(files.items()):
         target = os.path.join(dest, rel)

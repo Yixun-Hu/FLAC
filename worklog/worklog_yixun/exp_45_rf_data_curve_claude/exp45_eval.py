@@ -948,7 +948,10 @@ def shutil_rmtree(path):
 
 
 def campaign_gates():
-    """The campaign tree at a clean HEAD, no shadows / unexpected entries, the environment receipt."""
+    """The campaign tree at a clean HEAD, no shadows / unexpected entries, the environment receipt -- and, first, the
+    dump root and the farm isolated from exp_38's roots (Codex code r2 finding 6)."""
+    reg.check_isolation(DUMP_ROOT, "the dump root")
+    reg.check_isolation(_abs(FARM), "the farm")
     if os.path.realpath(reg.REPO) != reg.CAMPAIGN_ROOT["a6000"]:
         raise EvalError(f"evaluation runs only from the campaign tree {reg.CAMPAIGN_ROOT['a6000']}")
     if subprocess.run(["git", "-C", reg.REPO, "status", "--porcelain", "--untracked-files=no"],

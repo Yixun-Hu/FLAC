@@ -873,6 +873,16 @@ def _publication(tmp_path):
     return root, ev_files
 
 
+def _seed_exp38_files(root, dest):
+    """exp_38's read-only files, byte-identical, in the destination (they arrive there only with exp_38's own
+    publication; exp_45's materialise verifies and never writes them -- Codex code r2 finding 6)."""
+    owned = [rel for rel in col.generator_static() if rel.startswith(col.reg.EXP38_DIR + "/")]
+    for rel in owned:
+        os.makedirs(dest / os.path.dirname(rel), exist_ok=True)
+        (dest / rel).write_bytes((root / rel).read_bytes())
+    return owned
+
+
 def test_verify_and_materialise_carry_a_publication_to_another_root_sha256_verified(tmp_path):
     """Codex code r1 finding 12: ``verify`` re-hashes every file the results JSON names (and the Markdown names the
     JSON's sha256); ``materialise`` copies the publication + generator_static() byte for byte to another root,
@@ -882,11 +892,13 @@ def test_verify_and_materialise_carry_a_publication_to_another_root_sha256_verif
     assert set(got) == set(ev_files) | {col.OUT_JSON, col.OUT_MD}
     dest = tmp_path / "generator_root"
     dest.mkdir()
+    owned = _seed_exp38_files(root, dest)
     out = col.materialise(str(dest), root=str(root))
-    assert out["copied"] == len(ev_files) + 2 + len(col.generator_static()) and out["already_identical"] == 0
+    assert out["copied"] == len(ev_files) + 2 + len(col.generator_static()) - len(owned)
+    assert out["already_identical"] == len(owned) > 0
     assert col.verify(str(dest)) == got
     assert all((dest / rel).read_bytes() == (root / rel).read_bytes() for rel in col.generator_static())
-    assert col.materialise(str(dest), root=str(root))["already_identical"] == out["copied"]         # idempotent
+    assert col.materialise(str(dest), root=str(root))["already_identical"] == out["files"]          # idempotent
     victim = dest / list(ev_files)[1]
     victim.write_bytes(b"other bytes")
     with pytest.raises(ev.EvalError, match="other bytes"):
@@ -911,6 +923,7 @@ def test_the_collector_cli_verifies_and_materialises(tmp_path, monkeypatch, caps
     assert col.main(["verify"]) == 0 and "verified" in capsys.readouterr().out
     dest = tmp_path / "dest"
     dest.mkdir()
+    _seed_exp38_files(root, dest)
     assert col.main(["materialise", "--dest", str(dest)]) == 0 and col.verify(str(dest))
     assert col.main(["verify", "--root", str(tmp_path / "absent")]) == 2
 

@@ -284,6 +284,17 @@ def materialise(src_root, hashes, generator_root):
     already be byte-identical (a tree that tracks exp_38's folder at the same bytes is left as it is)."""
     if not os.path.isdir(generator_root):
         raise TableError(f"generator root {generator_root} does not exist")
+    # Codex code r2 finding 6: the generator root itself may not equal or lie inside an exp_38 protected root, and no
+    # file is written through an aliased directory; checked for every file BEFORE any write. The files themselves are
+    # exp_38's own verified records at their registered relative paths (plan r3 §3.2)
+    probs = reg.isolation_problems(generator_root, "the generator root", trees=[reg.REPO, generator_root],
+                                   contains=False)
+    if probs:
+        raise TableError("isolation from exp_38 (Codex code r2 finding 6): " + "; ".join(probs))
+    for rel in sorted(hashes):
+        problem = reg.alias_problem(generator_root, rel)
+        if problem:
+            raise TableError(f"{problem}: refused, nothing written")
     for rel, digest in sorted(hashes.items()):
         dest = os.path.join(generator_root, rel)
         if os.path.exists(dest):

@@ -98,6 +98,7 @@ def submit_lock_path(run, mode, root=None):
 def submit_lock(run, mode, root=None):
     """The (run, mode) submission lock (finding 7), never waited for: a holder means a submission is in flight (a
     dead submitter's lock is released by the kernel)."""
+    reg.check_isolation(save_root(root), "the exp_45 save root")   # before the lock file (Codex code r2 finding 6)
     fh = open(submit_lock_path(run, mode, root), "a")
     try:
         try:
@@ -186,6 +187,7 @@ def partition_max_time(runner=subprocess.run):
 def submit(run, mode, time_limit, backend, flash_version, allow_nonmatched, dry, root=None, runner=subprocess.run):
     if mode not in ("SMOKE", "FULL"):
         raise SubmitError("mode must be SMOKE or FULL")
+    reg.check_isolation(save_root(root), "the exp_45 save root")     # before ANY mutation (Codex code r2 finding 6)
     want_s = slurm_seconds(time_limit)
     if want_s is None:
         raise SubmitError(f"--time {time_limit!r} is not a Slurm time (e.g. 24:00:00 or 3-00:00:00)")

@@ -898,9 +898,57 @@ def mount_fstype(path):
     return fstype, best
 
 
+# ---------------------------------------------------------------- isolation from exp_38's roots (Codex code r2 finding 6)
+# exp_38's protected roots -- exp_38's OWN values (exp38_registry.PLATFORMS[*]["save_root"], exp38_eval.DUMP_ROOT and
+# FARM; pinned against those files by test_exp45_isolation.py): its two save roots, its dump root and, in every tree
+# involved, its farm and its worklog folder (EXP38_DIR). Every exp_45 output namespace is checked as a realpath
+# against them before ANY mutation (a probe, a lock, the ledger, an owner record, a directory).
+EXP38_SAVE_ROOTS = ("/media/diskstation/yixunhu/FLAC/checkpoints/exp38_data_efficiency",
+                    "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency")
+EXP38_DUMP_ROOT = "/media/diskstation/yixunhu/FLAC/exp38_pred_waveforms"
+EXP38_FARM = "outputs_FLAC/exp38_data_efficiency/eval"
+_EXP38_NAMESPACE = re.compile(r"/(" + re.escape(EXP38_DIR) + "|" + re.escape(EXP38_FARM) + r")(/|$)")
+
+
+def exp38_protected_roots(trees=None):
+    """realpaths of exp_38's protected roots: its save roots and dump root, and its farm + worklog folder in each tree."""
+    trees = [REPO] if trees is None else list(trees)
+    roots = list(EXP38_SAVE_ROOTS) + [EXP38_DUMP_ROOT] + [os.path.join(t, rel) for t in trees for rel in (EXP38_FARM, EXP38_DIR)]
+    return sorted({os.path.realpath(r) for r in roots})
+
+
+def isolation_problems(path, what, trees=None, contains=True):
+    """Problems if ``path`` (its realpath) equals or lies inside an exp_38 protected root -- or inside ANY tree's exp_38
+    farm / worklog folder -- or, with ``contains``, contains one."""
+    real = os.path.realpath(path)
+    out = [f"{what} {path} (-> {real}) aliases exp_38's protected root {r}" for r in exp38_protected_roots(trees)
+           if real == r or real.startswith(r + os.sep) or (contains and r.startswith(real + os.sep))]
+    if not out and _EXP38_NAMESPACE.search(real):
+        out.append(f"{what} {path} (-> {real}) lies inside an exp_38 farm / worklog folder")
+    return out
+
+
+def check_isolation(path, what, trees=None, contains=True):
+    probs = isolation_problems(path, what, trees, contains)
+    if probs:
+        raise GateError("isolation from exp_38 (Codex code r2 finding 6): " + "; ".join(probs))
+
+
+def alias_problem(base, rel):
+    """None if ``base/rel`` -- its deepest existing component -- resolves to its lexical place under realpath(base);
+    otherwise the problem (a symlinked directory or file would route a write elsewhere)."""
+    anc = os.path.join(base, rel)
+    while not os.path.lexists(anc) and os.path.normpath(anc) != os.path.normpath(base):
+        anc = os.path.dirname(anc)
+    want = os.path.normpath(os.path.join(os.path.realpath(base), os.path.relpath(anc, base)))
+    got = os.path.realpath(anc)
+    return None if got == want else f"{os.path.join(base, rel)}: an alias ({os.path.relpath(anc, base)} -> {got})"
+
+
 def storage_gate(platform, path, need_bytes, tag="exp38"):
     """``path`` must exist on a registered filesystem, have ``need_bytes`` free and pass a
-    write / read-back / delete probe. Returns the observed facts."""
+    write / read-back / delete probe. Returns the observed facts. Isolated from exp_38's roots first (r2 finding 6)."""
+    check_isolation(path, "the storage root")
     if not os.path.isdir(path):
         raise GateError(f"storage root {path} does not exist (it is never created here: a missing "
                         "mount must not become a local directory)")
@@ -989,6 +1037,7 @@ class _Ledger:
     """The flock'd reservation ledger of one save root (the lock file is separate: the ledger is replaced atomically)."""
 
     def __init__(self, root):
+        check_isolation(root, "the storage-ledger root")         # before its lock / ledger file (r2 finding 6)
         if not os.path.isdir(root):
             raise GateError(f"storage root {root} does not exist")
         self.root, self.path = root, os.path.join(root, STORAGE_LEDGER)

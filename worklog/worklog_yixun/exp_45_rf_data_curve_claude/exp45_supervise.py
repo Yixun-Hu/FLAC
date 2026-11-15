@@ -504,6 +504,9 @@ def mode_smoke_single(a):
 def mode_campaign(a, platform):
     """SMOKE_DDP / FULL on a6000, SMOKE / FULL on neuronic."""
     arm, tag, rung, exe, d, pins = common_gates(a, platform)
+    # the save root (owner claim, run dir, ledger, probe all live under it) is isolated from exp_38's roots before any
+    # mutation (Codex code r2 finding 6)
+    reg.check_isolation(reg.PLATFORMS[platform]["save_root"], f"the {platform} save root")
     ngpu = reg.RUNGS[rung]["ngpu"]
     full = a.mode == "FULL"
     if full and platform != reg.TRAINING_PLATFORM:
