@@ -111,3 +111,73 @@
 - **Result** — Codex code r1 verdict **REVISE**: 17 findings (1 BLOCKING, 4 HIGH, 10 MEDIUM, 2 NIT); log `rf_data_curve_2026-11-14_22-30-26_codex_code_r1.log.gz` (addresses redacted). Merge, commit A, argv rule, RF banner, loss CSV, FULL move, loader totals (1,148 / 2,276 / 3,413) and the exp_40 inherited-failure diagnosis confirmed. Deviations: 1–4 and 6–9 accepted (2 with change = finding 11), 5 rejected (= finding 2). D7-A result accepted (201 additions in exp_38 records, 200 manifest hashes match, closure 31142c79…6694 unchanged, no address pattern).
 - **Analysis — triage (coordinator)** — findings 1–16 go to the Coder fix round, all to be fixed. Finding 17 (`build_list.py` refusals are notes) is disposed as no-change: a one-off scratch helper outside the repo, already used, its output accepted by the reviewer; it is not reused. Deviation 1 (depth_canon filter) is a plan-path deviation accepted by the reviewer; kept pending Yixun's acknowledgement.
 - **Next** — Coder fix round (r1 findings 1–16, TDD, CPU Slurm tests) → Codex code round 2 → L1.
+
+## 2026-11-15T00:56:00-05:00 — Coder fix round 1: Codex code r1 findings 1–16 fixed (TDD, CPU Slurm); L0 green
+- **Goal** — fix findings 1–16 of `rf_data_curve_codex_code_r1_review.md` under the coordinator's 22:35 triage: each finding gets a test that is red before its fix and green after. Finding 17: no change. Deviation 1: kept as is. Deviation 5: fixed as finding 2.
+- **Version Control**
+  - `74a690df`: the coordinator's four files, unchanged.
+  - `260e566e`: the records commit with the ledger and every fix-round log; this entry follows it.
+  - `4dc6e00f` … `2f597012`: fix commits, one per finding (F8 + F9 share one, F2 + F3 share one), listed in `commits_rf_data_curve.md`.
+  - Nothing pushed, `main` untouched, no stash.
+  - The exp_38, exp_40 and exp_43 folders are byte-frozen (provenance test). The generator gained 27 lines and lost none.
+- **Pre-checks the guidance required**
+  - **F3.** The real stream sidecars carry the per-item arrays:
+    - the ten tracked exp_40 farm sidecars (`outputs_FLAC/exp40_yaw_aug_c16/farm/C16/*.stream.json`);
+    - the prelim_eval sidecar `_sessions/exp40_c16_runner/prelim_eval/de_bf_f025/…_K1_s42_fa_invariant_a4.stream.json`.
+    - Each holds `input_tuples`, `offsets` and `assignment_tuples` with 6,337 items.
+    - eval_FLAC has one writer, `build_stream_record`, unchanged since `6efbcb79`, and it always writes them. So the exp_43 and exp_38 sidecars (on the A6000 box / NAS, not opened from here) carry them too.
+    - The exp_40 C16 sidecars re-hash exactly to exp_45's ten `INPUT_HASH` / `ASSIGNMENT_HASH` pins. The fixtures now carry those real arrays.
+  - **F2.** `exp43_kit.admission_reasons(path, rehash=None)` and `ADMISSION_KEYS` match the review's description, and no field was invented:
+    - the checked fields: `sha256`, `bytes`, `model_config` + its sha, `global_step`, `ckpt_path`, `nas_dir`, the 16 `checkpoints`, and the W&B / history bindings;
+    - the admission record's own sha256 stays a runtime input (round-1 brief: the bundle is not a closure constant). It is bound into the sealed bridge result's `admission_record`;
+    - the descriptor gains `global_step: 40000`.
+  - **F11.** Plan r3 §5 L5 runs every SMOKE on 2 × L40 and `RUNGS` is 2x32 only. Every launch path is therefore 2 × 32, so the single-rank path is refused explicitly; no topology-derived loader length was added.
+- **Command / Validation** — every pytest ran in a CPU Slurm job (`all`, 8 CPUs, node-local `TMPDIR=/tmp`). Logs (`rf_data_curve_<ts>_pytest_<label>.log`, in this folder):
+  - **R1-red** `2026-11-14_23-31-28_…R1_F1_F5_F8_F9_F13_F16_red`: 17 failed, 11 passed.
+  - **F9-skips** `2026-11-14_23-31-28_…F9_skip_reasons_capture`: the junit capture of the five environment skips that became `ENV_SKIPS`.
+  - **R1-green** `2026-11-14_23-35-02_…R1_…_green`: 392 passed, 5 skipped.
+  - `2026-11-14_23-46-10_…R2_…_red_ABORTED_collection_error_fixture_kwarg`: a fixture keyword clash; fixed before any fix code.
+  - **R2-red** `2026-11-14_23-49-12_…R2b_F2_F3_F6_F7_F10_F11_red`: 37 failed; the rest of the eval and generator suites pass on the new real-preimage fixtures.
+  - **R2-green** `2026-11-14_23-59-16_…R2_…_green_all_exp45`: every exp_45 test, 662 passed, 5 skipped.
+  - **R3-red** `2026-11-15_00-10-21_…R3_F4_F14_F15_red`: 17 failed. F14's node failed only on a then-missing name: identical snapshots overlapped without an error. The test was therefore sharpened to count receipt writes, giving **R3b-red** `2026-11-15_00-15-04_…R3b_F14_red_write_count`: the receipt was written 3 times.
+  - **R3-green / R4-red** `2026-11-15_00-16-56_…R3_green_and_R4_F12_red_full_L0_scope`: the full L0 scope, 7 failed (exactly the F12 tests), 929 passed, 6 skipped.
+  - `2026-11-15_00-32-50_…Z_L0_final_full_scope_ABORTED_cancelled_L8_test_substring_bug`: cancelled by me to fix two lookups in the new L8 test (`2f597012`).
+  - **R4-green** `2026-11-15_00-33-46_…R4_F12_green`: 24 passed.
+  - **Final** `2026-11-15_00-34-42_…Z_L0_final_full_scope_green`: the round-1 L0 scope (every `test_exp45_*.py`, the five generator suites, `test_yaw_aug_collect.py`, the two compat nodes), **936 passed, 6 skipped, 0 failed** (EXIT 0; the 6 skips: the five registered exp_45 environment skips + one generator-suite skip, as in round 1) at HEAD `2f597012`, tracked tree clean.
+- **Result** — passed: L0 is green again with findings 1–16 fixed. Not run (out of scope): L1–L8, any dry-run, any training / evaluation sbatch, anything on the NAS.
+- **Disposition of the r1 findings** (log names as above; all green again in **Final**)
+
+| # | Severity | Commit | Test node(s) | Red | Green |
+|---|---|---|---|---|---|
+| 1 | BLOCKING | `73c933bf` | `test_exp45_supervise.py::test_a_completed_full_run_passes_online_and_offline_admission`, `::test_nothing_rewrites_the_launch_record_after_the_commit_marker[exc0, exc1]` | R1-red | R1-green |
+| 2 | HIGH | `8014735b` | `test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[15]`, `::test_the_fixture_admission_record_passes_exp43s_own_validator`, `::test_the_bridge_seals_equal_cells_and_records_the_bundle_hashes` | R2-red | R2-green |
+| 3 | HIGH | `8014735b` | `test_exp45_eval.py::test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures[9]` | R2-red | R2-green |
+| 4 | HIGH | `01d131d9` | `test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[12]`, `::test_an_evaluator_discrepancy_is_published_as_a_discrepancy_never_as_equality`, `::test_collect_admits_all_30_run_and_10_bridge_cells_produced_by_cmd_run` | R3-red | R3-green / R4-red |
+| 5 | HIGH | `c9e6ffca` | `test_exp45_storage.py::test_a_write_between_the_two_observations_is_never_credited_against_older_free_space[4]`, `::test_written_bytes_credit_only_allocated_bytes` | R1-red | R1-green |
+| 6 | MEDIUM | `baed022f` | `test_exp45_table.py::test_build_reopens_the_bundle_blobs_at_the_requested_commit` | R2-red | R2-green |
+| 7 | MEDIUM | `de679c5d` | `test_exp45_storage.py::test_a_submit_killed_before_its_intent_is_recovered_by_abandon[3 windows]`, `::test_a_smoke_submit_killed_before_its_intent_is_recovered_by_abandon`, `::test_an_abandon_killed_after_archiving_the_owner_is_recovered`, `::test_recovery_never_runs_while_a_submission_holds_its_lock` | R2-red | R2-green |
+| 8 | MEDIUM | `538a46e5` | `test_exp45_regression_compare.py::test_signatures_normalise_the_checkout_roots`, `::test_the_cli_exit_codes` | R1-red | R1-green |
+| 9 | MEDIUM | `538a46e5` | `test_exp45_regression_compare.py::test_only_the_registered_environment_skips_of_new_nodes_pass`, `::test_every_new_exp45_node_must_pass` | R1-red | R1-green |
+| 10 | MEDIUM | `6809f77d` | `test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[3]`, `::test_the_dry_run_checks_its_isolated_root_even_with_the_production_run_dir_occupied` | R2-red | R2-green |
+| 11 | MEDIUM | `ef2f1aca` | `test_exp45_registry.py::test_log_gate_refuses_every_world_size_but_2[4]`, `::test_smoke_argv_is_ddp_only`; `test_exp45_supervise.py::test_the_single_rank_smoke_is_refused_before_any_work` | R2-red | R2-green |
+| 12 | MEDIUM | `0c8ed8f1` + `2f597012` | `test_exp45_command_sheets.py::test_the_sheet_is_well_formed_and_current[2]`, `::test_l8_makes_the_published_evidence_available_and_verified_before_any_use`; `test_exp45_eval.py::test_verify_and_materialise_carry_a_publication_to_another_root_sha256_verified`, `::test_the_collector_cli_verifies_and_materialises`; `test_gen_model_comparison_exp45.py::test_a_generator_root_materialised_from_the_checkout_resolves_the_exp45_rows`; `test_exp45_table.py::test_materialisation_copies_the_verified_bytes_to_their_exact_paths` | R3-green / R4-red | R4-green |
+| 13 | MEDIUM | `0d417dd8` | `test_exp45_merge_provenance.py::test_the_e0_publication_commit_is_registered_for_the_e0_files_only` | R1-red | R1-green |
+| 14 | MEDIUM | `601533ad` | `test_exp45_supervise.py::test_three_concurrent_first_smokes_create_exactly_one_environment_receipt` | R3b-red | R3-green / R4-red |
+| 15 | MEDIUM | `363a5268` | `test_exp45_table.py::test_the_disclosures_have_one_source_and_appear_under_every_exp45_table`; `test_gen_model_comparison_exp45.py::test_published_exp45_rows_carry_the_registered_disclosures` | R3-red | R3-green / R4-red |
+| 16 | NIT | `4dc6e00f` | `test_exp45_receipts.py::test_the_smoke_logger_gate_checks_file_types_like_the_full_mover` | R1-red | R1-green |
+| 17 | NIT | — (triage: no change) | — | — | — |
+
+- **Analysis — for the reviewer**
+  - **F1.** The release report is now the ledger's own entry: `releases[]` holds `{reservation, released_at, reason}`.
+    - `Record.seal()` turns every later launch-record update into a reported no-op. This also covers the supervisor's interrupt handler.
+    - A failed release after the seal leaves a held reservation behind, reported on stdout. No tool releases a sealed run's hold yet.
+  - **F7.** A per-(run, mode) submission lock now sits in the save root (`.exp45_submit_<run>__<MODE>.lock`). It lets abandon tell a crash from a submission in flight.
+    - Window 1 (no intent was written): the hold is released only when no job carries the reservation's token.
+    - Window 2 (the owner was archived before the release): the hold is released only once every job of the token is terminal.
+  - **F12.**
+    - `e5a012fa` is exp_38's D7-A records commit: training-side records, no evaluation cells. The sheet fetches `exp-38-data-efficiency` and requires `$B38` to descend from it; `B38` itself is still exp_38 step 4's future commit.
+    - The generator root is the plan-N6 main checkout. It is never moved: evidence is copied in, identical-or-absent.
+    - exp45_table's materialise now also copies the exp_38 configs, the reference cells and the exp_38 kit code. The import record gains `code`; `build` re-verifies it at the commit.
+  - **F14.** The lock alone is enough, and the sheet says so: every SMOKE re-checks the one receipt by exact equality, whether the SMOKEs run together or one after another.
+  - **F15.** Item 7 (the OrbitRIR protocol) is left out under the collector's table, which has no OrbitRIR row. The generator prints the block only while an exp_45 row is published, so the byte-identity tests are unchanged.
+- **Next** — Codex code round 2 of 3, then L1.
