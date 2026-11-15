@@ -1,0 +1,15 @@
+HEAD 0d417dd8b1173f7af0a9aefeda83629f5df041ff tracked-clean=no host neu308.neuronic.cs.princeton.edu start 2026-11-14T23:46:51-05:00
+cmd: pytest -q src/tests/test_exp45_storage.py::test_a_submit_killed_before_its_intent_is_recovered_by_abandon src/tests/test_exp45_storage.py::test_a_smoke_submit_killed_before_its_intent_is_recovered_by_abandon src/tests/test_exp45_storage.py::test_an_abandon_killed_after_archiving_the_owner_is_recovered src/tests/test_exp45_storage.py::test_recovery_never_runs_while_a_submission_holds_its_lock src/tests/test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines src/tests/test_exp45_launchers.py::test_the_dry_run_checks_its_isolated_root_even_with_the_production_run_dir_occupied src/tests/test_exp45_registry.py::test_smoke_argv_is_ddp_only src/tests/test_exp45_registry.py::test_log_gate_start_pass src/tests/test_exp45_registry.py::test_log_gate_refuses_every_world_size_but_2 src/tests/test_exp45_supervise.py::test_the_single_rank_smoke_is_refused_before_any_work src/tests/test_exp45_eval.py src/tests/test_gen_model_comparison_exp45.py src/tests/test_exp45_table.py::test_build_reopens_the_bundle_blobs_at_the_requested_commit 
+
+==================================== ERRORS ====================================
+________________ ERROR collecting src/tests/test_exp45_eval.py _________________
+src/tests/test_exp45_eval.py:1237: in <module>
+    ("another checkpoint", _adm(sha256="0" * 64)),
+src/tests/test_exp45_eval.py:1224: in _adm
+    return fx.exp43_admission(KIT43, ev.RF100_BRIDGE["sha256"], ev.RF100_BRIDGE["bytes"], **over)
+E   TypeError: exp43_admission() got multiple values for argument 'sha256'
+=========================== short test summary info ============================
+ERROR src/tests/test_exp45_eval.py - TypeError: exp43_admission() got multipl...
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 1.17s
+EXIT 2 end 2026-11-14T23:46:53-05:00

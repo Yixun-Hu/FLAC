@@ -26,3 +26,26 @@ tool with its tests (G, J, L, M, N) — each a single delta of plan r3 §3.2.
 | `89225107` | +270 | M: exp45_regression_compare.py (the L1 two-parent node policy) |
 | `11a447fd` | +33 / −24 | O: the two command sheets + the forked command-sheet test |
 | `1a08d855` | +276 / −3 | N: the generator's exp45 contract (six RF rows) + the depth_canon byte-identity filter (DEVIATION, flagged) |
+| `23110d74` | — | records: Coder round 1 (L0) -- commits ledger, worklog, the final L0 test log (867 passed, 6 skipped) |
+| `74a690df` | — | records: Codex code review r1 (REVISE, 17 findings) + the coordinator's triage (its four files, unchanged) |
+| `4dc6e00f` | +48 / −1 | fix r1 F16: the SMOKE logger gate checks file types like the FULL mover |
+| `c9e6ffca` | +85 / −14 | fix r1 F5: count the credited written bytes before sampling free space, conservatively |
+| `73c933bf` | +181 / −14 | fix r1 F1 (BLOCKING): nothing rewrites the launch record after the commit marker seals its hash |
+| `538a46e5` | +108 / −23 | fix r1 F8 + F9: checkout roots normalised; only registered environment skips of new nodes pass |
+| `0d417dd8` | +56 / −7 | fix r1 F13: the E0 publication commit passes the permanent provenance audit |
+| `ef2f1aca` | +45 / −57 | fix r1 F11: every launch path is 2 x 32 -- any other world size is refused explicitly |
+| `6809f77d` | +43 / −6 | fix r1 F10: the sbatch dry-run hook runs on an isolated save root |
+| `de679c5d` | +318 / −1 | fix r1 F7: reconcile / abandon recover every named crash window from the persisted state |
+| `8014735b` | +263 / −30 | fix r1 F2 + F3: the bridge admits exp_43's exact admission record and compares complete stream preimages |
+| `baed022f` | +102 / −1 | fix r1 F6: build binds the imported values back to the requested exp_38 commit |
+| `601533ad` | +76 / −4 | fix r1 F14: the environment receipt is created once, under a lock, by concurrent first SMOKEs |
+| `01d131d9` | +173 / −14 | fix r1 F4: the collector publishes the bridge rows only with the sealed bridge comparison |
+| `363a5268` | +108 / −17 | fix r1 F15: the plan §8 disclosures, from one source, under every exp_45 table |
+| `0c8ed8f1` | +235 / −13 | fix r1 F12: L8 fetches, checks out / transfers and sha256-verifies the evidence in every root it uses |
+| `2f597012` | +6 / −5 | fix r1 F12 (test): the L8 order check looks up each command where it really stands |
+
+Fix round 1 (Codex code r1 findings 1–16): one commit per finding, test and fix together (F8 + F9 and F2 + F3 share
+one: the same function / the same comparison); the red and green CPU Slurm logs are listed in the worklog's
+disposition table. Above the SOP's 200 changed lines: F7 (+318: the recovery path + six crash-window tests), F2 + F3
+(+263: exp_43's own validator, the preimage check, the fixtures' real arrays) and F12 (+235: the collector's
+verify / materialise, the exp_38 code materialisation, the sheet tests) -- each one finding.

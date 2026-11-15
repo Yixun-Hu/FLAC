@@ -1,0 +1,916 @@
+HEAD 0d417dd8b1173f7af0a9aefeda83629f5df041ff tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-14T23:49:51-05:00
+cmd: pytest -q src/tests/test_exp45_storage.py::test_a_submit_killed_before_its_intent_is_recovered_by_abandon src/tests/test_exp45_storage.py::test_a_smoke_submit_killed_before_its_intent_is_recovered_by_abandon src/tests/test_exp45_storage.py::test_an_abandon_killed_after_archiving_the_owner_is_recovered src/tests/test_exp45_storage.py::test_recovery_never_runs_while_a_submission_holds_its_lock src/tests/test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines src/tests/test_exp45_launchers.py::test_the_dry_run_checks_its_isolated_root_even_with_the_production_run_dir_occupied src/tests/test_exp45_registry.py::test_smoke_argv_is_ddp_only src/tests/test_exp45_registry.py::test_log_gate_start_pass src/tests/test_exp45_registry.py::test_log_gate_refuses_every_world_size_but_2 src/tests/test_exp45_supervise.py::test_the_single_rank_smoke_is_refused_before_any_work src/tests/test_exp45_eval.py src/tests/test_gen_model_comparison_exp45.py src/tests/test_exp45_table.py::test_build_reopens_the_bundle_blobs_at_the_requested_commit 
+FFFFFFFFFFF.FFFFF....................................................... [ 27%]
+........................................................................ [ 55%]
+......................................................................F. [ 83%]
+...........FFFFFFF.FFFFFFFFF..F.F..F.....F                               [100%]
+=================================== FAILURES ===================================
+_ test_a_submit_killed_before_its_intent_is_recovered_by_abandon[after the reservation] _
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it0/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f76c6fe7340>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it0')
+window = 'after the reservation'
+
+    @pytest.mark.parametrize("window", ["after the reservation", "after the owner dir", "after the intent's temp file"])
+    def test_a_submit_killed_before_its_intent_is_recovered_by_abandon(subm, monkeypatch, tmp_path, window):
+        """Window 1 (finding 7): the reservation (and maybe an empty owner dir) persist, no intent.json. sbatch is issued
+        only after intent.json exists, so abandon may release the hold only once the scheduler shows NO job of the
+        reservation's token; until then the run stays blocked. reconcile names the state and points to abandon."""
+        root = subm
+        monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+        token = _crash_submit(root, monkeypatch, window)
+        monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+        assert token and list(_held(root)) == [RUN]
+        od = sub.owner_dir(RUN, "FULL", str(root))
+        assert os.path.isdir(od) == (window != "after the reservation") and not os.path.exists(os.path.join(od, "intent.json"))
+        with pytest.raises(reg.GateError):
+            _submit(root)                                                          # blocked until recovered
+>       with pytest.raises(sub.SubmitError, match="abandon"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'abandon'
+E         Actual message: 'no owner record /tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it0/save_root/.exp45_owners/exp45_RFf025_l40_2x32__FULL/intent.json'
+
+src/tests/test_exp45_storage.py:310: AssertionError
+_ test_a_submit_killed_before_its_intent_is_recovered_by_abandon[after the owner dir] _
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it1/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f76c6fe56c0>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it1')
+window = 'after the owner dir'
+
+    @pytest.mark.parametrize("window", ["after the reservation", "after the owner dir", "after the intent's temp file"])
+    def test_a_submit_killed_before_its_intent_is_recovered_by_abandon(subm, monkeypatch, tmp_path, window):
+        """Window 1 (finding 7): the reservation (and maybe an empty owner dir) persist, no intent.json. sbatch is issued
+        only after intent.json exists, so abandon may release the hold only once the scheduler shows NO job of the
+        reservation's token; until then the run stays blocked. reconcile names the state and points to abandon."""
+        root = subm
+        monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+        token = _crash_submit(root, monkeypatch, window)
+        monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+        assert token and list(_held(root)) == [RUN]
+        od = sub.owner_dir(RUN, "FULL", str(root))
+        assert os.path.isdir(od) == (window != "after the reservation") and not os.path.exists(os.path.join(od, "intent.json"))
+        with pytest.raises(reg.GateError):
+            _submit(root)                                                          # blocked until recovered
+>       with pytest.raises(sub.SubmitError, match="abandon"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'abandon'
+E         Actual message: 'no owner record /tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it1/save_root/.exp45_owners/exp45_RFf025_l40_2x32__FULL/intent.json'
+
+src/tests/test_exp45_storage.py:310: AssertionError
+_ test_a_submit_killed_before_its_intent_is_recovered_by_abandon[after the intent's temp file] _
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it2/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f76c6fe6830>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it2')
+window = "after the intent's temp file"
+
+    @pytest.mark.parametrize("window", ["after the reservation", "after the owner dir", "after the intent's temp file"])
+    def test_a_submit_killed_before_its_intent_is_recovered_by_abandon(subm, monkeypatch, tmp_path, window):
+        """Window 1 (finding 7): the reservation (and maybe an empty owner dir) persist, no intent.json. sbatch is issued
+        only after intent.json exists, so abandon may release the hold only once the scheduler shows NO job of the
+        reservation's token; until then the run stays blocked. reconcile names the state and points to abandon."""
+        root = subm
+        monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+        token = _crash_submit(root, monkeypatch, window)
+        monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+        assert token and list(_held(root)) == [RUN]
+        od = sub.owner_dir(RUN, "FULL", str(root))
+        assert os.path.isdir(od) == (window != "after the reservation") and not os.path.exists(os.path.join(od, "intent.json"))
+        with pytest.raises(reg.GateError):
+            _submit(root)                                                          # blocked until recovered
+>       with pytest.raises(sub.SubmitError, match="abandon"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'abandon'
+E         Actual message: 'no owner record /tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it2/save_root/.exp45_owners/exp45_RFf025_l40_2x32__FULL/intent.json'
+
+src/tests/test_exp45_storage.py:310: AssertionError
+_____ test_a_smoke_submit_killed_before_its_intent_is_recovered_by_abandon _____
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_smoke_submit_killed_bef0/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f76c6df3100>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_smoke_submit_killed_bef0')
+
+    def test_a_smoke_submit_killed_before_its_intent_is_recovered_by_abandon(subm, monkeypatch, tmp_path):
+        """Window 1 without a reservation (a SMOKE): an owner dir with no intent; abandon archives it."""
+        root = subm
+        _crash_submit(root, monkeypatch, "after the intent's temp file", mode="SMOKE")
+        monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+        od = sub.owner_dir(RUN, "SMOKE", str(root))
+        assert os.path.isdir(od) and _held(root) == {}
+        tok = json.load(open(os.path.join(od, "intent.json.tmp")))["token"]
+>       with pytest.raises(sub.SubmitError, match="refuse"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'refuse'
+E         Actual message: 'no owner record /tmp/pytest-of-yh4742/pytest-0/test_a_smoke_submit_killed_bef0/save_root/.exp45_owners/exp45_RFf025_l40_2x32__SMOKE/intent.json'
+
+src/tests/test_exp45_storage.py:335: AssertionError
+________ test_an_abandon_killed_after_archiving_the_owner_is_recovered _________
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_abandon_killed_after_a0/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f76c6dfb6a0>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_abandon_killed_after_a0')
+
+    def test_an_abandon_killed_after_archiving_the_owner_is_recovered(subm, monkeypatch, tmp_path):
+        """Window 2 (finding 7): abandon archived the owner record, then died before releasing the reservation. The next
+        abandon finds the archived record of the reservation's token and releases the hold -- only once every job of the
+        token is terminal (the hold is never freed before that)."""
+        root = subm
+        out = _submit(root)
+        token, name = out["token"], sub.job_name(RUN, "FULL", out["token"])
+        real = reg.release_storage
+        monkeypatch.setattr(reg, "release_storage", lambda *a, **k: (_ for _ in ()).throw(Crash()))
+        with pytest.raises(Crash):
+            sub.abandon(RUN, "FULL", root=str(root), runner=Sched({name: {"4242": "FAILED"}}))
+        monkeypatch.setattr(reg, "release_storage", real)
+        assert not os.path.exists(sub.owner_dir(RUN, "FULL", str(root))) and list(_held(root)) == [RUN]
+        with pytest.raises(reg.GateError):
+            _submit(root)                                                          # blocked until recovered
+>       with pytest.raises(sub.SubmitError, match="not terminal"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'not terminal'
+E         Actual message: 'no owner record /tmp/pytest-of-yh4742/pytest-0/test_an_abandon_killed_after_a0/save_root/.exp45_owners/exp45_RFf025_l40_2x32__FULL/intent.json'
+
+src/tests/test_exp45_storage.py:357: AssertionError
+__________ test_recovery_never_runs_while_a_submission_holds_its_lock __________
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_recovery_never_runs_while0/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f76c703dba0>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_recovery_never_runs_while0')
+
+    def test_recovery_never_runs_while_a_submission_holds_its_lock(subm, monkeypatch, tmp_path):
+        """The (run, mode) submission lock: submit() holds it from the reservation to the 'submitted' intent, so a
+        concurrent reconcile / abandon refuses instead of mistaking a submission in flight for a crash."""
+        import fcntl
+        root = subm
+>       path = sub.submit_lock_path(RUN, "FULL", str(root))
+E       AttributeError: module 'exp45_submit_neuronic' has no attribute 'submit_lock_path'
+
+src/tests/test_exp45_storage.py:370: AttributeError
+__ test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf025_l40_2x32-FULL] ___
+
+run = 'exp45_RFf025_l40_2x32', mode = 'FULL'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the0')
+
+    @pytest.mark.parametrize("run,mode", [("exp45_RFf025_l40_2x32", "FULL"), ("exp45_RFf050_l40_2x32", "SMOKE"), ("exp45_RFf075_l40_2x32", "FULL")])
+    def test_sbatch_dry_run_prints_the_torchrun_lines(run, mode, tmp_path):
+        """Codex code r1 finding 10: the sbatch test hook routes the dry run through an ISOLATED save root
+        (EXP38_DRY_SAVE_ROOT -> --dry-save-root), so the result does not depend on the live run directories."""
+        iso = tmp_path / "dry_save_root"
+        iso.mkdir()
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN=run, MODE=mode, EXPECT_SHA="a" * 40,
+                   EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR=str(tmp_path / run), ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(iso))
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr
+        n = 2
+        full = [l for l in r.stdout.split("\n") if l.startswith("FULL (cwd = the closure snapshot):")][0]
+        assert f"-m torch.distributed.run --standalone --nnodes=1 --nproc_per_node={n} train.py" in full
+>       assert full.endswith(" ".join(reg.build_train_argv(run, "neuronic", str(iso))))
+E       AssertionError: assert False
+E        +  where False = <built-in method endswith of str object at 0x55a5c05d67e0>('train.py --model-config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json --dataset-config src/con...test-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the0/dry_save_root/exp45_RFf025_l40_2x32/evidence/run_evidence.json')
+E        +    where <built-in method endswith of str object at 0x55a5c05d67e0> = 'FULL (cwd = the closure snapshot): /n/fs/gatrdp/envs/flac/bin/python -m torch.distributed.run --standalone --nnodes=1...nce-json /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve/exp45_RFf025_l40_2x32/evidence/run_evidence.json'.endswith
+E        +    and   'train.py --model-config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json --dataset-config src/con...test-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the0/dry_save_root/exp45_RFf025_l40_2x32/evidence/run_evidence.json' = <built-in method join of str object at 0x7f77bc4c1a70>(['train.py', '--model-config', 'worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json', '--dataset-config', 'src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json', '--pretransform-ckpt-path', ...])
+E        +      where <built-in method join of str object at 0x7f77bc4c1a70> = ' '.join
+E        +      and   ['train.py', '--model-config', 'worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json', '--dataset-config', 'src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json', '--pretransform-ckpt-path', ...] = <function build_train_argv at 0x7f77bb4afb50>('exp45_RFf025_l40_2x32', 'neuronic', '/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the0/dry_save_root')
+E        +        where <function build_train_argv at 0x7f77bb4afb50> = reg.build_train_argv
+E        +        and   '/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the0/dry_save_root' = str(PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the0/dry_save_root'))
+
+src/tests/test_exp45_launchers.py:79: AssertionError
+__ test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf050_l40_2x32-SMOKE] __
+
+run = 'exp45_RFf050_l40_2x32', mode = 'SMOKE'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the1')
+
+    @pytest.mark.parametrize("run,mode", [("exp45_RFf025_l40_2x32", "FULL"), ("exp45_RFf050_l40_2x32", "SMOKE"), ("exp45_RFf075_l40_2x32", "FULL")])
+    def test_sbatch_dry_run_prints_the_torchrun_lines(run, mode, tmp_path):
+        """Codex code r1 finding 10: the sbatch test hook routes the dry run through an ISOLATED save root
+        (EXP38_DRY_SAVE_ROOT -> --dry-save-root), so the result does not depend on the live run directories."""
+        iso = tmp_path / "dry_save_root"
+        iso.mkdir()
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN=run, MODE=mode, EXPECT_SHA="a" * 40,
+                   EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR=str(tmp_path / run), ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(iso))
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr
+        n = 2
+        full = [l for l in r.stdout.split("\n") if l.startswith("FULL (cwd = the closure snapshot):")][0]
+        assert f"-m torch.distributed.run --standalone --nnodes=1 --nproc_per_node={n} train.py" in full
+>       assert full.endswith(" ".join(reg.build_train_argv(run, "neuronic", str(iso))))
+E       AssertionError: assert False
+E        +  where False = <built-in method endswith of str object at 0x55a5b964c470>('train.py --model-config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json --dataset-config src/con...test-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the1/dry_save_root/exp45_RFf050_l40_2x32/evidence/run_evidence.json')
+E        +    where <built-in method endswith of str object at 0x55a5b964c470> = 'FULL (cwd = the closure snapshot): /n/fs/gatrdp/envs/flac/bin/python -m torch.distributed.run --standalone --nnodes=1...nce-json /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve/exp45_RFf050_l40_2x32/evidence/run_evidence.json'.endswith
+E        +    and   'train.py --model-config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json --dataset-config src/con...test-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the1/dry_save_root/exp45_RFf050_l40_2x32/evidence/run_evidence.json' = <built-in method join of str object at 0x7f77bc4c1a70>(['train.py', '--model-config', 'worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json', '--dataset-config', 'src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json', '--pretransform-ckpt-path', ...])
+E        +      where <built-in method join of str object at 0x7f77bc4c1a70> = ' '.join
+E        +      and   ['train.py', '--model-config', 'worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json', '--dataset-config', 'src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json', '--pretransform-ckpt-path', ...] = <function build_train_argv at 0x7f77bb4afb50>('exp45_RFf050_l40_2x32', 'neuronic', '/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the1/dry_save_root')
+E        +        where <function build_train_argv at 0x7f77bb4afb50> = reg.build_train_argv
+E        +        and   '/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the1/dry_save_root' = str(PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the1/dry_save_root'))
+
+src/tests/test_exp45_launchers.py:79: AssertionError
+__ test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf075_l40_2x32-FULL] ___
+
+run = 'exp45_RFf075_l40_2x32', mode = 'FULL'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the2')
+
+    @pytest.mark.parametrize("run,mode", [("exp45_RFf025_l40_2x32", "FULL"), ("exp45_RFf050_l40_2x32", "SMOKE"), ("exp45_RFf075_l40_2x32", "FULL")])
+    def test_sbatch_dry_run_prints_the_torchrun_lines(run, mode, tmp_path):
+        """Codex code r1 finding 10: the sbatch test hook routes the dry run through an ISOLATED save root
+        (EXP38_DRY_SAVE_ROOT -> --dry-save-root), so the result does not depend on the live run directories."""
+        iso = tmp_path / "dry_save_root"
+        iso.mkdir()
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN=run, MODE=mode, EXPECT_SHA="a" * 40,
+                   EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR=str(tmp_path / run), ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(iso))
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr
+        n = 2
+        full = [l for l in r.stdout.split("\n") if l.startswith("FULL (cwd = the closure snapshot):")][0]
+        assert f"-m torch.distributed.run --standalone --nnodes=1 --nproc_per_node={n} train.py" in full
+>       assert full.endswith(" ".join(reg.build_train_argv(run, "neuronic", str(iso))))
+E       AssertionError: assert False
+E        +  where False = <built-in method endswith of str object at 0x55a5c05ab220>('train.py --model-config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json --dataset-config src/con...test-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the2/dry_save_root/exp45_RFf075_l40_2x32/evidence/run_evidence.json')
+E        +    where <built-in method endswith of str object at 0x55a5c05ab220> = 'FULL (cwd = the closure snapshot): /n/fs/gatrdp/envs/flac/bin/python -m torch.distributed.run --standalone --nnodes=1...nce-json /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve/exp45_RFf075_l40_2x32/evidence/run_evidence.json'.endswith
+E        +    and   'train.py --model-config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json --dataset-config src/con...test-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the2/dry_save_root/exp45_RFf075_l40_2x32/evidence/run_evidence.json' = <built-in method join of str object at 0x7f77bc4c1a70>(['train.py', '--model-config', 'worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json', '--dataset-config', 'src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json', '--pretransform-ckpt-path', ...])
+E        +      where <built-in method join of str object at 0x7f77bc4c1a70> = ' '.join
+E        +      and   ['train.py', '--model-config', 'worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json', '--dataset-config', 'src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json', '--pretransform-ckpt-path', ...] = <function build_train_argv at 0x7f77bb4afb50>('exp45_RFf075_l40_2x32', 'neuronic', '/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the2/dry_save_root')
+E        +        where <function build_train_argv at 0x7f77bb4afb50> = reg.build_train_argv
+E        +        and   '/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the2/dry_save_root' = str(PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the2/dry_save_root'))
+
+src/tests/test_exp45_launchers.py:79: AssertionError
+_ test_the_dry_run_checks_its_isolated_root_even_with_the_production_run_dir_occupied _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_dry_run_checks_its_is0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f76c6e220b0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7f76c6e23070>
+
+    def test_the_dry_run_checks_its_isolated_root_even_with_the_production_run_dir_occupied(tmp_path, monkeypatch, capsys):
+        """Codex code r1 finding 10: with the production FULL directory occupied (a run's checkpoint in it), the dry run
+        on an isolated save root still passes -- it checks, and prints, only the isolated root -- while the same dry run
+        against the production root refuses."""
+        sv = _load("exp45_supervise")
+        run = "exp45_RFf025_l40_2x32"
+        prod, iso = tmp_path / "production_save_root", tmp_path / "dry_save_root"
+        (prod / run).mkdir(parents=True)
+        (prod / run / reg.ckpt_name(2500, "025")).write_bytes(b"a live run's checkpoint")
+        iso.mkdir()
+        monkeypatch.setitem(reg.PLATFORMS["neuronic"], "save_root", str(prod))
+        monkeypatch.setattr(sv, "interpreter_gate", lambda platform, expect=None: sys.executable)
+        import exp38_subset_audit as sa
+        monkeypatch.setattr(sa, "verify", lambda *a, **k: [])
+        monkeypatch.setattr(reg, "vae_check", lambda *a, **k: {})
+        monkeypatch.setattr(reg, "vit_pin_check", lambda *a, **k: {})
+        monkeypatch.setattr(sv, "backend_gate", lambda *a, **k: {})
+        monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": "c" * 64})
+        a = sv.parse(["--platform", "neuronic", "--mode", "DRY_RUN", "--run", run, "--dry-save-root", str(iso)])
+        assert sv.mode_dry_run(a, "neuronic") == 0
+        out = capsys.readouterr().out
+>       assert f"run dir {iso}/{run}: fresh" in out and f"--save-dir {iso}/{run}" in out and f"{iso}/{run}_smoke" in out
+E       assert ('run dir /tmp/pytest-of-yh4742/pytest-0/test_the_dry_run_checks_its_is0/dry_save_root/exp45_RFf025_l40_2x32: fresh' in 'pins: {}\nclosure: {"closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}\nrun dir /t...ceipt: would refuse now (nvidia-smi failed (rc 6): )\nDRY_RUN OK exp45_RFf025_l40_2x32 on neuronic (nothing spawned)\n' and '--save-dir /tmp/pytest-of-yh4742/pytest-0/test_the_dry_run_checks_its_is0/dry_save_root/exp45_RFf025_l40_2x32' in 'pins: {}\nclosure: {"closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}\nrun dir /t...ceipt: would refuse now (nvidia-smi failed (rc 6): )\nDRY_RUN OK exp45_RFf025_l40_2x32 on neuronic (nothing spawned)\n' and '/tmp/pytest-of-yh4742/pytest-0/test_the_dry_run_checks_its_is0/dry_save_root/exp45_RFf025_l40_2x32_smoke' in 'pins: {}\nclosure: {"closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}\nrun dir /t...ceipt: would refuse now (nvidia-smi failed (rc 6): )\nDRY_RUN OK exp45_RFf025_l40_2x32 on neuronic (nothing spawned)\n')
+
+src/tests/test_exp45_launchers.py:107: AssertionError
+_________________________ test_smoke_argv_is_ddp_only __________________________
+
+    def test_smoke_argv_is_ddp_only():
+        """Codex code r1 finding 11 (plan r3 §5 L5: every SMOKE is 2 x L40): the single-rank SMOKE argv is refused."""
+        for kw in ({}, {"ddp": False}):
+>           with pytest.raises(reg.GateError, match="2 x 32"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp45_registry.py:263: Failed
+_____________ test_log_gate_refuses_every_world_size_but_2[1-2296] _____________
+
+ngpu = 1, spe = 2296
+
+    @pytest.mark.parametrize("ngpu,spe", [(1, 2296), (1, 1148), (4, 574), (0, 1148)])
+    def test_log_gate_refuses_every_world_size_but_2(ngpu, spe):
+        """Codex code r1 finding 11: every exp_45 launch path is 2 x 32 (plan r3 §5 L5, RUNGS); a log of any other world
+        size is refused explicitly -- whatever its loader length (a single rank's own 2,296 batches included)."""
+        probs = reg.log_gate(_log(ngpu=max(ngpu, 1), spe=spe), RF["025"], "start", "flash", ngpu)
+>       assert probs and "2 x 32 only" in probs[0] and f"{ngpu}-rank" in probs[0]
+E       AssertionError: assert (['progress-bar steps per epoch [2296] != the 025 loader length 1148'] and '2 x 32 only' in 'progress-bar steps per epoch [2296] != the 025 loader length 1148')
+
+src/tests/test_exp45_registry.py:522: AssertionError
+_____________ test_log_gate_refuses_every_world_size_but_2[1-1148] _____________
+
+ngpu = 1, spe = 1148
+
+    @pytest.mark.parametrize("ngpu,spe", [(1, 2296), (1, 1148), (4, 574), (0, 1148)])
+    def test_log_gate_refuses_every_world_size_but_2(ngpu, spe):
+        """Codex code r1 finding 11: every exp_45 launch path is 2 x 32 (plan r3 §5 L5, RUNGS); a log of any other world
+        size is refused explicitly -- whatever its loader length (a single rank's own 2,296 batches included)."""
+        probs = reg.log_gate(_log(ngpu=max(ngpu, 1), spe=spe), RF["025"], "start", "flash", ngpu)
+>       assert probs and "2 x 32 only" in probs[0] and f"{ngpu}-rank" in probs[0]
+E       assert ([])
+
+src/tests/test_exp45_registry.py:522: AssertionError
+_____________ test_log_gate_refuses_every_world_size_but_2[4-574] ______________
+
+ngpu = 4, spe = 574
+
+    @pytest.mark.parametrize("ngpu,spe", [(1, 2296), (1, 1148), (4, 574), (0, 1148)])
+    def test_log_gate_refuses_every_world_size_but_2(ngpu, spe):
+        """Codex code r1 finding 11: every exp_45 launch path is 2 x 32 (plan r3 §5 L5, RUNGS); a log of any other world
+        size is refused explicitly -- whatever its loader length (a single rank's own 2,296 batches included)."""
+        probs = reg.log_gate(_log(ngpu=max(ngpu, 1), spe=spe), RF["025"], "start", "flash", ngpu)
+>       assert probs and "2 x 32 only" in probs[0] and f"{ngpu}-rank" in probs[0]
+E       AssertionError: assert (['progress-bar steps per epoch [574] != the 025 loader length 1148'] and '2 x 32 only' in 'progress-bar steps per epoch [574] != the 025 loader length 1148')
+
+src/tests/test_exp45_registry.py:522: AssertionError
+_____________ test_log_gate_refuses_every_world_size_but_2[0-1148] _____________
+
+ngpu = 0, spe = 1148
+
+    @pytest.mark.parametrize("ngpu,spe", [(1, 2296), (1, 1148), (4, 574), (0, 1148)])
+    def test_log_gate_refuses_every_world_size_but_2(ngpu, spe):
+        """Codex code r1 finding 11: every exp_45 launch path is 2 x 32 (plan r3 §5 L5, RUNGS); a log of any other world
+        size is refused explicitly -- whatever its loader length (a single rank's own 2,296 batches included)."""
+        probs = reg.log_gate(_log(ngpu=max(ngpu, 1), spe=spe), RF["025"], "start", "flash", ngpu)
+>       assert probs and "2 x 32 only" in probs[0] and f"{ngpu}-rank" in probs[0]
+E       assert ([])
+
+src/tests/test_exp45_registry.py:522: AssertionError
+____________ test_the_single_rank_smoke_is_refused_before_any_work _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f76c6ed4370>
+capsys = <_pytest.capture.CaptureFixture object at 0x7f76c6ed7ee0>
+
+    def test_the_single_rank_smoke_is_refused_before_any_work(monkeypatch, capsys):
+        """Codex code r1 finding 11: exp_45 registers no single-rank path (plan r3 §5 L5: 2 x L40, 2 x 32): the a6000
+        one-rank SMOKE is refused explicitly, before any gate, card lock or directory."""
+        touched = []
+        monkeypatch.setattr(sv, "common_gates", lambda *a, **k: touched.append("gates") or ("rf", "025", "2x32", PY, {}, {}))
+        monkeypatch.setattr(sv, "lock_cards", lambda *a, **k: touched.append("locks") or [])
+        a = sv.parse(["--platform", "a6000", "--mode", "SMOKE", "--run", "exp45_RFf025_l40_2x32"])
+>       assert sv._dispatch(a) == sv.Refused("x").code
+E       AssertionError: assert 3 == 2
+E        +  where 3 = <function _dispatch at 0x7f77bad7f2e0>(Namespace(platform='a6000', mode='SMOKE', run='exp45_RFf025_l40_2x32', backend='flash', expect_sha=None, gpu_policy='i...ir=None, expect_python=None, expect_flash_version='', grace=120, dry_save_root=None, lockdir='/home/yixunhu/codespace'))
+E        +    where <function _dispatch at 0x7f77bad7f2e0> = sv._dispatch
+E        +  and   2 = Refused('x').code
+E        +    where Refused('x') = <class 'exp45_supervise.Refused'>('x')
+E        +      where <class 'exp45_supervise.Refused'> = sv.Refused
+
+src/tests/test_exp45_supervise.py:191: AssertionError
+----------------------------- Captured stderr call -----------------------------
+EXP38 LAUNCH REFUSED: nvidia-smi query failed
+_______ test_the_bridge_seals_equal_cells_and_records_the_bundle_hashes ________
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_bridge_seals_equal_ce0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+
+    def test_the_bridge_seals_equal_cells_and_records_the_bundle_hashes(bridge_world):
+        b = _bundle(bridge_world)
+        rec = ev.cmd_bridge(str(b))
+        assert rec["verdict"] == "equal" and sorted(rec["cells"]) == sorted(ev.RF100_BRIDGE["cells"])
+        assert all(v["verdict"] == "equal" and v["differences"] == {} for v in rec["cells"].values())
+        adm = b / "admission" / "exp43_admission_RF.json"
+>       assert len(rec["bundle_files"]) == 21 and rec["admission_record"] == {
+            "path": "admission/exp43_admission_RF.json", "sha256": ev.reg.sha256_file(str(adm)), "run_id": "exp43_RF_a6000_2x32",
+            "ckpt_path": ev.RF100_BRIDGE["checkpoint"], "ckpt_sha256": ev.RF100_BRIDGE["sha256"],
+            "bytes": ev.RF100_BRIDGE["bytes"], "global_step": 40000, "model_config": ev.reg.ARMS["rf"]["config"],
+            "model_config_sha256": ev.RF100_BRIDGE["model_config_sha256"]}
+E       AssertionError: assert (21 == 21 and 'admission/exp43_admission_RF.json' == {'path': 'admission/exp43_admission_RF.json', 'sha256': 'f1d4cb111447c53c95e73a20cbe5da195e1c5ca327063b5e28eaed3713df2...pt_path': '/media/diskstation/yixunhu/FLAC/checkpoints/exp43_std_aug/exp43_RF_a6000_2x32/epoch=8-step=40000.ckpt', ...})
+E        +  where 21 = len({'admission/exp43_admission_RF.json': 'f1d4cb111447c53c95e73a20cbe5da195e1c5ca327063b5e28eaed3713df22f1', 'cells/epoch..._metrics_1_1.0_exp43_RF_T_S40000_K1_s43.json': '58a17aeb34bb90532f877e42cb1390d46551d8b9f222e3a9f168b90adc138cb6', ...})
+
+src/tests/test_exp45_eval.py:1160: AssertionError
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[only names the checkpoint-admission0] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'only names the checkpoint'
+admission = {'run': 'exp43_RF_a6000_2x32', 'note': 'ckpt ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6'}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[not admitted-admission1] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e1'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'not admitted'
+admission = {'kind': 'exp43_admission', 'admitted': False, 'arm': 'RF', 'run_id': 'exp43_RF_a6000_2x32', ...}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another arm-admission2] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e2'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'another arm'
+admission = {'kind': 'exp43_admission', 'admitted': True, 'arm': 'YAW', 'run_id': 'exp43_RF_a6000_2x32', ...}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another kind-admission3] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e3'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'another kind'
+admission = {'kind': 'exp40_admission', 'admitted': True, 'arm': 'RF', 'run_id': 'exp43_RF_a6000_2x32', ...}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another config sha-admission4] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e4'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'another config sha'
+admission = {'kind': 'exp43_admission', 'admitted': True, 'arm': 'RF', 'run_id': 'exp43_RF_a6000_2x32', ...}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another config-admission5] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e5'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'another config'
+admission = {'kind': 'exp43_admission', 'admitted': True, 'arm': 'RF', 'run_id': 'exp43_RF_a6000_2x32', ...}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another checkpoint-admission6] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e6'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'another checkpoint'
+admission = {'kind': 'exp43_admission', 'admitted': True, 'arm': 'RF', 'run_id': 'exp43_RF_a6000_2x32', ...}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[other bytes-admission8] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e8'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'other bytes'
+admission = {'kind': 'exp43_admission', 'admitted': True, 'arm': 'RF', 'run_id': 'exp43_RF_a6000_2x32', ...}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another step-admission9] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e9'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'another step'
+admission = {'kind': 'exp43_admission', 'admitted': True, 'arm': 'RF', 'run_id': 'exp43_RF_a6000_2x32', ...}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another run-admission10] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e10'), 'campaign': {'head': 'ffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'another run'
+admission = {'kind': 'exp43_admission', 'admitted': True, 'arm': 'RF', 'run_id': 'exp43_RF_a6000_2x32_r1', ...}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[not a strict load-admission11] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e11'), 'campaign': {'head': 'ffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'not a strict load'
+admission = {'kind': 'exp43_admission', 'admitted': True, 'arm': 'RF', 'run_id': 'exp43_RF_a6000_2x32', ...}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[a missing key-admission12] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e12'), 'campaign': {'head': 'ffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'a missing key'
+admission = {'kind': 'exp43_admission', 'admitted': True, 'arm': 'RF', 'run_id': 'exp43_RF_a6000_2x32', ...}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[an extra key-admission13] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e13'), 'campaign': {'head': 'ffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'an extra key'
+admission = {'kind': 'exp43_admission', 'admitted': True, 'arm': 'RF', 'run_id': 'exp43_RF_a6000_2x32', ...}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+_ test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[no history-admission14] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_admission_record_is_e14'), 'campaign': {'head': 'ffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+name = 'no history'
+admission = {'kind': 'exp43_admission', 'admitted': True, 'arm': 'RF', 'run_id': 'exp43_RF_a6000_2x32', ...}
+
+    @pytest.mark.parametrize("name,admission", [
+        ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
+        ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
+        ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
+        ("another checkpoint", _adm(sha256="0" * 64)),
+        ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
+                                                                                       **{"epoch=8-step=40000.ckpt": "0" * 64}))),
+        ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
+        ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
+        ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
+    ])
+    def test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint(bridge_world, name, admission):
+        """Codex code r1 finding 2 (deviation 5 rejected): the bundle's record must pass exp_43's own validator
+        (exp43_kit.admission_reasons, rehash=None -- the exact ADMISSION_KEYS schema, admitted, RF, the run grammar, the
+        16 cadence names, the pinned config, strict load, the W&B / history bindings) and admit exactly RF100_BRIDGE's
+        checkpoint: sha256, bytes, config + its sha, step 40000, path. Substring presence of the sha proves nothing."""
+>       with pytest.raises(ev.EvalError, match="admission"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1249: Failed
+________ test_the_fixture_admission_record_passes_exp43s_own_validator _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_fixture_admission_rec0')
+
+    def test_the_fixture_admission_record_passes_exp43s_own_validator(tmp_path):
+        """The negative cases above are meaningful: the fixture record itself is exp_43-valid (record only)."""
+        p = tmp_path / "adm.json"
+        json.dump(_adm(), open(p, "w"))
+        reasons, rec, _ = KIT43.admission_reasons(str(p), rehash=None)
+        assert reasons == [] and set(rec) == KIT43.ADMISSION_KEYS and rec["sha256"] == ev.RF100_BRIDGE["sha256"]
+>       assert ev.RF100_BRIDGE["global_step"] == rec["global_step"] == 40000
+E       KeyError: 'global_step'
+
+src/tests/test_exp45_eval.py:1260: KeyError
+_ test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures[both-_strip] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_incomplete_or_inconsisten0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+side = 'both', fn = <function _strip at 0x7f77ac774ca0>
+
+    @pytest.mark.parametrize("side,fn", [("both", _strip), ("ours", _strip), ("reference", _strip), ("both", _short),
+                                         ("reference", _short), ("both", _retarget), ("ours", _retarget),
+                                         ("reference", _offsets), ("both", _position)])
+    def test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures(bridge_world, side, fn):
+        """Codex code r1 finding 3: the bridge compares COMPLETE per-item preimages -- the 6,337-item input tuples,
+        assignment tuples and offsets, structurally valid and re-hashing to the sidecar's input / assignment hash. Missing
+        on both sides they no longer compare equal; changed identically on both sides they fail their own hashes."""
+        target = "exp45_RF100bridge_K8_s44"
+        ours = (lambda c, s: fn(s) if c["name"] == target else None) if side in ("ours", "both") else None
+        ref = (lambda c, m, s: fn(s) if c["name"] == target else None) if side in ("reference", "both") else None
+>       with pytest.raises(ev.EvalError, match="bridge integrity"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1297: Failed
+_ test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures[both-_short] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_incomplete_or_inconsisten3'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+side = 'both', fn = <function _short at 0x7f77ac774d30>
+
+    @pytest.mark.parametrize("side,fn", [("both", _strip), ("ours", _strip), ("reference", _strip), ("both", _short),
+                                         ("reference", _short), ("both", _retarget), ("ours", _retarget),
+                                         ("reference", _offsets), ("both", _position)])
+    def test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures(bridge_world, side, fn):
+        """Codex code r1 finding 3: the bridge compares COMPLETE per-item preimages -- the 6,337-item input tuples,
+        assignment tuples and offsets, structurally valid and re-hashing to the sidecar's input / assignment hash. Missing
+        on both sides they no longer compare equal; changed identically on both sides they fail their own hashes."""
+        target = "exp45_RF100bridge_K8_s44"
+        ours = (lambda c, s: fn(s) if c["name"] == target else None) if side in ("ours", "both") else None
+        ref = (lambda c, m, s: fn(s) if c["name"] == target else None) if side in ("reference", "both") else None
+>       with pytest.raises(ev.EvalError, match="bridge integrity"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1297: Failed
+_ test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures[both-_retarget] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_incomplete_or_inconsisten5'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+side = 'both', fn = <function _retarget at 0x7f77ac774dc0>
+
+    @pytest.mark.parametrize("side,fn", [("both", _strip), ("ours", _strip), ("reference", _strip), ("both", _short),
+                                         ("reference", _short), ("both", _retarget), ("ours", _retarget),
+                                         ("reference", _offsets), ("both", _position)])
+    def test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures(bridge_world, side, fn):
+        """Codex code r1 finding 3: the bridge compares COMPLETE per-item preimages -- the 6,337-item input tuples,
+        assignment tuples and offsets, structurally valid and re-hashing to the sidecar's input / assignment hash. Missing
+        on both sides they no longer compare equal; changed identically on both sides they fail their own hashes."""
+        target = "exp45_RF100bridge_K8_s44"
+        ours = (lambda c, s: fn(s) if c["name"] == target else None) if side in ("ours", "both") else None
+        ref = (lambda c, m, s: fn(s) if c["name"] == target else None) if side in ("reference", "both") else None
+>       with pytest.raises(ev.EvalError, match="bridge integrity"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1297: Failed
+_ test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures[both-_position] _
+
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_incomplete_or_inconsisten8'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+side = 'both', fn = <function _position at 0x7f77ac774ee0>
+
+    @pytest.mark.parametrize("side,fn", [("both", _strip), ("ours", _strip), ("reference", _strip), ("both", _short),
+                                         ("reference", _short), ("both", _retarget), ("ours", _retarget),
+                                         ("reference", _offsets), ("both", _position)])
+    def test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures(bridge_world, side, fn):
+        """Codex code r1 finding 3: the bridge compares COMPLETE per-item preimages -- the 6,337-item input tuples,
+        assignment tuples and offsets, structurally valid and re-hashing to the sidecar's input / assignment hash. Missing
+        on both sides they no longer compare equal; changed identically on both sides they fail their own hashes."""
+        target = "exp45_RF100bridge_K8_s44"
+        ours = (lambda c, s: fn(s) if c["name"] == target else None) if side in ("ours", "both") else None
+        ref = (lambda c, m, s: fn(s) if c["name"] == target else None) if side in ("reference", "both") else None
+>       with pytest.raises(ev.EvalError, match="bridge integrity"):
+E       Failed: DID NOT RAISE EvalError
+
+src/tests/test_exp45_eval.py:1297: Failed
+_________ test_build_reopens_the_bundle_blobs_at_the_requested_commit __________
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', 'dd35c759a38ba7c57110a4420d5bfe1a19f3c8ae', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_results.json')
+
+    def test_build_reopens_the_bundle_blobs_at_the_requested_commit(built):
+        """Codex code r1 finding 6: build re-extracts the bundle at the requested commit (git archive, read-only) and
+        re-verifies the record against those blobs -- every EXP38_IMPORT_FILES hash, every cell's metrics, the
+        attestations its receipts carry and the E0 campaign -- so a record whose cells AND rows were changed together,
+        whose file hash or attestation was edited, or which was relabelled to another commit, refuses after resealing."""
+        repo, sha, _ = built
+        good = json.load(open(os.path.join(repo, tbl.IMPORT_RECORD)))
+        name = "de_yaw_f050_K8_s43"
+    
+        def mutated(fn):
+            rec = json.loads(json.dumps(good))
+            fn(rec)
+            return rec
+    
+        def cells_and_rows(r):
+            r["cells"][name]["metrics"]["T60"] += 0.5
+            r["rows"] = tbl.exp38_rows(r["cells"])                      # internally consistent again
+        some_file = sorted(good["files"])[0]
+        cases = [(cells_and_rows, name),
+                 (lambda r: r["files"].update({some_file: "0" * 64}), "sha256"),
+                 (lambda r: r["attestations"]["checkpoints"].update({name: "0" * 64}), name),
+                 (lambda r: r["campaign"].update(head="0" * 40), "campaign")]
+        for fn, needle in cases:
+            _reseal_import(repo, mutated(fn))
+>           with pytest.raises(tbl.TableError, match=needle):
+E           Failed: DID NOT RAISE TableError
+
+src/tests/test_exp45_table.py:283: Failed
+=============================== warnings summary ===============================
+src/tests/test_exp45_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp45_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp45_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_storage.py::test_a_submit_killed_before_its_intent_is_recovered_by_abandon[after the reservation]
+FAILED src/tests/test_exp45_storage.py::test_a_submit_killed_before_its_intent_is_recovered_by_abandon[after the owner dir]
+FAILED src/tests/test_exp45_storage.py::test_a_submit_killed_before_its_intent_is_recovered_by_abandon[after the intent's temp file]
+FAILED src/tests/test_exp45_storage.py::test_a_smoke_submit_killed_before_its_intent_is_recovered_by_abandon
+FAILED src/tests/test_exp45_storage.py::test_an_abandon_killed_after_archiving_the_owner_is_recovered
+FAILED src/tests/test_exp45_storage.py::test_recovery_never_runs_while_a_submission_holds_its_lock
+FAILED src/tests/test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf025_l40_2x32-FULL]
+FAILED src/tests/test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf050_l40_2x32-SMOKE]
+FAILED src/tests/test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf075_l40_2x32-FULL]
+FAILED src/tests/test_exp45_launchers.py::test_the_dry_run_checks_its_isolated_root_even_with_the_production_run_dir_occupied
+FAILED src/tests/test_exp45_registry.py::test_smoke_argv_is_ddp_only - Failed...
+FAILED src/tests/test_exp45_registry.py::test_log_gate_refuses_every_world_size_but_2[1-2296]
+FAILED src/tests/test_exp45_registry.py::test_log_gate_refuses_every_world_size_but_2[1-1148]
+FAILED src/tests/test_exp45_registry.py::test_log_gate_refuses_every_world_size_but_2[4-574]
+FAILED src/tests/test_exp45_registry.py::test_log_gate_refuses_every_world_size_but_2[0-1148]
+FAILED src/tests/test_exp45_supervise.py::test_the_single_rank_smoke_is_refused_before_any_work
+FAILED src/tests/test_exp45_eval.py::test_the_bridge_seals_equal_cells_and_records_the_bundle_hashes
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[only names the checkpoint-admission0]
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[not admitted-admission1]
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another arm-admission2]
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another kind-admission3]
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another config sha-admission4]
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another config-admission5]
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another checkpoint-admission6]
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[other bytes-admission8]
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another step-admission9]
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[another run-admission10]
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[not a strict load-admission11]
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[a missing key-admission12]
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[an extra key-admission13]
+FAILED src/tests/test_exp45_eval.py::test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint[no history-admission14]
+FAILED src/tests/test_exp45_eval.py::test_the_fixture_admission_record_passes_exp43s_own_validator
+FAILED src/tests/test_exp45_eval.py::test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures[both-_strip]
+FAILED src/tests/test_exp45_eval.py::test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures[both-_short]
+FAILED src/tests/test_exp45_eval.py::test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures[both-_retarget]
+FAILED src/tests/test_exp45_eval.py::test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures[both-_position]
+FAILED src/tests/test_exp45_table.py::test_build_reopens_the_bundle_blobs_at_the_requested_commit
+37 failed, 221 passed, 3 warnings in 487.02s (0:08:07)
+EXIT 1 end 2026-11-14T23:58:01-05:00

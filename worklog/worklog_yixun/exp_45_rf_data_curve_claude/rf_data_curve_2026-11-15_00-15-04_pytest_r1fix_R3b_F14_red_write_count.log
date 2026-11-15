@@ -1,0 +1,73 @@
+HEAD baed022fd29a0cb90fe840cb742a19d259f66c4b tracked-clean=no host neu301.neuronic.cs.princeton.edu start 2026-11-15T00:15:53-05:00
+cmd: pytest -q src/tests/test_exp45_supervise.py::test_three_concurrent_first_smokes_create_exactly_one_environment_receipt 
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__ test_three_concurrent_first_smokes_create_exactly_one_environment_receipt ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_three_concurrent_first_sm0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f58ffd36110>
+
+    def test_three_concurrent_first_smokes_create_exactly_one_environment_receipt(tmp_path, monkeypatch):
+        """Codex code r1 finding 14: the neuronic sheet submits the three SMOKEs together, so up to three jobs may find no
+        environment receipt at once. Its creation is serialised under an exclusive lock: exactly one job writes the sealed
+        receipt, the others re-check it under the same lock -- all three pass with the one receipt's sha256 and the
+        receipt is written ONCE (the snapshot takes 0.5 s, so every job has seen "no receipt" before the first write;
+        unserialised, identical snapshots would be published two or three times over each other)."""
+        import multiprocessing as mp
+        reg = sv.reg
+        (tmp_path / reg.EXP_DIR).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tmp_path))
+        monkeypatch.setattr(sv, "git", lambda *args, repo=None: "f" * 40 if args[0] == "rev-parse" else "")
+        monkeypatch.setattr(reg, "check_untracked", lambda platform, repo=None: [])
+        monkeypatch.setattr(reg, "env_problems", lambda: [])
+        monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": "c" * 64})
+        snap = {k: k for k in reg.ENV_RECEIPT_KEYS}
+        snap.update(schema=1, platform="neuronic", packages={"torch": "2.1.0"})
+    
+        def slow_snapshot(platform):
+            time.sleep(0.5)
+            return json.loads(json.dumps(snap))
+        monkeypatch.setattr(reg, "env_snapshot", slow_snapshot)
+        writes, real_write = tmp_path / "receipt_writes.log", reg.write_sealed
+    
+        def counted_write(path, rec):                      # one O_APPEND line per write of the receipt, fork-safe
+            if path == reg._abs(reg.env_receipt_rel("neuronic")):
+                fd = os.open(str(writes), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+                os.write(fd, f"{os.getpid()}\n".encode())
+                os.close(fd)
+            return real_write(path, rec)
+        monkeypatch.setattr(reg, "write_sealed", counted_write)
+        ctx = mp.get_context("fork")
+        barrier, q = ctx.Barrier(3), ctx.Queue()
+    
+        def first_smoke(i):
+            a = sv.parse(["--platform", "neuronic", "--mode", "SMOKE", "--run", reg.required_runs()[i], "--expect-sha",
+                          "f" * 40, "--token", str(i) * 32, "--save-dir", "/x"])
+            barrier.wait()
+            try:
+                q.put((i, "ok", sv.campaign_gates(a, "neuronic")[1]))
+            except BaseException as err:                       # noqa: BLE001 -- reported to the parent
+                q.put((i, "error", repr(err)))
+        procs = [ctx.Process(target=first_smoke, args=(i,)) for i in range(3)]
+        for p in procs:
+            p.start()
+        got = sorted(q.get(timeout=120) for _ in procs)
+        for p in procs:
+            p.join(timeout=60)
+>       assert len(writes.read_text().split()) == 1, writes.read_text()       # created exactly once
+E       AssertionError: 1905547
+E         1905548
+E         1905549
+E         
+E       assert 3 == 1
+E        +  where 3 = len(['1905547', '1905548', '1905549'])
+E        +    where ['1905547', '1905548', '1905549'] = <built-in method split of str object at 0x7f58ffd70210>()
+E        +      where <built-in method split of str object at 0x7f58ffd70210> = '1905547\n1905548\n1905549\n'.split
+E        +        where '1905547\n1905548\n1905549\n' = read_text()
+E        +          where read_text = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_three_concurrent_first_sm0/receipt_writes.log').read_text
+
+src/tests/test_exp45_supervise.py:811: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_supervise.py::test_three_concurrent_first_smokes_create_exactly_one_environment_receipt
+1 failed in 5.10s
+EXIT 1 end 2026-11-15T00:15:59-05:00

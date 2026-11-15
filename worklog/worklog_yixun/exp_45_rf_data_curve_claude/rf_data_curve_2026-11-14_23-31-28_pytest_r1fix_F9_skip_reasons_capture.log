@@ -1,0 +1,11 @@
+HEAD 74a690df75270ce2f7cefa177e32e6411553d93e tracked-clean=no host neu304.neuronic.cs.princeton.edu start 2026-11-14T23:31:50-05:00
+cmd: pytest -q -rs --junitxml=/n/fs/rfmprog/.tmp/yh4742/claude-374349/-n-fs-gatrdp/b12fd646-feb5-4c9d-97ab-45a879f6143f/scratchpad/skips_capture.xml src/tests/test_exp45_receipts.py src/tests/test_exp45_registry.py src/tests/test_exp45_eval.py -k real_gpu0_smoke\ or\ environment_snapshot_is_complete\ or\ a6000_links_need\ or\ mount_fstype\ or\ real_rf_100\ or\ snapshot_carries_every\ or\ snapshot_is_complete_immutable\ or\ pins_equal_the_preliminary 
+sssss...                                                                 [100%]
+=========================== short test summary info ============================
+SKIPPED [1] src/tests/test_exp45_receipts.py:72: the GPU-0 smoke evidence lives in this checkout's outputs_FLAC only
+SKIPPED [1] src/tests/test_exp45_receipts.py:672: A6000 box only (nvidia-smi, A6000s)
+SKIPPED [1] src/tests/test_exp45_receipts.py:752: A6000 box only
+SKIPPED [1] src/tests/test_exp45_receipts.py:782: NAS not mounted
+SKIPPED [1] src/tests/test_exp45_registry.py:462: NAS not mounted
+3 passed, 5 skipped, 470 deselected in 44.64s
+EXIT 0 end 2026-11-14T23:32:46-05:00

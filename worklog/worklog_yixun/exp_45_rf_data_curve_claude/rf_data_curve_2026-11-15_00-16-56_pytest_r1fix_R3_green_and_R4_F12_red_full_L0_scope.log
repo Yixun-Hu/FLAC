@@ -1,0 +1,203 @@
+HEAD 363a526842fb911c1ad893c543d64e74ad2560da tracked-clean=no host neu301.neuronic.cs.princeton.edu start 2026-11-15T00:17:53-05:00
+cmd: pytest -q src/tests/test_exp45_merge_provenance.py src/tests/test_exp45_registry.py src/tests/test_exp45_supervise.py src/tests/test_exp45_launchers.py src/tests/test_exp45_receipts.py src/tests/test_exp45_eval.py src/tests/test_exp45_ddp_evidence.py src/tests/test_exp45_sampler.py src/tests/test_exp45_command_sheets.py src/tests/test_exp45_storage.py src/tests/test_exp45_table.py src/tests/test_exp45_regression_compare.py src/tests/test_gen_model_comparison_exp45.py src/tests/test_gen_model_comparison_exp38.py src/tests/test_gen_model_comparison_depth_canon.py src/tests/test_gen_model_comparison_data_curve.py src/tests/test_gen_model_comparison_gate.py src/tests/test_yaw_aug_collect.py src/tests/test_exp40_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict src/tests/test_exp43_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict 
+.............................................s.......................... [  7%]
+........................................................................ [ 15%]
+..............................s......................................... [ 22%]
+........................................................................ [ 30%]
+........................................................................ [ 38%]
+...s....s.s............................................................. [ 45%]
+........................................................................ [ 53%]
+..........................................FF............................ [ 61%]
+............................................................FFF......... [ 68%]
+...............F.....................F.................................. [ 76%]
+........................................................................ [ 84%]
+........................................................................ [ 91%]
+...............................................s........................ [ 99%]
+......                                                                   [100%]
+=================================== FAILURES ===================================
+_ test_verify_and_materialise_carry_a_publication_to_another_root_sha256_verified _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_verify_and_materialise_ca0')
+
+    def test_verify_and_materialise_carry_a_publication_to_another_root_sha256_verified(tmp_path):
+        """Codex code r1 finding 12: ``verify`` re-hashes every file the results JSON names (and the Markdown names the
+        JSON's sha256); ``materialise`` copies the publication + generator_static() byte for byte to another root,
+        identical-or-absent, then verifies it there."""
+>       root, ev_files = _publication(tmp_path)
+
+src/tests/test_exp45_eval.py:791: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_verify_and_materialise_ca0')
+
+    def _publication(tmp_path):
+        """A published results bundle in a fresh root: the JSON + Markdown (exp45_collect.publish) whose manifest names a
+        few evidence files, and the generator_static() files -- each at its relative path."""
+        root = tmp_path / "published"
+        (root / col.reg.EXP_DIR).mkdir(parents=True)
+        ev_files = {f"{ev.FARM}/E0a/x_metrics.json": b"e0 cell", f"{ev.FARM}/exp45_RFf025_l40_2x32/y.stream.json": b"stream",
+                    f"{col.reg.EXP_DIR}/rf_data_curve_bridge.json": b"bridge"}
+>       for rel, data in list(ev_files.items()) + [(rel, b"static " + rel.encode()) for rel in col.generator_static()]:
+E       AttributeError: module 'exp45_collect' has no attribute 'generator_static'
+
+src/tests/test_exp45_eval.py:778: AttributeError
+_______________ test_the_collector_cli_verifies_and_materialises _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_collector_cli_verifie0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f770471f400>
+capsys = <_pytest.capture.CaptureFixture object at 0x7f770471f1c0>
+
+    def test_the_collector_cli_verifies_and_materialises(tmp_path, monkeypatch, capsys):
+>       root, _ = _publication(tmp_path)
+
+src/tests/test_exp45_eval.py:819: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_collector_cli_verifie0')
+
+    def _publication(tmp_path):
+        """A published results bundle in a fresh root: the JSON + Markdown (exp45_collect.publish) whose manifest names a
+        few evidence files, and the generator_static() files -- each at its relative path."""
+        root = tmp_path / "published"
+        (root / col.reg.EXP_DIR).mkdir(parents=True)
+        ev_files = {f"{ev.FARM}/E0a/x_metrics.json": b"e0 cell", f"{ev.FARM}/exp45_RFf025_l40_2x32/y.stream.json": b"stream",
+                    f"{col.reg.EXP_DIR}/rf_data_curve_bridge.json": b"bridge"}
+>       for rel, data in list(ev_files.items()) + [(rel, b"static " + rel.encode()) for rel in col.generator_static()]:
+E       AttributeError: module 'exp45_collect' has no attribute 'generator_static'
+
+src/tests/test_exp45_eval.py:778: AttributeError
+_____ test_the_sheet_is_well_formed_and_current[rf_data_curve_command.md] ______
+
+name = 'rf_data_curve_command.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_the_sheet_is_well_formed_and_current(name):
+        text = open(os.path.join(EXP, name)).read()
+        fences = [ln for ln in text.split("\n") if ln.startswith("```")]
+        assert len(fences) % 2 == 0 and fences, "unbalanced code fences"
+        blocks = re.findall(r"```bash\n(.*?)\n```", text, flags=re.S)
+        assert blocks and all("```" not in b for b in blocks)
+        joined = "\n".join(blocks)
+        for cmd in SHEETS[name]:
+>           assert cmd in joined, cmd
+E           AssertionError: python $E/exp45_collect.py verify
+E           assert 'python $E/exp45_collect.py verify' in '# 0. tree 45 at X (once): the links, the environment receipt, E0 (L4b; N9: before any SMOKE)\nX=<the frozen launch co...e under\n#    outputs_FLAC/exp45_rf_data_curve/eval/, subject "exp_45 results publication ..."), pushed on Yixun\'s go'
+
+src/tests/test_exp45_command_sheets.py:61: AssertionError
+_ test_the_sheet_is_well_formed_and_current[rf_data_curve_neuronic_commands.md] _
+
+name = 'rf_data_curve_neuronic_commands.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_the_sheet_is_well_formed_and_current(name):
+        text = open(os.path.join(EXP, name)).read()
+        fences = [ln for ln in text.split("\n") if ln.startswith("```")]
+        assert len(fences) % 2 == 0 and fences, "unbalanced code fences"
+        blocks = re.findall(r"```bash\n(.*?)\n```", text, flags=re.S)
+        assert blocks and all("```" not in b for b in blocks)
+        joined = "\n".join(blocks)
+        for cmd in SHEETS[name]:
+>           assert cmd in joined, cmd
+E           AssertionError: G=/n/fs/gatrdp/codespace/FLAC
+E           assert 'G=/n/fs/gatrdp/codespace/FLAC' in 'Y=<the pushed records commit Y (E0 PASS at X)>\n# 0. a clean launch checkout at Y (once; never commit in it while job...e exp_38 rows must populate\n$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root /n/fs/gatrdp/codespace/FLAC'
+
+src/tests/test_exp45_command_sheets.py:61: AssertionError
+__ test_l8_makes_the_published_evidence_available_and_verified_before_any_use __
+
+    def test_l8_makes_the_published_evidence_available_and_verified_before_any_use():
+        """Codex code r1 finding 12: on neuronic every consumer of the published evidence runs only after its root
+        received and verified it -- fetch -> build checkout at R45 -> verify -> copy into G -> verify G -> regen #1; the exp_38
+        bundle is fetched and checked to descend from exp_38's pushed records commit before it is imported; G is the plan
+        N6 main checkout and its checkout is never moved (no checkout / pull / merge / reset in G)."""
+        import subprocess
+        b = _blocks("rf_data_curve_neuronic_commands.md")
+>       l8 = b[b.index("G=/n/fs/gatrdp/codespace/FLAC"):]
+E       ValueError: substring not found
+
+src/tests/test_exp45_command_sheets.py:75: ValueError
+_____ test_materialisation_copies_the_verified_bytes_to_their_exact_paths ______
+
+imp = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '3523f627a5488dea43403976d4b0cecf75124c83', '0f174a9848fedf199218bd8ad635e1ad3c6cee78')
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_materialisation_copies_th0')
+
+    def test_materialisation_copies_the_verified_bytes_to_their_exact_paths(imp, tmp_path):
+        repo, root, sha = imp
+        gen = tmp_path / "generator_root"
+        gen.mkdir()
+        tbl.import_exp38(sha, generator_root=str(gen), repo=repo)
+        rec, _ = tbl.reg.read_sealed(os.path.join(repo, tbl.IMPORT_RECORD), tbl.IMPORT_KEYS)
+        # Codex code r1 finding 12: EVERY admitted file and exp_38's kit code reach the generator root (it need not carry
+        # exp_38's folder): the configs and reference cells too, and exp38_eval.py / exp38_registry.py as imported
+        copied = sorted(rec["files"])
+>       assert copied and all(tbl.reg.sha256_file(str(gen / r)) == rec["files"][r] for r in copied)
+
+src/tests/test_exp45_table.py:178: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp45_table.py:178: in <genexpr>
+    assert copied and all(tbl.reg.sha256_file(str(gen / r)) == rec["files"][r] for r in copied)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yh4742/pytest-0/test_materialisation_copies_th0/generator_root/worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json'
+
+    def sha256_file(path):
+        h = hashlib.sha256()
+>       with open(path, "rb") as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yh4742/pytest-0/test_materialisation_copies_th0/generator_root/worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json'
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py:141: FileNotFoundError
+_ test_a_generator_root_materialised_from_the_checkout_resolves_the_exp45_rows _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_generator_root_material0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7704287ca0>
+
+    def test_a_generator_root_materialised_from_the_checkout_resolves_the_exp45_rows(tmp_path, monkeypatch):
+        """Codex code r1 finding 12: what ``exp45_collect.py materialise`` copies besides the evidence
+        (generator_static()) is exactly enough for the shared generator's exp_45 contract in a root that does not track
+        the exp_45 folder (the neuronic main checkout): with those files + a run's published cells, the rows validate."""
+        sys.path.insert(0, os.path.join(REPO, EXP_REL))
+        import exp45_collect as col
+        root = tmp_path / "generator_root"
+        (root / ".git").mkdir(parents=True)
+>       for rel in col.generator_static():
+E       AttributeError: module 'exp45_collect' has no attribute 'generator_static'
+
+src/tests/test_gen_model_comparison_exp45.py:166: AttributeError
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_eval.py::test_verify_and_materialise_carry_a_publication_to_another_root_sha256_verified
+FAILED src/tests/test_exp45_eval.py::test_the_collector_cli_verifies_and_materialises
+FAILED src/tests/test_exp45_command_sheets.py::test_the_sheet_is_well_formed_and_current[rf_data_curve_command.md]
+FAILED src/tests/test_exp45_command_sheets.py::test_the_sheet_is_well_formed_and_current[rf_data_curve_neuronic_commands.md]
+FAILED src/tests/test_exp45_command_sheets.py::test_l8_makes_the_published_evidence_available_and_verified_before_any_use
+FAILED src/tests/test_exp45_table.py::test_materialisation_copies_the_verified_bytes_to_their_exact_paths
+FAILED src/tests/test_gen_model_comparison_exp45.py::test_a_generator_root_materialised_from_the_checkout_resolves_the_exp45_rows
+7 failed, 929 passed, 6 skipped, 7 warnings in 851.97s (0:14:11)
+EXIT 1 end 2026-11-15T00:32:08-05:00

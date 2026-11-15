@@ -1,0 +1,1026 @@
+HEAD baed022fd29a0cb90fe840cb742a19d259f66c4b tracked-clean=no host neu301.neuronic.cs.princeton.edu start 2026-11-15T00:10:53-05:00
+cmd: pytest -q src/tests/test_exp45_supervise.py::test_three_concurrent_first_smokes_create_exactly_one_environment_receipt src/tests/test_exp45_eval.py::test_collect_admits_all_30_run_and_10_bridge_cells_produced_by_cmd_run src/tests/test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells src/tests/test_exp45_eval.py::test_an_evaluator_discrepancy_is_published_as_a_discrepancy_never_as_equality src/tests/test_exp45_eval.py::test_collect_refuses_any_missing_or_unadmitted_cell src/tests/test_exp45_table.py::test_the_disclosures_have_one_source_and_appear_under_every_exp45_table src/tests/test_gen_model_comparison_exp45.py::test_published_exp45_rows_carry_the_registered_disclosures 
+FFFFFFFFFFFFFFF....FF                                                    [100%]
+=================================== FAILURES ===================================
+__ test_three_concurrent_first_smokes_create_exactly_one_environment_receipt ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_three_concurrent_first_sm0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e3975b9d0>
+
+    def test_three_concurrent_first_smokes_create_exactly_one_environment_receipt(tmp_path, monkeypatch):
+        """Codex code r1 finding 14: the neuronic sheet submits the three SMOKEs together, so up to three jobs may find no
+        environment receipt at once. Its creation is serialised under an exclusive lock: exactly one job writes the sealed
+        receipt, the others re-check it under the same lock -- all three pass with the one receipt's sha256 (the
+        snapshot takes 0.5 s, so every job has seen "no receipt" before the first write)."""
+        import multiprocessing as mp
+        reg = sv.reg
+        (tmp_path / reg.EXP_DIR).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tmp_path))
+        monkeypatch.setattr(sv, "git", lambda *args, repo=None: "f" * 40 if args[0] == "rev-parse" else "")
+        monkeypatch.setattr(reg, "check_untracked", lambda platform, repo=None: [])
+        monkeypatch.setattr(reg, "env_problems", lambda: [])
+        monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": "c" * 64})
+        snap = {k: k for k in reg.ENV_RECEIPT_KEYS}
+        snap.update(schema=1, platform="neuronic", packages={"torch": "2.1.0"})
+    
+        def slow_snapshot(platform):
+            time.sleep(0.5)
+            return json.loads(json.dumps(snap))
+        monkeypatch.setattr(reg, "env_snapshot", slow_snapshot)
+        ctx = mp.get_context("fork")
+        barrier, q = ctx.Barrier(3), ctx.Queue()
+    
+        def first_smoke(i):
+            a = sv.parse(["--platform", "neuronic", "--mode", "SMOKE", "--run", reg.required_runs()[i], "--expect-sha",
+                          "f" * 40, "--token", str(i) * 32, "--save-dir", "/x"])
+            barrier.wait()
+            try:
+                q.put((i, "ok", sv.campaign_gates(a, "neuronic")[1]))
+            except BaseException as err:                       # noqa: BLE001 -- reported to the parent
+                q.put((i, "error", repr(err)))
+        procs = [ctx.Process(target=first_smoke, args=(i,)) for i in range(3)]
+        for p in procs:
+            p.start()
+        got = sorted(q.get(timeout=120) for _ in procs)
+        for p in procs:
+            p.join(timeout=60)
+        assert [g[1] for g in got] == ["ok"] * 3, got
+        _, digest = reg.read_sealed(reg._abs(reg.env_receipt_rel("neuronic")), reg.ENV_RECEIPT_KEYS)
+        assert {g[2] for g in got} == {digest}
+>       assert reg.UNTRACKED_RECORDS.match(reg.ENV_RECEIPT_LOCK)     # the lock file is a registered record name
+E       AttributeError: module 'exp45_registry' has no attribute 'ENV_RECEIPT_LOCK'. Did you mean: 'ENV_RECEIPT_KEYS'?
+
+src/tests/test_exp45_supervise.py:804: AttributeError
+____ test_collect_admits_all_30_run_and_10_bridge_cells_produced_by_cmd_run ____
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_admits_all_30_run0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e397d38e0>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_admits_all_30_run0')
+
+    def test_collect_admits_all_30_run_and_10_bridge_cells_produced_by_cmd_run(world, monkeypatch, tmp_path):
+        """plan r3 §3.2 (Codex plan r2 finding 3): the 40 cells come from cmd_run(); collect() admits every one OFFLINE
+        and lists {path: sha256} of every file that admission consumed -- the sealed bridge comparison included."""
+        names = _cmd_run_world(world, monkeypatch, tmp_path)
+        assert len(names) == 40
+        _seal_bridge(world, monkeypatch)
+        rows, pending, manifest = col.collect()
+        assert pending == [] and sorted(rows) == sorted((m, f, K) for m, f in [("rf", t) for t in ("025", "050", "075")]
+                                                        + [("rf_bridge", "100")] for K in (8, 1))
+        assert all(rows[k]["stats"]["T60"][2] == 5 for k in rows)
+        assert sorted(manifest["runs"]) == sorted(ev.reg.campaign_runs() + [ev.BRIDGE_RUN])
+        for run in ev.reg.campaign_runs():
+            arts = manifest["runs"][run]
+            for c in ev.run_cells(run):
+                for p in (c["metrics"], c["stream"], c["receipt"], ev.dump_manifest_copy(c)):
+                    assert os.path.relpath(ev._abs(p), ev.reg.REPO) in arts, p
+            farm = os.path.relpath(os.path.dirname(ev._abs(ev.run_cells(run)[0]["ckpt_link"])), ev.reg.REPO)
+            for f in ("CHECKPOINTS.sha256", ev.reg.TRAINING_RECEIPT, "receipts/loss_record.csv", "evidence/run_evidence.json.rank1.json"):
+                assert os.path.join(farm, f) in arts, f
+            assert not [k for k in arts if k.startswith("/media") or k.endswith(".ckpt") or k.endswith(".npy")]
+>       assert len(manifest["runs"][ev.BRIDGE_RUN]) == 42                     # 10 cells x 4 + the bridge result + sidecar
+E       AssertionError: assert 40 == 42
+E        +  where 40 = len({'../../../../../tmp/pytest-of-yh4742/pytest-0/test_collect_admits_all_30_run0/farm/RF100bridge/epoch=8-step=40000_met..._exp45_RF100bridge_K8_s42.dump_manifest.json': 'd7fdc7f548918bde32cbb1a60bdd25fc05fb41e6a357d9c4466b3a2404e3ac8a', ...})
+
+src/tests/test_exp45_eval.py:683: AssertionError
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+_ test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[absent] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e36906050>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal0')
+what = 'absent'
+
+    @pytest.mark.parametrize("what", ["absent", "sidecar"] + sorted(BRIDGE_RESULT_MUTATIONS))
+    def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells(world, monkeypatch, tmp_path, what):
+        """Codex code r1 finding 4: forty admissible cells are not enough -- the collector publishes only with the sealed
+        rf_data_curve_bridge.json bound to THIS campaign, the registered descriptor, exactly the ten bridge cells' current
+        metrics bytes, the bundle's reference / admission hashes and verdicts that follow from the differences."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+        _seal_bridge(world, monkeypatch)
+        if what == "absent":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+        elif what == "sidecar":
+            open(ev.BRIDGE_RESULT, "ab").write(b" ")
+        else:
+            _reseal_bridge(BRIDGE_RESULT_MUTATIONS[what])
+>       with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+E       Failed: DID NOT RAISE any of (EvalError, GateError)
+
+src/tests/test_exp45_eval.py:730: Failed
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+_ test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[sidecar] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal1'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e397d23b0>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal1')
+what = 'sidecar'
+
+    @pytest.mark.parametrize("what", ["absent", "sidecar"] + sorted(BRIDGE_RESULT_MUTATIONS))
+    def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells(world, monkeypatch, tmp_path, what):
+        """Codex code r1 finding 4: forty admissible cells are not enough -- the collector publishes only with the sealed
+        rf_data_curve_bridge.json bound to THIS campaign, the registered descriptor, exactly the ten bridge cells' current
+        metrics bytes, the bundle's reference / admission hashes and verdicts that follow from the differences."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+        _seal_bridge(world, monkeypatch)
+        if what == "absent":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+        elif what == "sidecar":
+            open(ev.BRIDGE_RESULT, "ab").write(b" ")
+        else:
+            _reseal_bridge(BRIDGE_RESULT_MUTATIONS[what])
+>       with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+E       Failed: DID NOT RAISE any of (EvalError, GateError)
+
+src/tests/test_exp45_eval.py:730: Failed
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+_ test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[a changed descriptor] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal2'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e369056f0>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal2')
+what = 'a changed descriptor'
+
+    @pytest.mark.parametrize("what", ["absent", "sidecar"] + sorted(BRIDGE_RESULT_MUTATIONS))
+    def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells(world, monkeypatch, tmp_path, what):
+        """Codex code r1 finding 4: forty admissible cells are not enough -- the collector publishes only with the sealed
+        rf_data_curve_bridge.json bound to THIS campaign, the registered descriptor, exactly the ten bridge cells' current
+        metrics bytes, the bundle's reference / admission hashes and verdicts that follow from the differences."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+        _seal_bridge(world, monkeypatch)
+        if what == "absent":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+        elif what == "sidecar":
+            open(ev.BRIDGE_RESULT, "ab").write(b" ")
+        else:
+            _reseal_bridge(BRIDGE_RESULT_MUTATIONS[what])
+>       with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+E       Failed: DID NOT RAISE any of (EvalError, GateError)
+
+src/tests/test_exp45_eval.py:730: Failed
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+_ test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[a missing cell] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal3'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e397d2500>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal3')
+what = 'a missing cell'
+
+    @pytest.mark.parametrize("what", ["absent", "sidecar"] + sorted(BRIDGE_RESULT_MUTATIONS))
+    def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells(world, monkeypatch, tmp_path, what):
+        """Codex code r1 finding 4: forty admissible cells are not enough -- the collector publishes only with the sealed
+        rf_data_curve_bridge.json bound to THIS campaign, the registered descriptor, exactly the ten bridge cells' current
+        metrics bytes, the bundle's reference / admission hashes and verdicts that follow from the differences."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+        _seal_bridge(world, monkeypatch)
+        if what == "absent":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+        elif what == "sidecar":
+            open(ev.BRIDGE_RESULT, "ab").write(b" ")
+        else:
+            _reseal_bridge(BRIDGE_RESULT_MUTATIONS[what])
+>       with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+E       Failed: DID NOT RAISE any of (EvalError, GateError)
+
+src/tests/test_exp45_eval.py:730: Failed
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+_ test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[a stale cell binding] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal4'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e36904310>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal4')
+what = 'a stale cell binding'
+
+    @pytest.mark.parametrize("what", ["absent", "sidecar"] + sorted(BRIDGE_RESULT_MUTATIONS))
+    def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells(world, monkeypatch, tmp_path, what):
+        """Codex code r1 finding 4: forty admissible cells are not enough -- the collector publishes only with the sealed
+        rf_data_curve_bridge.json bound to THIS campaign, the registered descriptor, exactly the ten bridge cells' current
+        metrics bytes, the bundle's reference / admission hashes and verdicts that follow from the differences."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+        _seal_bridge(world, monkeypatch)
+        if what == "absent":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+        elif what == "sidecar":
+            open(ev.BRIDGE_RESULT, "ab").write(b" ")
+        else:
+            _reseal_bridge(BRIDGE_RESULT_MUTATIONS[what])
+>       with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+E       Failed: DID NOT RAISE any of (EvalError, GateError)
+
+src/tests/test_exp45_eval.py:730: Failed
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+_ test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[an equal overall verdict over a discrepancy] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal5'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e397d0940>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal5')
+what = 'an equal overall verdict over a discrepancy'
+
+    @pytest.mark.parametrize("what", ["absent", "sidecar"] + sorted(BRIDGE_RESULT_MUTATIONS))
+    def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells(world, monkeypatch, tmp_path, what):
+        """Codex code r1 finding 4: forty admissible cells are not enough -- the collector publishes only with the sealed
+        rf_data_curve_bridge.json bound to THIS campaign, the registered descriptor, exactly the ten bridge cells' current
+        metrics bytes, the bundle's reference / admission hashes and verdicts that follow from the differences."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+        _seal_bridge(world, monkeypatch)
+        if what == "absent":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+        elif what == "sidecar":
+            open(ev.BRIDGE_RESULT, "ab").write(b" ")
+        else:
+            _reseal_bridge(BRIDGE_RESULT_MUTATIONS[what])
+>       with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+E       Failed: DID NOT RAISE any of (EvalError, GateError)
+
+src/tests/test_exp45_eval.py:730: Failed
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+_ test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[an equal verdict over a difference] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal6'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e369069e0>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal6')
+what = 'an equal verdict over a difference'
+
+    @pytest.mark.parametrize("what", ["absent", "sidecar"] + sorted(BRIDGE_RESULT_MUTATIONS))
+    def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells(world, monkeypatch, tmp_path, what):
+        """Codex code r1 finding 4: forty admissible cells are not enough -- the collector publishes only with the sealed
+        rf_data_curve_bridge.json bound to THIS campaign, the registered descriptor, exactly the ten bridge cells' current
+        metrics bytes, the bundle's reference / admission hashes and verdicts that follow from the differences."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+        _seal_bridge(world, monkeypatch)
+        if what == "absent":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+        elif what == "sidecar":
+            open(ev.BRIDGE_RESULT, "ab").write(b" ")
+        else:
+            _reseal_bridge(BRIDGE_RESULT_MUTATIONS[what])
+>       with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+E       Failed: DID NOT RAISE any of (EvalError, GateError)
+
+src/tests/test_exp45_eval.py:730: Failed
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+_ test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[an unbundled admission record] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal7'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e397d0f70>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal7')
+what = 'an unbundled admission record'
+
+    @pytest.mark.parametrize("what", ["absent", "sidecar"] + sorted(BRIDGE_RESULT_MUTATIONS))
+    def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells(world, monkeypatch, tmp_path, what):
+        """Codex code r1 finding 4: forty admissible cells are not enough -- the collector publishes only with the sealed
+        rf_data_curve_bridge.json bound to THIS campaign, the registered descriptor, exactly the ten bridge cells' current
+        metrics bytes, the bundle's reference / admission hashes and verdicts that follow from the differences."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+        _seal_bridge(world, monkeypatch)
+        if what == "absent":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+        elif what == "sidecar":
+            open(ev.BRIDGE_RESULT, "ab").write(b" ")
+        else:
+            _reseal_bridge(BRIDGE_RESULT_MUTATIONS[what])
+>       with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+E       Failed: DID NOT RAISE any of (EvalError, GateError)
+
+src/tests/test_exp45_eval.py:730: Failed
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+_ test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[an unbundled reference] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal8'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e36904eb0>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal8')
+what = 'an unbundled reference'
+
+    @pytest.mark.parametrize("what", ["absent", "sidecar"] + sorted(BRIDGE_RESULT_MUTATIONS))
+    def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells(world, monkeypatch, tmp_path, what):
+        """Codex code r1 finding 4: forty admissible cells are not enough -- the collector publishes only with the sealed
+        rf_data_curve_bridge.json bound to THIS campaign, the registered descriptor, exactly the ten bridge cells' current
+        metrics bytes, the bundle's reference / admission hashes and verdicts that follow from the differences."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+        _seal_bridge(world, monkeypatch)
+        if what == "absent":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+        elif what == "sidecar":
+            open(ev.BRIDGE_RESULT, "ab").write(b" ")
+        else:
+            _reseal_bridge(BRIDGE_RESULT_MUTATIONS[what])
+>       with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+E       Failed: DID NOT RAISE any of (EvalError, GateError)
+
+src/tests/test_exp45_eval.py:730: Failed
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+_ test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[another admitted checkpoint] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal9'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e397d2ef0>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal9')
+what = 'another admitted checkpoint'
+
+    @pytest.mark.parametrize("what", ["absent", "sidecar"] + sorted(BRIDGE_RESULT_MUTATIONS))
+    def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells(world, monkeypatch, tmp_path, what):
+        """Codex code r1 finding 4: forty admissible cells are not enough -- the collector publishes only with the sealed
+        rf_data_curve_bridge.json bound to THIS campaign, the registered descriptor, exactly the ten bridge cells' current
+        metrics bytes, the bundle's reference / admission hashes and verdicts that follow from the differences."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+        _seal_bridge(world, monkeypatch)
+        if what == "absent":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+        elif what == "sidecar":
+            open(ev.BRIDGE_RESULT, "ab").write(b" ")
+        else:
+            _reseal_bridge(BRIDGE_RESULT_MUTATIONS[what])
+>       with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+E       Failed: DID NOT RAISE any of (EvalError, GateError)
+
+src/tests/test_exp45_eval.py:730: Failed
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+_ test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[another campaign] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal10'), 'campaign': {'head': 'ffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e36904700>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal10')
+what = 'another campaign'
+
+    @pytest.mark.parametrize("what", ["absent", "sidecar"] + sorted(BRIDGE_RESULT_MUTATIONS))
+    def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells(world, monkeypatch, tmp_path, what):
+        """Codex code r1 finding 4: forty admissible cells are not enough -- the collector publishes only with the sealed
+        rf_data_curve_bridge.json bound to THIS campaign, the registered descriptor, exactly the ten bridge cells' current
+        metrics bytes, the bundle's reference / admission hashes and verdicts that follow from the differences."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+        _seal_bridge(world, monkeypatch)
+        if what == "absent":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+        elif what == "sidecar":
+            open(ev.BRIDGE_RESULT, "ab").write(b" ")
+        else:
+            _reseal_bridge(BRIDGE_RESULT_MUTATIONS[what])
+>       with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+E       Failed: DID NOT RAISE any of (EvalError, GateError)
+
+src/tests/test_exp45_eval.py:730: Failed
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+_ test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[another descriptor] _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal11'), 'campaign': {'head': 'ffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e397d0460>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_requires_the_seal11')
+what = 'another descriptor'
+
+    @pytest.mark.parametrize("what", ["absent", "sidecar"] + sorted(BRIDGE_RESULT_MUTATIONS))
+    def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells(world, monkeypatch, tmp_path, what):
+        """Codex code r1 finding 4: forty admissible cells are not enough -- the collector publishes only with the sealed
+        rf_data_curve_bridge.json bound to THIS campaign, the registered descriptor, exactly the ten bridge cells' current
+        metrics bytes, the bundle's reference / admission hashes and verdicts that follow from the differences."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+        _seal_bridge(world, monkeypatch)
+        if what == "absent":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+        elif what == "sidecar":
+            open(ev.BRIDGE_RESULT, "ab").write(b" ")
+        else:
+            _reseal_bridge(BRIDGE_RESULT_MUTATIONS[what])
+>       with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+E       Failed: DID NOT RAISE any of (EvalError, GateError)
+
+src/tests/test_exp45_eval.py:730: Failed
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+_ test_an_evaluator_discrepancy_is_published_as_a_discrepancy_never_as_equality _
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_evaluator_discrepancy_0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e36905840>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_evaluator_discrepancy_0')
+
+    def test_an_evaluator_discrepancy_is_published_as_a_discrepancy_never_as_equality(world, monkeypatch, tmp_path):
+        """Codex code r1 finding 4: a recorded evaluator discrepancy reaches the results JSON and Markdown as one."""
+        _cmd_run_world(world, monkeypatch, tmp_path)
+    
+        def bump(c, m, s):
+            if c["name"] == "exp45_RF100bridge_K8_s43":
+                m["metrics"]["C50"] += 0.25
+        _seal_bridge(world, monkeypatch, bump)
+        rows, pending, manifest = col.collect()
+>       br = manifest["bridge"]
+E       KeyError: 'bridge'
+
+src/tests/test_exp45_eval.py:743: KeyError
+----------------------------- Captured stdout call -----------------------------
+exp45_RFf025_l40_2x32_K8_s42: done
+exp45_RFf025_l40_2x32_K8_s43: done
+exp45_RFf025_l40_2x32_K8_s44: done
+exp45_RFf025_l40_2x32_K8_s45: done
+exp45_RFf025_l40_2x32_K8_s46: done
+exp45_RFf025_l40_2x32_K1_s42: done
+exp45_RFf025_l40_2x32_K1_s43: done
+exp45_RFf025_l40_2x32_K1_s44: done
+exp45_RFf025_l40_2x32_K1_s45: done
+exp45_RFf025_l40_2x32_K1_s46: done
+exp45_RFf050_l40_2x32_K8_s42: done
+exp45_RFf050_l40_2x32_K8_s43: done
+exp45_RFf050_l40_2x32_K8_s44: done
+exp45_RFf050_l40_2x32_K8_s45: done
+exp45_RFf050_l40_2x32_K8_s46: done
+exp45_RFf050_l40_2x32_K1_s42: done
+exp45_RFf050_l40_2x32_K1_s43: done
+exp45_RFf050_l40_2x32_K1_s44: done
+exp45_RFf050_l40_2x32_K1_s45: done
+exp45_RFf050_l40_2x32_K1_s46: done
+exp45_RFf075_l40_2x32_K8_s42: done
+exp45_RFf075_l40_2x32_K8_s43: done
+exp45_RFf075_l40_2x32_K8_s44: done
+exp45_RFf075_l40_2x32_K8_s45: done
+exp45_RFf075_l40_2x32_K8_s46: done
+exp45_RFf075_l40_2x32_K1_s42: done
+exp45_RFf075_l40_2x32_K1_s43: done
+exp45_RFf075_l40_2x32_K1_s44: done
+exp45_RFf075_l40_2x32_K1_s45: done
+exp45_RFf075_l40_2x32_K1_s46: done
+exp45_RF100bridge_K8_s42: done
+exp45_RF100bridge_K8_s43: done
+exp45_RF100bridge_K8_s44: done
+exp45_RF100bridge_K8_s45: done
+exp45_RF100bridge_K8_s46: done
+exp45_RF100bridge_K1_s42: done
+exp45_RF100bridge_K1_s43: done
+exp45_RF100bridge_K1_s44: done
+exp45_RF100bridge_K1_s45: done
+exp45_RF100bridge_K1_s46: done
+___ test_the_disclosures_have_one_source_and_appear_under_every_exp45_table ____
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '36ed23c5daddb7d8856c6e130a03baa45d550a71', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_results.json')
+
+    def test_the_disclosures_have_one_source_and_appear_under_every_exp45_table(built):
+        """Codex code r1 finding 15: the plan r3 §8 disclosures live in ONE place (exp45_registry.DISCLOSURES) and print
+        under every exp_45 table -- this comparison table, the collector's results Markdown (all but item 7: it has no
+        OrbitRIR row) and the shared generator's exp_45 block (test_gen_model_comparison_exp45.py) -- so they cannot drift."""
+        reg = tbl.reg
+>       assert len(reg.DISCLOSURES) == 11 and tbl.DISCLOSURES == reg.disclosures("table") == reg.DISCLOSURES
+E       AttributeError: module 'exp45_registry' has no attribute 'DISCLOSURES'
+
+src/tests/test_exp45_table.py:305: AttributeError
+__________ test_published_exp45_rows_carry_the_registered_disclosures __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_published_exp45_rows_carr0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e39786290>
+
+    def test_published_exp45_rows_carry_the_registered_disclosures(tmp_path, monkeypatch):
+        """Codex code r1 finding 15: under the shared table, published exp_45 rows carry the plan r3 §8 disclosures,
+        loaded from the exp_45 kit at the generator root (exp45_registry.disclosures("generator") -- the one source the
+        exp_45 tables print); none while every exp_45 row is pending or withheld; fail closed when they cannot be loaded."""
+        root, ev = _tmp_root(tmp_path, monkeypatch)
+        label = gen.EXP45_LABELS["025"]
+        rendered = [{"label": label, "K": k, "line": "| ok |", "contract": "exp45"} for k in (8, 1)]
+>       lines, probs = gen.exp45_disclosure_lines(rendered, set(), str(root))
+E       AttributeError: module 'gen_model_comparison_exp45_test' has no attribute 'exp45_disclosure_lines'
+
+src/tests/test_gen_model_comparison_exp45.py:143: AttributeError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_supervise.py::test_three_concurrent_first_smokes_create_exactly_one_environment_receipt
+FAILED src/tests/test_exp45_eval.py::test_collect_admits_all_30_run_and_10_bridge_cells_produced_by_cmd_run
+FAILED src/tests/test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[absent]
+FAILED src/tests/test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[sidecar]
+FAILED src/tests/test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[a changed descriptor]
+FAILED src/tests/test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[a missing cell]
+FAILED src/tests/test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[a stale cell binding]
+FAILED src/tests/test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[an equal overall verdict over a discrepancy]
+FAILED src/tests/test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[an equal verdict over a difference]
+FAILED src/tests/test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[an unbundled admission record]
+FAILED src/tests/test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[an unbundled reference]
+FAILED src/tests/test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[another admitted checkpoint]
+FAILED src/tests/test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[another campaign]
+FAILED src/tests/test_exp45_eval.py::test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells[another descriptor]
+FAILED src/tests/test_exp45_eval.py::test_an_evaluator_discrepancy_is_published_as_a_discrepancy_never_as_equality
+FAILED src/tests/test_exp45_table.py::test_the_disclosures_have_one_source_and_appear_under_every_exp45_table
+FAILED src/tests/test_gen_model_comparison_exp45.py::test_published_exp45_rows_carry_the_registered_disclosures
+17 failed, 4 passed in 212.44s (0:03:32)
+EXIT 1 end 2026-11-15T00:14:26-05:00
