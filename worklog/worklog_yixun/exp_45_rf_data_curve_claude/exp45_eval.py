@@ -1247,6 +1247,61 @@ def cmd_bridge(bundle):
     return rec
 
 
+def validate_bridge_result(campaign, path=None):
+    """The sealed rf_data_curve_bridge.json as its consumer (the collector) admits it (Codex code r1 finding 4):
+    sealed with exactly BRIDGE_KEYS; the registered descriptor and its sha; THIS campaign; exactly the ten bridge cells,
+    each bound to its exp_43 reference cell, to its CURRENT metrics bytes and to the bundle's reference hash; the
+    admission binding = the bundle's admission record and the descriptor's checkpoint; every verdict following from
+    its differences ("equal" iff none) and the overall verdict from the cells'. Returns (record, sha256); raises
+    EvalError / GateError -- integrity, never a silent equality."""
+    path = path or _abs(BRIDGE_RESULT)
+    rec, digest = reg.read_sealed(path, BRIDGE_KEYS)
+    name = os.path.basename(path)
+    p = []
+    if rec["schema"] != 1 or rec["descriptor_sha256"] != BRIDGE_DESCRIPTOR_SHA256 or \
+            reg.canonical(rec["descriptor"]) != reg.canonical(RF100_BRIDGE):
+        p.append("not the registered RF100_BRIDGE descriptor")
+    if not isinstance(rec["campaign"], dict) or \
+            rec["campaign"] != {k: campaign[k] for k in ("head", "closure_sha256", "sha256")}:
+        p.append(f"sealed under another campaign {str(rec['campaign'])[:80]}")
+    files = rec["bundle_files"] if isinstance(rec["bundle_files"], dict) else {}
+    adm = rec["admission_record"]
+    want_adm = {"ckpt_path": RF100_BRIDGE["checkpoint"], "ckpt_sha256": RF100_BRIDGE["sha256"],
+                "bytes": RF100_BRIDGE["bytes"], "global_step": RF100_BRIDGE["global_step"],
+                "model_config": reg.ARMS["rf"]["config"], "model_config_sha256": RF100_BRIDGE["model_config_sha256"]}
+    if not (isinstance(adm, dict) and sorted(adm) == sorted(BRIDGE_ADMISSION_KEYS)
+            and all(strict_equal(adm[k], v) is None for k, v in want_adm.items())
+            and files.get(adm["path"]) == adm["sha256"]):
+        p.append("the admission binding is not the bundle's exp_43 admission of the descriptor's checkpoint")
+    cells = rec["cells"] if isinstance(rec["cells"], dict) else {}
+    want_files = {f"cells/{bridge_ref_stem(r)}{ext}" for r in RF100_BRIDGE["cells"].values() for ext in (".json", ".stream.json")}
+    if set(files) != want_files | ({adm["path"]} if isinstance(adm, dict) else set()):
+        p.append("its bundle file set is not the 20 reference files + the admission record")
+    if sorted(cells) != sorted(c["name"] for c in bridge_cells()):
+        p.append(f"cells {sorted(cells)[:3]}... != the ten bridge cells")
+    for c in bridge_cells():
+        v = cells.get(c["name"])
+        if not isinstance(v, dict):
+            continue
+        stem = bridge_ref_stem(RF100_BRIDGE["cells"][c["name"]])
+        try:
+            current = reg.sha256_file(_abs(c["metrics"]))
+        except OSError:
+            current = None
+        if v.get("reference_cell") != RF100_BRIDGE["cells"][c["name"]] or v.get("metrics_sha256") != current \
+                or v.get("reference_metrics_sha256") != files.get(f"cells/{stem}.json"):
+            p.append(f"{c['name']}: not bound to its current metrics / its bundled reference")
+        diffs = v.get("differences")
+        if not isinstance(diffs, dict) or v.get("verdict") != ("equal" if not diffs else "evaluator discrepancy"):
+            p.append(f"{c['name']}: verdict {v.get('verdict')!r} does not follow from its differences")
+    if rec["verdict"] != ("equal" if cells and all(v.get("verdict") == "equal" for v in cells.values())
+                          else "evaluator discrepancy"):
+        p.append(f"the overall verdict {rec['verdict']!r} does not follow from the cells'")
+    if p:
+        raise EvalError(f"bridge result {name}: " + "; ".join(p[:6]))
+    return rec, digest
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)

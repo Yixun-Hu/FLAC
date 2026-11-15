@@ -654,11 +654,18 @@ def _cmd_run_world(world, monkeypatch, tmp_path):
     return names
 
 
+def _seal_bridge(world, monkeypatch, mutate=None):
+    """The sealed rf_data_curve_bridge.json of the cmd_run world's ten bridge cells (exp_43's references = ours)."""
+    monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "rf_data_curve_bridge.json"))
+    return ev.cmd_bridge(str(_bundle(world, mutate, make=False)))
+
+
 def test_collect_admits_all_30_run_and_10_bridge_cells_produced_by_cmd_run(world, monkeypatch, tmp_path):
     """plan r3 §3.2 (Codex plan r2 finding 3): the 40 cells come from cmd_run(); collect() admits every one OFFLINE
-    and lists {path: sha256} of every file that admission consumed."""
+    and lists {path: sha256} of every file that admission consumed -- the sealed bridge comparison included."""
     names = _cmd_run_world(world, monkeypatch, tmp_path)
     assert len(names) == 40
+    _seal_bridge(world, monkeypatch)
     rows, pending, manifest = col.collect()
     assert pending == [] and sorted(rows) == sorted((m, f, K) for m, f in [("rf", t) for t in ("025", "050", "075")]
                                                     + [("rf_bridge", "100")] for K in (8, 1))
@@ -673,16 +680,82 @@ def test_collect_admits_all_30_run_and_10_bridge_cells_produced_by_cmd_run(world
         for f in ("CHECKPOINTS.sha256", ev.reg.TRAINING_RECEIPT, "receipts/loss_record.csv", "evidence/run_evidence.json.rank1.json"):
             assert os.path.join(farm, f) in arts, f
         assert not [k for k in arts if k.startswith("/media") or k.endswith(".ckpt") or k.endswith(".npy")]
-    assert len(manifest["runs"][ev.BRIDGE_RUN]) == 40                     # 10 cells x (metrics, stream, receipt, dump copy)
+    assert len(manifest["runs"][ev.BRIDGE_RUN]) == 42                     # 10 cells x 4 + the bridge result + sidecar
+    assert manifest["bridge"]["verdict"] == "equal" and manifest["bridge"]["discrepancies"] == {}
+    assert manifest["bridge"]["sha256"] == ev.reg.sha256_file(ev.BRIDGE_RESULT)
     assert len(manifest["artifacts"]) == 3 + 24
     (tmp_path / col.reg.EXP_DIR).mkdir(parents=True, exist_ok=True)
     sha = col.publish(rows, pending, manifest, repo=str(tmp_path))
     assert json.load(open(tmp_path / col.OUT_JSON))["manifest"] == json.loads(json.dumps(manifest)) and len(sha) == 64
 
 
+def _reseal_bridge(fn):
+    rec = json.load(open(ev.BRIDGE_RESULT))
+    fn(rec)
+    for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+        os.remove(p)
+    ev.reg.write_sealed(ev.BRIDGE_RESULT, rec)
+
+
+BRIDGE_RESULT_MUTATIONS = {
+    "another campaign": lambda r: r["campaign"].update(head="e" * 40),
+    "another descriptor": lambda r: r.update(descriptor_sha256="0" * 64),
+    "a changed descriptor": lambda r: r["descriptor"].update(bytes=1),
+    "a stale cell binding": lambda r: r["cells"]["exp45_RF100bridge_K1_s45"].update(metrics_sha256="0" * 64),
+    "a missing cell": lambda r: r["cells"].pop("exp45_RF100bridge_K8_s46"),
+    "an equal verdict over a difference": lambda r: r["cells"]["exp45_RF100bridge_K8_s42"].update(
+        differences={"metrics.T60": {"ours": 1.0, "reference": 1.1}}),
+    "an equal overall verdict over a discrepancy": lambda r: r["cells"]["exp45_RF100bridge_K8_s42"].update(
+        verdict="evaluator discrepancy", differences={"metrics.T60": {"ours": 1.0, "reference": 1.1}}),
+    "another admitted checkpoint": lambda r: r["admission_record"].update(ckpt_sha256="0" * 64),
+    "an unbundled admission record": lambda r: r["admission_record"].update(sha256="0" * 64),
+    "an unbundled reference": lambda r: r["cells"]["exp45_RF100bridge_K1_s42"].update(reference_metrics_sha256="0" * 64),
+}
+
+
+@pytest.mark.parametrize("what", ["absent", "sidecar"] + sorted(BRIDGE_RESULT_MUTATIONS))
+def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells(world, monkeypatch, tmp_path, what):
+    """Codex code r1 finding 4: forty admissible cells are not enough -- the collector publishes only with the sealed
+    rf_data_curve_bridge.json bound to THIS campaign, the registered descriptor, exactly the ten bridge cells' current
+    metrics bytes, the bundle's reference / admission hashes and verdicts that follow from the differences."""
+    _cmd_run_world(world, monkeypatch, tmp_path)
+    _seal_bridge(world, monkeypatch)
+    if what == "absent":
+        for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+            os.remove(p)
+    elif what == "sidecar":
+        open(ev.BRIDGE_RESULT, "ab").write(b" ")
+    else:
+        _reseal_bridge(BRIDGE_RESULT_MUTATIONS[what])
+    with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+        col.collect()
+
+
+def test_an_evaluator_discrepancy_is_published_as_a_discrepancy_never_as_equality(world, monkeypatch, tmp_path):
+    """Codex code r1 finding 4: a recorded evaluator discrepancy reaches the results JSON and Markdown as one."""
+    _cmd_run_world(world, monkeypatch, tmp_path)
+
+    def bump(c, m, s):
+        if c["name"] == "exp45_RF100bridge_K8_s43":
+            m["metrics"]["C50"] += 0.25
+    _seal_bridge(world, monkeypatch, bump)
+    rows, pending, manifest = col.collect()
+    br = manifest["bridge"]
+    assert br["verdict"] == "evaluator discrepancy" and sorted(br["discrepancies"]) == ["exp45_RF100bridge_K8_s43"]
+    assert sorted(br["discrepancies"]["exp45_RF100bridge_K8_s43"]) == ["metrics.C50"]
+    assert all("evaluator discrepancy" in rows[("rf_bridge", "100", K)]["source"] for K in (8, 1))
+    (tmp_path / col.reg.EXP_DIR).mkdir(parents=True, exist_ok=True)
+    col.publish(rows, pending, manifest, repo=str(tmp_path))
+    md = (tmp_path / col.OUT_MD).read_text()
+    assert "evaluator discrepancy" in md and "exp45_RF100bridge_K8_s43" in md and "metrics.C50" in md
+    assert "equal on all ten" not in md
+    assert json.load(open(tmp_path / col.OUT_JSON))["manifest"]["bridge"]["verdict"] == "evaluator discrepancy"
+
+
 @pytest.mark.parametrize("what", ["missing run cell", "missing bridge cell", "unadmitted bridge cell", "e0 cell"])
 def test_collect_refuses_any_missing_or_unadmitted_cell(world, monkeypatch, tmp_path, what):
     _cmd_run_world(world, monkeypatch, tmp_path)
+    _seal_bridge(world, monkeypatch)
     if what == "missing run cell":
         os.remove(ev.run_cells(ev.reg.campaign_runs()[1])[7]["stream"])
     elif what == "missing bridge cell":
@@ -1121,14 +1194,15 @@ def test_prepare_bridge_verifies_sha_bytes_and_the_embedded_config(world, monkey
     assert not os.path.lexists(link)
 
 
-def _bundle(world, mutate=None, admission=None, stream_fn=None):
+def _bundle(world, mutate=None, admission=None, stream_fn=None, make=True):
     """Our ten admitted bridge cells + exp_43's reference bundle (references = our values with exp_43's metadata;
     the admission record = exp_43's exact admission of the RF100_BRIDGE checkpoint unless ``admission`` is given)."""
     b = world["tmp"] / "bundle"
     (b / "cells").mkdir(parents=True)
     (b / "admission").mkdir()
     for c in ev.bridge_cells():
-        cell = _bridge_cell(world, c["K"], c["seed"], stream_fn=(lambda s, c=c: stream_fn(c, s)) if stream_fn else None)
+        cell = _bridge_cell(world, c["K"], c["seed"], stream_fn=(lambda s, c=c: stream_fn(c, s)) if stream_fn else None) \
+            if make else c
         stem = ev.bridge_ref_stem(ev.RF100_BRIDGE["cells"][c["name"]])
         m, s = json.load(open(cell["metrics"])), fx.stream_sidecar(c["K"], c["seed"])      # exp_43's own (pristine) stream
         m.update(eval_name=ev.RF100_BRIDGE["cells"][c["name"]], ckpt_path="/home/yixunhu/x/farm/RF/epoch=8-step=40000.ckpt",
