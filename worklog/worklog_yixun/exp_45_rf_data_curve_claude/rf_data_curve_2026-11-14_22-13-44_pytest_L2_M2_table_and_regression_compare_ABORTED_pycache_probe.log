@@ -1,0 +1,340 @@
+HEAD e8eadda48bdfd3030ebfba74119cc3d9e0793ead tracked-clean=no host neu316.neuronic.cs.princeton.edu start 2026-11-14T22:14:41-05:00
+cmd: pytest -q src/tests/test_exp45_table.py src/tests/test_exp45_regression_compare.py 
+F...FEEEE.........                                                       [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_build_renders_all_eighteen_cells_and_the_disclosures __
+
+imp = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '908c697c6f236be324949ab08f92c6862f05160e', 'cbf8c68ced5e313df6e3c49e0c4b171392b4fdb5')
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_build_renders_all_eightee0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa3a4bf7a30>
+
+    @pytest.fixture
+    def built(imp, tmp_path, monkeypatch):
+        """A sealed import record + a fake exp_45 side (offline admission patched, a published collector JSON)."""
+        repo, root, sha = imp
+>       tbl.import_exp38(sha, repo=repo)
+
+src/tests/test_exp45_table.py:191: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+commit = 'cbf8c68ced5e313df6e3c49e0c4b171392b4fdb5', generator_root = None
+repo = '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', python = None
+
+    def import_exp38(commit, generator_root=None, repo=None, python=None):
+        """Admit the exp_38 results bundle of ``commit`` offline (isolated adapter) and seal the import record."""
+        repo = repo or reg.REPO
+        out_path = os.path.join(repo, IMPORT_RECORD)
+        if os.path.exists(out_path):
+            raise TableError(f"{IMPORT_RECORD} exists (an import is sealed once; archive it first)")
+        tmp = tempfile.mkdtemp(prefix="exp45_exp38_import_")
+        try:
+            sha = extract_bundle(commit, tmp, repo)
+            try:
+                files = exp38_import_files(tmp)
+            except (OSError, ValueError, KeyError) as err:
+                raise TableError(f"bundle incomplete: {err}")
+            missing = [f for f in files if not os.path.isfile(os.path.join(tmp, f))]
+            if missing:
+                raise TableError(f"bundle misses {len(missing)} file(s) of EXP38_IMPORT_FILES, e.g. {missing[:3]}")
+            hashes = {f: reg.sha256_file(os.path.join(tmp, f)) for f in files}
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "GIT_"))}
+            env.update(PYTHONNOUSERSITE="1", HF_HUB_OFFLINE="1")
+            res = subprocess.run([python or sys.executable, "-I", "-B", "-c", ADAPTER, tmp, reg.EXP38_DIR,
+                                  json.dumps(list(EXP38_RUNS))], cwd=tmp, env=env, capture_output=True, text=True,
+                                 timeout=3600)
+            line = [ln for ln in res.stdout.split("\n") if ln.startswith("EXP45_ADAPTER ")]
+            if res.returncode or len(line) != 1:
+                raise TableError(f"exp_38's offline admission refused (rc {res.returncode}): {res.stderr.strip()[-600:]}")
+            got = json.loads(line[0][len("EXP45_ADAPTER "):])
+            bad = {n: v["problems"] for n, v in got["cells"].items() if v["problems"]}
+            if bad or sorted(got["cells"]) != sorted(exp38_cell_stems()):
+                raise TableError(f"exp_38 cells not admitted offline: {dict(list(bad.items())[:3])}")
+            nas = [p for p in got["opened"] if p.startswith("NAS:")]
+            code = {p for p in got["opened"] if p.startswith(reg.EXP38_DIR + "/") and p.endswith(".py")}
+            stray = sorted(p for p in got["opened"] if not p.endswith("/") and p not in code and p not in hashes)
+            if nas or stray:
+>               raise TableError(f"the adapter opened files outside EXP38_IMPORT_FILES: NAS {nas[:2]}, other {stray[:3]}")
+E               exp45_table.TableError: the adapter opened files outside EXP38_IMPORT_FILES: NAS [], other ['worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__/exp38_eval.cpython-310.pyc', 'worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__/exp38_registry.cpython-310.pyc']
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_table.py:268: TableError
+_ ERROR at setup of test_build_refuses_a_wrong_commit_a_resealed_record_or_a_changed_value _
+
+imp = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '908c697c6f236be324949ab08f92c6862f05160e', 'cbf8c68ced5e313df6e3c49e0c4b171392b4fdb5')
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_build_refuses_a_wrong_com0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa3a4a40310>
+
+    @pytest.fixture
+    def built(imp, tmp_path, monkeypatch):
+        """A sealed import record + a fake exp_45 side (offline admission patched, a published collector JSON)."""
+        repo, root, sha = imp
+>       tbl.import_exp38(sha, repo=repo)
+
+src/tests/test_exp45_table.py:191: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+commit = 'cbf8c68ced5e313df6e3c49e0c4b171392b4fdb5', generator_root = None
+repo = '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', python = None
+
+    def import_exp38(commit, generator_root=None, repo=None, python=None):
+        """Admit the exp_38 results bundle of ``commit`` offline (isolated adapter) and seal the import record."""
+        repo = repo or reg.REPO
+        out_path = os.path.join(repo, IMPORT_RECORD)
+        if os.path.exists(out_path):
+            raise TableError(f"{IMPORT_RECORD} exists (an import is sealed once; archive it first)")
+        tmp = tempfile.mkdtemp(prefix="exp45_exp38_import_")
+        try:
+            sha = extract_bundle(commit, tmp, repo)
+            try:
+                files = exp38_import_files(tmp)
+            except (OSError, ValueError, KeyError) as err:
+                raise TableError(f"bundle incomplete: {err}")
+            missing = [f for f in files if not os.path.isfile(os.path.join(tmp, f))]
+            if missing:
+                raise TableError(f"bundle misses {len(missing)} file(s) of EXP38_IMPORT_FILES, e.g. {missing[:3]}")
+            hashes = {f: reg.sha256_file(os.path.join(tmp, f)) for f in files}
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "GIT_"))}
+            env.update(PYTHONNOUSERSITE="1", HF_HUB_OFFLINE="1")
+            res = subprocess.run([python or sys.executable, "-I", "-B", "-c", ADAPTER, tmp, reg.EXP38_DIR,
+                                  json.dumps(list(EXP38_RUNS))], cwd=tmp, env=env, capture_output=True, text=True,
+                                 timeout=3600)
+            line = [ln for ln in res.stdout.split("\n") if ln.startswith("EXP45_ADAPTER ")]
+            if res.returncode or len(line) != 1:
+                raise TableError(f"exp_38's offline admission refused (rc {res.returncode}): {res.stderr.strip()[-600:]}")
+            got = json.loads(line[0][len("EXP45_ADAPTER "):])
+            bad = {n: v["problems"] for n, v in got["cells"].items() if v["problems"]}
+            if bad or sorted(got["cells"]) != sorted(exp38_cell_stems()):
+                raise TableError(f"exp_38 cells not admitted offline: {dict(list(bad.items())[:3])}")
+            nas = [p for p in got["opened"] if p.startswith("NAS:")]
+            code = {p for p in got["opened"] if p.startswith(reg.EXP38_DIR + "/") and p.endswith(".py")}
+            stray = sorted(p for p in got["opened"] if not p.endswith("/") and p not in code and p not in hashes)
+            if nas or stray:
+>               raise TableError(f"the adapter opened files outside EXP38_IMPORT_FILES: NAS {nas[:2]}, other {stray[:3]}")
+E               exp45_table.TableError: the adapter opened files outside EXP38_IMPORT_FILES: NAS [], other ['worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__/exp38_eval.cpython-310.pyc', 'worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__/exp38_registry.cpython-310.pyc']
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_table.py:268: TableError
+_____________ ERROR at setup of test_build_refuses_a_missing_cell ______________
+
+imp = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '908c697c6f236be324949ab08f92c6862f05160e', 'cbf8c68ced5e313df6e3c49e0c4b171392b4fdb5')
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_build_refuses_a_missing_c0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa3a4a765f0>
+
+    @pytest.fixture
+    def built(imp, tmp_path, monkeypatch):
+        """A sealed import record + a fake exp_45 side (offline admission patched, a published collector JSON)."""
+        repo, root, sha = imp
+>       tbl.import_exp38(sha, repo=repo)
+
+src/tests/test_exp45_table.py:191: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+commit = 'cbf8c68ced5e313df6e3c49e0c4b171392b4fdb5', generator_root = None
+repo = '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', python = None
+
+    def import_exp38(commit, generator_root=None, repo=None, python=None):
+        """Admit the exp_38 results bundle of ``commit`` offline (isolated adapter) and seal the import record."""
+        repo = repo or reg.REPO
+        out_path = os.path.join(repo, IMPORT_RECORD)
+        if os.path.exists(out_path):
+            raise TableError(f"{IMPORT_RECORD} exists (an import is sealed once; archive it first)")
+        tmp = tempfile.mkdtemp(prefix="exp45_exp38_import_")
+        try:
+            sha = extract_bundle(commit, tmp, repo)
+            try:
+                files = exp38_import_files(tmp)
+            except (OSError, ValueError, KeyError) as err:
+                raise TableError(f"bundle incomplete: {err}")
+            missing = [f for f in files if not os.path.isfile(os.path.join(tmp, f))]
+            if missing:
+                raise TableError(f"bundle misses {len(missing)} file(s) of EXP38_IMPORT_FILES, e.g. {missing[:3]}")
+            hashes = {f: reg.sha256_file(os.path.join(tmp, f)) for f in files}
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "GIT_"))}
+            env.update(PYTHONNOUSERSITE="1", HF_HUB_OFFLINE="1")
+            res = subprocess.run([python or sys.executable, "-I", "-B", "-c", ADAPTER, tmp, reg.EXP38_DIR,
+                                  json.dumps(list(EXP38_RUNS))], cwd=tmp, env=env, capture_output=True, text=True,
+                                 timeout=3600)
+            line = [ln for ln in res.stdout.split("\n") if ln.startswith("EXP45_ADAPTER ")]
+            if res.returncode or len(line) != 1:
+                raise TableError(f"exp_38's offline admission refused (rc {res.returncode}): {res.stderr.strip()[-600:]}")
+            got = json.loads(line[0][len("EXP45_ADAPTER "):])
+            bad = {n: v["problems"] for n, v in got["cells"].items() if v["problems"]}
+            if bad or sorted(got["cells"]) != sorted(exp38_cell_stems()):
+                raise TableError(f"exp_38 cells not admitted offline: {dict(list(bad.items())[:3])}")
+            nas = [p for p in got["opened"] if p.startswith("NAS:")]
+            code = {p for p in got["opened"] if p.startswith(reg.EXP38_DIR + "/") and p.endswith(".py")}
+            stray = sorted(p for p in got["opened"] if not p.endswith("/") and p not in code and p not in hashes)
+            if nas or stray:
+>               raise TableError(f"the adapter opened files outside EXP38_IMPORT_FILES: NAS {nas[:2]}, other {stray[:3]}")
+E               exp45_table.TableError: the adapter opened files outside EXP38_IMPORT_FILES: NAS [], other ['worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__/exp38_eval.cpython-310.pyc', 'worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__/exp38_registry.cpython-310.pyc']
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_table.py:268: TableError
+________ ERROR at setup of test_build_never_reads_the_preliminary_files ________
+
+imp = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '908c697c6f236be324949ab08f92c6862f05160e', 'cbf8c68ced5e313df6e3c49e0c4b171392b4fdb5')
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_build_never_reads_the_pre0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa3a4a4bb80>
+
+    @pytest.fixture
+    def built(imp, tmp_path, monkeypatch):
+        """A sealed import record + a fake exp_45 side (offline admission patched, a published collector JSON)."""
+        repo, root, sha = imp
+>       tbl.import_exp38(sha, repo=repo)
+
+src/tests/test_exp45_table.py:191: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+commit = 'cbf8c68ced5e313df6e3c49e0c4b171392b4fdb5', generator_root = None
+repo = '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', python = None
+
+    def import_exp38(commit, generator_root=None, repo=None, python=None):
+        """Admit the exp_38 results bundle of ``commit`` offline (isolated adapter) and seal the import record."""
+        repo = repo or reg.REPO
+        out_path = os.path.join(repo, IMPORT_RECORD)
+        if os.path.exists(out_path):
+            raise TableError(f"{IMPORT_RECORD} exists (an import is sealed once; archive it first)")
+        tmp = tempfile.mkdtemp(prefix="exp45_exp38_import_")
+        try:
+            sha = extract_bundle(commit, tmp, repo)
+            try:
+                files = exp38_import_files(tmp)
+            except (OSError, ValueError, KeyError) as err:
+                raise TableError(f"bundle incomplete: {err}")
+            missing = [f for f in files if not os.path.isfile(os.path.join(tmp, f))]
+            if missing:
+                raise TableError(f"bundle misses {len(missing)} file(s) of EXP38_IMPORT_FILES, e.g. {missing[:3]}")
+            hashes = {f: reg.sha256_file(os.path.join(tmp, f)) for f in files}
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "GIT_"))}
+            env.update(PYTHONNOUSERSITE="1", HF_HUB_OFFLINE="1")
+            res = subprocess.run([python or sys.executable, "-I", "-B", "-c", ADAPTER, tmp, reg.EXP38_DIR,
+                                  json.dumps(list(EXP38_RUNS))], cwd=tmp, env=env, capture_output=True, text=True,
+                                 timeout=3600)
+            line = [ln for ln in res.stdout.split("\n") if ln.startswith("EXP45_ADAPTER ")]
+            if res.returncode or len(line) != 1:
+                raise TableError(f"exp_38's offline admission refused (rc {res.returncode}): {res.stderr.strip()[-600:]}")
+            got = json.loads(line[0][len("EXP45_ADAPTER "):])
+            bad = {n: v["problems"] for n, v in got["cells"].items() if v["problems"]}
+            if bad or sorted(got["cells"]) != sorted(exp38_cell_stems()):
+                raise TableError(f"exp_38 cells not admitted offline: {dict(list(bad.items())[:3])}")
+            nas = [p for p in got["opened"] if p.startswith("NAS:")]
+            code = {p for p in got["opened"] if p.startswith(reg.EXP38_DIR + "/") and p.endswith(".py")}
+            stray = sorted(p for p in got["opened"] if not p.endswith("/") and p not in code and p not in hashes)
+            if nas or stray:
+>               raise TableError(f"the adapter opened files outside EXP38_IMPORT_FILES: NAS {nas[:2]}, other {stray[:3]}")
+E               exp45_table.TableError: the adapter opened files outside EXP38_IMPORT_FILES: NAS [], other ['worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__/exp38_eval.cpython-310.pyc', 'worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__/exp38_registry.cpython-310.pyc']
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_table.py:268: TableError
+=================================== FAILURES ===================================
+____________ test_the_import_admits_the_bundle_offline_with_no_nas _____________
+
+imp = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '908c697c6f236be324949ab08f92c6862f05160e', 'cbf8c68ced5e313df6e3c49e0c4b171392b4fdb5')
+
+    def test_the_import_admits_the_bundle_offline_with_no_nas(imp):
+        repo, root, sha = imp
+>       out = tbl.import_exp38(sha, repo=repo)
+
+src/tests/test_exp45_table.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+commit = 'cbf8c68ced5e313df6e3c49e0c4b171392b4fdb5', generator_root = None
+repo = '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', python = None
+
+    def import_exp38(commit, generator_root=None, repo=None, python=None):
+        """Admit the exp_38 results bundle of ``commit`` offline (isolated adapter) and seal the import record."""
+        repo = repo or reg.REPO
+        out_path = os.path.join(repo, IMPORT_RECORD)
+        if os.path.exists(out_path):
+            raise TableError(f"{IMPORT_RECORD} exists (an import is sealed once; archive it first)")
+        tmp = tempfile.mkdtemp(prefix="exp45_exp38_import_")
+        try:
+            sha = extract_bundle(commit, tmp, repo)
+            try:
+                files = exp38_import_files(tmp)
+            except (OSError, ValueError, KeyError) as err:
+                raise TableError(f"bundle incomplete: {err}")
+            missing = [f for f in files if not os.path.isfile(os.path.join(tmp, f))]
+            if missing:
+                raise TableError(f"bundle misses {len(missing)} file(s) of EXP38_IMPORT_FILES, e.g. {missing[:3]}")
+            hashes = {f: reg.sha256_file(os.path.join(tmp, f)) for f in files}
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "GIT_"))}
+            env.update(PYTHONNOUSERSITE="1", HF_HUB_OFFLINE="1")
+            res = subprocess.run([python or sys.executable, "-I", "-B", "-c", ADAPTER, tmp, reg.EXP38_DIR,
+                                  json.dumps(list(EXP38_RUNS))], cwd=tmp, env=env, capture_output=True, text=True,
+                                 timeout=3600)
+            line = [ln for ln in res.stdout.split("\n") if ln.startswith("EXP45_ADAPTER ")]
+            if res.returncode or len(line) != 1:
+                raise TableError(f"exp_38's offline admission refused (rc {res.returncode}): {res.stderr.strip()[-600:]}")
+            got = json.loads(line[0][len("EXP45_ADAPTER "):])
+            bad = {n: v["problems"] for n, v in got["cells"].items() if v["problems"]}
+            if bad or sorted(got["cells"]) != sorted(exp38_cell_stems()):
+                raise TableError(f"exp_38 cells not admitted offline: {dict(list(bad.items())[:3])}")
+            nas = [p for p in got["opened"] if p.startswith("NAS:")]
+            code = {p for p in got["opened"] if p.startswith(reg.EXP38_DIR + "/") and p.endswith(".py")}
+            stray = sorted(p for p in got["opened"] if not p.endswith("/") and p not in code and p not in hashes)
+            if nas or stray:
+>               raise TableError(f"the adapter opened files outside EXP38_IMPORT_FILES: NAS {nas[:2]}, other {stray[:3]}")
+E               exp45_table.TableError: the adapter opened files outside EXP38_IMPORT_FILES: NAS [], other ['worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__/exp38_eval.cpython-310.pyc', 'worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__/exp38_registry.cpython-310.pyc']
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_table.py:268: TableError
+_____ test_materialisation_copies_the_verified_bytes_to_their_exact_paths ______
+
+imp = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '908c697c6f236be324949ab08f92c6862f05160e', 'cbf8c68ced5e313df6e3c49e0c4b171392b4fdb5')
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_materialisation_copies_th0')
+
+    def test_materialisation_copies_the_verified_bytes_to_their_exact_paths(imp, tmp_path):
+        repo, root, sha = imp
+        gen = tmp_path / "generator_root"
+        gen.mkdir()
+>       tbl.import_exp38(sha, generator_root=str(gen), repo=repo)
+
+src/tests/test_exp45_table.py:173: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+commit = 'cbf8c68ced5e313df6e3c49e0c4b171392b4fdb5'
+generator_root = '/tmp/pytest-of-yh4742/pytest-0/test_materialisation_copies_th0/generator_root'
+repo = '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', python = None
+
+    def import_exp38(commit, generator_root=None, repo=None, python=None):
+        """Admit the exp_38 results bundle of ``commit`` offline (isolated adapter) and seal the import record."""
+        repo = repo or reg.REPO
+        out_path = os.path.join(repo, IMPORT_RECORD)
+        if os.path.exists(out_path):
+            raise TableError(f"{IMPORT_RECORD} exists (an import is sealed once; archive it first)")
+        tmp = tempfile.mkdtemp(prefix="exp45_exp38_import_")
+        try:
+            sha = extract_bundle(commit, tmp, repo)
+            try:
+                files = exp38_import_files(tmp)
+            except (OSError, ValueError, KeyError) as err:
+                raise TableError(f"bundle incomplete: {err}")
+            missing = [f for f in files if not os.path.isfile(os.path.join(tmp, f))]
+            if missing:
+                raise TableError(f"bundle misses {len(missing)} file(s) of EXP38_IMPORT_FILES, e.g. {missing[:3]}")
+            hashes = {f: reg.sha256_file(os.path.join(tmp, f)) for f in files}
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "GIT_"))}
+            env.update(PYTHONNOUSERSITE="1", HF_HUB_OFFLINE="1")
+            res = subprocess.run([python or sys.executable, "-I", "-B", "-c", ADAPTER, tmp, reg.EXP38_DIR,
+                                  json.dumps(list(EXP38_RUNS))], cwd=tmp, env=env, capture_output=True, text=True,
+                                 timeout=3600)
+            line = [ln for ln in res.stdout.split("\n") if ln.startswith("EXP45_ADAPTER ")]
+            if res.returncode or len(line) != 1:
+                raise TableError(f"exp_38's offline admission refused (rc {res.returncode}): {res.stderr.strip()[-600:]}")
+            got = json.loads(line[0][len("EXP45_ADAPTER "):])
+            bad = {n: v["problems"] for n, v in got["cells"].items() if v["problems"]}
+            if bad or sorted(got["cells"]) != sorted(exp38_cell_stems()):
+                raise TableError(f"exp_38 cells not admitted offline: {dict(list(bad.items())[:3])}")
+            nas = [p for p in got["opened"] if p.startswith("NAS:")]
+            code = {p for p in got["opened"] if p.startswith(reg.EXP38_DIR + "/") and p.endswith(".py")}
+            stray = sorted(p for p in got["opened"] if not p.endswith("/") and p not in code and p not in hashes)
+            if nas or stray:
+>               raise TableError(f"the adapter opened files outside EXP38_IMPORT_FILES: NAS {nas[:2]}, other {stray[:3]}")
+E               exp45_table.TableError: the adapter opened files outside EXP38_IMPORT_FILES: NAS [], other ['worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__/exp38_eval.cpython-310.pyc', 'worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__/exp38_registry.cpython-310.pyc']
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_table.py:268: TableError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_table.py::test_the_import_admits_the_bundle_offline_with_no_nas
+FAILED src/tests/test_exp45_table.py::test_materialisation_copies_the_verified_bytes_to_their_exact_paths
+ERROR src/tests/test_exp45_table.py::test_build_renders_all_eighteen_cells_and_the_disclosures
+ERROR src/tests/test_exp45_table.py::test_build_refuses_a_wrong_commit_a_resealed_record_or_a_changed_value
+ERROR src/tests/test_exp45_table.py::test_build_refuses_a_missing_cell - exp4...
+ERROR src/tests/test_exp45_table.py::test_build_never_reads_the_preliminary_files
+2 failed, 12 passed, 4 errors in 9.72s
+EXIT 1 end 2026-11-14T22:14:51-05:00

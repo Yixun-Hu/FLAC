@@ -1,0 +1,28 @@
+HEAD d8feba0edcea843ff5c7a1730cc6ba513bdf1f22 tracked-clean=no host neu328.neuronic.cs.princeton.edu start 2026-11-14T22:12:41-05:00
+cmd: pytest -q src/tests/test_exp45_table.py src/tests/test_exp45_regression_compare.py 
+
+==================================== ERRORS ====================================
+________________ ERROR collecting src/tests/test_exp45_table.py ________________
+ImportError while importing test module '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/src/tests/test_exp45_table.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../envs/flac/lib/python3.10/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+src/tests/test_exp45_table.py:25: in <module>
+    import exp45_table as tbl  # noqa: E402
+E   ModuleNotFoundError: No module named 'exp45_table'
+_________ ERROR collecting src/tests/test_exp45_regression_compare.py __________
+ImportError while importing test module '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/src/tests/test_exp45_regression_compare.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../envs/flac/lib/python3.10/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+src/tests/test_exp45_regression_compare.py:14: in <module>
+    import exp45_regression_compare as rc  # noqa: E402
+E   ModuleNotFoundError: No module named 'exp45_regression_compare'
+=========================== short test summary info ============================
+ERROR src/tests/test_exp45_table.py
+ERROR src/tests/test_exp45_regression_compare.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!
+2 errors in 0.24s
+EXIT 2 end 2026-11-14T22:12:41-05:00
