@@ -1,0 +1,22 @@
+HEAD f23529eda2c77d4693456c20042ab3695986a4af tracked-clean=no host neu319.neuronic.cs.princeton.edu start 2026-11-14T21:42:37-05:00
+cmd: pytest -q src/tests/test_exp45_eval.py src/tests/test_exp45_receipts.py 
+........................................................................ [ 20%]
+........................................................................ [ 40%]
+......s..............................s.................................. [ 60%]
+........................................................................ [ 80%]
+..........................................................s....s.s...... [100%]
+=============================== warnings summary ===============================
+src/tests/test_exp45_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp45_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp45_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+355 passed, 5 skipped, 3 warnings in 83.42s (0:01:23)
+EXIT 0 end 2026-11-14T21:44:02-05:00

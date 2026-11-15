@@ -1,0 +1,226 @@
+HEAD f23529eda2c77d4693456c20042ab3695986a4af tracked-clean=no host neu319.neuronic.cs.princeton.edu start 2026-11-14T21:40:37-05:00
+cmd: pytest -q src/tests/test_exp45_eval.py -k assignment 
+FEEEE                                                                    [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_validate_cell_refuses_a_missing_or_mutated_assignment_hash[<lambda>0] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_a_m0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f86641726b0>
+
+    @pytest.fixture
+    def e0(tmp_path, monkeypatch):
+        monkeypatch.setattr(ev, "E0_RECEIPT", str(tmp_path / "e0_receipt.json"))
+        monkeypatch.setattr(ev, "FARM", str(tmp_path / "farm"))           # every cell path lands in tmp
+        monkeypatch.setattr(ev.reg, "closure_digest", lambda repo=None: {"closure_sha256": fx.CAMPAIGN["closure_sha256"]})
+        monkeypatch.setattr(ev.reg, "env_receipt_sha", lambda platform, repo=None: fx.CAMPAIGN["env_receipt_sha256"])
+        monkeypatch.setattr(ev, "eval_snapshot", lambda closure, create=False: (str(tmp_path / "snap"),
+                                                                               fx.CAMPAIGN["eval_snapshot_sha256"]))
+        monkeypatch.setattr(ev, "live_eval_pins", lambda: {"agree_sha256": ev.reg.AGREE_SHA256,
+                                                           "vae_ckpt_sha256": ev.reg.VAE_CKPT_SHA256, "vit_rev": ev.reg.VIT_REV})
+>       campaign, rec = fx.make_e0_receipt(ev, log_dir=str(tmp_path / "logs"))
+
+src/tests/test_exp45_eval.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp45_fixtures.py:233: in make_e0_receipt
+    make_cell(ev, c, e0camp, (ev.E0[c["e0"]]["sha"], ev.E0_BYTES[c["e0"]], None),
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ev = <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'>
+cell = {'name': 'de_E0a_K8_s42', 'run': 'E0a', 'K': 8, 'seed': 42, ...}
+campaign = {'head': 'ffffffffffffffffffffffffffffffffffffffff', 'closure_sha256': 'f0c7c2b98c8fa6abf6c14536b3fca2eda2c43768aa570c...dddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}
+ckpt = ('aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c', 723923435, None)
+log_dir = '/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_a_m0/logs'
+dump = True
+metrics = {'T60': 10.2606, 'Invalid T60': 0.0, 'C50': 1.0452, 'EDT': 42.8654, ...}
+by_scene = None
+
+    def make_cell(ev, cell, campaign, ckpt, log_dir, dump=True, metrics=None, by_scene=None):
+        """Write one complete, admissible cell. ``ckpt`` = (sha256, bytes, training-receipt sha or None)."""
+        reg = ev.reg
+        os.makedirs(os.path.dirname(ev._abs(cell["metrics"])), exist_ok=True)
+        fa = cell["cond"] == "fa_invariant"
+        metrics = metrics or {k: 1.0 + i for i, k in enumerate(ev.METRIC_KEYS)}
+        rec = {"metrics": metrics, "by_scene": by_scene or {s: dict(metrics) for s in ev.SCENES}, "cond_method": cell["cond"],
+               "cond_autocast": "bf16", "rotate_deg": 0.0, "seed": cell["seed"], "steps": 1, "cfg_scale": 1.0,
+               "batch_size": 64, "n_samples": 6337, "device": "cuda", "dataset_config": ev.EVAL_CONFIGS[cell["K"]],
+               "eval_name": cell["name"], "weights_source": "ema", "per_scene_schema": 1, "scene_count": 10,
+               "frame_avg_angles": [0.0, 90.0, 180.0, 270.0] if fa else None, "frame_avg_fwd_cap": 64 if fa else None,
+               "orbit_execution": "batched" if fa else "n/a", "source_sha": campaign["head"], "ckpt_path": cell["ckpt_link"],
+               "ckpt_sha256_loaded": ckpt[0], "ckpt_bytes_loaded": ckpt[1]}
+        json.dump(rec, open(ev._abs(cell["metrics"]), "w"))
+        json.dump({"stream_count": 6337, "input_hash": ev.INPUT_HASH[(cell["K"], cell["seed"])],
+>                  "assignment_hash": ev.ASSIGNMENT_HASH[(cell["K"], cell["seed"])]}, open(ev._abs(cell["stream"]), "w"))
+E       AttributeError: module 'exp45_eval' has no attribute 'ASSIGNMENT_HASH'
+
+src/tests/exp45_fixtures.py:297: AttributeError
+_ ERROR at setup of test_validate_cell_refuses_a_missing_or_mutated_assignment_hash[<lambda>1] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_a_m1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8664173370>
+
+    @pytest.fixture
+    def e0(tmp_path, monkeypatch):
+        monkeypatch.setattr(ev, "E0_RECEIPT", str(tmp_path / "e0_receipt.json"))
+        monkeypatch.setattr(ev, "FARM", str(tmp_path / "farm"))           # every cell path lands in tmp
+        monkeypatch.setattr(ev.reg, "closure_digest", lambda repo=None: {"closure_sha256": fx.CAMPAIGN["closure_sha256"]})
+        monkeypatch.setattr(ev.reg, "env_receipt_sha", lambda platform, repo=None: fx.CAMPAIGN["env_receipt_sha256"])
+        monkeypatch.setattr(ev, "eval_snapshot", lambda closure, create=False: (str(tmp_path / "snap"),
+                                                                               fx.CAMPAIGN["eval_snapshot_sha256"]))
+        monkeypatch.setattr(ev, "live_eval_pins", lambda: {"agree_sha256": ev.reg.AGREE_SHA256,
+                                                           "vae_ckpt_sha256": ev.reg.VAE_CKPT_SHA256, "vit_rev": ev.reg.VIT_REV})
+>       campaign, rec = fx.make_e0_receipt(ev, log_dir=str(tmp_path / "logs"))
+
+src/tests/test_exp45_eval.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp45_fixtures.py:233: in make_e0_receipt
+    make_cell(ev, c, e0camp, (ev.E0[c["e0"]]["sha"], ev.E0_BYTES[c["e0"]], None),
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ev = <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'>
+cell = {'name': 'de_E0a_K8_s42', 'run': 'E0a', 'K': 8, 'seed': 42, ...}
+campaign = {'head': 'ffffffffffffffffffffffffffffffffffffffff', 'closure_sha256': 'f0c7c2b98c8fa6abf6c14536b3fca2eda2c43768aa570c...dddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}
+ckpt = ('aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c', 723923435, None)
+log_dir = '/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_a_m1/logs'
+dump = True
+metrics = {'T60': 10.2606, 'Invalid T60': 0.0, 'C50': 1.0452, 'EDT': 42.8654, ...}
+by_scene = None
+
+    def make_cell(ev, cell, campaign, ckpt, log_dir, dump=True, metrics=None, by_scene=None):
+        """Write one complete, admissible cell. ``ckpt`` = (sha256, bytes, training-receipt sha or None)."""
+        reg = ev.reg
+        os.makedirs(os.path.dirname(ev._abs(cell["metrics"])), exist_ok=True)
+        fa = cell["cond"] == "fa_invariant"
+        metrics = metrics or {k: 1.0 + i for i, k in enumerate(ev.METRIC_KEYS)}
+        rec = {"metrics": metrics, "by_scene": by_scene or {s: dict(metrics) for s in ev.SCENES}, "cond_method": cell["cond"],
+               "cond_autocast": "bf16", "rotate_deg": 0.0, "seed": cell["seed"], "steps": 1, "cfg_scale": 1.0,
+               "batch_size": 64, "n_samples": 6337, "device": "cuda", "dataset_config": ev.EVAL_CONFIGS[cell["K"]],
+               "eval_name": cell["name"], "weights_source": "ema", "per_scene_schema": 1, "scene_count": 10,
+               "frame_avg_angles": [0.0, 90.0, 180.0, 270.0] if fa else None, "frame_avg_fwd_cap": 64 if fa else None,
+               "orbit_execution": "batched" if fa else "n/a", "source_sha": campaign["head"], "ckpt_path": cell["ckpt_link"],
+               "ckpt_sha256_loaded": ckpt[0], "ckpt_bytes_loaded": ckpt[1]}
+        json.dump(rec, open(ev._abs(cell["metrics"]), "w"))
+        json.dump({"stream_count": 6337, "input_hash": ev.INPUT_HASH[(cell["K"], cell["seed"])],
+>                  "assignment_hash": ev.ASSIGNMENT_HASH[(cell["K"], cell["seed"])]}, open(ev._abs(cell["stream"]), "w"))
+E       AttributeError: module 'exp45_eval' has no attribute 'ASSIGNMENT_HASH'
+
+src/tests/exp45_fixtures.py:297: AttributeError
+_ ERROR at setup of test_validate_cell_refuses_a_missing_or_mutated_assignment_hash[<lambda>2] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_a_m2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8664172290>
+
+    @pytest.fixture
+    def e0(tmp_path, monkeypatch):
+        monkeypatch.setattr(ev, "E0_RECEIPT", str(tmp_path / "e0_receipt.json"))
+        monkeypatch.setattr(ev, "FARM", str(tmp_path / "farm"))           # every cell path lands in tmp
+        monkeypatch.setattr(ev.reg, "closure_digest", lambda repo=None: {"closure_sha256": fx.CAMPAIGN["closure_sha256"]})
+        monkeypatch.setattr(ev.reg, "env_receipt_sha", lambda platform, repo=None: fx.CAMPAIGN["env_receipt_sha256"])
+        monkeypatch.setattr(ev, "eval_snapshot", lambda closure, create=False: (str(tmp_path / "snap"),
+                                                                               fx.CAMPAIGN["eval_snapshot_sha256"]))
+        monkeypatch.setattr(ev, "live_eval_pins", lambda: {"agree_sha256": ev.reg.AGREE_SHA256,
+                                                           "vae_ckpt_sha256": ev.reg.VAE_CKPT_SHA256, "vit_rev": ev.reg.VIT_REV})
+>       campaign, rec = fx.make_e0_receipt(ev, log_dir=str(tmp_path / "logs"))
+
+src/tests/test_exp45_eval.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp45_fixtures.py:233: in make_e0_receipt
+    make_cell(ev, c, e0camp, (ev.E0[c["e0"]]["sha"], ev.E0_BYTES[c["e0"]], None),
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ev = <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'>
+cell = {'name': 'de_E0a_K8_s42', 'run': 'E0a', 'K': 8, 'seed': 42, ...}
+campaign = {'head': 'ffffffffffffffffffffffffffffffffffffffff', 'closure_sha256': 'f0c7c2b98c8fa6abf6c14536b3fca2eda2c43768aa570c...dddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}
+ckpt = ('aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c', 723923435, None)
+log_dir = '/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_a_m2/logs'
+dump = True
+metrics = {'T60': 10.2606, 'Invalid T60': 0.0, 'C50': 1.0452, 'EDT': 42.8654, ...}
+by_scene = None
+
+    def make_cell(ev, cell, campaign, ckpt, log_dir, dump=True, metrics=None, by_scene=None):
+        """Write one complete, admissible cell. ``ckpt`` = (sha256, bytes, training-receipt sha or None)."""
+        reg = ev.reg
+        os.makedirs(os.path.dirname(ev._abs(cell["metrics"])), exist_ok=True)
+        fa = cell["cond"] == "fa_invariant"
+        metrics = metrics or {k: 1.0 + i for i, k in enumerate(ev.METRIC_KEYS)}
+        rec = {"metrics": metrics, "by_scene": by_scene or {s: dict(metrics) for s in ev.SCENES}, "cond_method": cell["cond"],
+               "cond_autocast": "bf16", "rotate_deg": 0.0, "seed": cell["seed"], "steps": 1, "cfg_scale": 1.0,
+               "batch_size": 64, "n_samples": 6337, "device": "cuda", "dataset_config": ev.EVAL_CONFIGS[cell["K"]],
+               "eval_name": cell["name"], "weights_source": "ema", "per_scene_schema": 1, "scene_count": 10,
+               "frame_avg_angles": [0.0, 90.0, 180.0, 270.0] if fa else None, "frame_avg_fwd_cap": 64 if fa else None,
+               "orbit_execution": "batched" if fa else "n/a", "source_sha": campaign["head"], "ckpt_path": cell["ckpt_link"],
+               "ckpt_sha256_loaded": ckpt[0], "ckpt_bytes_loaded": ckpt[1]}
+        json.dump(rec, open(ev._abs(cell["metrics"]), "w"))
+        json.dump({"stream_count": 6337, "input_hash": ev.INPUT_HASH[(cell["K"], cell["seed"])],
+>                  "assignment_hash": ev.ASSIGNMENT_HASH[(cell["K"], cell["seed"])]}, open(ev._abs(cell["stream"]), "w"))
+E       AttributeError: module 'exp45_eval' has no attribute 'ASSIGNMENT_HASH'
+
+src/tests/exp45_fixtures.py:297: AttributeError
+_ ERROR at setup of test_validate_cell_refuses_a_missing_or_mutated_assignment_hash[<lambda>3] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_a_m3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8663f0a890>
+
+    @pytest.fixture
+    def e0(tmp_path, monkeypatch):
+        monkeypatch.setattr(ev, "E0_RECEIPT", str(tmp_path / "e0_receipt.json"))
+        monkeypatch.setattr(ev, "FARM", str(tmp_path / "farm"))           # every cell path lands in tmp
+        monkeypatch.setattr(ev.reg, "closure_digest", lambda repo=None: {"closure_sha256": fx.CAMPAIGN["closure_sha256"]})
+        monkeypatch.setattr(ev.reg, "env_receipt_sha", lambda platform, repo=None: fx.CAMPAIGN["env_receipt_sha256"])
+        monkeypatch.setattr(ev, "eval_snapshot", lambda closure, create=False: (str(tmp_path / "snap"),
+                                                                               fx.CAMPAIGN["eval_snapshot_sha256"]))
+        monkeypatch.setattr(ev, "live_eval_pins", lambda: {"agree_sha256": ev.reg.AGREE_SHA256,
+                                                           "vae_ckpt_sha256": ev.reg.VAE_CKPT_SHA256, "vit_rev": ev.reg.VIT_REV})
+>       campaign, rec = fx.make_e0_receipt(ev, log_dir=str(tmp_path / "logs"))
+
+src/tests/test_exp45_eval.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp45_fixtures.py:233: in make_e0_receipt
+    make_cell(ev, c, e0camp, (ev.E0[c["e0"]]["sha"], ev.E0_BYTES[c["e0"]], None),
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ev = <module 'exp45_eval' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py'>
+cell = {'name': 'de_E0a_K8_s42', 'run': 'E0a', 'K': 8, 'seed': 42, ...}
+campaign = {'head': 'ffffffffffffffffffffffffffffffffffffffff', 'closure_sha256': 'f0c7c2b98c8fa6abf6c14536b3fca2eda2c43768aa570c...dddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}
+ckpt = ('aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c', 723923435, None)
+log_dir = '/tmp/pytest-of-yh4742/pytest-0/test_validate_cell_refuses_a_m3/logs'
+dump = True
+metrics = {'T60': 10.2606, 'Invalid T60': 0.0, 'C50': 1.0452, 'EDT': 42.8654, ...}
+by_scene = None
+
+    def make_cell(ev, cell, campaign, ckpt, log_dir, dump=True, metrics=None, by_scene=None):
+        """Write one complete, admissible cell. ``ckpt`` = (sha256, bytes, training-receipt sha or None)."""
+        reg = ev.reg
+        os.makedirs(os.path.dirname(ev._abs(cell["metrics"])), exist_ok=True)
+        fa = cell["cond"] == "fa_invariant"
+        metrics = metrics or {k: 1.0 + i for i, k in enumerate(ev.METRIC_KEYS)}
+        rec = {"metrics": metrics, "by_scene": by_scene or {s: dict(metrics) for s in ev.SCENES}, "cond_method": cell["cond"],
+               "cond_autocast": "bf16", "rotate_deg": 0.0, "seed": cell["seed"], "steps": 1, "cfg_scale": 1.0,
+               "batch_size": 64, "n_samples": 6337, "device": "cuda", "dataset_config": ev.EVAL_CONFIGS[cell["K"]],
+               "eval_name": cell["name"], "weights_source": "ema", "per_scene_schema": 1, "scene_count": 10,
+               "frame_avg_angles": [0.0, 90.0, 180.0, 270.0] if fa else None, "frame_avg_fwd_cap": 64 if fa else None,
+               "orbit_execution": "batched" if fa else "n/a", "source_sha": campaign["head"], "ckpt_path": cell["ckpt_link"],
+               "ckpt_sha256_loaded": ckpt[0], "ckpt_bytes_loaded": ckpt[1]}
+        json.dump(rec, open(ev._abs(cell["metrics"]), "w"))
+        json.dump({"stream_count": 6337, "input_hash": ev.INPUT_HASH[(cell["K"], cell["seed"])],
+>                  "assignment_hash": ev.ASSIGNMENT_HASH[(cell["K"], cell["seed"])]}, open(ev._abs(cell["stream"]), "w"))
+E       AttributeError: module 'exp45_eval' has no attribute 'ASSIGNMENT_HASH'
+
+src/tests/exp45_fixtures.py:297: AttributeError
+=================================== FAILURES ===================================
+_____________ test_the_assignment_hash_pins_are_one_data_property ______________
+
+    def test_the_assignment_hash_pins_are_one_data_property():
+        """plan r3 §3.2 (Codex plan r1 finding 13): ASSIGNMENT_HASH[(K, seed)] for K in {8, 1} x seeds 42-46; at
+        rotate-deg 0 every item's offset is 0, so all ten equal exp_43's A6000 RF-100 K8 s42 value (brief §5.1)."""
+>       assert sorted(ev.ASSIGNMENT_HASH) == sorted(ev.INPUT_HASH) and len(ev.ASSIGNMENT_HASH) == 10
+E       AttributeError: module 'exp45_eval' has no attribute 'ASSIGNMENT_HASH'
+
+src/tests/test_exp45_eval.py:402: AttributeError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_eval.py::test_the_assignment_hash_pins_are_one_data_property
+ERROR src/tests/test_exp45_eval.py::test_validate_cell_refuses_a_missing_or_mutated_assignment_hash[<lambda>0]
+ERROR src/tests/test_exp45_eval.py::test_validate_cell_refuses_a_missing_or_mutated_assignment_hash[<lambda>1]
+ERROR src/tests/test_exp45_eval.py::test_validate_cell_refuses_a_missing_or_mutated_assignment_hash[<lambda>2]
+ERROR src/tests/test_exp45_eval.py::test_validate_cell_refuses_a_missing_or_mutated_assignment_hash[<lambda>3]
+1 failed, 176 deselected, 4 errors in 28.73s
+EXIT 1 end 2026-11-14T21:41:11-05:00

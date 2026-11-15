@@ -293,8 +293,8 @@ def make_cell(ev, cell, campaign, ckpt, log_dir, dump=True, metrics=None, by_sce
            "orbit_execution": "batched" if fa else "n/a", "source_sha": campaign["head"], "ckpt_path": cell["ckpt_link"],
            "ckpt_sha256_loaded": ckpt[0], "ckpt_bytes_loaded": ckpt[1]}
     json.dump(rec, open(ev._abs(cell["metrics"]), "w"))
-    json.dump({"stream_count": 6337, "input_hash": ev.INPUT_HASH[(cell["K"], cell["seed"])]},
-              open(ev._abs(cell["stream"]), "w"))
+    json.dump({"stream_count": 6337, "input_hash": ev.INPUT_HASH[(cell["K"], cell["seed"])],
+               "assignment_hash": ev.ASSIGNMENT_HASH[(cell["K"], cell["seed"])]}, open(ev._abs(cell["stream"]), "w"))
     msha, ssha = reg.sha256_file(ev._abs(cell["metrics"])), reg.sha256_file(ev._abs(cell["stream"]))
     man_sha = None
     if cell["dump"]:

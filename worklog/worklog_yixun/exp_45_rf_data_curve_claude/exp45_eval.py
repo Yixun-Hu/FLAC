@@ -65,6 +65,25 @@ INPUT_HASH = {
     (8, 45): "ef2c937139f8ec09e4034cccf3751ce15a9ba1761bbc7a5f6ec748bb6753063e",
     (8, 46): "163f89a4b84a8071f1fa8091883cc9ab2c9bff97fccdb37b5196bbb8c1490b17",
 }
+# exp_45 (plan r3 §3.2; Codex plan r1 finding 13): the fixed-mode ASSIGNMENT hashes of the unseen split per
+# (K, seed) -- (i, target_id, d_i), a data property (GPU- and model-independent; eval_FLAC.build_stream_record).
+# Source (2026-11-14): the exp_38 preliminary L40 stream sidecars on neuronic,
+# /n/fs/gatrdp/codespace/_sessions/exp40_c16_runner/prelim_eval/de_yaw_f025/*_K{8,1}_s4{2..6}*.stream.json
+# (field assignment_hash; identical in de_yaw_f050 / de_bf_f025 / de_p1_f025; their input_hash fields equal
+# INPUT_HASH above). At rotate-deg 0 every d_i is 0, so the ten values are equal; K8 s42 equals exp_43's A6000 RF-100
+# K8 s42 cell (brief §5.1). The A6000 cross-check happens at E0 / bridge time: a mismatch refuses there.
+ASSIGNMENT_HASH = {
+    (1, 42): "4894d0e119f71ed6f5d566aa01b69d8fc3f8a6cb88fb66f27f121ba59f0a8442",
+    (1, 43): "4894d0e119f71ed6f5d566aa01b69d8fc3f8a6cb88fb66f27f121ba59f0a8442",
+    (1, 44): "4894d0e119f71ed6f5d566aa01b69d8fc3f8a6cb88fb66f27f121ba59f0a8442",
+    (1, 45): "4894d0e119f71ed6f5d566aa01b69d8fc3f8a6cb88fb66f27f121ba59f0a8442",
+    (1, 46): "4894d0e119f71ed6f5d566aa01b69d8fc3f8a6cb88fb66f27f121ba59f0a8442",
+    (8, 42): "4894d0e119f71ed6f5d566aa01b69d8fc3f8a6cb88fb66f27f121ba59f0a8442",
+    (8, 43): "4894d0e119f71ed6f5d566aa01b69d8fc3f8a6cb88fb66f27f121ba59f0a8442",
+    (8, 44): "4894d0e119f71ed6f5d566aa01b69d8fc3f8a6cb88fb66f27f121ba59f0a8442",
+    (8, 45): "4894d0e119f71ed6f5d566aa01b69d8fc3f8a6cb88fb66f27f121ba59f0a8442",
+    (8, 46): "4894d0e119f71ed6f5d566aa01b69d8fc3f8a6cb88fb66f27f121ba59f0a8442",
+}
 METRIC_KEYS = ("T60", "Invalid T60", "C50", "EDT", "FD", "RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5",
                "RIR_to_GT_RIR_R@10", "RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10")
 SCENES = ("Apartments", "Auditorium", "Bathrooms", "Bedrooms", "Cafe", "ListeningRoom",
@@ -564,6 +583,9 @@ def validate_cell(cell, campaign=None, offline=False):
     if not isinstance(stream, dict) or stream.get("stream_count") != 6337 \
             or stream.get("input_hash") != INPUT_HASH[(cell["K"], cell["seed"])]:
         p.append(f"stream count / input_hash {stream.get('input_hash') if isinstance(stream, dict) else stream!r} != pinned")
+    if not isinstance(stream, dict) or stream.get("assignment_hash") != ASSIGNMENT_HASH[(cell["K"], cell["seed"])]:
+        p.append(f"stream assignment_hash {stream.get('assignment_hash') if isinstance(stream, dict) else stream!r} "
+                 f"!= the pinned {ASSIGNMENT_HASH[(cell['K'], cell['seed'])][:12]}")
     links = {"metrics_sha256": reg.sha256_file(_abs(cell["metrics"])), "stream_sha256": reg.sha256_file(_abs(cell["stream"]))}
     if not isinstance(receipt, dict) or set(receipt) != RECEIPT_KEYS:
         got = set(receipt) if isinstance(receipt, dict) else set()

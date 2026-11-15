@@ -392,6 +392,38 @@ def test_run_one_executes_from_the_snapshot_while_the_tree_changes(world, monkey
     assert rec["eval_snapshot_sha256"] == fx.CAMPAIGN["eval_snapshot_sha256"] and not os.path.exists(ev.claim_path(cell))
 
 
+# exp_38's preliminary L40 stream sidecars on neuronic: the source of the ASSIGNMENT_HASH pins (a data property)
+PRELIM = "/n/fs/gatrdp/codespace/_sessions/exp40_c16_runner/prelim_eval/de_yaw_f025"
+
+
+def test_the_assignment_hash_pins_are_one_data_property():
+    """plan r3 §3.2 (Codex plan r1 finding 13): ASSIGNMENT_HASH[(K, seed)] for K in {8, 1} x seeds 42-46; at
+    rotate-deg 0 every item's offset is 0, so all ten equal exp_43's A6000 RF-100 K8 s42 value (brief §5.1)."""
+    assert sorted(ev.ASSIGNMENT_HASH) == sorted(ev.INPUT_HASH) and len(ev.ASSIGNMENT_HASH) == 10
+    assert set(ev.ASSIGNMENT_HASH.values()) == {"4894d0e119f71ed6f5d566aa01b69d8fc3f8a6cb88fb66f27f121ba59f0a8442"}
+
+
+@pytest.mark.skipif(not os.path.isdir(PRELIM), reason="the exp_38 preliminary sidecars live on neuronic only")
+def test_the_pins_equal_the_preliminary_neuronic_sidecars():
+    import glob
+    for (K, s), want in ev.ASSIGNMENT_HASH.items():
+        files = glob.glob(os.path.join(PRELIM, f"*_metrics_1_1.0_de_yaw_f025_K{K}_s{s}.stream.json"))
+        assert len(files) == 1, (K, s)
+        d = json.load(open(files[0]))
+        assert (d["assignment_hash"], d["input_hash"], d["stream_count"]) == (want, ev.INPUT_HASH[(K, s)], 6337)
+
+
+@pytest.mark.parametrize("fn", [lambda r: r.update(assignment_hash="0" * 64), lambda r: r.pop("assignment_hash"),
+                                lambda r: r.update(assignment_hash=None),
+                                lambda r: r.update(assignment_hash=ev.ASSIGNMENT_HASH[(8, 43)].upper())])
+def test_validate_cell_refuses_a_missing_or_mutated_assignment_hash(world, fn):
+    cell = _cell(world)
+    assert ev.validate_cell(cell) == [] and ev.validate_cell(cell, offline=True) == []
+    _mut(cell["stream"], fn)
+    assert any("assignment_hash" in p for p in ev.validate_cell(cell))
+    assert any("assignment_hash" in p for p in ev.validate_cell(cell, offline=True))
+
+
 def test_validate_cell_refuses_stream_and_campaign_mutations(world):
     cell = _cell(world)
     _mut(cell["stream"], lambda r: r.update(input_hash="0" * 64))
