@@ -1,0 +1,22 @@
+HEAD e54feceb0a48f30e1f3c99654ea3beda98ac6070 tracked-clean=no host neu316.neuronic.cs.princeton.edu start 2026-11-14T22:06:40-05:00
+cmd: pytest -q src/tests/test_exp45_eval.py -k own_farm\ or\ no_reference_reader 
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+___ test_the_fork_writes_its_own_farm_and_dumps_and_shares_exp38s_card_locks ___
+
+    def test_the_fork_writes_its_own_farm_and_dumps_and_shares_exp38s_card_locks():
+        """plan r3 §3.2 (Codex plan r2 finding 1): exp_45's farm / dump roots; exp_38's card-lock names, so trees 38 and
+        45 serialize on the same physical cards."""
+>       assert ev.FARM == "outputs_FLAC/exp45_rf_data_curve/eval"
+E       AssertionError: assert 'outputs_FLAC...ficiency/eval' == 'outputs_FLAC...ta_curve/eval'
+E         
+E         - outputs_FLAC/exp45_rf_data_curve/eval
+E         ?                 ^^^^^       ^^^
+E         + outputs_FLAC/exp38_data_efficiency/eval
+E         ?                 ^^      ++++ ^ +++
+
+src/tests/test_exp45_eval.py:100: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_eval.py::test_the_fork_writes_its_own_farm_and_dumps_and_shares_exp38s_card_locks
+1 failed, 1 passed, 181 deselected in 3.95s
+EXIT 1 end 2026-11-14T22:06:45-05:00

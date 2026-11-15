@@ -36,10 +36,11 @@ sys.path.insert(0, HERE)
 import exp45_registry as reg  # noqa: E402
 
 EXP = reg.EXP_DIR
-FARM = "outputs_FLAC/exp38_data_efficiency/eval"
-DUMP_ROOT = "/media/diskstation/yixunhu/FLAC/exp38_pred_waveforms"
+FARM = "outputs_FLAC/exp45_rf_data_curve/eval"
+DUMP_ROOT = "/media/diskstation/yixunhu/FLAC/exp45_pred_waveforms"
 NAS_CKPT_ROOT = "/media/diskstation/yixunhu/FLAC/checkpoints"
-LOCKDIR = "/home/yixunhu/codespace"          # .exp38_card<i>.lock, shared with exp38_train_local.sh
+# exp_38's card-lock names, deliberately: trees 38 and 45 serialize on the same physical A6000s (plan r3 §3.2)
+LOCKDIR = "/home/yixunhu/codespace"          # .exp38_card<i>.lock, shared with exp_38's tree
 SEEDS = (42, 43, 44, 45, 46)
 EVAL_CONFIGS = {8: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
                 1: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json"}

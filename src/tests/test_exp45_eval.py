@@ -94,6 +94,35 @@ def test_input_hashes_and_references_are_the_pinned_real_ones():
         "f167470e3501bcc7c4f116b0c26164523a8bd140b55c5e72e935d88d3f373adb"
 
 
+def test_the_fork_writes_its_own_farm_and_dumps_and_shares_exp38s_card_locks():
+    """plan r3 §3.2 (Codex plan r2 finding 1): exp_45's farm / dump roots; exp_38's card-lock names, so trees 38 and
+    45 serialize on the same physical cards."""
+    assert ev.FARM == "outputs_FLAC/exp45_rf_data_curve/eval"
+    assert ev.DUMP_ROOT == "/media/diskstation/yixunhu/FLAC/exp45_pred_waveforms"
+    assert ev.LOCKDIR == "/home/yixunhu/codespace" and ev.REF_DIR == f"{ev.reg.EXP38_DIR}/ref_cells"
+    import inspect
+    src = inspect.getsource(ev)
+    assert src.count('f".exp38_card{gpu}.lock"') == 1 and all(c["metrics"].startswith(ev.FARM + "/") for c in ev.all_cells())
+
+
+def test_no_reference_reader_opens_a_path_under_exp45s_folder(e0, monkeypatch):
+    """Codex plan r2 finding 1: every reader / enumerator of the reference cells (check_refs, load_ref,
+    e0_reference, the E0a decision, the E0 re-admission) reads exp_38's ref_cells/ -- never EXPREL/ref_cells."""
+    import builtins
+    opened, real_open, real_walk = [], builtins.open, os.walk
+    monkeypatch.setattr(builtins, "open", lambda f, *a, **k: opened.append(os.path.realpath(str(f))) or real_open(f, *a, **k))
+    monkeypatch.setattr(os, "walk", lambda top, *a, **k: opened.append(os.path.realpath(str(top))) or real_walk(top, *a, **k))
+    refs = ev.check_refs()
+    for c in ev.e0_cells():
+        ev.e0_reference(c, refs)
+    ev.load_e0a_decision(required=True)
+    ev.validate_e0_receipt(offline=True)
+    mine = os.path.realpath(os.path.join(REPO, ev.reg.EXP_DIR, "ref_cells"))
+    theirs = os.path.realpath(os.path.join(REPO, ev.reg.REF_DIR))
+    assert opened and not [p for p in opened if p == mine or p.startswith(mine + os.sep)]
+    assert len({p for p in opened if p.startswith(theirs + os.sep)}) >= 69          # the 68 cells + the manifest
+
+
 def test_reference_set_is_exact(tmp_path, monkeypatch):
     """Codex code r1 BLOCKING 7: exactly the 68 registered files -- no extra, missing or duplicate line."""
     import shutil

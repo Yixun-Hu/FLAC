@@ -7,9 +7,10 @@ Builds the training wrapper on the CPU in train.py's exact order (float32 matmul
 -> VAE ``load_state_dict`` -> ``create_training_wrapper_from_config``) and prints the
 ``src.training.run_evidence.state_dict_digest`` of the wrapper plus the Sobol and RNG digests.
 The in-process evidence of every training rank must report the same state digest (the start
-gate); YAW, B-F and P1 share it because their ``.model`` sections are canonically identical.
+gate); YAW, B-F and P1 share it because their ``.model`` sections are canonically identical -- and RF, the
+registered exp_45 prediction (plan r3 §3.2), verified at L3.
 
-    python exp38_init_digest.py --run de_bf_f025 [--json out.json]
+    python exp45_init_digest.py --run exp45_RFf025_l40_2x32 [--json out.json]
 
 Written by the exp_38 Coder (Claude Opus 5.5).
 """
