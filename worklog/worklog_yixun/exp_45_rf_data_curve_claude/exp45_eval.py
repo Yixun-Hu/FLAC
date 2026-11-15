@@ -1076,15 +1076,25 @@ BRIDGE_ADMISSION_KEYS = ("path", "sha256", "run_id", "ckpt_path", "ckpt_sha256",
                          "model_config", "model_config_sha256")
 
 
-def bridge_admission(path, rel):
+def bridge_admission(data, rel):
     """(binding, problems) of the bundle's exp_43 admission record (Codex code r1 finding 2; deviation 5 rejected:
     the presence of a hash in a JSON object establishes nothing). exp43_kit.admission_reasons(path, rehash=None) --
     exp_43's exact ADMISSION_KEYS schema, kind exp43_admission, admitted True, arm RF, the run grammar, every sha
     field, the 16 cadence names with sha256 == checkpoints[40k], ckpt_path under nas_dir, global_step, the pinned RF
     config, strict load, the W&B / history bindings (the record only: no NAS file is opened) -- then the admitted
     checkpoint must be RF100_BRIDGE's: path, sha256, bytes, model config + its sha, step. The binding (the record's
-    own sha256 + the admitted fields) is sealed into the bridge result."""
-    reasons, rec, file_sha = exp43_kit().admission_reasons(path, rehash=None)
+    own sha256 + the admitted fields) is sealed into the bridge result. ``data`` are the record's bytes as captured
+    (once) from the bundle; exp_43's validator reads a private copy of them (Codex code r2 finding 4)."""
+    import shutil
+    import tempfile
+    tmp = tempfile.mkdtemp(prefix="exp45_bridge_admission_")
+    try:
+        path = os.path.join(tmp, os.path.basename(rel))
+        with open(path, "wb") as fh:
+            fh.write(data)
+        reasons, rec, file_sha = exp43_kit().admission_reasons(path, rehash=None)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
     if reasons:
         return None, [f"exp_43 admission record {rel}: {r}" for r in reasons]
     want = {"ckpt_path": RF100_BRIDGE["checkpoint"], "sha256": RF100_BRIDGE["sha256"], "bytes": RF100_BRIDGE["bytes"],
@@ -1103,13 +1113,16 @@ def bridge_ref_stem(ref_cell):
 
 
 def load_bridge_bundle(bundle):
-    """({rel: sha256}, manifest sha256) of the bridge reference bundle: exactly ONE exp_43 admission record
-    admission/<name>.json and, per exp_43 reference cell, cells/<stem>.json + cells/<stem>.stream.json -- every file
-    listed once in BRIDGE_MANIFEST.sha256, matching its sha256, and nothing else on disk (integrity: refuses)."""
+    """({rel: sha256}, manifest sha256, admission rel, {rel: bytes}) of the bridge reference bundle: exactly ONE
+    exp_43 admission record admission/<name>.json and, per exp_43 reference cell, cells/<stem>.json +
+    cells/<stem>.stream.json -- every file listed once in BRIDGE_MANIFEST.sha256, matching its sha256, and nothing
+    else on disk (integrity: refuses). Every file, the manifest included, is read EXACTLY ONCE: its captured bytes are
+    the ones verified and the ones the comparison parses (Codex code r2 finding 4)."""
     man = os.path.join(bundle, BRIDGE_MANIFEST)
     try:
-        lines = [ln for ln in open(man).read().split("\n") if ln]
-    except OSError as err:
+        man_bytes = open(man, "rb").read()
+        lines = [ln for ln in man_bytes.decode("utf-8").split("\n") if ln]
+    except (OSError, UnicodeDecodeError) as err:
         raise EvalError(f"bridge bundle manifest {man}: {err}")
     pairs = [ln.split("  ", 1) for ln in lines]
     files = {rel: d for d, rel in pairs if len(d) == 64}
@@ -1122,10 +1135,13 @@ def load_bridge_bundle(bundle):
     on_disk = sorted(os.path.relpath(os.path.join(d, f), bundle) for d, _, fs in os.walk(bundle) for f in fs)
     if on_disk != sorted(set(files) | {BRIDGE_MANIFEST}):
         raise EvalError(f"bridge bundle holds unmanifested files {sorted(set(on_disk) - set(files) - {BRIDGE_MANIFEST})[:3]}")
+    captured = {}
     for rel, d in files.items():
-        if reg.sha256_file(os.path.join(bundle, rel)) != d:
+        data = open(os.path.join(bundle, rel), "rb").read()
+        if hashlib.sha256(data).hexdigest() != d:
             raise EvalError(f"bridge bundle {rel} != its manifest sha256")
-    return files, reg.sha256_file(man), adm[0]
+        captured[rel] = data
+    return files, hashlib.sha256(man_bytes).hexdigest(), adm[0], captured
 
 
 def bridge_reference_problems(cell, ref, stream):
@@ -1212,8 +1228,8 @@ def cmd_bridge(bundle):
     an integrity failure (bundle hash / set, pin, count, an unadmitted cell) refuses; a numeric difference is reported
     per cell as an "evaluator discrepancy" until explained (plan r3 §3.2, N5)."""
     campaign = validate_e0_receipt()
-    files, man_sha, adm = load_bridge_bundle(bundle)
-    admission, probs = bridge_admission(os.path.join(bundle, adm), adm)
+    files, man_sha, adm, captured = load_bridge_bundle(bundle)
+    admission, probs = bridge_admission(captured[adm], adm)
     if probs:
         raise EvalError("bridge admission: " + "; ".join(probs[:4]))
     if admission["sha256"] != files[adm]:
@@ -1222,20 +1238,34 @@ def cmd_bridge(bundle):
     for c in bridge_cells():
         probs = validate_cell(c, campaign)
         stem = bridge_ref_stem(RF100_BRIDGE["cells"][c["name"]])
-        ref = json.load(open(os.path.join(bundle, "cells", stem + ".json")))
-        ref_stream = json.load(open(os.path.join(bundle, "cells", stem + ".stream.json")))
+        try:
+            ref = json.loads(captured[f"cells/{stem}.json"])
+            ref_stream = json.loads(captured[f"cells/{stem}.stream.json"])
+        except ValueError as err:
+            integrity.append(f"{c['name']}: a reference file is not JSON ({err})")
+            continue
         probs += bridge_reference_problems(c, ref, ref_stream)
         if probs:
             integrity += probs
             continue
-        ours, our_stream = json.load(open(_abs(c["metrics"]))), json.load(open(_abs(c["stream"])))
+        # our side, read once: the bytes compared are the bytes the cell's receipt admits, and their sha256 + the
+        # receipt's are sealed below so the collector re-hashes exactly what was compared (Codex code r2 finding 3)
+        mine = {k: open(_abs(c[k]), "rb").read() for k in ("metrics", "stream", "receipt")}
+        shas = {k: hashlib.sha256(v).hexdigest() for k, v in mine.items()}
+        receipt = json.loads(mine["receipt"])
+        if (shas["metrics"], shas["stream"]) != (receipt.get("metrics_sha256"), receipt.get("stream_sha256")):
+            integrity.append(f"{c['name']}: the metrics / stream read for the comparison are not the admitted ones")
+            continue
+        ours, our_stream = json.loads(mine["metrics"]), json.loads(mine["stream"])
         bad, diffs = compare_bridge_cell(ours, our_stream, ref, ref_stream, c["K"])
         integrity += [f"{c['name']}: {x}" for x in bad]
         cells[c["name"]] = {"reference_cell": RF100_BRIDGE["cells"][c["name"]],
                             "verdict": "equal" if not diffs else "evaluator discrepancy",
                             "differences": {k: {"ours": a, "reference": b} for k, (a, b) in sorted(diffs.items())},
-                            "metrics_sha256": reg.sha256_file(_abs(c["metrics"])),
-                            "reference_metrics_sha256": files[f"cells/{stem}.json"]}
+                            "metrics_sha256": shas["metrics"], "stream_sha256": shas["stream"],
+                            "receipt_sha256": shas["receipt"], "dump_manifest_sha256": receipt.get("dump_manifest_sha256"),
+                            "reference_metrics_sha256": files[f"cells/{stem}.json"],
+                            "reference_stream_sha256": files[f"cells/{stem}.stream.json"]}
     if integrity:
         raise EvalError("bridge integrity: " + "; ".join(integrity[:6]))
     rec = {"schema": 1, "descriptor": RF100_BRIDGE, "descriptor_sha256": BRIDGE_DESCRIPTOR_SHA256,
@@ -1284,13 +1314,19 @@ def validate_bridge_result(campaign, path=None):
         if not isinstance(v, dict):
             continue
         stem = bridge_ref_stem(RF100_BRIDGE["cells"][c["name"]])
-        try:
-            current = reg.sha256_file(_abs(c["metrics"]))
-        except OSError:
-            current = None
-        if v.get("reference_cell") != RF100_BRIDGE["cells"][c["name"]] or v.get("metrics_sha256") != current \
-                or v.get("reference_metrics_sha256") != files.get(f"cells/{stem}.json"):
-            p.append(f"{c['name']}: not bound to its current metrics / its bundled reference")
+        current = {}
+        for key, rel in (("metrics_sha256", c["metrics"]), ("stream_sha256", c["stream"]),
+                         ("receipt_sha256", c["receipt"]), ("dump_manifest_sha256", dump_manifest_copy(c))):
+            try:
+                current[key] = reg.sha256_file(_abs(rel))
+            except OSError:
+                current[key] = None
+        if v.get("reference_cell") != RF100_BRIDGE["cells"][c["name"]] \
+                or any(v.get(k) != d or d is None for k, d in current.items()) \
+                or v.get("reference_metrics_sha256") != files.get(f"cells/{stem}.json") \
+                or v.get("reference_stream_sha256") != files.get(f"cells/{stem}.stream.json"):
+            p.append(f"{c['name']}: not bound to its current metrics / stream / receipt / dump manifest or its "
+                     "bundled reference (changed since the comparison)")
         diffs = v.get("differences")
         if not isinstance(diffs, dict) or v.get("verdict") != ("equal" if not diffs else "evaluator discrepancy"):
             p.append(f"{c['name']}: verdict {v.get('verdict')!r} does not follow from its differences")

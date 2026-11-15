@@ -731,6 +731,95 @@ def test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_thes
         col.collect()
 
 
+def _refresh_cell_links(c):
+    """Re-bind a cell's receipt and dump-manifest copy to its CURRENT metrics / stream bytes (what an attacker who
+    edits a cell after the bridge seal would do, so that the cell still passes its own offline admission)."""
+    copy = ev.dump_manifest_copy(c)
+    _mut(copy, lambda m: m.update(stream_sidecar_sha256=ev.reg.sha256_file(c["stream"]),
+                                  metrics_sha256=ev.reg.sha256_file(c["metrics"])))
+    _mut(c["receipt"], lambda r: r.update(stream_sha256=ev.reg.sha256_file(c["stream"]),
+                                          metrics_sha256=ev.reg.sha256_file(c["metrics"]),
+                                          dump_manifest_sha256=ev.reg.sha256_file(copy)))
+
+
+def test_a_bridge_stream_changed_after_the_seal_refuses_collection(world, monkeypatch, tmp_path):
+    """Codex code r2 finding 3: the sealed comparison binds the sha256 of every compared exp_45 stream and metrics file
+    and of the cell's receipt; a stream stripped of its preimages after the seal -- its pins kept and its receipt /
+    dump-manifest links refreshed so the cell alone still admits offline -- refuses collection."""
+    _cmd_run_world(world, monkeypatch, tmp_path)
+    rec = _seal_bridge(world, monkeypatch)
+    c = [c for c in ev.bridge_cells() if c["name"] == "exp45_RF100bridge_K8_s44"][0]
+    assert {"stream_sha256", "receipt_sha256", "metrics_sha256"} <= set(rec["cells"][c["name"]])
+    s = json.load(open(c["stream"]))
+    for k in ev.STREAM_ITEMS:
+        s.pop(k)
+    json.dump(s, open(c["stream"], "w"))
+    _refresh_cell_links(c)
+    assert ev.validate_cell(c, world["campaign"], offline=True) == []         # the cell alone still admits
+    with pytest.raises((ev.EvalError, ev.reg.GateError), match="bridge"):
+        col.collect()
+
+
+def test_each_bridge_bundle_file_is_read_exactly_once(bridge_world, monkeypatch):
+    """Codex code r2 finding 4: every bundle file (the manifest, the admission record, the 20 reference files) is
+    read ONCE; the captured bytes are verified against the manifest and are the bytes parsed and compared."""
+    import builtins
+    b = _bundle(bridge_world)
+    opened, real_open = {}, builtins.open
+
+    def counting_open(f, *a, **k):
+        p = os.path.realpath(str(f)) if isinstance(f, (str, bytes, os.PathLike)) else None
+        if p and p.startswith(os.path.realpath(str(b)) + os.sep):
+            opened[os.path.relpath(p, os.path.realpath(str(b)))] = opened.get(os.path.relpath(p, os.path.realpath(str(b))), 0) + 1
+        return real_open(f, *a, **k)
+    monkeypatch.setattr(builtins, "open", counting_open)
+    rec = ev.cmd_bridge(str(b))
+    monkeypatch.setattr(builtins, "open", real_open)
+    assert rec["verdict"] == "equal" and len(opened) == 22
+    assert {k: v for k, v in opened.items() if v != 1} == {}, opened
+
+
+@pytest.mark.parametrize("which", ["reference metrics", "reference stream", "admission record"])
+def test_a_bundle_file_changed_after_its_capture_cannot_steer_the_comparison(bridge_world, monkeypatch, which):
+    """Codex code r2 finding 4: a reference changed on disk right after it was captured (and verified) is never the
+    one compared -- the comparison uses the captured bytes, so the sealed hashes describe what was compared."""
+    import builtins
+    b = _bundle(bridge_world)
+    stem = ev.bridge_ref_stem("exp43_RF_T_S40000_K8_s42")
+    rel = {"reference metrics": f"cells/{stem}.json", "reference stream": f"cells/{stem}.stream.json",
+           "admission record": "admission/exp43_admission_RF.json"}[which]
+    target = os.path.realpath(str(b / rel))
+    real_open, state = builtins.open, {"done": False}
+
+    def swap_after_first_read(f, *a, **k):
+        fh = real_open(f, *a, **k)
+        if not state["done"] and isinstance(f, (str, os.PathLike)) and os.path.realpath(str(f)) == target \
+                and ("r" in (a[0] if a else k.get("mode", "r"))):
+            state["done"] = True
+            data = fh.read()
+            fh.close()
+            if which == "reference metrics":
+                d = json.loads(data)
+                d["metrics"]["T60"] += 1.0                     # would show as a discrepancy if it were compared
+                new = json.dumps(d).encode()
+            elif which == "reference stream":
+                d = json.loads(data)
+                d.pop("input_tuples")                          # would refuse if it were compared
+                new = json.dumps(d).encode()
+            else:
+                new = b"{}"
+            with real_open(target, "wb") as w:
+                w.write(new)
+            import io
+            return io.BytesIO(data) if "b" in (a[0] if a else k.get("mode", "r")) else io.StringIO(data.decode()
+                                                                                                 if isinstance(data, bytes) else data)
+        return fh
+    monkeypatch.setattr(builtins, "open", swap_after_first_read)
+    rec = ev.cmd_bridge(str(b))
+    monkeypatch.setattr(builtins, "open", real_open)
+    assert state["done"] and rec["verdict"] == "equal" and rec["cells"]["exp45_RF100bridge_K8_s42"]["differences"] == {}
+
+
 def test_an_evaluator_discrepancy_is_published_as_a_discrepancy_never_as_equality(world, monkeypatch, tmp_path):
     """Codex code r1 finding 4: a recorded evaluator discrepancy reaches the results JSON and Markdown as one."""
     _cmd_run_world(world, monkeypatch, tmp_path)
