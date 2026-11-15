@@ -936,6 +936,8 @@ STORAGE_FLOOR_BYTES = TRAIN_FREE_GIB * 2**30
 CKPT_BYTES = 724_000_000             # >= one 40k checkpoint of this architecture (723,922,667-723,927,531 B measured)
 RUN_RESERVE_BYTES = len(cadence_steps()) * CKPT_BYTES + 2 * 2**30      # 16 checkpoints + 2 GiB logs / snapshot
 LEDGER_KEYS = frozenset({"run", "token", "run_dir", "reserved_bytes", "reserved_at"})
+# a release is the ledger's own entry (Codex code r1 finding 1): never a field of a sealed record
+RELEASE_KEYS = LEDGER_KEYS | {"released_at", "reason"}
 
 
 def free_bytes(path):
@@ -968,13 +970,16 @@ class _Ledger:
         self.lock = open(os.path.join(self.root, STORAGE_LOCK), "a")
         fcntl.flock(self.lock, fcntl.LOCK_EX)
         try:
-            data = json.load(open(self.path)) if os.path.exists(self.path) else {"schema": 1, "reservations": {}}
+            data = json.load(open(self.path)) if os.path.exists(self.path) else {"schema": 1, "reservations": {},
+                                                                                 "releases": []}
         except (OSError, ValueError) as err:
             self.__exit__(None, None, None)
             raise GateError(f"storage ledger {self.path} unreadable: {err}")
-        if set(data) != {"schema", "reservations"} or data["schema"] != 1 or not isinstance(data["reservations"], dict) \
+        if not isinstance(data, dict) or set(data) != {"schema", "reservations", "releases"} or data["schema"] != 1 \
+                or not isinstance(data["reservations"], dict) or not isinstance(data["releases"], list) \
                 or any(not isinstance(r, dict) or set(r) != LEDGER_KEYS or type(r["reserved_bytes"]) is not int
-                       for r in data["reservations"].values()):
+                       for r in data["reservations"].values()) \
+                or any(not isinstance(r, dict) or set(r) != RELEASE_KEYS for r in data["releases"]):
             self.__exit__(None, None, None)
             raise GateError(f"storage ledger {self.path} is not the registered schema")
         self.data = data
@@ -1028,17 +1033,21 @@ def recheck_storage(run, token, root, floor=STORAGE_FLOOR_BYTES):
         return {"free_bytes": free, "outstanding_bytes": out, "reserved_bytes": mine["reserved_bytes"]}
 
 
-def release_storage(run, token, root):
-    """Sealed (supervisor) or abandoned (submitter): drop the run's reservation if it is this token's."""
+def release_storage(run, token, root, reason="released"):
+    """Sealed (supervisor) or abandoned (submitter): drop the run's reservation if it is this token's and append the
+    release -- the reservation, ``released_at`` and ``reason`` -- as the ledger's own entry (Codex code r1 finding 1:
+    the release report is never written into a sealed record). Returns the release entry, or None if none was held."""
     with _Ledger(root) as led:
         mine = led.data["reservations"].get(run)
         if mine is None:
             return None
         if mine["token"] != token:
             raise GateError(f"{run}'s storage reservation belongs to token {mine['token'][:8]}, not {str(token)[:8]}")
+        entry = dict(mine, released_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"), reason=str(reason))
         del led.data["reservations"][run]
+        led.data["releases"].append(entry)
         led.save()
-        return mine
+        return entry
 
 
 # ---------------------------------------------------------------- campaign closure + immutable snapshot

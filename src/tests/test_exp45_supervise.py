@@ -472,9 +472,12 @@ def test_a_full_run_launches_from_the_snapshot_gates_and_publishes(tmp_path, mon
     assert not (rd / "lightning_logs").exists() and rec["loss_record"]["loss_record_rows"] == 400
     assert sorted(os.listdir(rd / "receipts")) == ["loss_record.csv", "loss_record_hparams.yaml"]
     assert (rd / "receipts" / "loss_record_hparams.yaml").read_text() == "{}\n"
-    # sealed: the run's storage reservation is released (plan r3 §3.2)
-    assert rec["storage_released"] is True and rec["storage"]["reservation"]["reserved_bytes"] == sv.reg.RUN_RESERVE_BYTES
-    assert json.load(open(tmp_path / "nas" / sv.reg.STORAGE_LEDGER))["reservations"] == {}
+    # sealed: the run's storage reservation is released (plan r3 §3.2) -- as the ledger's own entry, never written into
+    # the sealed launch record (Codex code r1 finding 1)
+    assert "storage_released" not in rec and rec["storage"]["reservation"]["reserved_bytes"] == sv.reg.RUN_RESERVE_BYTES
+    led = json.load(open(tmp_path / "nas" / sv.reg.STORAGE_LEDGER))
+    assert led["reservations"] == {} and [(r["run"], r["reason"]) for r in led["releases"]] == [
+        ("exp45_RFf025_l40_2x32", "sealed")]
 
 
 @pytest.mark.parametrize("mode,audit_ok,want", [("crash", True, 1), ("badstart", True, sv.EXIT_START),
@@ -601,3 +604,145 @@ def test_d2_full_refuses_off_the_training_platform(monkeypatch):
     a = sv.parse(["--platform", "a6000", "--mode", "FULL", "--run", "exp45_RFf025_l40_2x32", "--expect-sha", "f" * 40])
     with pytest.raises(sv.Refused, match="D2"):
         sv.mode_campaign(a, "a6000")
+
+
+# ------------------------------------------------------------------ the FULL completion, end to end (Codex code r1 finding 1)
+E2E_TRAIN = textwrap.dedent("""
+    import json, os, sys, time
+    rd = sys.argv[sys.argv.index("--save-dir") + 1]
+    print({log!r}, flush=True)
+    for name in {ckpts!r}:
+        open(os.path.join(rd, name), "wb").write(("ckpt " + name).encode())
+    os.makedirs(os.path.join(rd, "evidence"), exist_ok=True)
+    for name, rec in {evidence!r}.items():
+        json.dump(rec, open(os.path.join(rd, "evidence", name), "w"))
+    for rel, data in {logger!r}.items():                    # PL's CSV logger output
+        path = os.path.join(rd, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        open(path, "w").write(data)
+    time.sleep(0.5)
+    print({end!r}, flush=True)
+""")
+
+
+def _completed_full_run(tmp_path, monkeypatch, release=None):
+    """mode_campaign of one FULL run to completion with the REAL retain_receipts, write_training_receipt and
+    write_commit_marker (only the GPU / git / tree gates, the checkpoint audit and the snapshot copy are faked)."""
+    import shutil
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import test_exp45_receipts as tr
+    import exp45_fixtures as fx
+    reg = sv.reg
+    run = "exp45_RFf050_l40_2x32"
+    arm, tag, rung = reg.parse_run_id(run)
+    tree = tmp_path / "tree"
+    (tree / reg.EXP_DIR).mkdir(parents=True)
+    monkeypatch.setattr(reg, "REPO", str(tree))
+    monkeypatch.setattr(reg, "TRAINING_PLATFORM", "a6000")
+    monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": tr.CLOSURE, "n_files": 1})
+    monkeypatch.setattr(reg, "check_subset_audit", lambda repo=None: {"sha256": tr.AUDIT_SHA})
+    rels = [reg.model_config_rel(arm, rung)] + [reg.FRACS[t][k] for t in reg.FRACS for k in ("split", "dataset_config")]
+    for rel in rels:
+        os.makedirs(tree / os.path.dirname(rel), exist_ok=True)
+        shutil.copyfile(os.path.join(REPO, rel), tree / rel)
+    paths, digests = tr._admitted(tree, monkeypatch, run)       # the sealed E0 / env / SMOKE_DDP receipts
+    nas = tmp_path / "nas"
+    nas.mkdir()
+    monkeypatch.setitem(reg.PLATFORMS["a6000"], "save_root", str(nas))
+    monkeypatch.setitem(sv.SNAPSHOT_ROOT, "a6000", str(tmp_path / "snaps"))
+    monkeypatch.setattr(sv, "common_gates", lambda a, p: (arm, tag, rung, PY, {"argv": []}, {}))
+    monkeypatch.setattr(sv, "campaign_gates", lambda a, p: (tr.HEAD, digests["env"], tr.CLOSURE))
+    monkeypatch.setattr(sv, "lock_cards", lambda cards, lockdir: [])
+    monkeypatch.setattr(sv, "a6000_gpu_gate", lambda *x: tr.A6000_GPUS)
+    monkeypatch.setattr(sv, "backend_gate", lambda *x: {})
+    monkeypatch.setattr(reg, "check_e0_receipt", lambda p: {"sha256": digests["e0"], "head": tr.HEAD})
+    monkeypatch.setattr(reg, "check_smoke_receipt", lambda *x, **k: {"smoke_receipt": paths["smoke"],
+                                                                     "sha256": digests["smoke"]})
+    monkeypatch.setattr(reg, "storage_gate", lambda *x, **k: {"fstype": "cifs"})
+    monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)
+    monkeypatch.setattr(reg, "_gpu_rows", lambda: [["0", reg.A6000_UUIDS[0], "NVIDIA RTX A6000", "570.86"]])
+    monkeypatch.setattr(reg, "audit_ckpt", lambda path, run, step, repo=None, run_dir=None: {
+        "sha256": reg.sha256_file(path), "bytes": os.path.getsize(path), "global_step": step})
+    import exp38_content_manifest as cm
+    monkeypatch.setattr(cm, "verify", lambda *x, **k: [])
+    token = "a" * 32
+    rd = nas / run
+    reg.reserve_storage(run, token, str(rd), str(nas))          # what the submitter did before sbatch
+    ev = {f"run_evidence.json.rank{r}.json": e for r, e in tr.records(run, max_steps=40000).items()}
+    log = tr.smoke_log(run, steps=40000, losses=60, end=False)
+    v0 = "lightning_logs/version_0/"
+    logger = {v0 + "hparams.yaml": "{}\n", v0 + "metrics.csv": fx.loss_csv(reg, tag).decode()}
+
+    def fake_snapshot(run_, dest, repo=None):
+        os.makedirs(dest)
+        open(os.path.join(dest, "train.py"), "w").write(E2E_TRAIN.format(
+            log=log, ckpts=[reg.ckpt_name(s, tag) for s in reg.cadence_steps()], evidence=ev, logger=logger,
+            end=reg.FIT_END.format(n=40000)))
+        for rel in rels:                                      # what the receipt writer re-hashes in the snapshot
+            os.makedirs(os.path.join(dest, os.path.dirname(rel)), exist_ok=True)
+            shutil.copyfile(tree / rel, os.path.join(dest, rel))
+        return {"snapshot": dest, "files": len(rels) + 1, "snapshot_sha256": fx.write_snapshot_manifests(reg, dest)}
+    monkeypatch.setattr(reg, "snapshot_tools", fake_snapshot)
+    monkeypatch.setattr(reg, "verify_snapshot", lambda dest, want=None: {"verified": True})
+    if release is not None:
+        monkeypatch.setattr(reg, "release_storage", release)
+    a = sv.parse(["--platform", "a6000", "--mode", "FULL", "--run", run, "--expect-sha", tr.HEAD, "--grace", "2",
+                  "--token", token])
+    return a, run, rd, nas, tr, digests
+
+
+def _farm_copy(reg, rd, farm):
+    """The run's records as the evaluation farm keeps them (exp45_eval.prepare's copy set): the offline consumer's input."""
+    import shutil
+    farm.mkdir()
+    lr = json.load(open(rd / reg.COMMIT_MARKER))["launch_record"]
+    for f in ("CHECKPOINTS.sha256", reg.TRAINING_RECEIPT, reg.TRAINING_RECEIPT + ".sha256", reg.COMMIT_MARKER,
+              reg.COMMIT_MARKER + ".sha256", lr):
+        shutil.copyfile(rd / f, farm / f)
+    for sub in (reg.RECEIPTS_DIR, "evidence"):
+        shutil.copytree(rd / sub, farm / sub)
+
+
+def test_a_completed_full_run_passes_online_and_offline_admission(tmp_path, monkeypatch):
+    """Codex code r1 finding 1 (BLOCKING): a FULL run that mode_campaign() completes is admissible -- the sealed
+    commit marker binds the terminal launch record's CURRENT bytes, so check_training_receipt passes online (the run
+    dir) and offline (the farm copy, verify_bytes=False). The storage release is the ledger's own entry, never a
+    rewrite of the sealed launch record."""
+    a, run, rd, nas, tr, digests = _completed_full_run(tmp_path, monkeypatch)
+    reg = sv.reg
+    assert sv.mode_campaign(a, "a6000") == 0
+    cm = json.load(open(rd / reg.COMMIT_MARKER))
+    lr = rd / cm["launch_record"]
+    assert reg.sha256_file(str(lr)) == cm["launch_record_sha256"]
+    rec = json.load(open(lr))
+    assert rec["status"] == "COMPLETE" and "storage_released" not in rec
+    assert json.load(open(tmp_path / "tree" / reg.EXP_DIR / cm["launch_record"])) == rec      # both copies final
+    got, digest = reg.check_training_receipt(run, str(rd), closure=tr.CLOSURE, e0_sha=digests["e0"], platform="a6000")
+    assert got["loss_record_rows"] == 400 and digest == cm["training_receipt_sha256"]
+    farm = tmp_path / "farm"
+    _farm_copy(reg, rd, farm)
+    reg.check_training_receipt(run, str(rd), closure=tr.CLOSURE, e0_sha=digests["e0"], platform="a6000",
+                               receipt_dir=str(farm), verify_bytes=False)
+    led = json.load(open(nas / reg.STORAGE_LEDGER))
+    assert led["reservations"] == {}
+    assert [(r["run"], r["token"], r["reason"]) for r in led["releases"]] == [(run, "a" * 32, "sealed")]
+
+
+@pytest.mark.parametrize("exc", [sv.reg.GateError("ledger unreadable"), KeyboardInterrupt()])
+def test_nothing_rewrites_the_launch_record_after_the_commit_marker(tmp_path, monkeypatch, exc):
+    """Codex code r1 finding 1: once the commit marker sealed the launch record's hash, a failing release -- reported,
+    or an interrupt that unwinds the supervisor -- leaves the record byte-identical: the run stays admissible and its
+    reservation stays held (released later by hand, never by rewriting the record)."""
+    def boom(*x, **k):
+        raise exc
+    a, run, rd, nas, tr, digests = _completed_full_run(tmp_path, monkeypatch, release=boom)
+    reg = sv.reg
+    if isinstance(exc, KeyboardInterrupt):
+        with pytest.raises(KeyboardInterrupt):
+            sv.mode_campaign(a, "a6000")
+    else:
+        assert sv.mode_campaign(a, "a6000") == 0
+    cm = json.load(open(rd / reg.COMMIT_MARKER))
+    assert reg.sha256_file(str(rd / cm["launch_record"])) == cm["launch_record_sha256"]
+    reg.check_training_receipt(run, str(rd), closure=tr.CLOSURE, e0_sha=digests["e0"], platform="a6000")
+    assert list(json.load(open(nas / reg.STORAGE_LEDGER))["reservations"]) == [run]

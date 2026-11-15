@@ -207,10 +207,19 @@ class Record:
     non-terminal update of the authoritative copy is reported, not fatal, while a trainer runs."""
 
     def __init__(self, paths, **fields):
-        self.paths, self.data = list(paths), dict(fields)
+        self.paths, self.data, self.sealed = list(paths), dict(fields), False
         self.flush(strict=True)
 
+    def seal(self):
+        """The commit marker now binds this record's bytes (Codex code r1 finding 1): nothing rewrites it after this
+        -- a later update (a release report, an interrupt's error status) is reported, never written."""
+        self.sealed = True
+
     def update(self, strict=False, **fields):
+        if self.sealed:
+            print(f"launch record sealed by the commit marker: not rewritten ({sorted(fields)})", file=sys.stderr,
+                  flush=True)
+            return
         self.data.update(fields)
         self.flush(strict=strict)
 
@@ -697,8 +706,11 @@ def mode_campaign(a, platform):
             if open(rec.paths[1], "rb").read() != open(rec.paths[0], "rb").read():
                 raise OSError("the run-dir launch record copy was not written")
             reg.write_commit_marker(rd, a.run, tr_sha, rec.paths[1])     # the single final commit
-            try:                                                         # sealed: its storage reservation ends
-                rec.update(storage_released=bool(reg.release_storage(a.run, a.token, os.path.dirname(rd))))
+            rec.seal()                                                   # its hash is bound: never rewritten
+            try:              # sealed: its storage reservation ends -- reported as the LEDGER's own release entry
+                released = reg.release_storage(a.run, a.token, os.path.dirname(rd), reason="sealed")
+                print(f"storage reservation of {a.run}: " + (f"released {json.dumps(released, sort_keys=True)}"
+                                                             if released else "none held"), flush=True)
             except (reg.GateError, OSError) as err:                      # the run is sealed; the hold stays
                 print(f"storage reservation of {a.run} not released: {err}", flush=True)
         else:

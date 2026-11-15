@@ -180,7 +180,7 @@ def submit(run, mode, time_limit, backend, flash_version, allow_nonmatched, dry,
         os.mkdir(od)
     except FileExistsError:
         if reservation is not None:
-            reg.release_storage(run, token, save_root(root))
+            reg.release_storage(run, token, save_root(root), reason="submission refused: the owner record exists")
         raise SubmitError(f"{od} exists: {run} {mode} is already owned (reconcile / abandon)")
     intent = {"schema": 1, "token": token, "run": run, "mode": mode, "head": head, "time": time_limit,
               "backend": backend, "flash_version": flash_version or "", "allow_nonmatched": bool(allow_nonmatched),
@@ -311,7 +311,8 @@ def abandon(run, mode, root=None, runner=subprocess.run):
         moved = f"{sd}.abandoned_{stamp}"
         os.rename(sd, moved)
     os.rename(od, dest_owner)
-    released = reg.release_storage(run, intent["token"], save_root(root)) if mode == "FULL" else None   # terminal
+    released = reg.release_storage(run, intent["token"], save_root(root), reason="abandoned") \
+        if mode == "FULL" else None                                     # terminal
     return {"abandoned": od, "owner_moved_to": dest_owner, "run_dir_moved_to": moved, "jobs": jobs,
             "storage_released": released is not None}
 
