@@ -1,0 +1,60 @@
+HEAD 5df0cb59be98f6be906836bacbb3802f7acc8a2a tracked-clean=no host neu316.neuronic.cs.princeton.edu start 2026-11-14T21:57:39-05:00
+cmd: pytest -q src/tests/test_exp45_storage.py src/tests/test_exp45_launchers.py src/tests/test_exp45_supervise.py src/tests/test_exp45_registry.py 
+..F..................................................................... [ 47%]
+....................................................s................... [ 94%]
+........                                                                 [100%]
+=================================== FAILURES ===================================
+_______ test_one_run_from_submission_through_full_start_is_counted_once ________
+
+fs = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_one_run_from_submission_t0/save_root'), <function fs.<locals>.set_free at 0x7fc547254310>)
+
+    def test_one_run_from_submission_through_full_start_is_counted_once(fs):
+        """Codex plan r3 finding 2: 70 GiB free, three 12.8-GiB reservations pass at submission (70 - 25.6 - 12.8 >= 30);
+        each FULL-start re-check subtracts the ledger's outstanding only (70 - 38.4 >= 30), never the run twice."""
+        root, set_free = fs
+        for r in RUNS:
+            reg.reserve_storage(r, TOKENS[r], _rd(root, r), str(root))
+        for r in RUNS:
+            out = reg.recheck_storage(r, TOKENS[r], str(root))
+            assert out["outstanding_bytes"] == 3 * NEED and out["free_bytes"] == 70 * GIB
+        with pytest.raises(reg.GateError, match="already holds"):
+            reg.reserve_storage(RUNS[0], "f" * 32, _rd(root, RUNS[0]), str(root))       # one reservation per run
+        set_free(70 * GIB - 1 * GIB)
+>       with pytest.raises(reg.GateError, match="floor"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp45_storage.py:87: Failed
+=============================== warnings summary ===============================
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    from pkg_resources import packaging
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_storage.py::test_one_run_from_submission_through_full_start_is_counted_once
+1 failed, 150 passed, 1 skipped, 7 warnings in 148.18s (0:02:28)
+EXIT 1 end 2026-11-14T22:00:10-05:00

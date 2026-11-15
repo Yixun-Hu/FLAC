@@ -110,6 +110,7 @@ class FakeScheduler:
 @pytest.fixture
 def no_preflight(monkeypatch):
     monkeypatch.setattr(sub, "preflight", lambda run, mode, allow, dry, backend: "a" * 40)
+    monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)              # a fake, roomy filesystem
     monkeypatch.setattr(sub, "SUBLOG", "worklog/worklog_yixun/exp_45_rf_data_curve_claude/.test_submissions.log")
     yield
     p = os.path.join(reg.REPO, sub.SUBLOG)
@@ -133,6 +134,10 @@ def test_submit_is_exactly_once_per_run_and_mode(tmp_path, no_preflight, mode):
     od, intent = sub.find_intent("exp45_RFf025_l40_2x32", mode, root=str(tmp_path))
     assert intent["state"] == "submitted" and intent["job_id"] == "4242" and set(intent) == sub.INTENT_KEYS
     assert intent["save_dir"] == str(tmp_path / ("exp45_RFf025_l40_2x32" if mode == "FULL" else "exp45_RFf025_l40_2x32_smoke"))
+    held = json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"] if mode == "FULL" else {}
+    assert (out["storage"] is None) == (mode == "SMOKE") and sorted(held) == (["exp45_RFf025_l40_2x32"] if mode == "FULL" else [])
+    assert mode == "SMOKE" or (held["exp45_RFf025_l40_2x32"]["token"] == out["token"]
+                               and held["exp45_RFf025_l40_2x32"]["reserved_bytes"] == reg.RUN_RESERVE_BYTES)
     with pytest.raises(reg.GateError):                          # the owner record refuses a second submission
         _submit(tmp_path, mode=mode, fake=fake)
     assert len(fake.calls) == 1
@@ -199,12 +204,30 @@ def test_reconcile_resolves_only_an_unambiguous_state(tmp_path, no_preflight):
         sub.abandon("exp45_RFf050_l40_2x32", "FULL", root=str(tmp_path), runner=fake)
     done = FakeScheduler(sacct=f"777|{name}|FAILED\n")
     (tmp_path / "exp45_RFf050_l40_2x32").mkdir()
+    assert "exp45_RFf050_l40_2x32" in json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"]   # held while owned
     moved = sub.abandon("exp45_RFf050_l40_2x32", "FULL", root=str(tmp_path), runner=done)
+    assert moved["storage_released"] and json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"] == {}
     assert not os.path.exists(tmp_path / "exp45_RFf050_l40_2x32") and os.path.isdir(moved["run_dir_moved_to"])
     assert os.path.isdir(moved["owner_moved_to"]) and "/abandoned/" in moved["owner_moved_to"]
     with pytest.raises(sub.SubmitError):                       # an abandoned record is never found again
         sub.find_intent("exp45_RFf050_l40_2x32", "FULL", root=str(tmp_path))
     _submit(tmp_path, run="exp45_RFf050_l40_2x32")                        # ... and the run may be submitted afresh
+
+
+def test_a_full_submission_reserves_before_any_owner_record_and_refuses_below_the_floor(tmp_path, monkeypatch, no_preflight):
+    """plan r3 §3.2: the reservation precedes sbatch AND the owner intent; below the floor nothing is written."""
+    monkeypatch.setattr(reg, "free_bytes", lambda path: reg.STORAGE_FLOOR_BYTES + reg.RUN_RESERVE_BYTES - 1)
+    fake = FakeScheduler()
+    with pytest.raises(reg.GateError, match="floor"):
+        _submit(tmp_path, fake=fake)
+    assert fake.calls == [] and not os.path.exists(tmp_path / sub.OWNERS)
+    assert not os.path.exists(tmp_path / reg.STORAGE_LEDGER)
+    monkeypatch.setattr(reg, "free_bytes", lambda path: reg.STORAGE_FLOOR_BYTES + reg.RUN_RESERVE_BYTES)
+    assert _submit(tmp_path, fake=fake)["storage"]["reserved_bytes"] == reg.RUN_RESERVE_BYTES
+    assert _submit(tmp_path, mode="SMOKE", fake=fake)["storage"] is None          # a SMOKE writes no checkpoint
+    with pytest.raises(reg.GateError, match="floor"):                             # the next candidate: no room
+        _submit(tmp_path, run="exp45_RFf050_l40_2x32", fake=fake)
+    assert not os.path.exists(os.path.join(sub.owner_dir("exp45_RFf050_l40_2x32", "FULL", str(tmp_path))))
 
 
 def test_scheduler_queries_fail_closed(tmp_path):

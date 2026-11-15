@@ -580,8 +580,10 @@ def mode_campaign(a, platform):
         rd = reg.save_dir(platform, a.run)
         if platform == "neuronic" and a.save_dir != rd:
             raise Refused(f"SAVE_DIR {a.save_dir} != the registry's run dir {rd}")
-        storage = reg.storage_gate(platform, os.path.dirname(rd) if os.path.isdir(os.path.dirname(rd))
-                                   else os.path.dirname(os.path.dirname(rd)), reg.TRAIN_FREE_GIB * 2**30)
+        root = os.path.dirname(rd)
+        # the filesystem type + write probe (exp_38), then the shared reservation re-check under the ledger lock
+        # (plan r3 §3.2): the submitter reserved this run before sbatch; no extra candidate term here
+        storage = dict(reg.storage_gate(platform, root, 0), reservation=reg.recheck_storage(a.run, a.token, root))
     elif platform == "neuronic":
         rd = os.path.join(reg.PLATFORMS[platform]["save_root"], f"{a.run}_smoke")
         if a.save_dir != rd:
@@ -695,6 +697,10 @@ def mode_campaign(a, platform):
             if open(rec.paths[1], "rb").read() != open(rec.paths[0], "rb").read():
                 raise OSError("the run-dir launch record copy was not written")
             reg.write_commit_marker(rd, a.run, tr_sha, rec.paths[1])     # the single final commit
+            try:                                                         # sealed: its storage reservation ends
+                rec.update(storage_released=bool(reg.release_storage(a.run, a.token, os.path.dirname(rd))))
+            except (reg.GateError, OSError) as err:                      # the run is sealed; the hold stays
+                print(f"storage reservation of {a.run} not released: {err}", flush=True)
         else:
             rec.update(strict=True, status=verdict, finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
         print(f"EXP38 {a.run} {a.mode} {verdict}", flush=True)

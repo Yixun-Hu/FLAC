@@ -917,6 +917,121 @@ def storage_gate(platform, path, need_bytes, tag="exp38"):
     return {"path": path, "fstype": fstype, "mountpoint": mnt, "free_bytes": free}
 
 
+# ---------------------------------------------------------------- the shared storage reservation (plan r3 §3.2)
+# Codex plan r2 finding 7 / r3 finding 2: ONE ledger per save root, under an exclusive flock. The submitter reserves
+# a candidate's full need before sbatch and any owner intent, refusing unless
+#     free - sum(outstanding of the ledger's existing reservations) - need >= floor
+# (the candidate subtracted ONCE, before insertion); the supervisor re-checks at FULL start
+#     free - sum(outstanding of all reservations, its own included) >= floor
+# (no extra candidate term; idempotent). outstanding = reserved - bytes already written in the run dir. A
+# reservation is released only when its run is sealed (supervisor) or abandoned (submitter); a crash keeps it held.
+STORAGE_LEDGER = ".exp45_storage.json"
+STORAGE_LOCK = ".exp45_storage.lock"
+STORAGE_FLOOR_BYTES = TRAIN_FREE_GIB * 2**30
+CKPT_BYTES = 724_000_000             # >= one 40k checkpoint of this architecture (723,922,667-723,927,531 B measured)
+RUN_RESERVE_BYTES = len(cadence_steps()) * CKPT_BYTES + 2 * 2**30      # 16 checkpoints + 2 GiB logs / snapshot
+LEDGER_KEYS = frozenset({"run", "token", "run_dir", "reserved_bytes", "reserved_at"})
+
+
+def free_bytes(path):
+    st = os.statvfs(path)
+    return st.f_bavail * st.f_frsize
+
+
+def written_bytes(path):
+    """Bytes already written under a run dir (lstat sizes, links not followed; 0 if absent)."""
+    total = 0
+    for d, _, files in os.walk(path, followlinks=False):
+        for name in files:
+            if not os.path.islink(os.path.join(d, name)):
+                total += os.lstat(os.path.join(d, name)).st_size
+    return total
+
+
+class _Ledger:
+    """The flock'd reservation ledger of one save root (the lock file is separate: the ledger is replaced atomically)."""
+
+    def __init__(self, root):
+        if not os.path.isdir(root):
+            raise GateError(f"storage root {root} does not exist")
+        self.root, self.path = root, os.path.join(root, STORAGE_LEDGER)
+
+    def __enter__(self):
+        import fcntl
+        self.lock = open(os.path.join(self.root, STORAGE_LOCK), "a")
+        fcntl.flock(self.lock, fcntl.LOCK_EX)
+        try:
+            data = json.load(open(self.path)) if os.path.exists(self.path) else {"schema": 1, "reservations": {}}
+        except (OSError, ValueError) as err:
+            self.__exit__(None, None, None)
+            raise GateError(f"storage ledger {self.path} unreadable: {err}")
+        if set(data) != {"schema", "reservations"} or data["schema"] != 1 or not isinstance(data["reservations"], dict) \
+                or any(not isinstance(r, dict) or set(r) != LEDGER_KEYS or type(r["reserved_bytes"]) is not int
+                       for r in data["reservations"].values()):
+            self.__exit__(None, None, None)
+            raise GateError(f"storage ledger {self.path} is not the registered schema")
+        self.data = data
+        return self
+
+    def outstanding(self, exclude=None):
+        return sum(max(0, r["reserved_bytes"] - written_bytes(r["run_dir"]))
+                   for key, r in self.data["reservations"].items() if key != exclude)
+
+    def save(self):
+        atomic_write_bytes(self.path, (json.dumps(self.data, indent=1, sort_keys=True) + "\n").encode())
+
+    def __exit__(self, *exc):
+        import fcntl
+        fcntl.flock(self.lock, fcntl.LOCK_UN)
+        self.lock.close()
+        return False
+
+
+def reserve_storage(run, token, run_dir, root, need=RUN_RESERVE_BYTES, floor=STORAGE_FLOOR_BYTES):
+    """Submitter, before sbatch and any owner intent: insert the run's reservation or refuse (GateError)."""
+    parse_run_id(run)
+    if not (isinstance(token, str) and re.fullmatch(r"[0-9a-f]{32}", token)):
+        raise GateError(f"reservation token {token!r} is not a 32-hex intent token")
+    with _Ledger(root) as led:
+        if run in led.data["reservations"]:
+            raise GateError(f"{run} already holds a storage reservation (abandon / seal it first)")
+        free, out = free_bytes(root), led.outstanding()
+        if free - out - need < floor:
+            raise GateError(f"storage: {free / 2**30:.1f} GiB free - {out / 2**30:.1f} GiB outstanding - "
+                            f"{need / 2**30:.1f} GiB needed < the {floor / 2**30:.0f} GiB floor")
+        led.data["reservations"][run] = {"run": run, "token": token, "run_dir": run_dir, "reserved_bytes": int(need),
+                                         "reserved_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+        led.save()
+        return {"reserved_bytes": int(need), "free_bytes": free, "outstanding_bytes": out}
+
+
+def recheck_storage(run, token, root, floor=STORAGE_FLOOR_BYTES):
+    """Supervisor at FULL start, under the same lock: the run's own reservation (its token) must exist, and
+    free - sum(outstanding of all reservations, its own included) >= floor. Changes nothing."""
+    with _Ledger(root) as led:
+        mine = led.data["reservations"].get(run)
+        if mine is None or mine["token"] != token:
+            raise GateError(f"{run} holds no storage reservation of token {str(token)[:8]}")
+        free, out = free_bytes(root), led.outstanding()
+        if free - out < floor:
+            raise GateError(f"storage: {free / 2**30:.1f} GiB free - {out / 2**30:.1f} GiB outstanding "
+                            f"< the {floor / 2**30:.0f} GiB floor")
+        return {"free_bytes": free, "outstanding_bytes": out, "reserved_bytes": mine["reserved_bytes"]}
+
+
+def release_storage(run, token, root):
+    """Sealed (supervisor) or abandoned (submitter): drop the run's reservation if it is this token's."""
+    with _Ledger(root) as led:
+        mine = led.data["reservations"].get(run)
+        if mine is None:
+            return None
+        if mine["token"] != token:
+            raise GateError(f"{run}'s storage reservation belongs to token {mine['token'][:8]}, not {str(token)[:8]}")
+        del led.data["reservations"][run]
+        led.save()
+        return mine
+
+
 # ---------------------------------------------------------------- campaign closure + immutable snapshot
 # AGREE/: the metric code imports `AGREE.AGREE` -- every reference cell ran with the repo root (so the
 # repo copy, not the site-packages one) first on sys.path; the snapshots keep that

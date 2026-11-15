@@ -1,0 +1,13 @@
+HEAD 5df0cb59be98f6be906836bacbb3802f7acc8a2a tracked-clean=no host neu328.neuronic.cs.princeton.edu start 2026-11-14T21:56:39-05:00
+cmd: pytest -q src/tests/test_exp45_storage.py src/tests/test_exp45_launchers.py src/tests/test_exp45_supervise.py -k storage\ or\ reserv\ or\ exactly_once\ or\ reconcile\ or\ full_run\ or\ failed_full 
+
+==================================== ERRORS ====================================
+_______________ ERROR collecting src/tests/test_exp45_storage.py _______________
+src/tests/test_exp45_storage.py:28: in <module>
+    NEED = reg.RUN_RESERVE_BYTES
+E   AttributeError: module 'exp45_registry' has no attribute 'RUN_RESERVE_BYTES'
+=========================== short test summary info ============================
+ERROR src/tests/test_exp45_storage.py - AttributeError: module 'exp45_registr...
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+71 deselected, 1 error in 0.39s
+EXIT 2 end 2026-11-14T21:56:41-05:00

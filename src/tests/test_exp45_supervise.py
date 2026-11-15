@@ -368,7 +368,7 @@ FAKE_TRAIN = textwrap.dedent("""
 
 
 def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_head="f" * 40, content_after_ok=True,
-              logger=None):
+              logger=None, reserve=True):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import test_exp45_receipts as tr
     import exp45_fixtures as fx
@@ -396,6 +396,9 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
     smoke_rec.write_text(json.dumps({"log": str(tmp_path / "smoke.log")}))
     monkeypatch.setattr(reg, "check_smoke_receipt", lambda *x, **k: {"smoke_receipt": str(smoke_rec), "sha256": "6" * 64})
     monkeypatch.setattr(reg, "storage_gate", lambda *x, **k: {"fstype": "cifs"})
+    monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)                # fake room; the ledger is real
+    if smode == "FULL" and reserve:                       # what the submitter did before sbatch (plan r3 §3.2)
+        reg.reserve_storage(run, "a" * 32, str(tmp_path / "nas" / run), str(tmp_path / "nas"))
     monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": "c" * 64})
     monkeypatch.setattr(reg, "_gpu_rows", lambda: [["0", reg.A6000_UUIDS[0], "NVIDIA RTX A6000", "570.86"]])
     import exp38_content_manifest as cm
@@ -447,7 +450,8 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
         calls.append(args)
         return {"verdict": "PASS" if audit_ok else "FAIL"}
     monkeypatch.setattr(reg, "write_smoke_receipt", fake_smoke)
-    a = sv.parse(["--platform", "a6000", "--mode", smode, "--run", run, "--expect-sha", "f" * 40, "--grace", "2"])
+    a = sv.parse(["--platform", "a6000", "--mode", smode, "--run", run, "--expect-sha", "f" * 40, "--grace", "2",
+                  "--token", "a" * 32])
     code = sv.mode_campaign(a, "a6000")
     copies = [f for f in os.listdir(tmp_path / reg.EXP_DIR) if f.startswith("at_launch_")]
     assert len(copies) == 1
@@ -468,6 +472,9 @@ def test_a_full_run_launches_from_the_snapshot_gates_and_publishes(tmp_path, mon
     assert not (rd / "lightning_logs").exists() and rec["loss_record"]["loss_record_rows"] == 400
     assert sorted(os.listdir(rd / "receipts")) == ["loss_record.csv", "loss_record_hparams.yaml"]
     assert (rd / "receipts" / "loss_record_hparams.yaml").read_text() == "{}\n"
+    # sealed: the run's storage reservation is released (plan r3 §3.2)
+    assert rec["storage_released"] is True and rec["storage"]["reservation"]["reserved_bytes"] == sv.reg.RUN_RESERVE_BYTES
+    assert json.load(open(tmp_path / "nas" / sv.reg.STORAGE_LEDGER))["reservations"] == {}
 
 
 @pytest.mark.parametrize("mode,audit_ok,want", [("crash", True, 1), ("badstart", True, sv.EXIT_START),
@@ -478,6 +485,14 @@ def test_a_failed_full_run_keeps_its_crash_marker(tmp_path, monkeypatch, mode, a
     assert rec["status"] != "COMPLETE" and len(calls) == (2 if mode == "ok" else 1) and calls[-1] == ("commits", [])
     with pytest.raises(sv.reg.GateError):
         sv.reg.check_run_dir(str(rd), "exp45_RFf025_l40_2x32", 0)          # never relaunched into: archive first
+    # a crash keeps the storage hold (released only on seal / abandon)
+    held = json.load(open(tmp_path / "nas" / sv.reg.STORAGE_LEDGER))["reservations"]
+    assert list(held) == ["exp45_RFf025_l40_2x32"] and "storage_released" not in rec
+
+
+def test_a_full_run_without_its_reservation_is_refused_before_any_child(tmp_path, monkeypatch):
+    with pytest.raises(sv.reg.GateError, match="no storage reservation"):
+        _campaign(tmp_path, monkeypatch, reserve=False)
 
 
 @pytest.mark.parametrize("audit_ok,want", [(True, 0), (False, sv.EXIT_END)])

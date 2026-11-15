@@ -140,10 +140,16 @@ def submit(run, mode, time_limit, backend, flash_version, allow_nonmatched, dry,
     if dry:
         return {"dry_run": True, "run_dir": sd, "owner": od, "argv": argv}
     reg.check_run_dir(sd, run, 0)
+    reservation = None
+    if mode == "FULL":           # the shared storage reservation, before sbatch and before any owner intent
+        os.makedirs(save_root(root), exist_ok=True)
+        reservation = reg.reserve_storage(run, token, sd, save_root(root))
     os.makedirs(os.path.dirname(od), exist_ok=True)
     try:
         os.mkdir(od)
     except FileExistsError:
+        if reservation is not None:
+            reg.release_storage(run, token, save_root(root))
         raise SubmitError(f"{od} exists: {run} {mode} is already owned (reconcile / abandon)")
     intent = {"schema": 1, "token": token, "run": run, "mode": mode, "head": head, "time": time_limit,
               "backend": backend, "flash_version": flash_version or "", "allow_nonmatched": bool(allow_nonmatched),
@@ -160,7 +166,7 @@ def submit(run, mode, time_limit, backend, flash_version, allow_nonmatched, dry,
     _write_intent(os.path.join(od, "intent.json"), intent)
     with open(os.path.join(reg.REPO, SUBLOG), "a") as fh:
         fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S%z')} {run} {mode} job {jid} token {token} head {head}: {' '.join(argv)}\n")
-    return {"run_dir": sd, "owner": od, "job_id": jid, "token": token}
+    return {"run_dir": sd, "owner": od, "job_id": jid, "token": token, "storage": reservation}
 
 
 def find_intent(run, mode, root=None):
@@ -273,7 +279,9 @@ def abandon(run, mode, root=None, runner=subprocess.run):
         moved = f"{sd}.abandoned_{stamp}"
         os.rename(sd, moved)
     os.rename(od, dest_owner)
-    return {"abandoned": od, "owner_moved_to": dest_owner, "run_dir_moved_to": moved, "jobs": jobs}
+    released = reg.release_storage(run, intent["token"], save_root(root)) if mode == "FULL" else None   # terminal
+    return {"abandoned": od, "owner_moved_to": dest_owner, "run_dir_moved_to": moved, "jobs": jobs,
+            "storage_released": released is not None}
 
 
 def main(argv=None):
