@@ -664,8 +664,10 @@ def mode_campaign(a, platform):
                        finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
             if open(rec.paths[1], "rb").read() != open(rec.paths[0], "rb").read():
                 raise OSError("the run-dir launch record copy was not written")
+            # frozen BEFORE the marker is published (Codex code r2 finding 5): from the moment a publication may
+            # have happened -- even if write_commit_marker raises after its rename -- nothing rewrites the record
+            rec.seal()
             reg.write_commit_marker(rd, a.run, tr_sha, rec.paths[1])     # the single final commit
-            rec.seal()                                                   # its hash is bound: never rewritten
             try:              # sealed: its storage reservation ends -- reported as the LEDGER's own release entry
                 released = reg.release_storage(a.run, a.token, os.path.dirname(rd), reason="sealed")
                 print(f"storage reservation of {a.run}: " + (f"released {json.dumps(released, sort_keys=True)}"

@@ -814,3 +814,26 @@ def test_three_concurrent_first_smokes_create_exactly_one_environment_receipt(tm
     assert {g[2] for g in got} == {digest}
     assert reg.UNTRACKED_RECORDS.match(reg.ENV_RECEIPT_LOCK)     # the lock file is a registered record name
 
+
+
+def test_a_failure_after_the_marker_rename_never_rewrites_the_sealed_record(tmp_path, monkeypatch):
+    """Codex code r2 finding 5: the terminal launch record is frozen BEFORE the commit marker is published, so a
+    failure after the marker's rename -- here the directory fsync of its publication -- cannot rewrite it: the
+    published marker still binds the record's bytes, the run stays admissible, and the hold stays (`release`)."""
+    a, run, rd, nas, tr, digests = _completed_full_run(tmp_path, monkeypatch)
+    reg = sv.reg
+    real = reg._fsync_dir
+
+    def fail_after_rename(d):
+        if os.path.exists(os.path.join(d, reg.COMMIT_MARKER)):
+            raise OSError("injected: the directory fsync after the marker's rename failed")
+        return real(d)
+    monkeypatch.setattr(reg, "_fsync_dir", fail_after_rename)
+    with pytest.raises(OSError, match="injected"):
+        sv.mode_campaign(a, "a6000")
+    monkeypatch.setattr(reg, "_fsync_dir", real)
+    cm = json.load(open(rd / reg.COMMIT_MARKER))
+    assert reg.sha256_file(str(rd / cm["launch_record"])) == cm["launch_record_sha256"]
+    assert json.load(open(rd / cm["launch_record"]))["status"] == "COMPLETE"
+    reg.check_training_receipt(run, str(rd), closure=tr.CLOSURE, e0_sha=digests["e0"], platform="a6000")
+    assert list(json.load(open(nas / reg.STORAGE_LEDGER))["reservations"]) == [run]
