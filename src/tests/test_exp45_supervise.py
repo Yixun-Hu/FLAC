@@ -181,6 +181,18 @@ def test_the_record_is_rewritten_atomically(tmp_path):
 
 
 # ------------------------------------------------------------------ CLI and gates
+def test_the_single_rank_smoke_is_refused_before_any_work(monkeypatch, capsys):
+    """Codex code r1 finding 11: exp_45 registers no single-rank path (plan r3 §5 L5: 2 x L40, 2 x 32): the a6000
+    one-rank SMOKE is refused explicitly, before any gate, card lock or directory."""
+    touched = []
+    monkeypatch.setattr(sv, "common_gates", lambda *a, **k: touched.append("gates") or ("rf", "025", "2x32", PY, {}, {}))
+    monkeypatch.setattr(sv, "lock_cards", lambda *a, **k: touched.append("locks") or [])
+    a = sv.parse(["--platform", "a6000", "--mode", "SMOKE", "--run", "exp45_RFf025_l40_2x32"])
+    assert sv._dispatch(a) == sv.Refused("x").code
+    err = capsys.readouterr().err
+    assert "single-rank SMOKE" in err and "2 x 32 only" in err and touched == []
+
+
 @pytest.mark.parametrize("argv", [
     ["--platform", "a6000", "--mode", "FULL", "--run", "exp45_RFf025_l40_2x32", "--dry-save-root", "/x"],
     ["--platform", "a6000", "--mode", "SMOKE", "--run", "exp45_RFf025_l40_2x32", "--lockdir", "/x"],

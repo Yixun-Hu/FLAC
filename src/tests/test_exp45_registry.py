@@ -257,10 +257,11 @@ def test_there_is_no_resume_argv(capsys):
         reg._cli(["run-dir-check", "/x", "--run", RF["050"], "--state", "10000"])
 
 
-def test_smoke_argv_single_rank_and_ddp():
-    argv = reg.build_smoke_argv(RF["025"], 20, "/tmp/x")
-    assert (_opt(argv, "--num-gpus"), _opt(argv, "--batch-size"), _opt(argv, "--max-steps")) == ("1", "32", "20")
-    assert "--sync-batchnorm" not in argv and _opt(argv, "--checkpoint-every") == "1000000"
+def test_smoke_argv_is_ddp_only():
+    """Codex code r1 finding 11 (plan r3 §5 L5: every SMOKE is 2 x L40): the single-rank SMOKE argv is refused."""
+    for kw in ({}, {"ddp": False}):
+        with pytest.raises(reg.GateError, match="2 x 32"):
+            reg.build_smoke_argv(RF["025"], 20, "/tmp/x", **kw)
     ddp = reg.build_smoke_argv(RF["025"], 30, f"/tmp/smk/{RF['025']}_x", ddp=True)
     full = reg.build_train_argv(RF["025"], "a6000")
     diff = {i for i, (a, b) in enumerate(zip(ddp, full)) if a != b}
@@ -269,7 +270,7 @@ def test_smoke_argv_single_rank_and_ddp():
                                                                      "--evidence-json"}
     assert (_opt(ddp, "--max-steps"), _opt(ddp, "--checkpoint-every")) == ("30", "1000000")
     with pytest.raises(reg.GateError):
-        reg.build_smoke_argv(RF["025"], 500, "/tmp/x")
+        reg.build_smoke_argv(RF["025"], 500, "/tmp/x", ddp=True)
 
 
 # ------------------------------------------------------------------ checkpoint audit (exact schemas, Codex code r1 HIGH 1)
@@ -510,8 +511,16 @@ def _log(run=RF["025"], ngpu=2, n=73473, banner=None, flash_missing=0, step=True
 def test_log_gate_start_pass():
     assert reg.log_gate(_log(), RF["025"], "start", "flash", 2) == []
     assert reg.log_gate(_log(flash_missing=2), RF["025"], "start", "sdpa", 2) == []
-    assert reg.log_gate(_log(ngpu=1), RF["025"], "start", "flash", 1) == []
     assert reg.log_gate(_log(RF["075"], n=218463), RF["075"], "start", "flash", 2) == []
+
+
+@pytest.mark.parametrize("ngpu,spe", [(1, 2296), (1, 1148), (4, 574), (0, 1148)])
+def test_log_gate_refuses_every_world_size_but_2(ngpu, spe):
+    """Codex code r1 finding 11: every exp_45 launch path is 2 x 32 (plan r3 §5 L5, RUNGS); a log of any other world
+    size is refused explicitly -- whatever its loader length (a single rank's own 2,296 batches included)."""
+    probs = reg.log_gate(_log(ngpu=max(ngpu, 1), spe=spe), RF["025"], "start", "flash", ngpu)
+    assert probs and "2 x 32 only" in probs[0] and f"{ngpu}-rank" in probs[0]
+    assert reg.RUNGS == {"2x32": {"ngpu": 2, "micro": 32, "default": True}}
 
 
 C16_BANNER = "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"

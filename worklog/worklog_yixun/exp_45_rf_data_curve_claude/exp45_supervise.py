@@ -478,9 +478,6 @@ def mode_dry_run(a, platform):
     smoke = launch_cmd(platform, ngpu, reg.build_smoke_argv(a.run, reg.SMOKE_STEPS_DDP, smoke_dir, True, platform))
     print("FULL (cwd = the closure snapshot): " + " ".join(full))
     print(f"{'SMOKE' if platform == 'neuronic' else 'SMOKE_DDP'} (cwd = the closure snapshot): " + " ".join(smoke))
-    if platform == "a6000" and rung == "2x32":
-        print("SMOKE (one rank, preliminary): " + " ".join(launch_cmd(platform, 1, reg.build_smoke_argv(
-            a.run, a.smoke_steps, f"outputs_FLAC/exp38_smoke/{a.run}_<ts>"))))
     head = git("rev-parse", "HEAD")
     for label, fn in (("E0 receipt (FULL needs it)", lambda: reg.check_e0_receipt(platform)),
                       ("SMOKE_DDP receipt (FULL needs it)", lambda: reg.check_smoke_receipt(a.run, platform, a.backend, head)),
@@ -496,50 +493,10 @@ def mode_dry_run(a, platform):
 
 
 def mode_smoke_single(a):
-    """a6000 one-rank preliminary smoke (no DDP / SyncBN; never a gate for FULL)."""
-    arm, tag, rung, exe, d, pins = common_gates(a, "a6000")
-    if rung != "2x32":
-        raise Refused("single-rank smoke: 2x32 runs only")
-    fds = lock_cards([a.smoke_gpu], a.lockdir)
-    a6000_gpu_gate([a.smoke_gpu], a.gpu_policy, reg.ARMS[arm]["min_free_mib"])
-    ts = ts_now()
-    sdir = os.path.join(reg.REPO, "outputs_FLAC", "exp38_smoke", f"{a.run}_{ts}")
-    os.makedirs(sdir)
-    log = reg._abs(f"{reg.EXP_DIR}/rf_data_curve_{ts}_{a.run}_SMOKE.log")
-    argv = reg.build_smoke_argv(a.run, a.smoke_steps, sdir)
-    env = child_env("a6000", a.backend, reg.REPO, str(a.smoke_gpu))
-    pins.update(backend_gate(a.backend, reg.REPO, env))
-    rec = Record([reg._abs(f"{reg.EXP_DIR}/rf_data_curve_{ts}_{a.run}_SMOKE.json")], mode="SMOKE", run=a.run, ts=ts,
-                 gpu=a.smoke_gpu, steps=a.smoke_steps, backend=a.backend, head=git("rev-parse", "HEAD"), pins=pins,
-                 argv=argv, note="single rank: no DDP / SyncBN; preliminary only", supervisor_pid=os.getpid(),
-                 status="running")
-    samples = open(os.path.join(sdir, "vram_samples.txt"), "w")
-    sampler = subprocess.Popen(["nvidia-smi", "-i", str(a.smoke_gpu), "--query-gpu=memory.used",
-                                "--format=csv,noheader,nounits", "-lms", "1000"], stdout=samples,
-                               stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
-    try:
-        child = OwnedChild(launch_cmd("a6000", 1, argv), reg.REPO, env, log, pass_fds=fds)
-        holder = start_lock_holder(child.pgid, fds)
-        rec.update(pid=child.pid, pgid=child.pgid, start_time=child.start, lock_holder_pid=holder.pid if holder else None)
-        rc = supervise(child, rec)
-    finally:
-        sampler.terminate()
-        try:
-            sampler.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            sampler.kill()
-            sampler.wait()
-        samples.close()
-    vals = [int(x) for x in open(os.path.join(sdir, "vram_samples.txt")).read().split() if x.isdigit()]
-    n_ckpt = len([f for f in os.listdir(sdir) if f.endswith(".ckpt")])
-    lg = reg.log_gate(open(log, errors="replace").read(), a.run, "end", a.backend, 1, max_steps=a.smoke_steps, min_losses=1)
-    eg = reg.evidence_gate(os.path.join(sdir, "evidence"), a.run, 1, a.backend, a.smoke_steps)
-    verdict = "PASS" if rc == 0 and n_ckpt == 0 and not lg and not eg else "FAIL"
-    rec.update(strict=True, rc=rc, checkpoints_written=n_ckpt, log_gate="PASS" if not lg else lg,
-               evidence_gate="PASS" if not eg else eg, peak_vram_mib_card=max(vals) if vals else None,
-               verdict=verdict, status="finished", log=log)
-    print(f"SMOKE VERDICT: {verdict} (log {log})", flush=True)
-    return rc if rc >= 128 else (0 if verdict == "PASS" else EXIT_END)
+    """exp_38's a6000 one-rank preliminary smoke is NOT an exp_45 launch path (Codex code r1 finding 11): plan r3 §5 L5
+    runs every SMOKE on 2 x L40 at 2 x 32, so this mode refuses before any gate, card lock or directory."""
+    raise Refused("the single-rank SMOKE: " + reg.WORLD_SIZE_REFUSAL.format(n=1, what="SMOKE") +
+                  "; use the production-topology SMOKE (neuronic MODE=SMOKE through exp45_submit_neuronic.py)")
 
 
 def mode_campaign(a, platform):

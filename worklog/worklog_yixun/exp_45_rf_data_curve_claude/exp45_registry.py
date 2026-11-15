@@ -631,11 +631,17 @@ def argv_projection(argv):
     return [a for i, a in enumerate(argv) if a not in drop_value and not (i and argv[i - 1] in drop_value)]
 
 
+WORLD_SIZE_REFUSAL = ("exp_45 registers 2 x 32 only (plan r3 §5 L5: every SMOKE and FULL runs on 2 x L40, "
+                      "RUNGS = 2x32): a {n}-rank {what} is refused")
+
+
 def build_smoke_argv(run, steps, smoke_dir, ddp=False, platform="a6000"):
-    """Storage-light smoke at the real per-rank micro-batch. ``ddp=False``: one rank (no DDP /
-    SyncBN; a preliminary rung only). ``ddp=True``: the production topology of the rung, exactly
-    the FULL argv but for the step budget, cadence, names and save dir."""
+    """Storage-light smoke at the real per-rank micro-batch. ``ddp=True``: the production topology of the rung, exactly
+    the FULL argv but for the step budget, cadence, names and save dir. ``ddp=False`` (exp_38's one-rank preliminary
+    smoke) is refused: exp_45 has no single-rank path (Codex code r1 finding 11)."""
     arm, tag, rung = parse_run_id(run)
+    if not ddp:
+        raise GateError(WORLD_SIZE_REFUSAL.format(n=1, what="SMOKE argv"))
     if not 1 <= steps <= 200:
         raise GateError("smoke: 1..200 steps")
     if ddp:
@@ -738,8 +744,12 @@ def parse_losses(text):
 
 
 def log_gate(text, run, phase, backend, ngpu, n_items=None, max_steps=MAX_STEPS, min_losses=1):
-    """Return a list of problems (empty = PASS) for the start or end phase of a training log."""
+    """Return a list of problems (empty = PASS) for the start or end phase of a training log. Every exp_45 launch
+    path is 2 x 32, so a log of any other world size is refused outright (Codex code r1 finding 11): the loader
+    length below is the two-rank one by construction."""
     arm, tag, _ = parse_run_id(run)
+    if ngpu != RUNGS["2x32"]["ngpu"]:
+        return [WORLD_SIZE_REFUSAL.format(n=ngpu, what="log")]
     n_items = FRACS[tag]["n_items"] if n_items is None else n_items
     lines = log_lines(text)
     problems = []
