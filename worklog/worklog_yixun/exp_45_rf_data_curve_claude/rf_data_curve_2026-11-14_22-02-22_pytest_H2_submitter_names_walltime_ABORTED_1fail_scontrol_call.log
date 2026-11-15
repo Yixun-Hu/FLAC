@@ -1,0 +1,28 @@
+HEAD d3f6def63b4b48b1392b549f344274ee908f1f42 tracked-clean=no host neu316.neuronic.cs.princeton.edu start 2026-11-14T22:02:40-05:00
+cmd: pytest -q src/tests/test_exp45_launchers.py src/tests/test_exp45_supervise.py 
+...................F.................................................... [ 79%]
+...................                                                      [100%]
+=================================== FAILURES ===================================
+_ test_a_full_submission_reserves_before_any_owner_record_and_refuses_below_the_floor _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_full_submission_reserve0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc722ae3ee0>
+no_preflight = None
+
+    def test_a_full_submission_reserves_before_any_owner_record_and_refuses_below_the_floor(tmp_path, monkeypatch, no_preflight):
+        """plan r3 §3.2: the reservation precedes sbatch AND the owner intent; below the floor nothing is written."""
+        monkeypatch.setattr(reg, "free_bytes", lambda path: reg.STORAGE_FLOOR_BYTES + reg.RUN_RESERVE_BYTES - 1)
+        fake = FakeScheduler()
+        with pytest.raises(reg.GateError, match="floor"):
+            _submit(tmp_path, fake=fake)
+>       assert fake.calls == [] and not os.path.exists(tmp_path / sub.OWNERS)
+E       AssertionError: assert ([['scontrol',... 'all', '-o']] == []
+E         
+E         Left contains one more item: ['scontrol', 'show', 'partition', 'all', '-o']
+E         Use -v to get more diff)
+
+src/tests/test_exp45_launchers.py:230: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_launchers.py::test_a_full_submission_reserves_before_any_owner_record_and_refuses_below_the_floor
+1 failed, 90 passed in 107.31s (0:01:47)
+EXIT 1 end 2026-11-14T22:04:28-05:00

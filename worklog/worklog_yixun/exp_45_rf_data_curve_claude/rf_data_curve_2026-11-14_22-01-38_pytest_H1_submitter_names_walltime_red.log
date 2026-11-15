@@ -1,0 +1,219 @@
+HEAD d3f6def63b4b48b1392b549f344274ee908f1f42 tracked-clean=no host neu316.neuronic.cs.princeton.edu start 2026-11-14T22:01:40-05:00
+cmd: pytest -q src/tests/test_exp45_launchers.py 
+......FF.............FF.FFFFF..F..                                       [100%]
+=================================== FAILURES ===================================
+______________ test_submit_is_exactly_once_per_run_and_mode[FULL] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_submit_is_exactly_once_pe0')
+no_preflight = None, mode = 'FULL'
+
+    @pytest.mark.parametrize("mode", ["FULL", "SMOKE"])
+    def test_submit_is_exactly_once_per_run_and_mode(tmp_path, no_preflight, mode):
+        fake = FakeScheduler()
+        out = _submit(tmp_path, mode=mode, fake=fake)
+        sbatches = lambda: [c for c in fake.calls if c[0] == "sbatch"]  # noqa: E731
+        assert out["job_id"] == "4242" and len(sbatches()) == 1
+        argv = sbatches()[0]
+>       assert f"--job-name=exp45-exp45_RFf025_l40_2x32-{mode.lower()}-{out['token'][:8]}" in argv and "--gres=gpu:l40:2" in argv
+E       AssertionError: assert ('--job-name=exp45-exp45_RFf025_l40_2x32-full-1362c3b9' in ['sbatch', '--parsable', '--job-name=exp38-exp45_RFf025_l40_2x32-full-1362c3b9', '--comment=exp38:1362c3b95d4f4f98b49995c7fad71387', '--gres=gpu:l40:2', '--cpus-per-task=22', ...])
+
+src/tests/test_exp45_launchers.py:137: AssertionError
+_____________ test_submit_is_exactly_once_per_run_and_mode[SMOKE] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_submit_is_exactly_once_pe1')
+no_preflight = None, mode = 'SMOKE'
+
+    @pytest.mark.parametrize("mode", ["FULL", "SMOKE"])
+    def test_submit_is_exactly_once_per_run_and_mode(tmp_path, no_preflight, mode):
+        fake = FakeScheduler()
+        out = _submit(tmp_path, mode=mode, fake=fake)
+        sbatches = lambda: [c for c in fake.calls if c[0] == "sbatch"]  # noqa: E731
+        assert out["job_id"] == "4242" and len(sbatches()) == 1
+        argv = sbatches()[0]
+>       assert f"--job-name=exp45-exp45_RFf025_l40_2x32-{mode.lower()}-{out['token'][:8]}" in argv and "--gres=gpu:l40:2" in argv
+E       AssertionError: assert ('--job-name=exp45-exp45_RFf025_l40_2x32-smoke-10a91c45' in ['sbatch', '--parsable', '--job-name=exp38-exp45_RFf025_l40_2x32-smoke-10a91c45', '--comment=exp38:10a91c451a7149389790e8396bf95cdf', '--gres=gpu:l40:2', '--cpus-per-task=22', ...])
+
+src/tests/test_exp45_launchers.py:137: AssertionError
+_ test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record[7-00:00:01-PartitionName=all AllowGroups=ALL Default=YES MaxNodes=UNLIMITED MaxTime=7-00:00:00 MinNodes=0 State=UP-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_walltime_is_refused_a1')
+no_preflight = None, time_limit = '7-00:00:01'
+scontrol = 'PartitionName=all AllowGroups=ALL Default=YES MaxNodes=UNLIMITED MaxTime=7-00:00:00 MinNodes=0 State=UP'
+ok = False
+
+    @pytest.mark.parametrize("time_limit,scontrol,ok", [
+        ("7-00:00:00", SCONTROL_ALL, True), ("7-00:00:01", SCONTROL_ALL, False), ("168:00:01", SCONTROL_ALL, False),
+        ("8-00:00:00", SCONTROL_ALL.replace("MaxTime=7-00:00:00", "MaxTime=UNLIMITED"), True),
+        ("1-00:00:00", "PartitionName=all State=UP", False),                       # no MaxTime: fail closed
+        ("1-00:00:00", SCONTROL_ALL.replace("7-00:00:00", "7days"), False),        # unparseable: fail closed
+        ("1-00:60:00", SCONTROL_ALL, False),
+    ])
+    def test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record(tmp_path, no_preflight,
+                                                                                         time_limit, scontrol, ok):
+        """plan r3 §3.2 / L6 (Codex plan r1 finding 14): the request is checked against `all`'s MaxTime before any
+        reservation or owner intent, recorded in the owner record, never clamped and never chained."""
+        fake = FakeScheduler(scontrol=scontrol)
+        if ok:
+            out = sub.submit(RF050, "FULL", time_limit, "flash", reg.FLASH_VERSION, False, False, root=str(tmp_path), runner=fake)
+            assert sub.find_intent(RF050, "FULL", root=str(tmp_path))[1]["time"] == time_limit and out["job_id"]
+            return
+>       with pytest.raises(sub.SubmitError):
+E       Failed: DID NOT RAISE SubmitError
+
+src/tests/test_exp45_launchers.py:256: Failed
+_ test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record[168:00:01-PartitionName=all AllowGroups=ALL Default=YES MaxNodes=UNLIMITED MaxTime=7-00:00:00 MinNodes=0 State=UP-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_walltime_is_refused_a2')
+no_preflight = None, time_limit = '168:00:01'
+scontrol = 'PartitionName=all AllowGroups=ALL Default=YES MaxNodes=UNLIMITED MaxTime=7-00:00:00 MinNodes=0 State=UP'
+ok = False
+
+    @pytest.mark.parametrize("time_limit,scontrol,ok", [
+        ("7-00:00:00", SCONTROL_ALL, True), ("7-00:00:01", SCONTROL_ALL, False), ("168:00:01", SCONTROL_ALL, False),
+        ("8-00:00:00", SCONTROL_ALL.replace("MaxTime=7-00:00:00", "MaxTime=UNLIMITED"), True),
+        ("1-00:00:00", "PartitionName=all State=UP", False),                       # no MaxTime: fail closed
+        ("1-00:00:00", SCONTROL_ALL.replace("7-00:00:00", "7days"), False),        # unparseable: fail closed
+        ("1-00:60:00", SCONTROL_ALL, False),
+    ])
+    def test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record(tmp_path, no_preflight,
+                                                                                         time_limit, scontrol, ok):
+        """plan r3 §3.2 / L6 (Codex plan r1 finding 14): the request is checked against `all`'s MaxTime before any
+        reservation or owner intent, recorded in the owner record, never clamped and never chained."""
+        fake = FakeScheduler(scontrol=scontrol)
+        if ok:
+            out = sub.submit(RF050, "FULL", time_limit, "flash", reg.FLASH_VERSION, False, False, root=str(tmp_path), runner=fake)
+            assert sub.find_intent(RF050, "FULL", root=str(tmp_path))[1]["time"] == time_limit and out["job_id"]
+            return
+>       with pytest.raises(sub.SubmitError):
+E       Failed: DID NOT RAISE SubmitError
+
+src/tests/test_exp45_launchers.py:256: Failed
+_ test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record[1-00:00:00-PartitionName=all State=UP-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_walltime_is_refused_a4')
+no_preflight = None, time_limit = '1-00:00:00'
+scontrol = 'PartitionName=all State=UP', ok = False
+
+    @pytest.mark.parametrize("time_limit,scontrol,ok", [
+        ("7-00:00:00", SCONTROL_ALL, True), ("7-00:00:01", SCONTROL_ALL, False), ("168:00:01", SCONTROL_ALL, False),
+        ("8-00:00:00", SCONTROL_ALL.replace("MaxTime=7-00:00:00", "MaxTime=UNLIMITED"), True),
+        ("1-00:00:00", "PartitionName=all State=UP", False),                       # no MaxTime: fail closed
+        ("1-00:00:00", SCONTROL_ALL.replace("7-00:00:00", "7days"), False),        # unparseable: fail closed
+        ("1-00:60:00", SCONTROL_ALL, False),
+    ])
+    def test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record(tmp_path, no_preflight,
+                                                                                         time_limit, scontrol, ok):
+        """plan r3 §3.2 / L6 (Codex plan r1 finding 14): the request is checked against `all`'s MaxTime before any
+        reservation or owner intent, recorded in the owner record, never clamped and never chained."""
+        fake = FakeScheduler(scontrol=scontrol)
+        if ok:
+            out = sub.submit(RF050, "FULL", time_limit, "flash", reg.FLASH_VERSION, False, False, root=str(tmp_path), runner=fake)
+            assert sub.find_intent(RF050, "FULL", root=str(tmp_path))[1]["time"] == time_limit and out["job_id"]
+            return
+>       with pytest.raises(sub.SubmitError):
+E       Failed: DID NOT RAISE SubmitError
+
+src/tests/test_exp45_launchers.py:256: Failed
+_ test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record[1-00:00:00-PartitionName=all AllowGroups=ALL Default=YES MaxNodes=UNLIMITED MaxTime=7days MinNodes=0 State=UP-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_walltime_is_refused_a5')
+no_preflight = None, time_limit = '1-00:00:00'
+scontrol = 'PartitionName=all AllowGroups=ALL Default=YES MaxNodes=UNLIMITED MaxTime=7days MinNodes=0 State=UP'
+ok = False
+
+    @pytest.mark.parametrize("time_limit,scontrol,ok", [
+        ("7-00:00:00", SCONTROL_ALL, True), ("7-00:00:01", SCONTROL_ALL, False), ("168:00:01", SCONTROL_ALL, False),
+        ("8-00:00:00", SCONTROL_ALL.replace("MaxTime=7-00:00:00", "MaxTime=UNLIMITED"), True),
+        ("1-00:00:00", "PartitionName=all State=UP", False),                       # no MaxTime: fail closed
+        ("1-00:00:00", SCONTROL_ALL.replace("7-00:00:00", "7days"), False),        # unparseable: fail closed
+        ("1-00:60:00", SCONTROL_ALL, False),
+    ])
+    def test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record(tmp_path, no_preflight,
+                                                                                         time_limit, scontrol, ok):
+        """plan r3 §3.2 / L6 (Codex plan r1 finding 14): the request is checked against `all`'s MaxTime before any
+        reservation or owner intent, recorded in the owner record, never clamped and never chained."""
+        fake = FakeScheduler(scontrol=scontrol)
+        if ok:
+            out = sub.submit(RF050, "FULL", time_limit, "flash", reg.FLASH_VERSION, False, False, root=str(tmp_path), runner=fake)
+            assert sub.find_intent(RF050, "FULL", root=str(tmp_path))[1]["time"] == time_limit and out["job_id"]
+            return
+>       with pytest.raises(sub.SubmitError):
+E       Failed: DID NOT RAISE SubmitError
+
+src/tests/test_exp45_launchers.py:256: Failed
+_ test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record[1-00:60:00-PartitionName=all AllowGroups=ALL Default=YES MaxNodes=UNLIMITED MaxTime=7-00:00:00 MinNodes=0 State=UP-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_walltime_is_refused_a6')
+no_preflight = None, time_limit = '1-00:60:00'
+scontrol = 'PartitionName=all AllowGroups=ALL Default=YES MaxNodes=UNLIMITED MaxTime=7-00:00:00 MinNodes=0 State=UP'
+ok = False
+
+    @pytest.mark.parametrize("time_limit,scontrol,ok", [
+        ("7-00:00:00", SCONTROL_ALL, True), ("7-00:00:01", SCONTROL_ALL, False), ("168:00:01", SCONTROL_ALL, False),
+        ("8-00:00:00", SCONTROL_ALL.replace("MaxTime=7-00:00:00", "MaxTime=UNLIMITED"), True),
+        ("1-00:00:00", "PartitionName=all State=UP", False),                       # no MaxTime: fail closed
+        ("1-00:00:00", SCONTROL_ALL.replace("7-00:00:00", "7days"), False),        # unparseable: fail closed
+        ("1-00:60:00", SCONTROL_ALL, False),
+    ])
+    def test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record(tmp_path, no_preflight,
+                                                                                         time_limit, scontrol, ok):
+        """plan r3 §3.2 / L6 (Codex plan r1 finding 14): the request is checked against `all`'s MaxTime before any
+        reservation or owner intent, recorded in the owner record, never clamped and never chained."""
+        fake = FakeScheduler(scontrol=scontrol)
+        if ok:
+            out = sub.submit(RF050, "FULL", time_limit, "flash", reg.FLASH_VERSION, False, False, root=str(tmp_path), runner=fake)
+            assert sub.find_intent(RF050, "FULL", root=str(tmp_path))[1]["time"] == time_limit and out["job_id"]
+            return
+>       with pytest.raises(sub.SubmitError):
+E       Failed: DID NOT RAISE SubmitError
+
+src/tests/test_exp45_launchers.py:256: Failed
+_________________ test_scontrol_failure_refuses_the_submission _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_scontrol_failure_refuses_0')
+no_preflight = None
+
+    def test_scontrol_failure_refuses_the_submission(tmp_path, no_preflight):
+>       with pytest.raises(sub.SubmitError, match="MaxTime"):
+E       Failed: DID NOT RAISE SubmitError
+
+src/tests/test_exp45_launchers.py:263: Failed
+_________ test_the_submitter_names_exp45_and_fetches_the_exp45_branch __________
+
+    def test_the_submitter_names_exp45_and_fetches_the_exp45_branch():
+>       assert sub.job_name(RF050, "FULL", "ab" * 16) == f"exp45-{RF050}-full-abababab" and sub.OWNERS == ".exp45_owners"
+E       AssertionError: assert ('exp38-exp45_...full-abababab' == 'exp45-exp45_...full-abababab'
+E         
+E         - exp45-exp45_RFf050_l40_2x32-full-abababab
+E         ?    ^^
+E         + exp38-exp45_RFf050_l40_2x32-full-abababab
+E         ?    ^^)
+
+src/tests/test_exp45_launchers.py:269: AssertionError
+____________________ test_run_dirs_owner_dirs_and_resources ____________________
+
+    def test_run_dirs_owner_dirs_and_resources():
+        assert sub.run_dir("exp45_RFf025_l40_2x32", "SMOKE", "/r") == "/r/exp45_RFf025_l40_2x32_smoke"
+        assert sub.run_dir("exp45_RFf025_l40_2x32", "FULL", "/r") == "/r/exp45_RFf025_l40_2x32"
+>       assert sub.owner_dir("exp45_RFf025_l40_2x32", "SMOKE", "/r") == "/r/.exp45_owners/exp45_RFf025_l40_2x32__SMOKE"
+E       AssertionError: assert '/r/.exp38_ow...0_2x32__SMOKE' == '/r/.exp45_ow...0_2x32__SMOKE'
+E         
+E         - /r/.exp45_owners/exp45_RFf025_l40_2x32__SMOKE
+E         ?        ^^
+E         + /r/.exp38_owners/exp45_RFf025_l40_2x32__SMOKE
+E         ?        ^^
+
+src/tests/test_exp45_launchers.py:292: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_launchers.py::test_submit_is_exactly_once_per_run_and_mode[FULL]
+FAILED src/tests/test_exp45_launchers.py::test_submit_is_exactly_once_per_run_and_mode[SMOKE]
+FAILED src/tests/test_exp45_launchers.py::test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record[7-00:00:01-PartitionName=all AllowGroups=ALL Default=YES MaxNodes=UNLIMITED MaxTime=7-00:00:00 MinNodes=0 State=UP-False]
+FAILED src/tests/test_exp45_launchers.py::test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record[168:00:01-PartitionName=all AllowGroups=ALL Default=YES MaxNodes=UNLIMITED MaxTime=7-00:00:00 MinNodes=0 State=UP-False]
+FAILED src/tests/test_exp45_launchers.py::test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record[1-00:00:00-PartitionName=all State=UP-False]
+FAILED src/tests/test_exp45_launchers.py::test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record[1-00:00:00-PartitionName=all AllowGroups=ALL Default=YES MaxNodes=UNLIMITED MaxTime=7days MinNodes=0 State=UP-False]
+FAILED src/tests/test_exp45_launchers.py::test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record[1-00:60:00-PartitionName=all AllowGroups=ALL Default=YES MaxNodes=UNLIMITED MaxTime=7-00:00:00 MinNodes=0 State=UP-False]
+FAILED src/tests/test_exp45_launchers.py::test_scontrol_failure_refuses_the_submission
+FAILED src/tests/test_exp45_launchers.py::test_the_submitter_names_exp45_and_fetches_the_exp45_branch
+FAILED src/tests/test_exp45_launchers.py::test_run_dirs_owner_dirs_and_resources
+10 failed, 24 passed in 32.11s
+EXIT 1 end 2026-11-14T22:02:13-05:00

@@ -10,7 +10,7 @@ Run on the neuronic login node from the exp-38 checkout (HEAD pushed, tracked tr
     exp38_submit_neuronic.py reconcile --run exp45_RFf025_l40_2x32 --mode FULL      # after an interrupted submit
     exp38_submit_neuronic.py abandon   --run exp45_RFf025_l40_2x32 --mode FULL      # only once the job is proven gone
 
-Ownership: ONE stable owner record per (run, mode), ``<save root>/.exp38_owners/<run>__<MODE>/``,
+Ownership: ONE stable owner record per (run, mode), ``<save root>/.exp45_owners/<run>__<MODE>/``,
 created atomically (``mkdir``) with ``intent.json`` (state "submitting") BEFORE ``sbatch``; the job id
 is added after ``sbatch`` (state "submitted"). The owner record is separate from the attempt payload:
 the job itself writes ``attempt_<jobid>.json`` there (exactly one attempt per owner; ``--no-requeue``),
@@ -18,7 +18,7 @@ after exact-comparing its token / run / mode / HEAD / backend / flash version / 
 / job name / job id with the intent. SMOKE and FULL have fixed run dirs (``<run>_smoke`` / ``<run>``),
 so a second SMOKE is refused exactly like a second FULL. ``reconcile`` resolves an interrupted
 submission only when exactly one job carries the token (zero or several: refuse, exit 2);
-``abandon`` (all token jobs terminal) moves the owner record to ``.exp38_owners/abandoned/`` and the
+``abandon`` (all token jobs terminal) moves the owner record to ``.exp45_owners/abandoned/`` and the
 run dir to ``<dir>.abandoned_<ts>`` -- an abandoned record is never found again.
 
 Written by the exp_38 Coder (Claude Opus 5.5).
@@ -40,7 +40,9 @@ TERMINAL = {"COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY", "NOD
 LIVE = {"PENDING", "RUNNING", "CONFIGURING", "COMPLETING", "SUSPENDED", "REQUEUED", "RESIZING", "STOPPED",
         "SIGNALING", "STAGE_OUT", "REQUEUE_HOLD", "REQUEUE_FED", "SPECIAL_EXIT"}
 SUBLOG = f"{reg.EXP_DIR}/exp45_neuronic_submissions.log"
-OWNERS = ".exp38_owners"
+OWNERS = ".exp45_owners"
+BRANCH = "exp-45-rf-data-curve"            # the launch branch on origin (plan F15, N6)
+PARTITION = "all"                           # exp45_train.sbatch's #SBATCH --partition
 ATTEMPT_CLAIM = "attempt.claim"
 FLASH_VERSION_DEFAULT = reg.FLASH_VERSION
 
@@ -72,11 +74,12 @@ def owner_dir(run, mode, root=None):
 
 
 INTENT_KEYS = frozenset({"schema", "token", "run", "mode", "head", "time", "backend", "flash_version",
-                         "allow_nonmatched", "save_dir", "job_name", "state", "ts", "job_id", "reconciled"})
+                         "allow_nonmatched", "save_dir", "job_name", "state", "ts", "job_id", "reconciled",
+                         "partition_max_time"})
 
 
 def job_name(run, mode, token):
-    return f"exp38-{run}-{mode.lower()}-{token[:8]}"
+    return f"exp45-{run}-{mode.lower()}-{token[:8]}"
 
 
 def sbatch_argv(run, mode, token, head, time_limit, backend, flash_version, sd, allow_nonmatched):
@@ -84,7 +87,7 @@ def sbatch_argv(run, mode, token, head, time_limit, backend, flash_version, sd, 
     exports = {"RUN": run, "MODE": mode, "EXPECT_SHA": head, "EXP38_TOKEN": token, "ATTN_BACKEND": backend,
                "EXPECT_FLASH_VERSION": flash_version or "", "ALLOW_NONMATCHED_RUNG": "1" if allow_nonmatched else "0",
                "SAVE_DIR": sd}
-    return ["sbatch", "--parsable", f"--job-name={job_name(run, mode, token)}", f"--comment=exp38:{token}",
+    return ["sbatch", "--parsable", f"--job-name={job_name(run, mode, token)}", f"--comment=exp45:{token}",
             f"--gres=gpu:l40:{r['ngpu']}", f"--cpus-per-task={r['cpus']}", f"--mem={r['mem']}",
             f"--time={time_limit}", "--no-requeue", f"--chdir={reg.REPO}",
             f"--output={reg.REPO}/{reg.EXP_DIR}/slurm_train_%x_%j.out",
@@ -110,9 +113,9 @@ def preflight(run, mode, allow_nonmatched, dry, backend):
     if _git("status", "--porcelain", "--untracked-files=no"):
         raise SubmitError("tracked tree is not clean")
     if not dry:
-        subprocess.run(["git", "-C", reg.REPO, "fetch", "-q", "origin", "exp-38-data-efficiency"], check=True)
+        subprocess.run(["git", "-C", reg.REPO, "fetch", "-q", "origin", BRANCH], check=True)
         if subprocess.run(["git", "-C", reg.REPO, "merge-base", "--is-ancestor", head, "FETCH_HEAD"]).returncode:
-            raise SubmitError(f"HEAD {head} is not pushed to origin/exp-38-data-efficiency")
+            raise SubmitError(f"HEAD {head} is not pushed to origin/{BRANCH}")
     reg.describe_run(run, "neuronic", allow_nonmatched=allow_nonmatched)
     reg.check_e0_receipt("neuronic")
     if mode == "FULL":
@@ -126,19 +129,47 @@ def _dry_preflight(run, allow_nonmatched):
     return _git("rev-parse", "HEAD")
 
 
+def slurm_seconds(text):
+    """Seconds of a Slurm [D-]H:MM:SS time; None for an unlimited one; SubmitError otherwise."""
+    import re
+    if text in ("UNLIMITED", "INFINITE"):
+        return None
+    m = re.fullmatch(r"(?:(\d+)-)?(\d{1,3}):(\d{2}):(\d{2})", text or "")
+    if not m or int(m.group(3)) > 59 or int(m.group(4)) > 59:
+        raise SubmitError(f"{text!r} is not a Slurm time (e.g. 24:00:00 or 3-00:00:00)")
+    d, h, mi, s = (int(x) if x else 0 for x in m.groups())
+    return ((d * 24 + h) * 60 + mi) * 60 + s
+
+
+def partition_max_time(runner=subprocess.run):
+    """The partition's MaxTime string (``scontrol show partition all``); any query failure is fatal."""
+    out = runner(["scontrol", "show", "partition", PARTITION, "-o"], capture_output=True, text=True)
+    import re
+    m = re.search(r"(?:^|\s)MaxTime=(\S+)", out.stdout or "") if out.returncode == 0 else None
+    if not m:
+        raise SubmitError(f"scontrol show partition {PARTITION} gave no MaxTime (rc {out.returncode})")
+    slurm_seconds(m.group(1))
+    return m.group(1)
+
+
 def submit(run, mode, time_limit, backend, flash_version, allow_nonmatched, dry, root=None, runner=subprocess.run):
     if mode not in ("SMOKE", "FULL"):
         raise SubmitError("mode must be SMOKE or FULL")
-    import re
-    if not re.fullmatch(r"(\d+-)?\d{1,3}:\d{2}:\d{2}", time_limit or ""):
+    want_s = slurm_seconds(time_limit)
+    if want_s is None:
         raise SubmitError(f"--time {time_limit!r} is not a Slurm time (e.g. 24:00:00 or 3-00:00:00)")
+    # the walltime against the partition's MaxTime, BEFORE any reservation / owner intent (plan r3 §3.2, Codex
+    # plan r1 finding 14): refused, never clamped, never chained
+    max_time = partition_max_time(runner)
+    if slurm_seconds(max_time) is not None and want_s > slurm_seconds(max_time):
+        raise SubmitError(f"--time {time_limit} exceeds partition {PARTITION}'s MaxTime {max_time}")
     head = preflight(run, mode, allow_nonmatched, dry, backend) if not dry else _dry_preflight(run, allow_nonmatched)
     token = uuid.uuid4().hex
     sd = run_dir(run, mode, root)
     argv = sbatch_argv(run, mode, token, head, time_limit, backend, flash_version, sd, allow_nonmatched)
     od = owner_dir(run, mode, root)
     if dry:
-        return {"dry_run": True, "run_dir": sd, "owner": od, "argv": argv}
+        return {"dry_run": True, "run_dir": sd, "owner": od, "argv": argv, "partition_max_time": max_time}
     reg.check_run_dir(sd, run, 0)
     reservation = None
     if mode == "FULL":           # the shared storage reservation, before sbatch and before any owner intent
@@ -154,7 +185,8 @@ def submit(run, mode, time_limit, backend, flash_version, allow_nonmatched, dry,
     intent = {"schema": 1, "token": token, "run": run, "mode": mode, "head": head, "time": time_limit,
               "backend": backend, "flash_version": flash_version or "", "allow_nonmatched": bool(allow_nonmatched),
               "save_dir": sd, "job_name": job_name(run, mode, token), "state": "submitting",
-              "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "job_id": None, "reconciled": False}
+              "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "job_id": None, "reconciled": False,
+              "partition_max_time": max_time}
     _write_intent(os.path.join(od, "intent.json"), intent)
     out = runner(argv, capture_output=True, text=True)
     if out.returncode != 0:
@@ -308,7 +340,7 @@ def main(argv=None):
             out = abandon(a.run, a.mode)
         print(json.dumps(out, indent=1))
     except (SubmitError, reg.GateError, subprocess.CalledProcessError, OSError, ValueError) as err:
-        print(f"EXP38 SUBMIT REFUSED: {err}", file=sys.stderr)
+        print(f"EXP45 SUBMIT REFUSED: {err}", file=sys.stderr)
         return 2
     return 0
 

@@ -23,6 +23,7 @@ EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_45_rf_data_curve_claud
 EXP38 = os.path.join(REPO, "worklog", "worklog_yixun", "exp_38_data_efficiency_claude")   # read-only reuse
 SBATCH = os.path.join(EXP, "exp45_train.sbatch")
 ENV_PREFIX = os.path.dirname(os.path.dirname(os.path.realpath(sys.executable)))
+RF050 = "exp45_RFf050_l40_2x32"
 
 
 def _load(name):
@@ -94,9 +95,12 @@ def test_sbatch_hook_is_refused_under_a_real_allocation():
 
 
 # ------------------------------------------------------------------ the submitter
+SCONTROL_ALL = "PartitionName=all AllowGroups=ALL Default=YES MaxNodes=UNLIMITED MaxTime=7-00:00:00 MinNodes=0 State=UP"
+
+
 class FakeScheduler:
-    def __init__(self, squeue="", sacct="", sbatch="4242;cluster", fail=None):
-        self.out = {"squeue": squeue, "sacct": sacct, "sbatch": sbatch}
+    def __init__(self, squeue="", sacct="", sbatch="4242;cluster", fail=None, scontrol=SCONTROL_ALL):
+        self.out = {"squeue": squeue, "sacct": sacct, "sbatch": sbatch, "scontrol": scontrol}
         self.fail = fail or set()
         self.calls = []
 
@@ -127,9 +131,11 @@ def _submit(tmp_path, run="exp45_RFf025_l40_2x32", mode="FULL", fake=None, **kw)
 def test_submit_is_exactly_once_per_run_and_mode(tmp_path, no_preflight, mode):
     fake = FakeScheduler()
     out = _submit(tmp_path, mode=mode, fake=fake)
-    assert out["job_id"] == "4242" and len(fake.calls) == 1
-    argv = fake.calls[0]
-    assert f"--job-name=exp38-exp45_RFf025_l40_2x32-{mode.lower()}-{out['token'][:8]}" in argv and "--gres=gpu:l40:2" in argv
+    sbatches = lambda: [c for c in fake.calls if c[0] == "sbatch"]  # noqa: E731
+    assert out["job_id"] == "4242" and len(sbatches()) == 1
+    argv = sbatches()[0]
+    assert f"--job-name=exp45-exp45_RFf025_l40_2x32-{mode.lower()}-{out['token'][:8]}" in argv and "--gres=gpu:l40:2" in argv
+    assert f"--comment=exp45:{out['token']}" in argv and argv[-1].endswith("/exp45_train.sbatch")
     assert "--no-requeue" in argv and any(a.startswith(f"--export=ALL,RUN=exp45_RFf025_l40_2x32,MODE={mode}") for a in argv)
     od, intent = sub.find_intent("exp45_RFf025_l40_2x32", mode, root=str(tmp_path))
     assert intent["state"] == "submitted" and intent["job_id"] == "4242" and set(intent) == sub.INTENT_KEYS
@@ -138,9 +144,10 @@ def test_submit_is_exactly_once_per_run_and_mode(tmp_path, no_preflight, mode):
     assert (out["storage"] is None) == (mode == "SMOKE") and sorted(held) == (["exp45_RFf025_l40_2x32"] if mode == "FULL" else [])
     assert mode == "SMOKE" or (held["exp45_RFf025_l40_2x32"]["token"] == out["token"]
                                and held["exp45_RFf025_l40_2x32"]["reserved_bytes"] == reg.RUN_RESERVE_BYTES)
+    assert intent["partition_max_time"] == "7-00:00:00" and intent["time"] == "3-00:00:00"
     with pytest.raises(reg.GateError):                          # the owner record refuses a second submission
         _submit(tmp_path, mode=mode, fake=fake)
-    assert len(fake.calls) == 1
+    assert len(sbatches()) == 1
 
 
 def _claim(tmp_path, monkeypatch, out, run="exp45_RFf025_l40_2x32", mode="FULL", **over):
@@ -156,7 +163,7 @@ def _claim(tmp_path, monkeypatch, out, run="exp45_RFf025_l40_2x32", mode="FULL",
 
 @pytest.mark.parametrize("over", [{"token": "1" * 32}, {"head": "b" * 40}, {"backend": "sdpa"},
                                   {"flash_version": "2.8.0"}, {"allow_nonmatched": True}, {"sd": "/elsewhere"},
-                                  {"jid": "999"}, {"jname": "exp38-exp45_RFf025_l40_2x32-full-deadbeef"}])
+                                  {"jid": "999"}, {"jname": "exp45-exp45_RFf025_l40_2x32-full-deadbeef"}])
 def test_the_job_must_match_its_owner_intent_exactly(tmp_path, monkeypatch, no_preflight, over):
     out = _submit(tmp_path)
     with pytest.raises(reg.GateError):
@@ -220,7 +227,7 @@ def test_a_full_submission_reserves_before_any_owner_record_and_refuses_below_th
     fake = FakeScheduler()
     with pytest.raises(reg.GateError, match="floor"):
         _submit(tmp_path, fake=fake)
-    assert fake.calls == [] and not os.path.exists(tmp_path / sub.OWNERS)
+    assert [c for c in fake.calls if c[0] == "sbatch"] == [] and not os.path.exists(tmp_path / sub.OWNERS)
     assert not os.path.exists(tmp_path / reg.STORAGE_LEDGER)
     monkeypatch.setattr(reg, "free_bytes", lambda path: reg.STORAGE_FLOOR_BYTES + reg.RUN_RESERVE_BYTES)
     assert _submit(tmp_path, fake=fake)["storage"]["reserved_bytes"] == reg.RUN_RESERVE_BYTES
@@ -228,6 +235,42 @@ def test_a_full_submission_reserves_before_any_owner_record_and_refuses_below_th
     with pytest.raises(reg.GateError, match="floor"):                             # the next candidate: no room
         _submit(tmp_path, run="exp45_RFf050_l40_2x32", fake=fake)
     assert not os.path.exists(os.path.join(sub.owner_dir("exp45_RFf050_l40_2x32", "FULL", str(tmp_path))))
+
+
+@pytest.mark.parametrize("time_limit,scontrol,ok", [
+    ("7-00:00:00", SCONTROL_ALL, True), ("7-00:00:01", SCONTROL_ALL, False), ("168:00:01", SCONTROL_ALL, False),
+    ("8-00:00:00", SCONTROL_ALL.replace("MaxTime=7-00:00:00", "MaxTime=UNLIMITED"), True),
+    ("1-00:00:00", "PartitionName=all State=UP", False),                       # no MaxTime: fail closed
+    ("1-00:00:00", SCONTROL_ALL.replace("7-00:00:00", "7days"), False),        # unparseable: fail closed
+    ("1-00:60:00", SCONTROL_ALL, False),
+])
+def test_the_walltime_is_refused_above_the_partition_maxtime_before_any_owner_record(tmp_path, no_preflight,
+                                                                                     time_limit, scontrol, ok):
+    """plan r3 §3.2 / L6 (Codex plan r1 finding 14): the request is checked against `all`'s MaxTime before any
+    reservation or owner intent, recorded in the owner record, never clamped and never chained."""
+    fake = FakeScheduler(scontrol=scontrol)
+    if ok:
+        out = sub.submit(RF050, "FULL", time_limit, "flash", reg.FLASH_VERSION, False, False, root=str(tmp_path), runner=fake)
+        assert sub.find_intent(RF050, "FULL", root=str(tmp_path))[1]["time"] == time_limit and out["job_id"]
+        return
+    with pytest.raises(sub.SubmitError):
+        sub.submit(RF050, "FULL", time_limit, "flash", reg.FLASH_VERSION, False, False, root=str(tmp_path), runner=fake)
+    assert [c[0] for c in fake.calls if c[0] == "sbatch"] == [] and not os.path.exists(tmp_path / sub.OWNERS)
+    assert not os.path.exists(tmp_path / reg.STORAGE_LEDGER)
+
+
+def test_scontrol_failure_refuses_the_submission(tmp_path, no_preflight):
+    with pytest.raises(sub.SubmitError, match="MaxTime"):
+        _submit(tmp_path, fake=FakeScheduler(fail={"scontrol"}))
+    assert not os.path.exists(tmp_path / sub.OWNERS)
+
+
+def test_the_submitter_names_exp45_and_fetches_the_exp45_branch():
+    assert sub.job_name(RF050, "FULL", "ab" * 16) == f"exp45-{RF050}-full-abababab" and sub.OWNERS == ".exp45_owners"
+    assert sub.BRANCH == "exp-45-rf-data-curve" and sub.PARTITION == "all"
+    import inspect
+    src = inspect.getsource(sub.preflight)
+    assert '"fetch", "-q", "origin", BRANCH' in src and "exp-38-data-efficiency" not in open(sub.__file__).read()
 
 
 def test_scheduler_queries_fail_closed(tmp_path):
@@ -246,7 +289,7 @@ def test_abandon_refuses_when_the_recorded_job_is_invisible(tmp_path, no_preflig
 def test_run_dirs_owner_dirs_and_resources():
     assert sub.run_dir("exp45_RFf025_l40_2x32", "SMOKE", "/r") == "/r/exp45_RFf025_l40_2x32_smoke"
     assert sub.run_dir("exp45_RFf025_l40_2x32", "FULL", "/r") == "/r/exp45_RFf025_l40_2x32"
-    assert sub.owner_dir("exp45_RFf025_l40_2x32", "SMOKE", "/r") == "/r/.exp38_owners/exp45_RFf025_l40_2x32__SMOKE"
+    assert sub.owner_dir("exp45_RFf025_l40_2x32", "SMOKE", "/r") == "/r/.exp45_owners/exp45_RFf025_l40_2x32__SMOKE"
     assert sub.resources("exp45_RFf025_l40_2x32") == {"ngpu": 2, "cpus": 22, "mem": "64G"}
     with pytest.raises(reg.GateError):
         sub.run_dir("de_p1_f050", "FULL", "/r")
