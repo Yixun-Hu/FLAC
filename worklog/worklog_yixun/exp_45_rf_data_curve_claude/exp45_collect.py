@@ -262,11 +262,16 @@ def materialise(dest, root=None):
                 raise ev.EvalError(f"{target} exists with other bytes: refused, nothing overwritten")
             same += 1
             continue
+        if reg.tracked_in_index(dest, rel):          # tracked but missing in the destination repo (r2 finding 9)
+            raise ev.EvalError(f"{target} is tracked in the destination's index but missing: refused, never written")
         data = open(os.path.join(root, rel), "rb").read()
         if hashlib.sha256(data).hexdigest() != digest:
             raise ev.EvalError(f"{rel} changed during the copy")
         os.makedirs(os.path.dirname(target), exist_ok=True)
-        reg.atomic_write_bytes(target, data)
+        try:
+            reg.publish_no_clobber(target, data)       # no replacing rename: an entry created meanwhile is kept
+        except FileExistsError:
+            raise ev.EvalError(f"{target} appeared during the copy: refused, never overwritten")
         if reg.sha256_file(target) != digest:
             raise ev.EvalError(f"{target}: the copy does not re-hash to {digest[:12]}")
         copied += 1

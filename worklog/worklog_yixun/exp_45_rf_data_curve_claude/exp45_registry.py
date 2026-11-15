@@ -25,6 +25,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
@@ -943,6 +944,31 @@ def alias_problem(base, rel):
     want = os.path.normpath(os.path.join(os.path.realpath(base), os.path.relpath(anc, base)))
     got = os.path.realpath(anc)
     return None if got == want else f"{os.path.join(base, rel)}: an alias ({os.path.relpath(anc, base)} -> {got})"
+
+
+def tracked_in_index(repo_root, rel):
+    """Is ``rel`` tracked in the index of the git work tree at ``repo_root``? (git ls-files --error-unmatch, read-only;
+    not a work tree -> False)"""
+    import subprocess
+    out = subprocess.run(["git", "-C", repo_root, "ls-files", "--error-unmatch", "--", rel], capture_output=True)
+    return out.returncode == 0
+
+
+def publish_no_clobber(target, data):
+    """Publish ``data`` at ``target`` only if nothing is there: a private temp file is written and fsynced, then
+    HARD-LINKED to the target (os.link refuses an existing entry, a dangling symlink included); FileExistsError
+    otherwise, the existing entry untouched (Codex code r2 finding 9)."""
+    d = os.path.dirname(os.path.abspath(target))
+    fd, tmp = tempfile.mkstemp(prefix=f".{os.path.basename(target)}.publish.", dir=d)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.link(tmp, target)
+    finally:
+        os.unlink(tmp)
+    _fsync_dir(d)
 
 
 def storage_gate(platform, path, need_bytes, tag="exp38"):

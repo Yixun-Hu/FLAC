@@ -324,6 +324,47 @@ def test_the_disclosures_have_one_source_and_appear_under_every_exp45_table(buil
     assert all(d in cmd for d in reg.disclosures("collect")) and reg.DISCLOSURES[6] not in cmd
 
 
+@pytest.mark.parametrize("case", ["dangling symlink", "tracked but missing", "created during the race"])
+def test_the_import_materialiser_never_clobbers_a_destination(tmp_path, monkeypatch, case):
+    """Codex code r2 finding 9: exp45_table.materialise uses lexists (a dangling symlink is an existing entry), refuses
+    a destination tracked in the generator root's index but missing on disk, and publishes absent files with a
+    no-clobber primitive (a file created between the check and the write is never overwritten)."""
+    import builtins
+    import hashlib
+    src = tmp_path / "bundle"
+    rel = "outputs_FLAC/exp38_data_efficiency/eval/de_yaw_f025/x.json"
+    os.makedirs(src / os.path.dirname(rel))
+    (src / rel).write_bytes(b"cell")
+    hashes = {rel: hashlib.sha256(b"cell").hexdigest()}
+    gen = tmp_path / "generator_root"
+    target = gen / rel
+    os.makedirs(target.parent)
+    if case == "dangling symlink":
+        target.symlink_to(tmp_path / "nowhere")
+    elif case == "tracked but missing":
+        subprocess.run(["git", "init", "-q", str(gen)], check=True)
+        target.write_bytes(b"tracked")
+        subprocess.run(["git", "-C", str(gen), "add", "-f", rel], check=True)
+        os.remove(target)
+    else:
+        real_open, s = builtins.open, os.path.realpath(str(src / rel))
+
+        def racing_open(f, *a, **k):
+            if isinstance(f, (str, os.PathLike)) and os.path.realpath(str(f)) == s and not target.exists():
+                target.write_bytes(b"a concurrent writer's bytes")
+            return real_open(f, *a, **k)
+        monkeypatch.setattr(builtins, "open", racing_open)
+    with pytest.raises(tbl.TableError):
+        tbl.materialise(str(src), hashes, str(gen))
+    monkeypatch.undo()
+    if case == "dangling symlink":
+        assert os.path.islink(target) and not os.path.exists(target)
+    elif case == "tracked but missing":
+        assert not os.path.lexists(target)
+    else:
+        assert target.read_bytes() == b"a concurrent writer's bytes"
+
+
 def test_build_refuses_a_missing_cell(built, monkeypatch):
     repo, sha, _ = built
     real = tbl.rf_rows

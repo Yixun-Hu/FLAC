@@ -297,15 +297,20 @@ def materialise(src_root, hashes, generator_root):
             raise TableError(f"{problem}: refused, nothing written")
     for rel, digest in sorted(hashes.items()):
         dest = os.path.join(generator_root, rel)
-        if os.path.exists(dest):
-            if reg.sha256_file(dest) != digest:
-                raise TableError(f"{dest} exists with other bytes")
+        if os.path.lexists(dest):                      # lexists: a dangling symlink is an entry (r2 finding 9)
+            if os.path.islink(dest) or not os.path.isfile(dest) or reg.sha256_file(dest) != digest:
+                raise TableError(f"{dest} exists with other bytes (or is not a regular file): refused")
             continue
+        if reg.tracked_in_index(generator_root, rel):
+            raise TableError(f"{dest} is tracked in the generator root's index but missing: refused, never written")
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         data = open(os.path.join(src_root, rel), "rb").read()
         if hashlib.sha256(data).hexdigest() != digest:
             raise TableError(f"{rel} changed during the import")
-        reg.atomic_write_bytes(dest, data)
+        try:
+            reg.publish_no_clobber(dest, data)         # no replacing rename: an entry created meanwhile is kept
+        except FileExistsError:
+            raise TableError(f"{dest} appeared during the copy: refused, never overwritten")
         if reg.sha256_file(dest) != digest:
             raise TableError(f"{dest}: the copy does not re-hash to {digest[:12]}")
 

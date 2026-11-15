@@ -916,6 +916,49 @@ def test_verify_and_materialise_carry_a_publication_to_another_root_sha256_verif
         col.verify(str(tmp_path / "nothing_here"))
 
 
+@pytest.mark.parametrize("case", ["dangling symlink", "tracked but missing", "created during the race"])
+def test_materialise_never_clobbers_a_destination(tmp_path, monkeypatch, case):
+    """Codex code r2 finding 9: an existing destination entry (a dangling symlink included, by lexists) refuses; a
+    path tracked in the destination repo's index but missing from its worktree refuses (git ls-files
+    --error-unmatch, read-only); an absent file is published with a no-clobber primitive, so a destination created
+    between the check and the write refuses and keeps its bytes."""
+    import builtins
+    import subprocess
+    root, ev_files = _publication(tmp_path)
+    dest = tmp_path / "generator_root"
+    dest.mkdir()
+    _seed_exp38_files(root, dest)
+    rel = list(ev_files)[1]
+    target = dest / rel
+    os.makedirs(target.parent, exist_ok=True)
+    if case == "dangling symlink":
+        target.symlink_to(tmp_path / "nowhere")
+    elif case == "tracked but missing":
+        subprocess.run(["git", "init", "-q", str(dest)], check=True)
+        target.write_bytes(b"tracked")
+        subprocess.run(["git", "-C", str(dest), "add", "-f", rel], check=True)
+        os.remove(target)                                            # tracked in the index, absent on disk
+    else:
+        real_open, src, seen = builtins.open, os.path.realpath(str(root / rel)), []
+
+        def racing_open(f, *a, **k):
+            if isinstance(f, (str, os.PathLike)) and os.path.realpath(str(f)) == src:
+                seen.append(1)
+                if len(seen) == 2 and not target.exists():           # its copy read: after verify's hashing and
+                    target.write_bytes(b"a concurrent writer's bytes")   # the existence check, before the write
+            return real_open(f, *a, **k)
+        monkeypatch.setattr(builtins, "open", racing_open)
+    with pytest.raises(ev.EvalError):
+        col.materialise(str(dest), root=str(root))
+    monkeypatch.undo()
+    if case == "dangling symlink":
+        assert os.path.islink(target) and not os.path.exists(target)
+    elif case == "tracked but missing":
+        assert not os.path.lexists(target)
+    else:
+        assert target.read_bytes() == b"a concurrent writer's bytes"
+
+
 def test_the_collector_cli_verifies_and_materialises(tmp_path, monkeypatch, capsys):
     root, _ = _publication(tmp_path)
     monkeypatch.chdir(os.getcwd())                               # main() chdirs to REPO: restored afterwards
