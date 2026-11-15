@@ -9,6 +9,7 @@ Run on the neuronic login node from the exp-38 checkout (HEAD pushed, tracked tr
     exp38_submit_neuronic.py submit    --run exp45_RFf025_l40_2x32 --mode FULL  --time 3-00:00:00 [--dry-run]
     exp38_submit_neuronic.py reconcile --run exp45_RFf025_l40_2x32 --mode FULL      # after an interrupted submit
     exp38_submit_neuronic.py abandon   --run exp45_RFf025_l40_2x32 --mode FULL      # only once the job is proven gone
+    exp45_submit_neuronic.py release   --run exp45_RFf025_l40_2x32                  # a SEALED run's stranded hold
 
 Ownership: ONE stable owner record per (run, mode), ``<save root>/.exp45_owners/<run>__<MODE>/``,
 created atomically (``mkdir``) with ``intent.json`` (state "submitting") BEFORE ``sbatch``; the job id
@@ -456,9 +457,45 @@ def _abandon_locked(run, mode, root, runner):
             "storage_released": released is not None}
 
 
+def release(run, root=None, runner=subprocess.run):
+    """Free the storage hold of a SEALED FULL run (Codex code r2 finding 8) -- idempotent, and the only thing it
+    changes is that ledger entry: the run dir, its records and the owner record are never moved or touched. Refuses
+    unless the run is sealed (TRAINING_COMMITTED.json sealed; it binds the run dir's current training receipt and the
+    COMPLETE terminal launch record of THIS owner's attempt), the hold is this owner's (token, run dir), and every job
+    of the owner's token is terminal with the recorded job visible."""
+    with submit_lock(run, "FULL", root):
+        res = reg.storage_reservation(run, save_root(root))
+        if res is None:
+            return {"run": run, "released": False, "note": "no storage hold"}
+        od, intent = find_intent(run, "FULL", root)
+        rd = run_dir(run, "FULL", root)
+        if intent["token"] != res["token"] or res["run_dir"] != rd or intent["save_dir"] != rd:
+            raise SubmitError(f"{run}'s hold (token {res['token'][:8]}, {res['run_dir']}) is not this owner's "
+                              f"(token {intent['token'][:8]}, {rd})")
+        cm, _ = reg.read_sealed(os.path.join(rd, reg.COMMIT_MARKER), reg.COMMIT_KEYS)
+        lr = os.path.join(rd, str(cm["launch_record"]))
+        lrec = json.load(open(lr))
+        if (cm["schema"], cm["run"]) != (1, run) or reg.sha256_file(lr) != cm["launch_record_sha256"] \
+                or reg.sha256_file(os.path.join(rd, reg.TRAINING_RECEIPT)) != cm["training_receipt_sha256"] \
+                or lrec.get("status") != "COMPLETE" or lrec.get("training_receipt_sha256") != cm["training_receipt_sha256"] \
+                or lrec.get("owner") != os.path.join(od, f"attempt_{intent['job_id']}.json"):
+            raise SubmitError(f"{run} is not sealed by this owner's attempt (marker / launch record / training receipt)")
+        jobs = scheduler_state(intent["job_name"], runner)
+        live = {j: s for j, s in jobs.items() if s not in TERMINAL}
+        if live:
+            raise SubmitError(f"job(s) {live} of {run} are not terminal")
+        if intent["state"] != "submitted" or intent["job_id"] not in jobs:
+            raise SubmitError(f"recorded job {intent['job_id']} is not visible to the scheduler: refuse to guess")
+        out = reg.release_storage(run, intent["token"], save_root(root),
+                                  reason="released after the run was sealed (exp45_submit_neuronic.py release; run dir kept)")
+        return {"run": run, "released": out is not None, "jobs": jobs}
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("release")
+    s.add_argument("--run", required=True)
     for name in ("submit", "reconcile", "abandon"):
         s = sub.add_parser(name)
         s.add_argument("--run", required=True)
@@ -476,6 +513,8 @@ def main(argv=None):
                          a.allow_nonmatched_rung, a.dry_run)
         elif a.cmd == "reconcile":
             out = reconcile(a.run, a.mode)
+        elif a.cmd == "release":
+            out = release(a.run)
         else:
             out = abandon(a.run, a.mode)
         print(json.dumps(out, indent=1))

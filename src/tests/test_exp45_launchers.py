@@ -362,3 +362,81 @@ def test_an_untracked_importable_next_to_the_kit_refuses_every_mode(tmp_path):
         assert r.returncode == 3 and "untracked importable files in the kit folder" in r.stderr
     finally:
         os.remove(shadow)
+
+
+# ------------------------------------------------------------------ release: a sealed run's stranded hold (Codex code r2 finding 8)
+def _sealed_full(tmp_path, run="exp45_RFf025_l40_2x32"):
+    """A FULL run sealed by the kit's own marker writer: the run dir holds a training receipt and a COMPLETE
+    launch record of this owner's attempt, bound by TRAINING_COMMITTED.json."""
+    od, intent = sub.find_intent(run, "FULL", root=str(tmp_path))
+    rd = tmp_path / run
+    rd.mkdir()
+    (rd / reg.TRAINING_RECEIPT).write_text('{"sealed": "training receipt"}\n')
+    digest = reg.sha256_file(str(rd / reg.TRAINING_RECEIPT))
+    lr = rd / f"at_launch_{run}_neuronic_FULL_x.json"
+    json.dump({"run": run, "status": "COMPLETE", "training_receipt_sha256": digest,
+               "owner": os.path.join(od, f"attempt_{intent['job_id']}.json")}, open(lr, "w"))
+    reg.write_commit_marker(str(rd), run, digest, str(lr))
+    return rd, od, intent
+
+
+def _tree_state(*dirs):
+    return [sorted((os.path.relpath(os.path.join(d, f), str(top)), os.lstat(os.path.join(d, f)).st_mtime_ns)
+                   for d, _, fs in os.walk(str(top)) for f in fs) for top in dirs]
+
+
+def test_release_frees_only_the_ledger_hold_of_a_sealed_terminal_run(tmp_path, no_preflight):
+    out = _submit(tmp_path)
+    rd, od, intent = _sealed_full(tmp_path)
+    name = intent["job_name"]
+    before = _tree_state(rd, od)
+    live = FakeScheduler(squeue="4242|RUNNING\n", sacct=f"4242|{name}|RUNNING\n")
+    with pytest.raises(sub.SubmitError, match="not terminal"):
+        sub.release("exp45_RFf025_l40_2x32", root=str(tmp_path), runner=live)
+    assert list(json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"]) == ["exp45_RFf025_l40_2x32"]
+    done = FakeScheduler(sacct=f"4242|{name}|COMPLETED\n")
+    got = sub.release("exp45_RFf025_l40_2x32", root=str(tmp_path), runner=done)
+    led = json.load(open(tmp_path / reg.STORAGE_LEDGER))
+    assert got["released"] and led["reservations"] == {} and led["releases"][-1]["token"] == out["token"]
+    assert "sealed" in led["releases"][-1]["reason"]
+    assert _tree_state(rd, od) == before                         # the run dir and the owner record are untouched
+    assert sub.release("exp45_RFf025_l40_2x32", root=str(tmp_path), runner=done)["released"] is False   # idempotent
+    with pytest.raises(SystemExit):
+        sub.main(["release"])                                     # the CLI verb exists (and needs --run)
+
+
+@pytest.mark.parametrize("what", ["no marker", "record changed", "receipt changed", "another attempt", "foreign token",
+                                  "job not visible"])
+def test_release_refuses_an_unsealed_foreign_or_unproven_run(tmp_path, no_preflight, what):
+    _submit(tmp_path)
+    rd, od, intent = _sealed_full(tmp_path)
+    name = intent["job_name"]
+    runner = FakeScheduler(sacct=f"4242|{name}|COMPLETED\n")
+    lr = [f for f in os.listdir(rd) if f.startswith("at_launch_")][0]
+    if what == "no marker":
+        for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+            os.remove(rd / f)
+    elif what == "record changed":
+        rec = json.load(open(rd / lr))
+        rec["note"] = "rewritten after the seal"
+        json.dump(rec, open(rd / lr, "w"))
+    elif what == "receipt changed":
+        (rd / reg.TRAINING_RECEIPT).write_text('{"other": 1}\n')
+    elif what == "another attempt":
+        cm = json.load(open(rd / reg.COMMIT_MARKER))
+        rec = json.load(open(rd / lr))
+        rec["owner"] = os.path.join(od, "attempt_999.json")
+        for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
+            os.remove(rd / f)
+        json.dump(rec, open(rd / lr, "w"))
+        reg.write_commit_marker(str(rd), "exp45_RFf025_l40_2x32", cm["training_receipt_sha256"], str(rd / lr))
+    elif what == "foreign token":
+        p = tmp_path / reg.STORAGE_LEDGER
+        led = json.load(open(p))
+        led["reservations"]["exp45_RFf025_l40_2x32"]["token"] = "9" * 32
+        json.dump(led, open(p, "w"))
+    else:
+        runner = FakeScheduler()                                   # the recorded job is not visible
+    with pytest.raises(reg.GateError):
+        sub.release("exp45_RFf025_l40_2x32", root=str(tmp_path), runner=runner)
+    assert list(json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"]) == ["exp45_RFf025_l40_2x32"]
