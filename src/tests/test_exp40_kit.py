@@ -85,6 +85,12 @@ def test_prefigure_parse_matches_the_expected_values_type_strict():
     for mode, stamp in (("FULL", ""), ("DDP_SMOKE", STAMP), ("SMOKE", STAMP)):
         argv = kit.train_argv("a6000", "2x32", mode, RID, "/abs/s", stamp)
         want = kit.expected_parse("a6000", "2x32", mode, RID, "/abs/s", stamp)
+        # exp_45 compat edit (plan_rf_data_curve.md §3.1): the merged defaults.ini carries exp_38's
+        # evidence_json = '' -- the ONLY key added to the parsed namespace; every other assertion stays
+        assert "evidence_json" not in want
+        assert kit.parsed_argv_reasons(str(_REPO), argv, want, sys.executable) == [
+            "parsed evidence_json = '' (str), expected '<absent>'"]
+        want = dict(want, evidence_json="")
         assert kit.parsed_argv_reasons(str(_REPO), argv, want, sys.executable) == []
     bad = dict(want, batch_size=8)
     assert kit.parsed_argv_reasons(str(_REPO), argv, bad, sys.executable)

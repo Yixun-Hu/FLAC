@@ -1,0 +1,35 @@
+HEAD ed9e1770fe2b1e4606ae5798ba166210a2016673 tracked-clean=yes host neu312.neuronic.cs.princeton.edu start 2026-11-14T21:02:31-05:00
+cmd: pytest -q src/tests/test_exp40_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict src/tests/test_exp43_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict 
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_________ test_prefigure_parse_matches_the_expected_values_type_strict _________
+
+    def test_prefigure_parse_matches_the_expected_values_type_strict():
+        for mode, stamp in (("FULL", ""), ("DDP_SMOKE", STAMP), ("SMOKE", STAMP)):
+            argv = kit.train_argv("a6000", "2x32", mode, RID, "/abs/s", stamp)
+            want = kit.expected_parse("a6000", "2x32", mode, RID, "/abs/s", stamp)
+>           assert kit.parsed_argv_reasons(str(_REPO), argv, want, sys.executable) == []
+E           assert ["parsed evid...d '<absent>'"] == []
+E             
+E             Left contains one more item: "parsed evidence_json = '' (str), expected '<absent>'"
+E             Use -v to get more diff
+
+src/tests/test_exp40_kit.py:88: AssertionError
+_________ test_prefigure_parse_matches_the_expected_values_type_strict _________
+
+    def test_prefigure_parse_matches_the_expected_values_type_strict():
+        for mode, stamp in (("FULL", ""), ("DDP_SMOKE", STAMP), ("SMOKE", STAMP)):
+            argv = kit.train_argv("a6000", "2x32", mode, RID, "/abs/s", stamp)
+            want = kit.expected_parse("a6000", "2x32", mode, RID, "/abs/s", stamp)
+>           assert kit.parsed_argv_reasons(str(_REPO), argv, want, sys.executable) == []
+E           assert ["parsed evid...d '<absent>'"] == []
+E             
+E             Left contains one more item: "parsed evidence_json = '' (str), expected '<absent>'"
+E             Use -v to get more diff
+
+src/tests/test_exp43_kit.py:617: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp40_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict
+FAILED src/tests/test_exp43_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict
+2 failed in 20.80s
+EXIT 1 end 2026-11-14T21:02:53-05:00
