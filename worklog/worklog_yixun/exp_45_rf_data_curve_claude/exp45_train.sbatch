@@ -1,6 +1,7 @@
 #!/bin/bash
 # ============================================================================
-# exp38_train.sbatch — ONE monolithic exp_38 job on neuronic (plan_data_efficiency.md r2 §10 B7;
+# exp45_train.sbatch — ONE monolithic exp_45 job on neuronic (forked from exp_38's exp38_train.sbatch;
+# plan_rf_data_curve.md r3 §3.2; exp_38: plan_data_efficiency.md r2 §10 B7;
 # sensitivity platform, D2). Submit ONLY through exp38_submit_neuronic.py, which derives the Slurm
 # resources, owns (run, mode) with a stable intent record, names the job with its intent token and
 # exports:
@@ -22,7 +23,7 @@ set -uo pipefail
 main() {
   local REPO; REPO="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "not inside the FLAC checkout" >&2; exit 3; }
   cd "$REPO" || exit 3
-  local EXP="worklog/worklog_yixun/exp_38_data_efficiency_claude"
+  local EXP="worklog/worklog_yixun/exp_45_rf_data_curve_claude"
   local DRY="${EXP38_SBATCH_DRYRUN:-0}"
   die() { echo "EXP38 JOB REFUSED: $1" >&2; exit "${2:-2}"; }
   if [ "$DRY" = 1 ] && [ -n "${SLURM_JOB_ID:-}" ]; then die "EXP38_SBATCH_DRYRUN is a test hook, never under a real allocation"; fi
@@ -53,9 +54,9 @@ main() {
               --expect-flash-version "${EXPECT_FLASH_VERSION:-}")
   [ "$ALLOW" = 1 ] && ARGS+=(--allow-nonmatched-rung)
   if [ "$DRY" = 1 ]; then
-    exec "$PY" "$REPO/$EXP/exp38_supervise.py" --mode DRY_RUN "${ARGS[@]}"
+    exec "$PY" "$REPO/$EXP/exp45_supervise.py" --mode DRY_RUN "${ARGS[@]}"
   fi
-  exec "$PY" "$REPO/$EXP/exp38_supervise.py" --mode "$MODE" "${ARGS[@]}" --expect-sha "$EXPECT_SHA" \
+  exec "$PY" "$REPO/$EXP/exp45_supervise.py" --mode "$MODE" "${ARGS[@]}" --expect-sha "$EXPECT_SHA" \
     --token "$TOKEN" --save-dir "$SD"
 }
 

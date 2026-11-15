@@ -1,4 +1,4 @@
-"""exp_38 — the receipts every gate consumes (exp38_registry.py; Codex code r1 BLOCKING 1, 2, 4, HIGH 9,
+"""exp_45 (forked from test_exp38_receipts.py) — the receipts every gate consumes (exp45_registry.py; Codex code r1 BLOCKING 1, 2, 4, HIGH 9,
 NIT 1, 2, and the H11 mutation-coverage requirement).
 
 * first-step evidence: the exact 24-key schema, every value pinned -- the RNG digests per topology
@@ -22,12 +22,12 @@ import sys
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import exp38_fixtures as fx  # noqa: E402
+import exp45_fixtures as fx  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_38_data_efficiency_claude")
+EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_45_rf_data_curve_claude")
 sys.path.insert(0, EXP)
-import exp38_registry as reg  # noqa: E402
+import exp45_registry as reg  # noqa: E402
 
 SMOKES = os.path.join(REPO, "outputs_FLAC", "exp38_smoke")
 BASE = {"vanilla": os.path.join(SMOKES, "de_yaw_f025_2026-11-07_21-15-35", "evidence"),
@@ -326,22 +326,22 @@ def test_a_neuronic_smoke_receipt_needs_its_l40_allocation(tree):
 
 
 # ------------------------------------------------------------------ TRAINING_COMPLETE
-import exp38_eval  # noqa: E402  (E0_KEYS for the retained E0 copy)
+import exp45_eval  # noqa: E402  (E0_KEYS for the retained E0 copy)
 
 
 def _admitted(tree, monkeypatch, run="de_yaw_f050"):
     """The sealed E0 / environment / SMOKE_DDP receipts a FULL launch validated, in the campaign tree,
     mutually consistent; returns (paths, digests)."""
     exp = tree / reg.EXP_DIR
-    e0d = reg.write_sealed(str(exp / "data_efficiency_e0_receipt.json"), fx.synthetic_e0(exp38_eval, CLOSURE))
+    e0d = reg.write_sealed(str(exp / "rf_data_curve_e0_receipt.json"), fx.synthetic_e0(exp45_eval, CLOSURE))
     pk = {"flash-attn": reg.FLASH_VERSION}
-    _, envd = fx.sealed(reg, str(exp / "data_efficiency_env_receipt_a6000.json"), reg.ENV_RECEIPT_KEYS, platform="a6000",
+    _, envd = fx.sealed(reg, str(exp / "rf_data_curve_env_receipt_a6000.json"), reg.ENV_RECEIPT_KEYS, platform="a6000",
                         packages=pk, packages_sha256=reg.hashlib.sha256(reg.canonical(pk).encode()).hexdigest(),
                         flags={"optimize": 0, "no_user_site": 1})
     monkeypatch.setattr(reg, "env_receipt_sha", lambda platform, repo=None: envd)
     argv = reg.build_train_argv(run, "a6000")
-    smk_path = str(exp / f"data_efficiency_smoke_{run}_a6000_2026-11-08_04-00-00.json")
-    slog = exp / f"data_efficiency_2026-11-08_03-00-00_{run}_a6000_SMOKE_DDP_train.log"
+    smk_path = str(exp / f"rf_data_curve_smoke_{run}_a6000_2026-11-08_04-00-00.json")
+    slog = exp / f"rf_data_curve_2026-11-08_03-00-00_{run}_a6000_SMOKE_DDP_train.log"
     slog.write_text(smoke_log(run))
     _, smkd = fx.sealed(reg, smk_path, reg.SMOKE_KEYS, schema=1, mode="SMOKE_DDP", run=run, platform="a6000",
                         backend="flash", head=HEAD, closure_sha256=CLOSURE, env_receipt_sha256=envd, rc=0,
@@ -350,8 +350,8 @@ def _admitted(tree, monkeypatch, run="de_yaw_f050"):
                         log=str(slog), log_sha256=reg.sha256_file(str(slog)),
                         launched_at="2026-11-06T03:00:00-0500", finished_at="2026-11-06T03:30:00-0500",
                         evidence={str(r): e for r, e in records(run).items()})
-    paths = {"e0": str(exp / "data_efficiency_e0_receipt.json"), "smoke": smk_path,
-             "env": str(exp / "data_efficiency_env_receipt_a6000.json")}
+    paths = {"e0": str(exp / "rf_data_curve_e0_receipt.json"), "smoke": smk_path,
+             "env": str(exp / "rf_data_curve_env_receipt_a6000.json")}
     return paths, {"e0": e0d, "env": envd, "smoke": smkd, "smoke_log": str(slog)}
 
 
@@ -531,6 +531,7 @@ def test_the_training_receipt_binds_manifest_sha_and_bytes(tree, monkeypatch):
 
 
 # ------------------------------------------------------------------ environment receipt
+@pytest.mark.skipif(not os.path.isdir("/media/diskstation/yixunhu/FLAC"), reason="A6000 box only (nvidia-smi, A6000s)")
 def test_the_environment_snapshot_is_complete_on_this_box():
     rec = reg.env_snapshot("a6000")
     assert set(rec) == reg.ENV_RECEIPT_KEYS and rec["packages"]["flash-attn"] == reg.FLASH_VERSION

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""exp_38 neuronic submitter — one monolithic job per (run, mode), exactly once (plan r2 §10 B7;
+"""exp_45 neuronic submitter (forked from exp_38's exp38_submit_neuronic.py; plan_rf_data_curve.md r3 §3.2) —
+one monolithic job per (run, mode), exactly once (exp_38 plan r2 §10 B7;
 Codex code r1 HIGH 6).
 
 Run on the neuronic login node from the exp-38 checkout (HEAD pushed, tracked tree clean):
@@ -32,13 +33,13 @@ import uuid
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
-import exp38_registry as reg  # noqa: E402
+import exp45_registry as reg  # noqa: E402
 
 TERMINAL = {"COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL", "PREEMPTED",
             "BOOT_FAIL", "DEADLINE", "REVOKED"}
 LIVE = {"PENDING", "RUNNING", "CONFIGURING", "COMPLETING", "SUSPENDED", "REQUEUED", "RESIZING", "STOPPED",
         "SIGNALING", "STAGE_OUT", "REQUEUE_HOLD", "REQUEUE_FED", "SPECIAL_EXIT"}
-SUBLOG = f"{reg.EXP_DIR}/exp38_neuronic_submissions.log"
+SUBLOG = f"{reg.EXP_DIR}/exp45_neuronic_submissions.log"
 OWNERS = ".exp38_owners"
 ATTEMPT_CLAIM = "attempt.claim"
 FLASH_VERSION_DEFAULT = reg.FLASH_VERSION
@@ -88,7 +89,7 @@ def sbatch_argv(run, mode, token, head, time_limit, backend, flash_version, sd, 
             f"--time={time_limit}", "--no-requeue", f"--chdir={reg.REPO}",
             f"--output={reg.REPO}/{reg.EXP_DIR}/slurm_train_%x_%j.out",
             "--export=ALL," + ",".join(f"{k}={v}" for k, v in exports.items()),
-            f"{reg.REPO}/{reg.EXP_DIR}/exp38_train.sbatch"]
+            f"{reg.REPO}/{reg.EXP_DIR}/exp45_train.sbatch"]
 
 
 def _write_intent(path, rec):

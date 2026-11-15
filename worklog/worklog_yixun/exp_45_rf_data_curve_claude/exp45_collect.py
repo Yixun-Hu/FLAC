@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""exp_38 collector: admitted cells -> data_efficiency_results.{json,md} (plan r2 §9.4, §10 B9).
+"""exp_45 collector (forked from exp_38's exp38_collect.py; plan_rf_data_curve.md r3 §3.2): admitted cells ->
+rf_data_curve_results.{json,md} (exp_38 plan r2 §9.4, §10 B9).
 
 Everything is bound to the sealed E0 receipt (``exp38_eval.validate_e0_receipt``: a PASS at THIS
 closure). A cell is used only if ``exp38_eval.validate_cell`` admits it under that campaign (exact
@@ -26,11 +27,11 @@ import sys
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
-import exp38_eval as ev  # noqa: E402
-import exp38_registry as reg  # noqa: E402
+import exp45_eval as ev  # noqa: E402
+import exp45_registry as reg  # noqa: E402
 
-OUT_JSON = f"{reg.EXP_DIR}/data_efficiency_results.json"
-OUT_MD = f"{reg.EXP_DIR}/data_efficiency_results.md"
+OUT_JSON = f"{reg.EXP_DIR}/rf_data_curve_results.json"
+OUT_MD = f"{reg.EXP_DIR}/rf_data_curve_results.md"
 LOCK = f"{reg.EXP_DIR}/.collect.lock"
 SHOW = ("EDT", "C50", "T60", "FD", "RIR_to_GT_RIR_R@1")
 MODELS = {"p1": "FLAC (P1)", "yaw": "Yaw-Aug FLAC (YAW)", "bf": "OrbitRIR (B-F)",
@@ -172,7 +173,7 @@ def collect(bridge=None):
         pending += probs
         if arts:
             manifest["runs"][run] = arts
-    assert set(used) <= {os.path.relpath(k, os.path.join(reg.REPO, reg.EXP_DIR, "ref_cells"))
+    assert set(used) <= {os.path.relpath(k, os.path.join(reg.REPO, reg.REF_DIR))
                          for k in manifest["artifacts"]}
     return rows, pending, manifest
 

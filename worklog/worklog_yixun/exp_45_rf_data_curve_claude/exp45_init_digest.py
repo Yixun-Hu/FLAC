@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""exp_38 — the registered seed-42 initial-state digest of an arm (plan r2 §10 B3).
+"""exp_45 (forked from exp_38's exp38_init_digest.py) — the registered seed-42 initial-state digest of an arm
+(exp_38 plan r2 §10 B3; exp_45 plan r3 §3.2: names / registry only).
 
 Builds the training wrapper on the CPU in train.py's exact order (float32 matmul precision,
 ``pl.seed_everything(42, workers=True)`` -> dataloader construction -> ``create_model_from_config``
@@ -19,7 +20,7 @@ import sys
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
-import exp38_registry as reg  # noqa: E402
+import exp45_registry as reg  # noqa: E402
 
 
 def init_digest(run, repo=None):

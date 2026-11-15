@@ -1,0 +1,170 @@
+HEAD aec7952edc21d1c3c4e707082494ac620051e40d tracked-clean=no host neu312.neuronic.cs.princeton.edu start 2026-11-14T21:17:33-05:00
+cmd: pytest -q src/tests/test_exp45_registry.py src/tests/test_exp45_supervise.py src/tests/test_exp45_launchers.py src/tests/test_exp45_receipts.py src/tests/test_exp45_eval.py src/tests/test_exp45_ddp_evidence.py src/tests/test_exp45_sampler.py src/tests/test_exp45_command_sheets.py src/tests/test_exp45_merge_provenance.py 
+.........................................sss............................ [ 13%]
+...............................................FF.....................ss [ 27%]
+........................................................................ [ 40%]
+........................................................................ [ 54%]
+..............................F....s.s.................................. [ 68%]
+........................................................................ [ 81%]
+............................................F........................... [ 95%]
+........................                                                 [100%]
+=================================== FAILURES ===================================
+_______ test_sbatch_dry_run_prints_the_torchrun_lines[de_yaw_f025-FULL] ________
+
+run = 'de_yaw_f025', mode = 'FULL'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the0')
+
+    @pytest.mark.parametrize("run,mode", [("de_yaw_f025", "FULL"), ("de_bf_f050", "SMOKE"), ("de_bf_f025_r8x8", "FULL")])
+    def test_sbatch_dry_run_prints_the_torchrun_lines(run, mode, tmp_path):
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN=run, MODE=mode, EXPECT_SHA="a" * 40,
+                   EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR=str(tmp_path / run), ALLOW_NONMATCHED_RUNG=1 if run.endswith("_r8x8") else 0)
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+>       assert r.returncode == 0, r.stderr
+E       AssertionError: EXP38 LAUNCH REFUSED: /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f025: checkpoints ['epoch=10-step=12500.ckpt', 'epoch=13-step=15000.ckpt', 'epoch=15-step=17500.ckpt', 'epoch=17-step=20000.ckpt', 'epoch=19-step=22500.ckpt', 'epoch=2-step=2500.ckpt', 'epoch=21-step=25000.ckpt', 'epoch=23-step=27500.ckpt', 'epoch=26-step=30000.ckpt', 'epoch=28-step=32500.ckpt', 'epoch=30-step=35000.ckpt', 'epoch=32-step=37500.ckpt', 'epoch=34-step=40000.ckpt', 'epoch=4-step=5000.ckpt', 'epoch=6-step=7500.ckpt', 'epoch=8-step=10000.ckpt'] != expected [] for state 0
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['bash', '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve...00.ckpt', 'epoch=4-step=5000.ckpt', 'epoch=6-step=7500.ckpt', 'epoch=8-step=10000.ckpt'] != expected [] for state 0\n").returncode
+
+src/tests/test_exp45_launchers.py:70: AssertionError
+_______ test_sbatch_dry_run_prints_the_torchrun_lines[de_bf_f050-SMOKE] ________
+
+run = 'de_bf_f050', mode = 'SMOKE'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the1')
+
+    @pytest.mark.parametrize("run,mode", [("de_yaw_f025", "FULL"), ("de_bf_f050", "SMOKE"), ("de_bf_f025_r8x8", "FULL")])
+    def test_sbatch_dry_run_prints_the_torchrun_lines(run, mode, tmp_path):
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN=run, MODE=mode, EXPECT_SHA="a" * 40,
+                   EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR=str(tmp_path / run), ALLOW_NONMATCHED_RUNG=1 if run.endswith("_r8x8") else 0)
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+>       assert r.returncode == 0, r.stderr
+E       AssertionError: EXP38 LAUNCH REFUSED: /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_bf_f050: checkpoints ['epoch=1-step=2500.ckpt', 'epoch=10-step=25000.ckpt', 'epoch=12-step=27500.ckpt', 'epoch=13-step=30000.ckpt', 'epoch=14-step=32500.ckpt', 'epoch=15-step=35000.ckpt', 'epoch=16-step=37500.ckpt', 'epoch=17-step=40000.ckpt', 'epoch=2-step=5000.ckpt', 'epoch=3-step=7500.ckpt', 'epoch=4-step=10000.ckpt', 'epoch=5-step=12500.ckpt', 'epoch=6-step=15000.ckpt', 'epoch=7-step=17500.ckpt', 'epoch=8-step=20000.ckpt', 'epoch=9-step=22500.ckpt'] != expected [] for state 0
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['bash', '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve....ckpt', 'epoch=7-step=17500.ckpt', 'epoch=8-step=20000.ckpt', 'epoch=9-step=22500.ckpt'] != expected [] for state 0\n").returncode
+
+src/tests/test_exp45_launchers.py:70: AssertionError
+____________ test_the_environment_snapshot_is_complete_on_this_box _____________
+
+    def test_the_environment_snapshot_is_complete_on_this_box():
+>       rec = reg.env_snapshot("a6000")
+
+src/tests/test_exp45_receipts.py:535: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py:1413: in env_snapshot
+    rows = _gpu_rows()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _gpu_rows():
+        import subprocess
+        out = subprocess.run(["nvidia-smi", "--query-gpu=index,uuid,name,driver_version", "--format=csv,noheader"],
+                             capture_output=True, text=True, timeout=60)
+        if out.returncode or not out.stdout.strip():
+>           raise GateError(f"nvidia-smi failed (rc {out.returncode}): {out.stderr.strip()}")
+E           exp45_registry.GateError: nvidia-smi failed (rc 6):
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py:1399: GateError
+____________ test_the_result_manifest_lists_every_admitted_artifact ____________
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_result_manifest_lists0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f2f9bdfd0f0>
+
+    def test_the_result_manifest_lists_every_admitted_artifact(world, monkeypatch):
+        """Codex code r2 HIGH 7: a path -> sha256 entry for every file the admission consumed."""
+        for K in (8, 1):
+            for s_ in ev.SEEDS:
+                _cell(world, K=K, seed=s_)
+        campaign = world["campaign"]
+        rows, probs, arts = col.run_block("de_bf_f025", campaign)
+        assert probs == [] and len(rows) == 2
+        cells = ev.run_cells("de_bf_f025")
+        farm = os.path.dirname(cells[0]["ckpt_link"])
+        for c in cells:
+            rec = json.load(open(c["receipt"]))
+            for path in (c["metrics"], c["stream"], c["receipt"], rec["log"], ev.dump_manifest_copy(c),
+                         os.path.join(c["dump_dir"], "waveforms.npy"), os.path.join(c["dump_dir"], "COMPLETE")):
+                assert path in arts, path
+        for f in ("CHECKPOINTS.sha256", ev.reg.TRAINING_RECEIPT, ev.reg.TRAINING_RECEIPT + ".sha256", "receipts/train.log",
+                  "evidence/run_evidence.json.rank1.json"):
+            assert os.path.join(farm, f) in arts, f
+        assert all(len(v) == 64 for v in arts.values())
+        assert os.path.realpath(cells[0]["ckpt_link"]) in arts and os.path.join(farm, ev.reg.COMMIT_MARKER) in arts
+        monkeypatch.setattr(col.reg, "campaign_runs", lambda: ["de_bf_f025"])
+        snapdir = world["tmp"] / "evalsnap_manifests"
+        fx.write_snapshot_manifests(ev.reg, str(snapdir))
+        monkeypatch.setattr(ev, "eval_snapshot_dir", lambda closure: str(snapdir))
+        real_digest = ev.reg.snapshot_digest
+        monkeypatch.setattr(ev.reg, "snapshot_digest", lambda d: campaign["eval_snapshot_sha256"] if d == str(snapdir)
+                            else real_digest(d))
+        env_rel = str(world["tmp"] / "env_receipt.json")
+        fx.sealed(ev.reg, env_rel, ev.reg.ENV_RECEIPT_KEYS, platform="a6000")
+        monkeypatch.setattr(ev.reg, "env_receipt_rel", lambda platform: env_rel)
+>       rows, pending, manifest = col.collect()
+
+src/tests/test_exp45_eval.py:588: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_collect.py:167: in collect
+    "artifacts": ev.campaign_artifacts(campaign), "runs": {}}
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py:679: in campaign_artifacts
+    out[os.path.realpath(_abs(rel))] = _rehash(os.path.realpath(_abs(rel)), want)
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_eval.py:639: in _rehash
+    got = reg.sha256_file(path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/weights/AGREE/AGREE_fullAR.pt'
+
+    def sha256_file(path):
+        h = hashlib.sha256()
+>       with open(path, "rb") as fh:
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/weights/AGREE/AGREE_fullAR.pt'
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py:137: FileNotFoundError
+=============================== warnings summary ===============================
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    from pkg_resources import packaging
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-2x32]
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-8x8]
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[p1-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-2x32]
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-8x8]
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[p1-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-2x32]
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[bf-8x8]
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[p1-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[yaw-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[de_yaw_f025-FULL]
+FAILED src/tests/test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[de_bf_f050-SMOKE]
+FAILED src/tests/test_exp45_receipts.py::test_the_environment_snapshot_is_complete_on_this_box
+FAILED src/tests/test_exp45_eval.py::test_the_result_manifest_lists_every_admitted_artifact
+4 failed, 517 passed, 7 skipped, 16 warnings in 443.05s (0:07:23)
+EXIT 1 end 2026-11-14T21:24:59-05:00

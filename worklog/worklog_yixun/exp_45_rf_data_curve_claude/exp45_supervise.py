@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""exp_38 training supervisor — the one process that owns a training launch on either platform
+"""exp_45 training supervisor (forked from exp_38's exp38_supervise.py; plan_rf_data_curve.md r3 §3.2) —
+the one process that owns a training launch on either platform
 (plan_data_efficiency.md r2 §10 B6 / B7; Codex code r1 HIGH 4, 5, 7).
 
-Called by exp38_train_local.sh (this 2×A6000 box) and exp38_train.sbatch (neuronic) after they
+Called by exp45_train.sbatch (neuronic; exp_38's A6000 launcher is not forked) after it
 sanitised the environment; it runs every gate, holds the locks, launches train.py FROM an immutable
 closure snapshot, owns the child's process group, gates the first step, and publishes the run's
 sealed receipt only after every end audit passes:
@@ -37,7 +38,9 @@ import time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
-import exp38_registry as reg  # noqa: E402
+import exp45_registry as reg  # noqa: E402
+# exp_38's read-only tools (exp38_subset_audit, exp38_content_manifest) are imported from exp_38's folder
+sys.path.insert(1, os.path.join(reg.REPO, reg.EXP38_DIR))
 
 EXIT_GATE, EXIT_ENV, EXIT_START, EXIT_END = 2, 3, 4, 5
 GRACE_S = 120
@@ -462,11 +465,11 @@ def mode_smoke_single(a):
     ts = ts_now()
     sdir = os.path.join(reg.REPO, "outputs_FLAC", "exp38_smoke", f"{a.run}_{ts}")
     os.makedirs(sdir)
-    log = reg._abs(f"{reg.EXP_DIR}/data_efficiency_{ts}_{a.run}_SMOKE.log")
+    log = reg._abs(f"{reg.EXP_DIR}/rf_data_curve_{ts}_{a.run}_SMOKE.log")
     argv = reg.build_smoke_argv(a.run, a.smoke_steps, sdir)
     env = child_env("a6000", a.backend, reg.REPO, str(a.smoke_gpu))
     pins.update(backend_gate(a.backend, reg.REPO, env))
-    rec = Record([reg._abs(f"{reg.EXP_DIR}/data_efficiency_{ts}_{a.run}_SMOKE.json")], mode="SMOKE", run=a.run, ts=ts,
+    rec = Record([reg._abs(f"{reg.EXP_DIR}/rf_data_curve_{ts}_{a.run}_SMOKE.json")], mode="SMOKE", run=a.run, ts=ts,
                  gpu=a.smoke_gpu, steps=a.smoke_steps, backend=a.backend, head=git("rev-parse", "HEAD"), pins=pins,
                  argv=argv, note="single rank: no DDP / SyncBN; preliminary only", supervisor_pid=os.getpid(),
                  status="running")
@@ -516,7 +519,7 @@ def mode_campaign(a, platform):
             fv = ""
         if a.backend == "flash" and (not a.expect_flash_version or fv != a.expect_flash_version):
             raise Refused(f"flash-attn {fv or 'absent'} != EXPECT_FLASH_VERSION {a.expect_flash_version or 'unset'}")
-        import exp38_submit_neuronic as sub
+        import exp45_submit_neuronic as sub
         owner = sub.claim_attempt(a.run, a.mode, a.token, head, a.backend, a.save_dir, a.expect_flash_version,
                                   a.allow_nonmatched_rung)
         _ATTEMPT["path"] = owner                 # main() finishes it on any later exit
@@ -583,7 +586,7 @@ def mode_campaign(a, platform):
             else reg.build_smoke_argv(a.run, reg.SMOKE_STEPS_DDP, rd, True, platform))
     cmd = launch_cmd(platform, ngpu, argv)
     label = a.mode if platform == "a6000" or full else "SMOKE"
-    log = reg._abs(f"{reg.EXP_DIR}/data_efficiency_{ts}_{a.run}_{platform}_{label}_train.log")
+    log = reg._abs(f"{reg.EXP_DIR}/rf_data_curve_{ts}_{a.run}_{platform}_{label}_train.log")
     rec_paths = [reg._abs(f"{reg.EXP_DIR}/at_launch_{a.run}_{platform}_{label}_{ts}.json"),
                  os.path.join(rd, f"at_launch_{a.run}_{platform}_{label}_{ts}.json")]
     rec = Record(rec_paths, run=a.run, mode=a.mode, platform=platform, backend=a.backend, ts=ts,
@@ -707,7 +710,7 @@ def parse(argv=None):
     if a.platform == "neuronic" and a.mode == "SMOKE_DDP":
         p.error("neuronic's production-topology smoke is MODE=SMOKE")
     if a.platform == "neuronic" and a.mode in ("SMOKE", "FULL") and not (a.token and re.fullmatch(r"[0-9a-f]{32}", a.token) and a.save_dir):
-        p.error("a neuronic job needs its 32-hex --token and --save-dir (exp38_submit_neuronic.py sets them)")
+        p.error("a neuronic job needs its 32-hex --token and --save-dir (exp45_submit_neuronic.py sets them)")
     return a
 
 
@@ -720,7 +723,7 @@ def main(argv=None):
         return code
     finally:
         if _ATTEMPT["path"] and not _ATTEMPT["done"]:
-            import exp38_submit_neuronic as sub
+            import exp45_submit_neuronic as sub
             sub.finish_attempt(_ATTEMPT["path"], code)
 
 

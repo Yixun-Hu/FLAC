@@ -1,4 +1,4 @@
-"""Shared synthetic fixtures for the exp_38 tests (not a test module): first-step evidence, train /
+"""Shared synthetic fixtures for the exp_45 tests (forked from exp38_fixtures.py; not a test module): first-step evidence, train /
 smoke logs, a sealed E0 receipt whose eight cells really exist (re-admissible, equal to their
 references), a sealed TRAINING_COMPLETE receipt with its checkpoint manifest, retained receipt
 copies, retained log and evidence, and complete evaluation cells (metrics, stream, receipt, log,
@@ -122,7 +122,7 @@ def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint b
         e0_name = os.path.basename(e0_path)
         e0_digest = reg.read_sealed(os.path.join(rdir, e0_name), ev.E0_KEYS)[1]
     else:
-        e0_name = "data_efficiency_e0_receipt.json"
+        e0_name = "rf_data_curve_e0_receipt.json"
         e0rec = synthetic_e0(ev, closure)
         for p_ in (os.path.join(rdir, e0_name), os.path.join(rdir, e0_name) + ".sha256"):
             if os.path.exists(p_):
@@ -130,13 +130,13 @@ def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint b
         e0_digest = reg.write_sealed(os.path.join(rdir, e0_name), e0rec)
     if e0_sha is not None and e0_sha != e0_digest:
         raise AssertionError("fixture: the retained E0 copy must be the campaign's E0 receipt (pass e0_path)")
-    env_name = f"data_efficiency_env_receipt_{platform}.json"
+    env_name = f"rf_data_curve_env_receipt_{platform}.json"
     pk = {"flash-attn": reg.FLASH_VERSION, "torch": "2.7.0"}
     _, env_digest = sealed(reg, os.path.join(rdir, env_name), reg.ENV_RECEIPT_KEYS, platform=platform, packages=pk,
                            packages_sha256=hashlib.sha256(reg.canonical(dict(sorted(pk.items()))).encode()).hexdigest(),
                            flags={"optimize": 0, "no_user_site": 1, "ignore_environment": 0, "isolated": 0})
     argv = reg.build_train_argv(run, platform, allow_nonmatched=rung != "2x32")
-    smoke_name = f"data_efficiency_smoke_{run}_{platform}_2026-11-08_04-00-00.json"
+    smoke_name = f"rf_data_curve_smoke_{run}_{platform}_2026-11-08_04-00-00.json"
     gpus = (sorted([u, "NVIDIA RTX A6000"] for u in reg.A6000_UUIDS) if platform == "a6000"
             else [[f"GPU-{i}", "NVIDIA L40"] for i in range(ngpu)])
     smoke_log = os.path.join(rdir, "smoke_log.log")

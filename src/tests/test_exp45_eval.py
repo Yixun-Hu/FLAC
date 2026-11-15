@@ -1,4 +1,5 @@
-"""exp_38 B8/B9 — the evaluation driver (exp38_eval.py) and the collector (exp38_collect.py).
+"""exp_45 (forked from test_exp38_eval.py, B8/B9) — the evaluation driver (exp45_eval.py) and the collector
+(exp45_collect.py).
 
 Cell plan and argv (the reference cells' exact shape incl. ``--num-workers 4``), output names
 (must equal eval_FLAC's own ``build_output_paths``), recursive type-strict equality for E0, the
@@ -16,10 +17,11 @@ import sys
 
 import pytest
 
-import exp38_fixtures as fx
+import exp45_fixtures as fx
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_38_data_efficiency_claude")
+EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_45_rf_data_curve_claude")
+EXP38 = os.path.join(REPO, "worklog", "worklog_yixun", "exp_38_data_efficiency_claude")   # read-only reuse
 
 
 def _load(name):
@@ -32,9 +34,9 @@ def _load(name):
     return mod
 
 
-_load("exp38_registry")
-import exp38_collect as col  # noqa: E402  (one module graph: col.ev is ev, col.reg is ev.reg)
-import exp38_eval as ev  # noqa: E402
+_load("exp45_registry")
+import exp45_collect as col  # noqa: E402  (one module graph: col.ev is ev, col.reg is ev.reg)
+import exp45_eval as ev  # noqa: E402
 
 
 def _opt(argv, flag):
@@ -86,9 +88,9 @@ def test_input_hashes_and_references_are_the_pinned_real_ones():
         assert json.load(open(stream))["input_hash"] == ev.INPUT_HASH[(8, 44)]
     refs = ev.check_refs()
     assert len(refs) == 68 and sorted(refs) == ev.ref_set()
-    assert ev.reg.sha256_file(os.path.join(EXP, "ref_cells/E0/E0a_K8_s42.json")) == \
+    assert ev.reg.sha256_file(os.path.join(EXP38, "ref_cells/E0/E0a_K8_s42.json")) == \
         "4136ac75d570f84f76d34c5cac0f1e05e681897f4aefe53ffce12dd381f13180"
-    assert ev.reg.sha256_file(os.path.join(EXP, "ref_cells/E0/E0b_K8_s42.json")) == \
+    assert ev.reg.sha256_file(os.path.join(EXP38, "ref_cells/E0/E0b_K8_s42.json")) == \
         "f167470e3501bcc7c4f116b0c26164523a8bd140b55c5e72e935d88d3f373adb"
 
 
@@ -96,11 +98,9 @@ def test_reference_set_is_exact(tmp_path, monkeypatch):
     """Codex code r1 BLOCKING 7: exactly the 68 registered files -- no extra, missing or duplicate line."""
     import shutil
     root = tmp_path / "ref_cells"
-    shutil.copytree(os.path.join(EXP, "ref_cells"), root)
-    monkeypatch.setattr(ev, "EXP", str(tmp_path / "x"))
+    shutil.copytree(os.path.join(EXP38, "ref_cells"), root)
+    monkeypatch.setattr(ev, "REF_DIR", str(root))              # every reader goes through REF_DIR
     monkeypatch.setattr(ev, "REF_MANIFEST", str(root / "REF_MANIFEST.sha256"))
-    (tmp_path / "x").mkdir()
-    os.symlink(root, tmp_path / "x" / "ref_cells")
     assert len(ev.check_refs()) == 68
     man = root / "REF_MANIFEST.sha256"
     lines = man.read_text().strip().split("\n")
@@ -555,6 +555,8 @@ def test_pending_cells_fail_unless_partial(monkeypatch, tmp_path):
     assert col.main([]) == 0
 
 
+@pytest.mark.skipif(not os.path.exists(os.path.join(REPO, "weights", "AGREE", "AGREE_fullAR.pt")),
+                    reason="the campaign manifest re-hashes the checkout's AGREE weights (A6000 campaign tree)")
 def test_the_result_manifest_lists_every_admitted_artifact(world, monkeypatch):
     """Codex code r2 HIGH 7: a path -> sha256 entry for every file the admission consumed."""
     for K in (8, 1):
@@ -627,8 +629,10 @@ def test_the_evaluator_env_keeps_one_git_dir(monkeypatch):
                  "RANK": "1", "PL_GLOBAL_SEED": "1", "SLURM_PROCID": "0"}.items():
         monkeypatch.setenv(k, v)
     e = ev.eval_env(1)
-    assert [k for k in e if k.startswith("GIT_")] == ["GIT_DIR"] and e["GIT_DIR"].endswith("/worktrees/exp-38-data-efficiency") \
-        or e["GIT_DIR"].endswith("/.git")
+    import subprocess                       # exp_45: this checkout's own git dir (worktree or main checkout)
+    gitdir = subprocess.run(["git", "-C", REPO, "rev-parse", "--absolute-git-dir"], capture_output=True, text=True,
+                            env={k: v for k, v in os.environ.items() if not k.startswith("GIT_")}).stdout.strip()
+    assert [k for k in e if k.startswith("GIT_")] == ["GIT_DIR"] and e["GIT_DIR"] == gitdir
     assert not {"RANK", "PL_GLOBAL_SEED", "SLURM_PROCID"} & set(e) and e["CUDA_VISIBLE_DEVICES"] == "1"
 
 
@@ -638,7 +642,7 @@ def _owned_harness(tmp_path, cmd):
     code = textwrap.dedent(f"""
         import fcntl, os, sys
         sys.path.insert(0, {EXP!r})
-        import exp38_eval as ev
+        import exp45_eval as ev
         fd = os.open({str(tmp_path / 'card.lock')!r}, os.O_WRONLY | os.O_CREAT)
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         print("LOCKED", flush=True)
@@ -682,7 +686,7 @@ def test_a_killed_driver_cannot_release_the_card_under_its_evaluator(tmp_path):
 
 
 def test_run_owned_passes_the_status_and_stops_the_group_on_an_exception(tmp_path, monkeypatch):
-    import exp38_supervise as sv
+    import exp45_supervise as sv
     assert ev.run_owned([sys.executable, "-c", "import sys; sys.exit(7)"], str(tmp_path), dict(os.environ),
                         str(tmp_path / "a.log")) == 7
     made = []
@@ -706,7 +710,7 @@ def _decision_copy(tmp_path, monkeypatch, fn=None):
     rec = json.load(open(src))
     if fn:
         fn(rec)
-    dst = str(tmp_path / "data_efficiency_e0a_decision.json")
+    dst = str(tmp_path / "data_efficiency_e0a_decision.json")   # exp_38's file name
     for p in (dst, dst + ".sha256"):
         if os.path.exists(p):
             os.remove(p)

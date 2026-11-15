@@ -1,4 +1,4 @@
-"""exp_38 — the training supervisor's process ownership (exp38_supervise.py; Codex code r1 HIGH 4, 7, 11).
+"""exp_45 (forked from test_exp38_supervise.py) — the training supervisor's process ownership (exp45_supervise.py; Codex code r1 HIGH 4, 7, 11).
 
 Synthetic children only (no GPU, no train.py): a child's exit status passes through; TERM to the
 supervisor stops OUR process group (grandchildren included) within the bounded grace and leaves a
@@ -20,9 +20,9 @@ import time
 import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_38_data_efficiency_claude")
+EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_45_rf_data_curve_claude")
 sys.path.insert(0, EXP)
-import exp38_supervise as sv  # noqa: E402
+import exp45_supervise as sv  # noqa: E402
 
 PY = sys.executable
 SLEEPER = textwrap.dedent("""
@@ -39,7 +39,7 @@ def _harness(tmp_path, cmd, start="none", grace=30, lock=False, start_timeout=60
     code = textwrap.dedent(f"""
         import os, sys, time
         sys.path.insert(0, {EXP!r})
-        import exp38_supervise as s
+        import exp45_supervise as s
         s.install_signal_handlers()
         rec = s.Record([{str(rec)!r}], status="running")
         fds = s.lock_cards([0], {str(tmp_path)!r}) if {lock!r} else []
@@ -365,7 +365,7 @@ FAKE_TRAIN = textwrap.dedent("""
 
 def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_head="f" * 40, content_after_ok=True):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    import test_exp38_receipts as tr
+    import test_exp45_receipts as tr
     reg = sv.reg
     run = "de_bf_f025"
     monkeypatch.setattr(reg, "REPO", str(tmp_path))

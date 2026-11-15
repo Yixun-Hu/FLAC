@@ -1,0 +1,24 @@
+HEAD aec7952edc21d1c3c4e707082494ac620051e40d tracked-clean=no host neu305.neuronic.cs.princeton.edu start 2026-11-14T21:14:33-05:00
+cmd: pytest -q src/tests/test_exp45_registry.py::test_the_fork_runs_from_its_own_folder_and_reads_exp38_read_only src/tests/test_exp45_registry.py::test_the_snapshot_carries_every_read_only_exp38_dependency_with_its_hash 
+Fs                                                                       [100%]
+=================================== FAILURES ===================================
+_______ test_the_fork_runs_from_its_own_folder_and_reads_exp38_read_only _______
+
+    def test_the_fork_runs_from_its_own_folder_and_reads_exp38_read_only():
+        """exp_45 (plan r3 §3.2): the records live in exp_45's folder under ``rf_data_curve_`` names; exp_38's tools and
+        artifacts are read at exp_38's own paths (their bound paths keep naming exp_38's folder), all tracked, all
+        entering the closure through EXTERNAL_CONFIGS."""
+        import subprocess
+>       assert reg.EXP_DIR == "worklog/worklog_yixun/exp_45_rf_data_curve_claude"
+E       AssertionError: assert 'worklog/work...ciency_claude' == 'worklog/work..._curve_claude'
+E         
+E         - worklog/worklog_yixun/exp_45_rf_data_curve_claude
+E         ?                           ^^^^^       ^^^
+E         + worklog/worklog_yixun/exp_38_data_efficiency_claude
+E         ?                           ^^      ++++ ^ +++
+
+src/tests/test_exp45_registry.py:703: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_registry.py::test_the_fork_runs_from_its_own_folder_and_reads_exp38_read_only
+1 failed, 1 skipped in 4.19s
+EXIT 1 end 2026-11-14T21:14:38-05:00

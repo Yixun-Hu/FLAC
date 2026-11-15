@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""exp_38 data_efficiency — the single source of truth for every training run.
+"""exp_45 rf_data_curve — the single source of truth for every training run.
+
+Forked from exp_38's exp38_registry.py (exp_45 commit A, a byte copy); every later change is a delta of
+plan_rf_data_curve.md r3 §3.2. exp_38's tools and artifacts are reused READ-ONLY at their own paths
+(``EXP38_DIR``): its registry (imported by its two tools), the subset audit + content manifest, the 68
+reference cells and the sealed E0a decision.
 
 Every launch path (the A6000 launcher, the neuronic sbatch + submitter, the eval driver)
 asks THIS module for the run's config, dataset config, argv, chunk plan, expected
@@ -36,7 +41,12 @@ def _repo_root(start):
 
 
 REPO = _repo_root(HERE)
-EXP_DIR = "worklog/worklog_yixun/exp_38_data_efficiency_claude"
+EXP_DIR = "worklog/worklog_yixun/exp_45_rf_data_curve_claude"
+# exp_38's folder (plan r3 §3.2): bound paths of the reused tools / artifacts keep naming it
+EXP38_DIR = "worklog/worklog_yixun/exp_38_data_efficiency_claude"
+REF_DIR = f"{EXP38_DIR}/ref_cells"                       # the ONE reference directory (Codex plan r2 finding 1)
+REF_MANIFEST = f"{REF_DIR}/REF_MANIFEST.sha256"
+E0A_DECISION = f"{EXP38_DIR}/data_efficiency_e0a_decision.json"   # unchanged bytes: E0a's sealed exception
 
 # ---------------------------------------------------------------- recipe constants
 MAX_STEPS = 40000
@@ -93,9 +103,9 @@ RUNGS = {"2x32": {"ngpu": 2, "micro": 32, "default": True},
          "8x8": {"ngpu": 8, "micro": 8, "default": False}}
 PLATFORMS = {
     "a6000": {"rungs": ("2x32",), "launcher": "python",
-              "save_root": "/media/diskstation/yixunhu/FLAC/checkpoints/exp38_data_efficiency"},
+              "save_root": "/media/diskstation/yixunhu/FLAC/checkpoints/exp45_rf_data_curve"},
     "neuronic": {"rungs": ("2x32", "8x8"), "launcher": "torchrun",
-                 "save_root": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency"},
+                 "save_root": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve"},
 }
 OPTIONAL_RUNS = (("p1", "025"),)
 
@@ -105,7 +115,7 @@ OPTIONAL_RUNS = (("p1", "025"),)
 INIT_STATE_SHA256 = "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
 INIT_SOBOL_SHA256 = "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
 FLASH_VERSION = "2.7.4.post1"
-CAMPAIGN_ROOT = {"a6000": "/home/yixunhu/codespace/exp-38-campaign"}
+CAMPAIGN_ROOT = {"a6000": "/home/yixunhu/codespace/exp-45-campaign"}   # tree 45 (plan r3 §4)
 # exact untracked symlinks a campaign tree may carry on this box (content is pinned separately)
 SYMLINK_ALLOWLIST = {"a6000": {"AcousticRooms": "/media/diskstation/yixunhu/FLAC/AcousticRooms",
                                "weights/AGREE": "/home/yixunhu/codespace/FLAC/weights/AGREE",
@@ -199,7 +209,7 @@ def derive_bf_config_text(base_text, cap):
 
 
 def bf_config_rel(micro):
-    return f"{EXP_DIR}/FLAC_AR_BF_cap{micro}.json"
+    return f"{EXP38_DIR}/FLAC_AR_BF_cap{micro}.json"
 
 
 def model_config_rel(arm, rung):
@@ -282,13 +292,13 @@ def check_subset(tag, repo=None):
             "dataset_config": f["dataset_config"], "restrict_to_split": True}
 
 
-SUBSET_AUDIT = f"{EXP_DIR}/data_efficiency_subset_audit.json"
+SUBSET_AUDIT = f"{EXP38_DIR}/data_efficiency_subset_audit.json"
 # the BYTES of every AR file the registered runs read (exp38_content_manifest.py; Codex code r2 BLOCKING 3)
-AR_CONTENT_MANIFEST = f"{EXP_DIR}/data_efficiency_ar_content_manifest.txt.gz"
+AR_CONTENT_MANIFEST = f"{EXP38_DIR}/data_efficiency_ar_content_manifest.txt.gz"
 AR_CONTENT_SHA256 = "369bd4fcf015f232f5dbd0561ea77ccc6b32e1dcc6a71788e264bd9825f0042c"   # 445,414 files, 17.87 GB, 729 groups (2026-11-08)
 SUBSET_AUDIT_BOUND = frozenset({"src/configs/dataset_configs/custom_metadata/AR_md.py", "src/data/dataset.py",
                                 "data/AR/train_frac_manifest_s2026.json", "data/AR/train.json",
-                                f"{EXP_DIR}/exp38_subset_audit.py"}
+                                f"{EXP38_DIR}/exp38_subset_audit.py"}
                                | {FRACS[t][k] for t in FRACS for k in ("split", "dataset_config")})
 
 
@@ -936,7 +946,26 @@ def storage_gate(platform, path, need_bytes, tag="exp38"):
 # AGREE/: the metric code imports `AGREE.AGREE` -- every reference cell ran with the repo root (so the
 # repo copy, not the site-packages one) first on sys.path; the snapshots keep that
 CLOSURE_ROOTS = ("train.py", "defaults.ini", "eval_FLAC.py", "pyproject.toml", "src", "overlays", "data/AR", "AGREE")
-CLOSURE_EXP_PREFIXES = ("exp38_", "FLAC_AR_BF_cap", "data_efficiency_subset_audit.json")
+CLOSURE_EXP_PREFIXES = ("exp45_",)
+
+
+def ref_set():
+    """The exact 68 exp_38 reference cells, relative to REF_DIR (exp38_eval.ref_set(): 8 E0 replays + the
+    dc_van 25 / 50 / 75 % and P1 / YAW / B-F 100 % anchors)."""
+    seeds = (42, 43, 44, 45, 46)
+    out = [f"E0/{g}_K{k}_s42.json" for g in ("E0a", "E0b", "E0c", "E0d") for k in (8, 1)]
+    out += [f"anchors/{m}/{m}_K{k}_s{s}.json" for m in ("P1", "YAW", "BF") for k in (8, 1) for s in seeds]
+    out += [f"anchors/dc_van/dc_van_f{t}_K{k}_s{s}.json" for t in ("025", "050", "075") for k in (8, 1) for s in seeds]
+    return sorted(out)
+
+
+# the exact read-only exp_38 dependencies (plan r3 §3.2), at exp_38's own paths: they enter closure_files()
+# and every snapshot through EXTERNAL_CONFIGS, without a logic change
+EXP38_READONLY = (f"{EXP38_DIR}/exp38_registry.py", f"{EXP38_DIR}/exp38_subset_audit.py",
+                  f"{EXP38_DIR}/exp38_content_manifest.py", SUBSET_AUDIT, SUBSET_AUDIT + ".sha256",
+                  AR_CONTENT_MANIFEST, REF_MANIFEST, *(f"{REF_DIR}/{r}" for r in ref_set()),
+                  E0A_DECISION, E0A_DECISION + ".sha256")
+EXTERNAL_CONFIGS = EXTERNAL_CONFIGS + tuple(bf_config_rel(m) for m in (32, 8)) + EXP38_READONLY
 
 
 def _git_out(repo, *args):
@@ -1196,9 +1225,9 @@ ENV_PREFIXES = ("NCCL_", "TORCH", "PYTORCH_", "CUBLAS", "CUDNN", "PL_", "LIGHTNI
 
 # the ONLY untracked (not ignored) entries a campaign tree may hold besides TREE_LINKS: the records the
 # kit itself writes into its own folder (Codex code r2 HIGH 10)
-UNTRACKED_RECORDS = re.compile(r"^" + re.escape(EXP_DIR) + r"/(data_efficiency_[^/]+\.(json|sha256|log|out|md|txt\.gz)"
-                               r"|at_launch_[^/]+\.json|eval_logs/data_efficiency_[^/]+\.log|slurm_train_[^/]+\.out"
-                               r"|exp38_neuronic_submissions\.log|\.collect\.lock)$")
+UNTRACKED_RECORDS = re.compile(r"^" + re.escape(EXP_DIR) + r"/(rf_data_curve_[^/]+\.(json|sha256|log|out|md|txt\.gz)"
+                               r"|at_launch_[^/]+\.json|eval_logs/rf_data_curve_[^/]+\.log|slurm_train_[^/]+\.out"
+                               r"|exp45_neuronic_submissions\.log|\.collect\.lock)$")
 IMPORTABLE = (".py", ".pyc", ".pyo", ".so", ".pyd", ".pth", ".egg-link", ".egg-info", ".dist-info")
 
 
@@ -1411,7 +1440,7 @@ def env_snapshot(platform):
 
 
 def env_receipt_rel(platform):
-    return f"{EXP_DIR}/data_efficiency_env_receipt_{platform}.json"
+    return f"{EXP_DIR}/rf_data_curve_env_receipt_{platform}.json"
 
 
 def env_receipt(platform, write=False, repo=None):
@@ -1439,17 +1468,17 @@ def env_receipt_sha(platform, repo=None):
 
 
 # ---------------------------------------------------------------- E0 (the validator lives with its writer)
-E0_RECEIPT = f"{EXP_DIR}/data_efficiency_e0_receipt.json"
+E0_RECEIPT = f"{EXP_DIR}/rf_data_curve_e0_receipt.json"
 
 
 def check_e0_receipt(platform, repo=None):
-    """The E0 receipt must be a complete PASS at THIS closure (exp38_eval.validate_e0_receipt; the
+    """The E0 receipt must be a complete PASS at THIS closure (exp45_eval.validate_e0_receipt; the
     environment-receipt binding applies on the A6000 box, where E0 ran)."""
     if HERE not in sys.path:
         sys.path.insert(0, HERE)
-    import exp38_eval
+    import exp45_eval
     # on neuronic the eight E0 cells are copied beside the receipt and re-admitted OFFLINE (Codex code r3 HIGH 5)
-    return exp38_eval.validate_e0_receipt(repo=repo, platform=platform, readmit=True)
+    return exp45_eval.validate_e0_receipt(repo=repo, platform=platform, readmit=True)
 
 
 # ---------------------------------------------------------------- SMOKE_DDP receipt (Codex code r1 BLOCKING 1)
@@ -1462,7 +1491,7 @@ SMOKE_KEYS = frozenset({"schema", "mode", "run", "platform", "backend", "head", 
 
 
 def smoke_receipt_rel(run, platform, ts):
-    return f"{EXP_DIR}/data_efficiency_smoke_{run}_{platform}_{ts}.json"
+    return f"{EXP_DIR}/rf_data_curve_smoke_{run}_{platform}_{ts}.json"
 
 
 def gpu_identity(platform, ngpu, rows=None):
@@ -1579,7 +1608,7 @@ def smoke_receipt_problems(rec, run, platform, backend, head, gpus=None, repo=No
 def check_smoke_receipt(run, platform, backend, head, gpus=None, repo=None):
     """The newest sealed SMOKE_DDP receipt for (run, platform) must pass every field check; an
     older PASS cannot stand in for a newer FAIL (the newest receipt decides)."""
-    paths = sorted(glob.glob(_abs(f"{EXP_DIR}/data_efficiency_smoke_{run}_{platform}_*.json", repo)))
+    paths = sorted(glob.glob(_abs(f"{EXP_DIR}/rf_data_curve_smoke_{run}_{platform}_*.json", repo)))
     if not paths:
         raise GateError(f"no SMOKE_DDP receipt for {run} on {platform}")
     rec, digest = read_sealed(paths[-1], SMOKE_KEYS)
@@ -1732,7 +1761,7 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
     sha256 and byte count. Returns (receipt, receipt sha256)."""
     if HERE not in sys.path:
         sys.path.insert(0, HERE)
-    import exp38_eval
+    import exp45_eval
     arm, tag, rung = parse_run_id(run)
     ngpu = RUNGS[rung]["ngpu"]
     src = receipt_dir or rd
@@ -1768,14 +1797,14 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
     try:
         if sorted(names) != ["e0", "env", "log", "smoke", "smoke_log", "snapshot_links", "snapshot_manifest"]:
             raise GateError(f"retained receipts {sorted(names)}")
-        e0c, d_e0 = read_sealed(os.path.join(rdir, names["e0"]), exp38_eval.E0_KEYS)
+        e0c, d_e0 = read_sealed(os.path.join(rdir, names["e0"]), exp45_eval.E0_KEYS)
         envc, d_env = read_sealed(os.path.join(rdir, names["env"]), ENV_RECEIPT_KEYS)
         smk, d_smk = read_sealed(os.path.join(rdir, names["smoke"]), SMOKE_KEYS)
         if (d_e0, d_env, d_smk) != (rec["e0_receipt_sha256"], rec["env_receipt_sha256"], rec["smoke_receipt_sha256"]):
             p.append("a retained receipt copy != the sha the training receipt bound")
         if e0c["verdict"] != "PASS" or e0c["closure_sha256"] != rec["closure_sha256"]:
             p.append("the retained E0 receipt is not a PASS at the run's closure")
-        p += [f"retained E0: {x}" for x in exp38_eval.e0_static_problems(e0c)]
+        p += [f"retained E0: {x}" for x in exp45_eval.e0_static_problems(e0c)]
         if envc["platform"] != plat:
             p.append("the retained environment receipt is another platform's")
         if not (isinstance(envc["packages"], dict) and envc["packages_sha256"] ==

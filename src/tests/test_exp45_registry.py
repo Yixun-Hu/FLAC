@@ -1,4 +1,5 @@
-"""exp_38 round B — the run registry (worklog/.../exp_38_data_efficiency_claude/exp38_registry.py).
+"""exp_45 — the run registry (worklog/.../exp_45_rf_data_curve_claude/exp45_registry.py), forked from exp_38's
+test_exp38_registry.py (round B); every edit is named in its commit (plan_rf_data_curve.md r3 §3.3).
 
 Executable statement of plan_data_efficiency.md §6-§7 and §10 item 4: the six runs' configs,
 dataset configs, argv, chunk plan, checkpoint names, run-dir states, checkpoint audit and
@@ -13,7 +14,8 @@ import shlex
 import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_38_data_efficiency_claude")
+EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_45_rf_data_curve_claude")
+EXP38 = os.path.join(REPO, "worklog", "worklog_yixun", "exp_38_data_efficiency_claude")   # read-only reuse
 
 
 def _load(name):
@@ -23,7 +25,7 @@ def _load(name):
     return mod
 
 
-reg = _load("exp38_registry")
+reg = _load("exp45_registry")
 
 # dc_van_f025's at-launch argv (exp-14-data-curve:worklog/worklog_yixun/exp_14_data_curve/
 # at_launch_dc_van_f025_20260916T190832-1836418.txt), with its kit-local config path.
@@ -271,7 +273,7 @@ def test_a6000_argv_is_dc_vans_argv_with_only_the_registered_differences():
     ref = ref[:ref.index("--run-contract-json")]
     swap = {"--model-config": reg.ARMS["p1"]["config"],
             "--name": "de_p1_f025", "--experiment-name": "de_p1_f025",
-            "--save-dir": "/media/diskstation/yixunhu/FLAC/checkpoints/exp38_data_efficiency/de_p1_f025"}
+            "--save-dir": "/media/diskstation/yixunhu/FLAC/checkpoints/exp45_rf_data_curve/de_p1_f025"}
     for flag, value in swap.items():
         ref[ref.index(flag) + 1] = value
     ref += ["--evidence-json", swap["--save-dir"] + "/evidence/run_evidence.json"]
@@ -295,7 +297,7 @@ def test_argv_per_run(run):
     assert (_opt(argv, "--max-steps"), _opt(argv, "--checkpoint-every")) == ("40000", "2500")
     assert "--ckpt-path" not in argv and not any("exp14_" in a for a in argv)
     n = reg.build_train_argv(run, "neuronic")
-    assert _opt(n, "--save-dir") == f"/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/{run}"
+    assert _opt(n, "--save-dir") == f"/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve/{run}"
     assert [a for a in n if not a.startswith("/n/")] == [a for a in argv if not a.startswith("/media/")]
 
 
@@ -660,7 +662,7 @@ def test_backend_probe_semantics(monkeypatch):
 def _fake_audit(root):
     bound = {"src/configs/dataset_configs/custom_metadata/AR_md.py": None, "src/data/dataset.py": None,
              "data/AR/train_frac_manifest_s2026.json": None, "data/AR/train.json": None,
-             f"{reg.EXP_DIR}/exp38_subset_audit.py": None}
+             f"{reg.EXP38_DIR}/exp38_subset_audit.py": None}
     for t in reg.FRACS:
         bound[reg.FRACS[t]["dataset_config"]] = None
     for rel in list(bound) + [reg.FRACS[t]["split"] for t in reg.FRACS]:
@@ -693,12 +695,55 @@ def test_check_subset_audit_binding(tmp_path):
         reg.check_subset_audit(str(tmp_path / "nothing"))
 
 
+def test_the_fork_runs_from_its_own_folder_and_reads_exp38_read_only():
+    """exp_45 (plan r3 §3.2): the records live in exp_45's folder under ``rf_data_curve_`` names; exp_38's tools and
+    artifacts are read at exp_38's own paths (their bound paths keep naming exp_38's folder), all tracked, all
+    entering the closure through EXTERNAL_CONFIGS."""
+    import subprocess
+    assert reg.EXP_DIR == "worklog/worklog_yixun/exp_45_rf_data_curve_claude"
+    assert reg.EXP38_DIR == "worklog/worklog_yixun/exp_38_data_efficiency_claude"
+    for rel in (reg.SUBSET_AUDIT, reg.AR_CONTENT_MANIFEST, reg.REF_DIR, reg.REF_MANIFEST, reg.E0A_DECISION):
+        assert rel.startswith(reg.EXP38_DIR + "/"), rel
+    assert f"{reg.EXP38_DIR}/exp38_subset_audit.py" in reg.SUBSET_AUDIT_BOUND
+    assert not any(r.startswith(reg.EXP_DIR + "/") for r in reg.SUBSET_AUDIT_BOUND)
+    assert reg.CLOSURE_EXP_PREFIXES == ("exp45_",)
+    for rel in (reg.E0_RECEIPT, reg.env_receipt_rel("neuronic"), reg.smoke_receipt_rel("x", "neuronic", "t")):
+        assert rel.startswith(reg.EXP_DIR + "/rf_data_curve_"), rel
+    tracked = set(subprocess.run(["git", "-C", REPO, "ls-files", "--", reg.EXP38_DIR], capture_output=True,
+                                 text=True, check=True).stdout.split("\n"))
+    ro = reg.EXP38_READONLY
+    assert len(ro) == len(set(ro)) == 3 + 3 + 1 + 68 + 2 and set(ro) <= tracked and set(ro) <= set(reg.EXTERNAL_CONFIGS)
+    lines = open(os.path.join(REPO, reg.REF_MANIFEST)).read().strip().split("\n")
+    assert sorted(ln.split("  ", 1)[1] for ln in lines) == reg.ref_set() and len(reg.ref_set()) == 68
+    spec = importlib.util.spec_from_file_location("exp38_eval_ro", os.path.join(EXP38, "exp38_eval.py"))
+    ev38 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ev38)
+    assert reg.ref_set() == ev38.ref_set()                       # exp_38's own reference enumeration
+
+
+def test_the_snapshot_carries_every_read_only_exp38_dependency_with_its_hash(tmp_path):
+    files = reg.snapshot_files(reg.required_runs()[0])
+    if f"{reg.EXP_DIR}/exp45_supervise.py" not in files:
+        pytest.skip("the exp_45 kit is not committed yet (the closure lists tracked files only)")
+    reg.snapshot_tools(reg.required_runs()[0], str(tmp_path / "snap"))
+    manifest = dict(reversed(ln.split("  ", 1)) for ln in (tmp_path / "snap" / "SNAPSHOT.sha256").read_text().strip().split("\n"))
+    for rel in reg.EXP38_READONLY:
+        assert manifest.get(rel) == reg.sha256_file(os.path.join(REPO, rel)), rel
+        assert reg.sha256_file(str(tmp_path / "snap" / rel)) == manifest[rel]
+    kit = [r for r in manifest if r.startswith(reg.EXP_DIR + "/")]
+    assert kit and all(os.path.basename(r).startswith("exp45_") and "/" not in r[len(reg.EXP_DIR) + 1:] for r in kit)
+    exp38 = {r for r in manifest if r.startswith(reg.EXP38_DIR + "/")}
+    assert set(reg.EXP38_READONLY) <= exp38                     # + (until the RF-only registry) the B-F caps
+    assert not exp38 - set(reg.EXP38_READONLY) - {f"{reg.EXP38_DIR}/FLAC_AR_BF_cap{m}.json" for m in (32, 8)}
+    assert f"{reg.EXP38_DIR}/exp38_eval.py" not in manifest and f"{reg.EXP38_DIR}/exp38_supervise.py" not in manifest
+
+
 def test_snapshot_is_complete_immutable_and_usable(tmp_path):
     """Codex code r1 HIGH 5: training is launched FROM the snapshot -- the closure (same digest as
     the tree), the subset-audit sidecar, and the two cwd-relative data links."""
     files = reg.snapshot_files("de_bf_f050")
-    if reg.bf_config_rel(32) not in files or "worklog/worklog_yixun/exp_38_data_efficiency_claude/exp38_supervise.py" not in files:
-        pytest.skip("the exp_38 kit is not committed yet (the closure lists tracked files only)")
+    if reg.bf_config_rel(32) not in files or f"{reg.EXP_DIR}/exp45_supervise.py" not in files:
+        pytest.skip("the exp_45 kit is not committed yet (the closure lists tracked files only)")
     assert "train.py" in files and "src/training/run_evidence.py" in files and reg.SUBSET_AUDIT in files
     assert not any(f.startswith("src/tests/") for f in files)
     dest = tmp_path / "snap"

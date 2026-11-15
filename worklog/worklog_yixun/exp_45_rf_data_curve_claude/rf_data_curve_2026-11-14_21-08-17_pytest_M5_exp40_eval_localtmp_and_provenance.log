@@ -1,0 +1,41 @@
+HEAD 1dcd47692c9170dfed6dfea15701ba9493003fb5 tracked-clean=no host neu305.neuronic.cs.princeton.edu start 2026-11-14T21:08:32-05:00
+cmd: pytest -q src/tests/test_exp40_eval.py src/tests/test_exp45_merge_provenance.py 
+........................................................................ [ 74%]
+.......F.................                                                [100%]
+=================================== FAILURES ===================================
+____________ test_authoritative_validator_pins_are_the_source_blobs ____________
+
+    def test_authoritative_validator_pins_are_the_source_blobs():
+        for src, s in ev.SOURCES.items():
+>           assert kit.git(TREE, "rev-parse", f"{s['pin']}:{ev.VALIDATOR}").strip() == s["validator_blob"]
+
+src/tests/test_exp40_eval.py:1166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+repo = '/n/fs/gatrdp/codespace/exp-45-rf-data-curve'
+args = ('rev-parse', '6be49f46ec31e899f1bee01f72c6a5827e701c6c:worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py')
+
+    def git(repo, *args):
+        rc, out, err = run(["git", *args], cwd=repo)
+        if rc != 0:
+>           raise Refused(f"git {' '.join(args)} failed in {repo}: {err.strip()}")
+E           exp40_kit.Refused: git rev-parse 6be49f46ec31e899f1bee01f72c6a5827e701c6c:worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py failed in /n/fs/gatrdp/codespace/exp-45-rf-data-curve: fatal: path 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py' exists on disk, but not in '6be49f46ec31e899f1bee01f72c6a5827e701c6c'
+
+worklog/worklog_yixun/exp_40_yaw_aug_c16_claude/exp40_kit.py:202: Refused
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp40_eval.py::test_authoritative_validator_pins_are_the_source_blobs
+1 failed, 96 passed, 3 warnings in 56.85s
+EXIT 1 end 2026-11-14T21:09:31-05:00

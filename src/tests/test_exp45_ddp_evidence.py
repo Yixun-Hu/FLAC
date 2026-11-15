@@ -1,4 +1,4 @@
-"""exp_38 — the run-evidence callback under a REAL two-rank DDP fit (CPU / gloo; Codex code r1 HIGH 11).
+"""exp_45 (forked from test_exp38_ddp_evidence.py) — the run-evidence callback under a REAL two-rank DDP fit (CPU / gloo; Codex code r1 HIGH 11).
 
 The registry pins the DDP RNG digests at fit start as the FRESH seed-42 state (PL 2.1's
 DDPStrategy.setup_distributed() calls lightning_fabric's reset_seed() after the model build), not
@@ -19,9 +19,9 @@ import textwrap
 import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_38_data_efficiency_claude")
+EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_45_rf_data_curve_claude")
 sys.path.insert(0, EXP)
-import exp38_registry as reg  # noqa: E402
+import exp45_registry as reg  # noqa: E402
 
 SCRIPT = textwrap.dedent("""
     import os, sys

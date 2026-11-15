@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""exp_38 evaluation driver for THIS 2×A6000 box (plan_data_efficiency.md r2 §9, §10 B8).
+"""exp_45 evaluation driver for THIS 2×A6000 box (forked from exp_38's exp38_eval.py;
+plan_rf_data_curve.md r3 §3.2; exp_38: plan_data_efficiency.md r2 §9, §10 B8).
 
     exp38_eval.py plan [--bridge]                 the 60 (+10) result cells and the 8 E0 cells, full argv
     exp38_eval.py env-receipt --write | --check   the campaign environment receipt (registry)
@@ -32,7 +33,7 @@ import time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
-import exp38_registry as reg  # noqa: E402
+import exp45_registry as reg  # noqa: E402
 
 EXP = reg.EXP_DIR
 FARM = "outputs_FLAC/exp38_data_efficiency/eval"
@@ -84,7 +85,8 @@ E0 = {
             "sha": "c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c",
             "config": reg.ARMS["p1"]["config"], "cond": "vanilla", "by_scene": True},
 }
-REF_MANIFEST = f"{EXP}/ref_cells/REF_MANIFEST.sha256"
+REF_DIR = reg.REF_DIR                 # exp_38's ref_cells/: EVERY reference reader and enumerator uses it
+REF_MANIFEST = reg.REF_MANIFEST
 EVAL_LOG_DIR = f"{EXP}/eval_logs"
 
 
@@ -178,7 +180,7 @@ E0_CELL_KEYS = frozenset({"reference", "equal", "difference", "problems", "metri
 RETRIEVAL_KEYS = ("RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5", "RIR_to_GT_RIR_R@10",
                   "RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10")
 E0A_CELLS = ("de_E0a_K8_s42", "de_E0a_K1_s42")
-E0A_DECISION = f"{EXP}/data_efficiency_e0a_decision.json"
+E0A_DECISION = reg.E0A_DECISION       # exp_38's sealed file, unchanged bytes
 # schema 2 (Yixun's widening, 2026-11-08): + the recorded cause and the decision it supersedes
 DECISION_KEYS = frozenset({"schema", "decision", "gate", "decided_by", "decided_on", "channel", "question", "answer",
                            "reason", "supersedes", "accepted", "consequence"})
@@ -306,10 +308,7 @@ def judge_e0(cell, got, ref, decision):
 # ---------------------------------------------------------------- references (Codex code r1 BLOCKING 7)
 def ref_set():
     """The exact 68 reference cells: 8 E0 replays + the dc_van 25/50/75 % and P1 / YAW / B-F 100 % anchors."""
-    out = [f"E0/{g}_K{k}_s42.json" for g in E0 for k in (8, 1)]
-    out += [f"anchors/{m}/{m}_K{k}_s{s}.json" for m in ("P1", "YAW", "BF") for k in (8, 1) for s in SEEDS]
-    out += [f"anchors/dc_van/dc_van_f{t}_K{k}_s{s}.json" for t in ("025", "050", "075") for k in (8, 1) for s in SEEDS]
-    return sorted(out)
+    return reg.ref_set()
 
 
 def check_refs():
@@ -322,11 +321,11 @@ def check_refs():
                         f"(extra {sorted(set(rels) - set(ref_set()))[:3]}, missing {sorted(set(ref_set()) - set(rels))[:3]})")
     refs = {}
     for digest, rel in pairs:
-        if reg.sha256_file(_abs(os.path.join(EXP, "ref_cells", rel))) != digest:
+        if reg.sha256_file(_abs(os.path.join(REF_DIR, rel))) != digest:
             raise EvalError(f"reference {rel} != its manifest sha")
         refs[rel] = digest
-    on_disk = sorted(os.path.relpath(os.path.join(d, f), _abs(os.path.join(EXP, "ref_cells")))
-                     for d, _, fs in os.walk(_abs(os.path.join(EXP, "ref_cells"))) for f in fs if f.endswith(".json"))
+    on_disk = sorted(os.path.relpath(os.path.join(d, f), _abs(REF_DIR))
+                     for d, _, fs in os.walk(_abs(REF_DIR)) for f in fs if f.endswith(".json"))
     if on_disk != ref_set():
         raise EvalError("ref_cells/ holds JSON files outside the registered set")
     return refs
@@ -334,7 +333,7 @@ def check_refs():
 
 def load_ref(rel, refs):
     """One reference cell, read once and checked against ``refs`` (no check / read gap)."""
-    data = open(_abs(os.path.join(EXP, "ref_cells", rel)), "rb").read()
+    data = open(_abs(os.path.join(REF_DIR, rel)), "rb").read()
     if hashlib.sha256(data).hexdigest() != refs.get(rel):
         raise EvalError(f"reference {rel} changed since its check")
     return json.loads(data)
@@ -672,7 +671,7 @@ def campaign_artifacts(campaign):
         r = json.load(open(_abs(c["receipt"])))
         out[_abs(r["log"])] = _rehash(_abs(r["log"]), r["log_sha256"])
     for rel, d in check_refs().items():
-        out[_abs(os.path.join(EXP, "ref_cells", rel))] = d
+        out[_abs(os.path.join(REF_DIR, rel))] = d
     env = _abs(reg.env_receipt_rel("a6000"))
     for f in (env, env + ".sha256"):
         out[f] = reg.sha256_file(f)
@@ -807,7 +806,7 @@ def run_owned(cmd, cwd, env, log, lock_fds=(), grace=60):
     fds passed down and held by a detached holder until no process of that group remains (a killed
     driver cannot release the card under a running evaluator), and on ANY exception in this process
     the group is terminated (bounded) and reaped before the exception propagates."""
-    import exp38_supervise as sv
+    import exp45_supervise as sv
     child = sv.OwnedChild(cmd, cwd, env, log, pass_fds=lock_fds)
     try:
         sv.start_lock_holder(child.pgid, lock_fds)
@@ -837,7 +836,7 @@ def run_one(cell, gpu, campaign, lock_fds=()):
     uuid, name = gpu_row(gpu)
     ts = time.strftime("%Y-%m-%d_%H-%M-%S")
     started = time.strftime("%Y-%m-%dT%H:%M:%S%z")
-    log = _abs(f"{EVAL_LOG_DIR}/data_efficiency_{ts}_{cell['name']}.log")
+    log = _abs(f"{EVAL_LOG_DIR}/rf_data_curve_{ts}_{cell['name']}.log")
     os.makedirs(os.path.dirname(log), exist_ok=True)
     argv = eval_argv(cell)
     with open(log, "w") as fh:
