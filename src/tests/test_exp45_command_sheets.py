@@ -74,12 +74,12 @@ def test_l8_makes_the_published_evidence_available_and_verified_before_any_use()
     b = _blocks("rf_data_curve_neuronic_commands.md")
     l8 = b[b.index("G=/n/fs/gatrdp/codespace/FLAC"):]
     order = ["git -C $G fetch origin exp-45-rf-data-curve exp-38-data-efficiency", "git -C $G merge-base --is-ancestor $Y $R45",
-             "git -C $G worktree add --detach /n/fs/gatrdp/codespace/exp-45-build $R45", "$PY $E/exp45_collect.py verify\n",
+             "git -C $G worktree add --detach /n/fs/gatrdp/codespace/exp-45-build $R45", "$PY $E/exp45_collect.py verify  ",
              "$PY $E/exp45_collect.py materialise --dest $G", "$PY $E/exp45_collect.py verify --root $G",
              "$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G", "git -C $G fetch origin exp-38-data-efficiency",
              "git -C $G merge-base --is-ancestor e5a012fa62705627104bcd9892643edab07aa1e7 $B38",
              "$PY $E/exp45_table.py import-exp38 --commit $B38 --generator-root $G", "$PY $E/exp45_table.py build --exp38-commit $B38"]
-    pos = [l8.index(cmd) if not cmd.endswith("\n") else l8.index(cmd) for cmd in order]
+    pos = [l8.index(cmd) for cmd in order]
     assert pos == sorted(pos), [order[i] for i in range(len(pos)) if pos[i] != sorted(pos)[i]]
     assert l8.rindex("gen_model_comparison.py --repo-root $G") > l8.index("exp45_table.py build")      # regen #2 last
     for verb in ("checkout", "pull", "merge ", "reset", "switch", "stash"):
@@ -91,9 +91,10 @@ def test_l8_makes_the_published_evidence_available_and_verified_before_any_use()
     assert git("merge-base", "--is-ancestor", "3593f34cad4e6e4415a572e93d16ee83465f8ae8",
                "e5a012fa62705627104bcd9892643edab07aa1e7").returncode == 0
     a6 = _blocks("rf_data_curve_command.md")
-    seq = ["python $E/exp45_collect.py materialise --dest ~/codespace/exp-45-publish", "cd ~/codespace/exp-45-publish",
-           "python $E/exp45_collect.py verify     # the publication worktree", "git add -f $E/rf_data_curve_results.{json,md}",
-           'git commit -m "exp_45 results publication']
+    seq = ["git -C ~/codespace/exp-45-publish pull --ff-only",
+           "python $E/exp45_collect.py materialise --dest ~/codespace/exp-45-publish",
+           "cd ~/codespace/exp-45-publish\npython $E/exp45_collect.py verify     # the publication worktree",
+           "git add -f $E/rf_data_curve_results.{json,md}", 'git commit -m "exp_45 results publication']
     assert [a6.index(c) for c in seq] == sorted(a6.index(c) for c in seq)
 
 
