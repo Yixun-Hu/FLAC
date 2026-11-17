@@ -409,3 +409,72 @@ def make_cell(ev, cell, campaign, ckpt, log_dir, dump=True, metrics=None, by_sce
         receipt.update(checkpoint_source="exp43_external", bridge_descriptor_sha256=ev.BRIDGE_DESCRIPTOR_SHA256)
     json.dump(receipt, open(ev._abs(cell["receipt"]), "w"))
     return cell
+
+
+def bridge_bundle(ev, dest, kit, mutate=None, admission=None):
+    """exp_43's reference bundle for ``ev``'s ten EXISTING RF-100 bridge cells, as exp45_eval.cmd_bridge reads it:
+    references = our metrics with exp_43's metadata (not compared) + exp_43's own pristine stream, the admission
+    record = exp_43's exact admission of the RF100_BRIDGE checkpoint (``kit``: exp_43's kit) unless ``admission`` is
+    given, and the BRIDGE_MANIFEST over all of it; ``mutate(cell, metrics, stream)`` may edit a reference first."""
+    import pathlib
+    b = pathlib.Path(dest)
+    (b / "cells").mkdir(parents=True)
+    (b / "admission").mkdir()
+    for c in ev.bridge_cells():
+        stem = ev.bridge_ref_stem(ev.RF100_BRIDGE["cells"][c["name"]])
+        m, s = json.load(open(ev._abs(c["metrics"]))), stream_sidecar(c["K"], c["seed"])
+        m.update(eval_name=ev.RF100_BRIDGE["cells"][c["name"]], ckpt_path="/home/yixunhu/x/farm/RF/epoch=8-step=40000.ckpt",
+                 source_sha="5f5b493a8ac1" + "0" * 28)                             # metadata only: not compared
+        if mutate:
+            mutate(c, m, s)
+        json.dump(m, open(b / "cells" / f"{stem}.json", "w"))
+        json.dump(s, open(b / "cells" / f"{stem}.stream.json", "w"))
+    if admission is None:
+        admission = exp43_admission(kit, ev.RF100_BRIDGE["sha256"], ev.RF100_BRIDGE["bytes"])
+    json.dump(admission, open(b / "admission" / "exp43_admission_RF.json", "w"))
+    rels = sorted(os.path.relpath(os.path.join(d, f), b) for d, _, fs in os.walk(b) for f in fs)
+    (b / ev.BRIDGE_MANIFEST).write_text("".join(f"{ev.reg.sha256_file(str(b / r))}  {r}\n" for r in rels))
+    return b
+
+
+def rebind_cell(ev, cell):
+    """Re-bind a cell's receipt and dump-manifest copy to its CURRENT metrics / stream bytes -- what an editor who
+    wants the edited cell to keep passing its own offline admission would do."""
+    sha = ev.reg.sha256_file
+    copy = ev.dump_manifest_copy(cell)
+    man = json.load(open(copy))
+    man.update(stream_sidecar_sha256=sha(ev._abs(cell["stream"])), metrics_sha256=sha(ev._abs(cell["metrics"])))
+    json.dump(man, open(copy, "w"), indent=2)
+    rec = json.load(open(ev._abs(cell["receipt"])))
+    rec.update(stream_sha256=sha(ev._abs(cell["stream"])), metrics_sha256=sha(ev._abs(cell["metrics"])),
+               dump_manifest_sha256=sha(copy))
+    json.dump(rec, open(ev._abs(cell["receipt"]), "w"))
+
+
+BRIDGE_BREAKS = ("absent comparison", "unreadable comparison", "missing bridge artifact", "changed bridge artifact")
+
+
+def break_bridge(ev, what, name="exp45_RF100bridge_K8_s44"):
+    """Take the sealed RF-100 bridge comparison away from the CURRENT bridge artifacts (Codex code r3 finding 1):
+    remove it, make it unreadable (its sidecar no longer matches), remove one compared bridge stream, or change that
+    stream after the seal with the cell's receipt / dump-manifest links re-bound, so that the cell alone still admits
+    offline and only the comparison names the old bytes. Returns the bridge cell."""
+    path = ev._abs(ev.BRIDGE_RESULT)
+    cell = [c for c in ev.bridge_cells() if c["name"] == name][0]
+    if what == "absent comparison":
+        for p in (path, path + ".sha256"):
+            os.remove(p)
+    elif what == "unreadable comparison":
+        with open(path, "ab") as fh:
+            fh.write(b" ")
+    elif what == "missing bridge artifact":
+        os.remove(ev._abs(cell["stream"]))
+    elif what == "changed bridge artifact":
+        stream = json.load(open(ev._abs(cell["stream"])))
+        for k in ev.STREAM_ITEMS:
+            stream.pop(k)
+        json.dump(stream, open(ev._abs(cell["stream"]), "w"))
+        rebind_cell(ev, cell)
+    else:
+        raise ValueError(what)
+    return cell

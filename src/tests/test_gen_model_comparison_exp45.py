@@ -1,7 +1,8 @@
 """exp_45 — the table generator's ``exp45`` contract (gen_model_comparison.py, announcement 04; plan_rf_data_curve.md
 r3 §3.2), mirroring test_gen_model_comparison_exp38.py: six preregistered rows (RF x 25 / 50 / 75 % x K 1 / 8) whose
-files must pass exp45_eval's OFFLINE cell admission, and a round gate that publishes a run only as a complete
-K=1 + K=8 pair at one evaluator pin.
+files must pass exp45_eval's OFFLINE cell admission, a round gate that publishes a run only as a complete
+K=1 + K=8 pair at one evaluator pin, and THE shared publication gate of the sealed RF-100 bridge comparison
+(exp45_eval.bridge_gate; Codex code r3 finding 1) through main().
 
 Written by the exp_45 Coder (Claude Opus 5.5).
 """
@@ -10,6 +11,10 @@ import json
 import os
 import shutil
 import sys
+
+import pytest
+
+import exp45_fixtures as fx
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GEN = os.path.join(REPO, "worklog", "worklog_yixun", "gen_model_comparison.py")
@@ -188,6 +193,74 @@ def test_the_generator_writes_its_table_to_out_never_into_the_evidence_root(tmp_
     monkeypatch.setattr(gen, "ROWS", [])
     assert gen.main(["--repo-root", str(root), "--out", str(out)]) == 0
     assert table.read_text() == "main's tracked table\n" and out.read_text().startswith("# Model comparison")
+
+
+def _bridge_world(tmp_path, monkeypatch, mutate=None):
+    """A generator root whose exp_45 RF f=25 % run is complete (K=8 + K=1, five seeds each) and whose ten RF-100 bridge
+    cells were compared with exp_43's reference bundle by exp45_eval.cmd_bridge: the sealed rf_data_curve_bridge.json in
+    the root's exp_45 folder. cmd_bridge's online admission (the E0 receipt, the cells' dumps: the cluster's) is the
+    offline one here and exp_43's kit is the checkout's -- the generator under test loads its own, unpatched kit from the
+    root. ROWS = that run's two rows."""
+    root, ev = _tmp_root(tmp_path, monkeypatch)
+    _write_run(root, ev, RUNS[0], 8)
+    _write_run(root, ev, RUNS[0], 1)
+    campaign = ev.validate_e0_receipt(offline=True)
+    for c in ev.bridge_cells():
+        fx.make_cell(ev, c, campaign, ev.bridge_checkpoint(), str(root / "logs"), dump=False)
+    kit = _load(os.path.join(REPO, "worklog", "worklog_yixun", "exp_43_std_aug_claude", "exp43_kit.py"), "exp43_kit_gen45")
+    bundle = fx.bridge_bundle(ev, tmp_path / "bundle", kit, mutate)
+    admit = ev.validate_cell
+    monkeypatch.setattr(ev, "validate_e0_receipt", lambda *a, **k: campaign)
+    monkeypatch.setattr(ev, "validate_cell", lambda c, campaign=None, offline=False: admit(c, campaign, offline=True))
+    monkeypatch.setattr(ev, "exp43_kit", lambda: kit)
+    ev.cmd_bridge(str(bundle))
+    monkeypatch.setattr(gen, "ROWS", [r for r in gen.ROWS if len(r) > 4 and r[4] == "exp45"
+                                      and gen.exp45_run_of(r[0]) == RUNS[0]])
+    return root, ev
+
+
+def _generate(root, out):
+    """main() over the root, the table written to ``out``: (Markdown, the RF f=25 % rows)."""
+    out.parent.mkdir(parents=True)
+    assert gen.main(["--repo-root", str(root), "--out", str(out)]) == 0
+    md = out.read_text()
+    return md, [ln for ln in md.split("\n") if ln.startswith(f"| {gen.EXP45_LABELS['025']} |")]
+
+
+@pytest.mark.parametrize("verdict", ["equal", "evaluator discrepancy"])
+def test_exp45_rows_publish_with_the_sealed_bridge_comparisons_verdict(tmp_path, monkeypatch, verdict):
+    """Codex code r3 finding 1: through main(), a complete RF run publishes only with the RF-100 bridge comparison that
+    THE shared publication gate (exp45_eval.bridge_gate, loaded from the root's kit) admits against the root's CURRENT
+    bridge artifacts, and carries its verdict -- for an evaluator discrepancy, each cell's differences."""
+    def bump(c, m, s):
+        if c["name"] == "exp45_RF100bridge_K8_s43":
+            m["metrics"]["C50"] += 0.25
+    root, ev = _bridge_world(tmp_path, monkeypatch, None if verdict == "equal" else bump)
+    md, rows = _generate(root, tmp_path / "B" / "model_comparison.md")
+    assert len(rows) == 2 and all(r.count(" ± ") == 6 for r in rows), rows
+    digest = ev.reg.sha256_file(ev._abs(ev.BRIDGE_RESULT))
+    assert f"**RF-100 bridge comparison** (`rf_data_curve_bridge.json`, sha256 `{digest[:12]}`): " in md
+    assert all(d in md for d in ev.reg.disclosures("generator"))
+    if verdict == "equal":
+        assert "equal on all ten cells." in md and "evaluator discrepancy" not in md
+    else:
+        assert "**evaluator discrepancy** in 1 of 10 cells" in md and "- exp45_RF100bridge_K8_s43: metrics.C50 ours" in md
+        assert "equal on all ten" not in md
+
+
+@pytest.mark.parametrize("what", fx.BRIDGE_BREAKS)
+def test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison(tmp_path, monkeypatch, what):
+    """Codex code r3 finding 1: the same complete, admissible RF run with an absent or unreadable comparison, a compared
+    bridge artifact missing, or one changed after the seal (the cell alone still admits): main() withholds every exp_45
+    row and says why -- no number, no verdict, no disclosures (fail closed)."""
+    root, ev = _bridge_world(tmp_path, monkeypatch)
+    cell = fx.break_bridge(ev, what)
+    if what == "changed bridge artifact":
+        assert ev.validate_cell(cell, offline=True) == []
+    md, rows = _generate(root, tmp_path / "B" / "model_comparison.md")
+    assert len(rows) == 2 and all("WITHHELD" in r and " ± " not in r for r in rows), rows
+    assert "**exp_45 rows WITHHELD:** the RF-100 bridge comparison does not admit the exp_45 rows" in md
+    assert "**RF-100 bridge comparison**" not in md and not any(d in md for d in ev.reg.disclosures("generator"))
 
 
 def test_round_gate_publishes_only_complete_pairs_at_one_pin(tmp_path):

@@ -1093,6 +1093,30 @@ def exp45_disclosure_lines(rendered, exp45_withheld, repo_root=None):
     return ["", "**exp_45 rows — disclosures (plan_rf_data_curve.md r3 §8):**", ""] + list(items), []
 
 
+def exp45_bridge_lines(rendered, exp45_withheld, repo_root=None):
+    """``(lines, problems)``: the RF-100 bridge comparison under the shared table's exp_45 rows (Codex code r3 finding
+    1). Whenever an exp_45 row would publish, exp45_eval.bridge_gate -- THE publication gate the collector and
+    exp45_table use, loaded from the exp_45 kit at the generator root -- must admit the sealed rf_data_curve_bridge.json
+    against the CURRENT bridge artifacts there; its verdict and each discrepant cell's differences
+    (exp45_eval.bridge_lines) print under the rows. Nothing while every exp_45 row is pending or withheld; an absent,
+    unreadable or stale comparison is a problem (the gate must not fail open: main() withholds every exp_45 row)."""
+    published = [r for r in rendered if r.get("contract") == "exp45" and r["label"] not in exp45_withheld
+                 and "*pending" not in r["line"] and "BLOCKED" not in r["line"] and "WITHHELD" not in r["line"]]
+    if not published:
+        return [], []
+    root = repo_paths(repo_root)["root"]
+    cwd = os.getcwd()
+    try:
+        EV = _load_exp45_eval(root)
+        os.chdir(root)
+        summary, _files = EV.bridge_gate()
+        return ["", *EV.bridge_lines(summary)], []
+    except Exception as exc:                       # noqa: BLE001 -- the gate must not fail open
+        return [], [f"the RF-100 bridge comparison does not admit the exp_45 rows ({exc})"]
+    finally:
+        os.chdir(cwd)
+
+
 def render_row(label, proto, K, files, repo_root=None, validator_path=None, contract="table"):
     """``(markdown_line, blocked)`` for one row, gating exp_11 and exp_14 evidence."""
     # exp_14 FIRST and exclusively: its cells sit inside outputs_FLAC/exp11_<ARM>/,
@@ -1493,6 +1517,16 @@ def main(argv=None):
                                          "an exp_45 run publishes only as a complete two-K pair "
                                          "at the one evaluator pin")
         lines_tail += ["", "**exp_45 rows WITHHELD:** " + "; ".join(exp45_problems)]
+    exp45_bridge, exp45_bridge_problems = exp45_bridge_lines(rendered, exp45_withheld, root)
+    if exp45_bridge_problems:                       # the sealed bridge comparison gates them (Codex code r3 finding 1)
+        print("exp_45 rows not publishable:", file=sys.stderr)
+        for problem in exp45_bridge_problems:
+            print("  -", problem, file=sys.stderr)
+        for r in rendered:
+            if r.get("contract") == "exp45":
+                r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
+                                         "the RF-100 bridge comparison does not admit them")
+        lines_tail += ["", "**exp_45 rows WITHHELD:** " + "; ".join(exp45_bridge_problems)]
     exp45_notes, exp45_note_problems = exp45_disclosure_lines(rendered, exp45_withheld, root)
     if exp45_note_problems:                         # published exp_45 rows need their disclosures (finding 15)
         print("exp_45 rows not publishable:", file=sys.stderr)
@@ -1503,6 +1537,8 @@ def main(argv=None):
                 r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
                                          "the exp_45 disclosures could not be loaded")
         lines_tail += ["", "**exp_45 rows WITHHELD:** " + "; ".join(exp45_note_problems)]
+    if not exp45_note_problems:                     # the admitted comparison's verdict + discrepancies under the rows
+        lines_tail += exp45_bridge
     lines_tail += exp45_notes
     two_k = check_two_k_coverage(exp11_status)
     if two_k:

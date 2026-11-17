@@ -1398,28 +1398,13 @@ def test_prepare_bridge_verifies_sha_bytes_and_the_embedded_config(world, monkey
 
 
 def _bundle(world, mutate=None, admission=None, stream_fn=None, make=True):
-    """Our ten admitted bridge cells + exp_43's reference bundle (references = our values with exp_43's metadata;
-    the admission record = exp_43's exact admission of the RF100_BRIDGE checkpoint unless ``admission`` is given)."""
-    b = world["tmp"] / "bundle"
-    (b / "cells").mkdir(parents=True)
-    (b / "admission").mkdir()
-    for c in ev.bridge_cells():
-        cell = _bridge_cell(world, c["K"], c["seed"], stream_fn=(lambda s, c=c: stream_fn(c, s)) if stream_fn else None) \
-            if make else c
-        stem = ev.bridge_ref_stem(ev.RF100_BRIDGE["cells"][c["name"]])
-        m, s = json.load(open(cell["metrics"])), fx.stream_sidecar(c["K"], c["seed"])      # exp_43's own (pristine) stream
-        m.update(eval_name=ev.RF100_BRIDGE["cells"][c["name"]], ckpt_path="/home/yixunhu/x/farm/RF/epoch=8-step=40000.ckpt",
-                 source_sha="5f5b493a8ac1" + "0" * 28)                             # metadata only: not compared
-        if mutate:
-            mutate(c, m, s)
-        json.dump(m, open(b / "cells" / f"{stem}.json", "w"))
-        json.dump(s, open(b / "cells" / f"{stem}.stream.json", "w"))
-    if admission is None:
-        admission = fx.exp43_admission(KIT43, ev.RF100_BRIDGE["sha256"], ev.RF100_BRIDGE["bytes"])
-    json.dump(admission, open(b / "admission" / "exp43_admission_RF.json", "w"))
-    rels = sorted(os.path.relpath(os.path.join(d, f), b) for d, _, fs in os.walk(b) for f in fs)
-    (b / ev.BRIDGE_MANIFEST).write_text("".join(f"{ev.reg.sha256_file(str(b / r))}  {r}\n" for r in rels))
-    return b
+    """Our ten admitted bridge cells (``make``; else the existing ones) + exp_43's reference bundle
+    (exp45_fixtures.bridge_bundle: references = our values with exp_43's metadata; the admission record = exp_43's
+    exact admission of the RF100_BRIDGE checkpoint unless ``admission`` is given)."""
+    if make:
+        for c in ev.bridge_cells():
+            _bridge_cell(world, c["K"], c["seed"], stream_fn=(lambda s, c=c: stream_fn(c, s)) if stream_fn else None)
+    return fx.bridge_bundle(ev, world["tmp"] / "bundle", KIT43, mutate, admission)
 
 
 @pytest.fixture

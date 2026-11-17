@@ -6,7 +6,8 @@ copied to the farm and the 60 offline-admissible fraction cells, in a SEPARATE p
 through the isolated adapter; with the fake NAS gone (no /media path anywhere), a missing or changed file of
 EXP38_IMPORT_FILES, a commit not descending from the base, an adapter opening anything outside the list -- each
 refuses. ``build`` refuses a missing cell, a value differing from its source, a wrong commit or a resealed
-record, and never reads exp_38's preliminary files.
+record, and never reads exp_38's preliminary files. Its RF rows pass THE shared publication gate (exp45_eval.bridge_gate)
+over a real sealed RF-100 bridge comparison (test_exp45_eval's bridge world; Codex code r3 finding 1).
 
 Written by the exp_45 Coder (Claude Opus 5.5).
 """
@@ -22,7 +23,10 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 TESTS = os.path.dirname(os.path.abspath(__file__))
 EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_45_rf_data_curve_claude")
 sys.path.insert(0, EXP)
+import exp45_fixtures as fx  # noqa: E402
 import exp45_table as tbl  # noqa: E402
+import test_exp45_eval as TE  # noqa: E402  (its RF-100 bridge world: Codex code r3 finding 1)
+from test_exp45_eval import bridge_world, e0, world  # noqa: E402,F401  (that world's pytest fixtures)
 
 E38 = "worklog/worklog_yixun/exp_38_data_efficiency_claude"
 COPY = [f"{E38}/exp38_eval.py", f"{E38}/exp38_registry.py", f"{E38}/ref_cells", f"{E38}/FLAC_AR_BF_cap32.json",
@@ -190,13 +194,15 @@ def test_materialisation_copies_the_verified_bytes_to_their_exact_paths(imp, tmp
 
 # ------------------------------------------------------------------ build
 @pytest.fixture
-def built(imp, tmp_path, monkeypatch):
-    """A sealed import record + a fake exp_45 side (offline admission patched, a published collector JSON)."""
+def built(imp, bridge_world, monkeypatch):
+    """A sealed import record + the exp_45 side: a REAL E0 receipt and sealed RF-100 bridge comparison over the ten
+    admitted bridge cells (test_exp45_eval's bridge world + cmd_bridge: the shared publication gate runs unpatched,
+    Codex code r3 finding 1), the fraction rows' offline admission patched, a published collector JSON."""
     repo, root, sha = imp
+    assert TE.ev is tbl.ev
     tbl.import_exp38(sha, repo=repo)
+    tbl.ev.cmd_bridge(str(TE._bundle(bridge_world)))
     rows = {f"rf|{t}|{K}": {k: [2.0, 0.1, 5] for k in tbl.ev.METRIC_KEYS} for t in tbl.FRACS for K in (8, 1)}
-    monkeypatch.setattr(tbl.ev, "validate_e0_receipt", lambda offline=False: {"head": "e" * 40, "closure_sha256": "c" * 64,
-                                                                            "sha256": "d" * 64})
     monkeypatch.setattr(tbl, "rf_rows", lambda campaign: json.loads(json.dumps(rows)))
     res = {"rows": [{"model": "rf", "fraction": k.split("|")[1], "K": int(k.split("|")[2]),
                      "stats": {m: {"mean": v[0], "sd": v[1], "n": v[2]} for m, v in st.items()}} for k, st in rows.items()]}
@@ -215,10 +221,67 @@ def test_build_renders_all_eighteen_cells_and_the_disclosures(built):
         assert md.count(f"| {label} | ") == 6
     assert sum(ln.count(" ± ") for ln in md.split("\n") if ln.startswith("| ")) == 18 * 6
     assert all(d in md for d in tbl.DISCLOSURES) and sha[:12] in md
-    ev_rec, _ = tbl.reg.read_sealed(os.path.join(repo, tbl.TABLE_EVIDENCE), {"schema", "exp38_commit", "exp38_import_sha256",
-                                                                             "exp45_campaign", "rf_results_sha256", "rows",
-                                                                             "written_at"})
+    ev_rec, _ = tbl.reg.read_sealed(os.path.join(repo, tbl.TABLE_EVIDENCE), EVIDENCE_KEYS)
     assert ev_rec["exp38_commit"] == sha and len(ev_rec["rows"]) == 18
+
+
+EVIDENCE_KEYS = {"schema", "exp38_commit", "exp38_import_sha256", "exp45_campaign", "rf_results_sha256", "bridge", "rows",
+                 "written_at"}
+
+
+@pytest.mark.parametrize("what", fx.BRIDGE_BREAKS)
+def test_build_refuses_rf_rows_without_their_admissible_bridge_comparison(built, what):
+    """Codex code r3 finding 1: the RF rows publish only through THE shared publication gate (exp45_eval.bridge_gate,
+    the collector's): an absent or unreadable comparison, a compared bridge artifact missing, or one changed after the
+    seal (the cell alone still admits) refuses -- nothing is rendered or sealed."""
+    repo, sha, _ = built
+    cell = fx.break_bridge(tbl.ev, what)
+    if what == "changed bridge artifact":
+        assert tbl.ev.validate_cell(cell, offline=True) == []
+    with pytest.raises(tbl.TableError, match="bridge"):
+        tbl.build(sha, repo=repo)
+    assert not [p for p in (tbl.TABLE_MD, tbl.TABLE_EVIDENCE) if os.path.exists(os.path.join(repo, p))]
+
+
+@pytest.mark.parametrize("verdict", ["equal", "evaluator discrepancy"])
+def test_build_carries_the_bridge_comparisons_verdict_and_discrepancies(built, bridge_world, verdict):
+    """Codex code r3 finding 1: the admitted comparison's verdict -- and, for an evaluator discrepancy, each cell's
+    differences -- reach the table (exp45_eval.bridge_lines, as the collector prints them) and its sealed evidence."""
+    import shutil
+    repo, sha, _ = built
+    ev = tbl.ev
+    if verdict != "equal":
+        for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+            os.remove(p)
+        shutil.rmtree(bridge_world["tmp"] / "bundle")
+
+        def bump(c, m, s):
+            if c["name"] == "exp45_RF100bridge_K8_s43":
+                m["metrics"]["C50"] += 0.25
+        ev.cmd_bridge(str(TE._bundle(bridge_world, bump, make=False)))
+    md = tbl.build(sha, repo=repo)
+    rec, _ = tbl.reg.read_sealed(os.path.join(repo, tbl.TABLE_EVIDENCE), EVIDENCE_KEYS)
+    digest = ev.reg.sha256_file(ev.BRIDGE_RESULT)
+    assert rec["bridge"]["verdict"] == verdict and rec["bridge"]["sha256"] == digest
+    assert f"**RF-100 bridge comparison** (`rf_data_curve_bridge.json`, sha256 `{digest[:12]}`): " in md
+    if verdict == "equal":
+        assert "equal on all ten cells." in md and rec["bridge"]["discrepancies"] == {}
+    else:
+        assert "**evaluator discrepancy** in 1 of 10 cells" in md and "- exp45_RF100bridge_K8_s43: metrics.C50 ours" in md
+        assert sorted(rec["bridge"]["discrepancies"]) == ["exp45_RF100bridge_K8_s43"] and "equal on all ten" not in md
+
+
+def test_one_bridge_gate_and_one_renderer_serve_every_exp45_writer():
+    """Codex code r3 finding 1: the collector, this table and the shared generator admit RF rows through ONE gate,
+    exp45_eval.bridge_gate (the only caller of validate_bridge_result), and print its verdict through ONE renderer,
+    exp45_eval.bridge_lines."""
+    import inspect
+    import exp45_collect as col
+    gen = open(os.path.join(REPO, "worklog", "worklog_yixun", "gen_model_comparison.py")).read()
+    assert "ev.bridge_gate(campaign)" in inspect.getsource(col.rf_rows) and "ev.bridge_lines(bridge)" in inspect.getsource(col.render)
+    assert "ev.bridge_gate(campaign)" in inspect.getsource(tbl.build) and "ev.bridge_lines(bridge)" in inspect.getsource(tbl.render)
+    assert "EV.bridge_gate()" in gen and "EV.bridge_lines(summary)" in gen
+    assert "validate_bridge_result" not in inspect.getsource(col) + inspect.getsource(tbl) + gen
 
 
 def test_build_refuses_a_wrong_commit_a_resealed_record_or_a_changed_value(built):

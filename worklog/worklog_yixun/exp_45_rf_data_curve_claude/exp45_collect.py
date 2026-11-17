@@ -9,9 +9,10 @@ RF100_BRIDGE descriptor --, the stream's input AND assignment hashes, the dump-m
 E0 receipt (validate_e0_receipt(offline=True)), so the results re-derive from the tracked evidence alone; NAS
 payloads (checkpoints, waveforms) are attested by the hashes the receipts carry, never opened. Any missing or
 unadmitted cell refuses: nothing publishes partially. The RF-100 bridge rows publish only with the sealed bridge
-comparison rf_data_curve_bridge.json of THIS campaign and these ten cells (exp45_eval.validate_bridge_result; Codex
-code r1 finding 4); its verdict -- equal, or an evaluator discrepancy per cell -- is carried into the rows' source,
-the Markdown and the JSON manifest, never turned into an equality. Publication (exp_38 Codex code r1 HIGH 10): Markdown first,
+comparison rf_data_curve_bridge.json of THIS campaign and these ten cells (exp45_eval.bridge_gate, the publication
+gate every exp_45 writer shares; Codex code r1 finding 4, r3 finding 1); its verdict -- equal, or an evaluator
+discrepancy per cell -- is carried into the rows' source, the Markdown and the JSON manifest, never turned into an
+equality. Publication (exp_38 Codex code r1 HIGH 10): Markdown first,
 the JSON LAST (the commit point; the Markdown carries the JSON's sha256), each temp -> fsync -> rename, under the
 collector lock; the JSON carries {path: sha256} of every file the admission consumed.
 
@@ -82,16 +83,6 @@ def farm_files(run):
     return out
 
 
-def bridge_summary(campaign):
-    """(the manifest's "bridge" entry, the result's files) of the sealed bridge comparison (finding 4)."""
-    rec, digest = ev.validate_bridge_result(campaign)
-    disc = {n: v["differences"] for n, v in sorted(rec["cells"].items()) if v["verdict"] != "equal"}
-    path = ev._abs(ev.BRIDGE_RESULT)
-    return ({"result": os.path.relpath(path, reg.REPO), "sha256": digest, "verdict": rec["verdict"],
-             "descriptor_sha256": rec["descriptor_sha256"], "admission_record_sha256": rec["admission_record"]["sha256"],
-             "discrepancies": disc}, [path, path + ".sha256"])
-
-
 def rf_rows(campaign):
     """(rows, manifest runs, bridge) of the three RF runs and the RF-100 bridge, every cell through exp45_eval's OFFLINE
     admission under ``campaign`` and the bridge rows through the sealed bridge comparison; refuses (EvalError) if any
@@ -106,7 +97,7 @@ def rf_rows(campaign):
             continue
         files = [f for c in cells for f in cell_files(c)]
         if model == "rf_bridge":
-            bridge, bfiles = bridge_summary(campaign)
+            bridge, bfiles = ev.bridge_gate(campaign)     # THE shared publication gate (Codex code r3 finding 1)
             files += bfiles
         if model == "rf":
             farm = os.path.dirname(ev._abs(cells[0]["ckpt_link"]))
@@ -153,14 +144,7 @@ def render(rows, pending, bridge=None):
             out.append(f"| {MODELS[model]} | {FRAC_LABEL[frac]} | " + " | ".join(cells) + f" | {rows[(model, frac, K)]['source']} |")
         out.append("")
     if bridge is not None:                               # the sealed bridge comparison, as recorded (finding 4)
-        out.append(f"**RF-100 bridge comparison** (`{os.path.basename(bridge['result'])}`, sha256 "
-                   f"`{bridge['sha256'][:12]}`): " + ("equal on all ten cells." if bridge["verdict"] == "equal" else
-                                                     f"**evaluator discrepancy** in {len(bridge['discrepancies'])} of 10 "
-                                                     "cells (reported until explained, never as equality):"))
-        for cell, diffs in sorted(bridge["discrepancies"].items()):
-            out.append(f"- {cell}: " + "; ".join(f"{k} ours {v['ours']!r} / reference {v['reference']!r}"
-                                                for k, v in sorted(diffs.items())))
-        out.append("")
+        out += ev.bridge_lines(bridge) + [""]
     return "\n".join(out + reg.disclosure_block("collect")) + "\n"            # plan r3 §8 (finding 15)
 
 

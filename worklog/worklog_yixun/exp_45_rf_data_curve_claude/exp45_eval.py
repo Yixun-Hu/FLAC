@@ -1341,6 +1341,44 @@ def validate_bridge_result(campaign, path=None):
     return rec, digest
 
 
+def bridge_gate(campaign=None):
+    """THE publication gate of the exp_45 RF rows (Codex code r3 finding 1), shared by every writer that renders them --
+    the collector (exp45_collect.rf_rows), the comparison table (exp45_table.build) and the shared generator
+    (gen_model_comparison.exp45_bridge_lines, through the kit at its root): the ten RF-100 bridge cells through the
+    OFFLINE cell admission under ``campaign`` (default: the E0 receipt's, offline) and the sealed
+    rf_data_curve_bridge.json through validate_bridge_result against the CURRENT bridge artifacts. Returns
+    (summary, files): the summary -- the comparison's path and sha256, its verdict, the descriptor and admission-record
+    shas and each discrepant cell's differences -- is what the writer prints (bridge_lines) and records; files = the
+    result + its sidecar. Raises EvalError when the comparison is absent, unreadable or stale: no writer renders an RF
+    row without it (fail closed)."""
+    campaign = campaign or validate_e0_receipt(offline=True)
+    try:
+        probs = [x for c in bridge_cells() for x in validate_cell(c, campaign, offline=True)]
+        if probs:
+            raise EvalError(f"{len(probs)} bridge cell problem(s): " + "; ".join(probs[:3]))
+        rec, digest = validate_bridge_result(campaign)
+    except Exception as err:                       # noqa: BLE001 -- absent / unreadable / stale: never fail open
+        raise EvalError(f"the RF-100 bridge comparison does not admit publication: {err}") from err
+    path = _abs(BRIDGE_RESULT)
+    disc = {n: v["differences"] for n, v in sorted(rec["cells"].items()) if v["verdict"] != "equal"}
+    return ({"result": os.path.relpath(path, reg.REPO), "sha256": digest, "verdict": rec["verdict"],
+             "descriptor_sha256": rec["descriptor_sha256"], "admission_record_sha256": rec["admission_record"]["sha256"],
+             "discrepancies": disc}, [path, path + ".sha256"])
+
+
+def bridge_lines(summary):
+    """The Markdown every exp_45 writer prints for bridge_gate's summary: the comparison (file, sha256) and its verdict
+    -- an evaluator discrepancy with each discrepant cell's differences, reported until explained, never as equality."""
+    out = [f"**RF-100 bridge comparison** (`{os.path.basename(summary['result'])}`, sha256 `{summary['sha256'][:12]}`): "
+           + ("equal on all ten cells." if summary["verdict"] == "equal" else
+              f"**evaluator discrepancy** in {len(summary['discrepancies'])} of 10 cells (reported until explained, "
+              "never as equality):")]
+    for cell, diffs in sorted(summary["discrepancies"].items()):
+        out.append(f"- {cell}: " + "; ".join(f"{k} ours {v['ours']!r} / reference {v['reference']!r}"
+                                            for k, v in sorted(diffs.items())))
+    return out
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
