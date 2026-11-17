@@ -35,3 +35,12 @@
   and the four partial r1 items RESOLVED; no new BLOCKING / HIGH; one NIT (E5's conditional disclosure-block count),
   fixed in r3 without re-review (review cap). Plan rounds: 3 of 3 used.
 - Plan r3 goes to Yixun for approval with decisions M1–M4. No code before his approval.
+
+## 2026-11-17 15:20 EST — rebased onto X45f = `1e37ead2` (coordinating session)
+
+- exp_45 code round 3 closed and verified (exp_45 worklog 15:15 entry); its fixed tip `X45f = 1e37ead2`.
+- The five exp_46 records commits were rebased from `90d0202f` onto `1e37ead2` (records only, no conflicts). Old → new:
+  `5d4891cc → 1a867274`, `b96003a7 → 505f75b9`, `bb8f67a6 → d77ba58b`, `d04e031a → d379f9b2`, `46d46af9 → a3511f5f`.
+  The Codex plan prompts / reviews name the old SHAs; their content is unchanged (only the parent moved). The old tip
+  stays reachable as the local tag `exp46-plan-r3-prerebase` (not pushed).
+- Plan r3 unchanged in substance; `X45f` filled in. Waiting for Yixun's approval of plan r3 and M1–M4.

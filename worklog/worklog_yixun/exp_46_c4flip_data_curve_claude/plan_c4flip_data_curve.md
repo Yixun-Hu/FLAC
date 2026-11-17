@@ -7,7 +7,9 @@ RESOLVED, one NIT — fixed in r3 **without re-review**, per the review cap; §1
 **Origin:** Yixun's queries 6–8 (`c4flip_data_curve_yixun_query.md`; decisions C1–C5 approved 2026-11-17, before 13:45 EST).
 **Branch / worktree:** `exp-46-c4flip-data-curve`, cut from `exp-45-rf-data-curve` at `90d0202f`; neuronic worktree
 `/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve`. Before L0 starts, the exp_46 records commits are rebased onto
-exp_45's code-round-3-fixed tip **`X45f`** (exp_45 is local and unpushed, so nothing published is rewritten). `main`
+exp_45's code-round-3-fixed tip **`X45f`** (exp_45 is local and unpushed, so nothing published is rewritten).
+**`X45f` = `1e37ead2`** (exp_45 code round 3 closed 2026-11-17 15:15 EST; the rebase was done 15:20 EST, old → new SHAs
+in the worklog; the pre-rebase tip stays reachable as the local tag `exp46-plan-r3-prerebase`). `main`
 is never touched.
 **Folders:** `EXPREL46 = worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/`; `EXPREL45` = exp_45's folder;
 `EXP38REL` = exp_38's folder.
