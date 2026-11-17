@@ -268,3 +268,28 @@
   - **r2-9.** The dangling-symlink case was already refused by r2-6's alias check; this commit adds `lexists`, the index check and the `os.link` publish.
   - **r2-13.** `-B` is on both exec lines of the sbatch.
 - **Next** — Codex code round 3 (the last), then L1.
+
+## 2026-11-15T03:40:00-05:00 — coordinator: Codex code r3 (FINAL) → REVISE with one HIGH; escalated to Yixun (review cap reached)
+- **Goal** — code review round 3 of 3 on fix round 2 (`a39ded1c..90d0202f`).
+- **Command / Validation**
+  - The coordinator checked the fix round:
+    - 16 first-parent commits; the tracked tree is clean;
+    - final log `…02-43-58_pytest_r2fix_Z3_L0_final_full_scope_green.log`: `981 passed, 6 skipped`, `EXIT 0`;
+    - the exp_38 folder is byte-equal to `3593f34c`.
+  - Review files: prompt `rf_data_curve_codex_code_r3_prompt.md`, review `rf_data_curve_codex_code_r3_review.md`, log `rf_data_curve_2026-11-15_03-05-16_codex_code_r3.log.gz` (addresses redacted).
+- **Result**
+  - r2 findings: 1–10 and 12–14 FIXED; 11 PARTIAL.
+  - r1 PARTIALs: F1, F4, F5, F7, F12 and F13 CLOSED; F14 PARTIAL.
+  - Storage: with 235 GiB free, even zero credit leaves 196.6 GiB, above the 30 GiB floor, so r2-2 cannot cause a false FULL-start refusal.
+  - New findings:
+    - **HIGH-1**: the shared generator (`gen_model_comparison.py:1045`) and `exp45_table.py build` (391) render RF rows without the bridge-comparison gate that the collector enforces. A missing or corrupt bridge comparison does not stop publication.
+    - **MEDIUM-2**: hygiene can report a completed writer's vanished env-receipt temp name as a stale leftover, which is a false refusal; it fails closed.
+  - r2-6 materialisation exception: Codex recommends **approving** the narrow exception for the registered generator root G. The import files land under `exp38_data_efficiency/eval/`, apart from live `de_*` run dirs and their locks and owners, with no-clobber publication.
+- **Analysis**
+  - Review cap reached (3 rounds; Yixun's rule). The open HIGH goes to Yixun, not to a 4th round.
+  - HIGH-1 affects only the L8 table writers, not training. But `exp45_table.py` is in the exp_45 closure, so any fix must land before the freeze X that E0 binds.
+  - Recommendation to Yixun:
+    - (a) the Coder fixes HIGH-1 (one shared publication gate in both writers, tests for an absent comparison and a changed bridge artifact) and MEDIUM-2 (inspect leftovers under the receipt lock, ignore vanished names). There is no 4th Codex round; the coordinator verifies the diff and the CPU test logs.
+    - (b) approve the r2-6 materialisation exception as Codex recommends.
+    - (c) keep deviation 1 (the depth_canon filter; Codex r1 ACCEPT).
+- **Next** — Yixun's decision on (a)–(c); then L1.

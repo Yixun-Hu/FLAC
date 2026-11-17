@@ -93,3 +93,41 @@ concurrent FULLs; `--logger none` + PL CSV; A6000 evaluation (tree 45) with the 
 results after exp_38 step 4; the A6000 Claude session runs the A6000 / NAS steps; E0 before SMOKE; E0 cells exempt
 from waveform dumps. The original instruction "push the exp_38 results commit to origin/exp-38-data-efficiency" plus
 N7 is read as the go to push that records-only commit.
+
+## Query 6 — 2026-11-16 ≈ 11:20 EST (neuronic session)
+
+> flip + C4 yaw augmentation的data efficiency的experiment跑了吗？25%, 50%, 75%
+
+**Answer given.** Not run; no SMOKE or FULL job was ever submitted. exp_45 waits on the code round 3 decision.
+Flagged: exp_45's RF arm is NOT C4 — `FLAC_AR_YAWAUG_FLIP.json` has no `offset_step`, so the roll is uniform over all
+512 columns (full circle) + flip p = ½; C4 would be `offset_step = 128`. Asked whether to run RF as planned or a
+true C4 + flip arm.
+
+## Query 7 — 2026-11-17 ≈ 11:00 EST (answer to "按原计划跑 exp_45（整圈 roll + flip）吗？", neuronic session)
+
+> 我要 C4 + flip
+
+**Read as:** the wanted data curve is C4 + flip, not RF. **Not yet assumed** (put to Yixun as decisions C1–C5,
+coordinating-session reply of 2026-11-17): the exact meaning of "C4" (quarter-turn rolls {0, 90, 180, 270}° vs
+PanoFormer's literal `randint(0, w//4)` quarter-range roll, which exp_43 F1 notes is not C4); a new experiment vs
+re-scoping exp_45 (exp_45 has used its 3 plan and 3 code review rounds, and the arm needs a training-path change:
+`factory.py` 98–101 and `diffusion.py` 305–308 refuse `flip` together with `offset_step`); RF fractions dropped or
+kept; a 100 % C4 + flip anchor run (none exists); the open round-3 kit decisions (a)–(c).
+
+## Query 8 — 2026-11-17 ≈ 11:30 EST (answer to "按推荐批准 C1–C5 吗？", neuronic session)
+
+> 按推荐批准
+
+**Read as:** C1–C5 APPROVED as recommended:
+- **C1** "C4" = yaw rolls drawn uniformly from {0°, 90°, 180°, 270°} (`offset_step = 128` at `img_w = 512`), then the
+  horizontal mirror flip with p = ½ (8 transforms, the dihedral group D4). Not PanoFormer's quarter-range roll.
+- **C2** a NEW experiment, exp_46 (C4 + flip data curve), forked from exp_45's kit after the code round 3 fixes, with
+  its own plan and its own 3 + 3 Codex rounds. exp_45 has no review rounds left and cannot take the training-path
+  change.
+- **C3** exp_45's RF 25 / 50 / 75 % runs are ON HOLD (not cancelled), as C16 was under D8; reconsidered once the
+  C4 + flip results exist.
+- **C4** exp_46 adds a 100 % C4 + flip run in the same neuronic recipe (4 runs: 25 / 50 / 75 / 100 %).
+- **C5** exp_45 code round 3: (a) the Coder fixes r3 HIGH-1 and MEDIUM-2, no 4th Codex round, the coordinating
+  session verifies the diff and the CPU logs; (b) the r2-6 materialisation exception is approved as implemented;
+  (c) deviation 1 (the 4-line exp45 filter in `test_gen_model_comparison_depth_canon.py`) is kept.
+This reply covers C1–C5 only; it is not read as the go for the K3D rerun (a separate session's decision).
