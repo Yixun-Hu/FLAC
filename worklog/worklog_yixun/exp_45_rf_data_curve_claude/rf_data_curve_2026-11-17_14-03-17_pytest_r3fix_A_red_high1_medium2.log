@@ -1,0 +1,480 @@
+HEAD 96030fd37d82b87a5d4d6f940f4e3384051ef3f1 tracked-clean=no host neu308.neuronic.cs.princeton.edu start 2026-11-17T14:03:56-05:00
+cmd: pytest -q src/tests/test_exp45_table.py src/tests/test_gen_model_comparison_exp45.py src/tests/test_exp45_receipts.py::test_the_real_hygiene_gate_tolerates_a_live_writers_receipt_temp_file_only src/tests/test_exp45_eval.py -rfE 
+.....FFFFFFFF..............FFFFFF.F..................................... [ 24%]
+........................................................................ [ 48%]
+........................................................................ [ 73%]
+........................................................................ [ 97%]
+......                                                                   [100%]
+=================================== FAILURES ===================================
+__________ test_build_renders_all_eighteen_cells_and_the_disclosures ___________
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '80a2a6fe173010c850fa37ad16e08bac820be167', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_results.json')
+
+    def test_build_renders_all_eighteen_cells_and_the_disclosures(built):
+        repo, sha, _ = built
+        md = tbl.build(sha, repo=repo)
+        for label in tbl.METHODS.values():
+            assert md.count(f"| {label} | ") == 6
+        assert sum(ln.count(" ± ") for ln in md.split("\n") if ln.startswith("| ")) == 18 * 6
+        assert all(d in md for d in tbl.DISCLOSURES) and sha[:12] in md
+>       ev_rec, _ = tbl.reg.read_sealed(os.path.join(repo, tbl.TABLE_EVIDENCE), EVIDENCE_KEYS)
+
+src/tests/test_exp45_table.py:224: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_table_evidence.json'
+keys = {'bridge', 'exp38_commit', 'exp38_import_sha256', 'exp45_campaign', 'rf_results_sha256', 'rows', ...}
+
+    def read_sealed(path, keys):
+        """(record, sha256) of a sealed receipt with EXACTLY ``keys``; anything else refuses."""
+        try:
+            text = open(path, "rb").read()
+            side = open(path + ".sha256").read().split()
+        except OSError as err:
+            raise GateError(f"receipt {path} missing / unreadable: {err}")
+        digest = hashlib.sha256(text).hexdigest()
+        if side != [digest, os.path.basename(path)]:
+            raise GateError(f"{path} does not match its .sha256 sidecar")
+        try:
+            rec = json.loads(text)
+        except ValueError as err:
+            raise GateError(f"{path}: not JSON ({err})")
+        if not isinstance(rec, dict) or set(rec) != set(keys):
+            got = set(rec) if isinstance(rec, dict) else set()
+>           raise GateError(f"{path}: schema differs (missing {sorted(set(keys) - got)}, extra {sorted(got - set(keys))})")
+E           exp45_registry.GateError: /tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_table_evidence.json: schema differs (missing ['bridge'], extra [])
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py:872: GateError
+_ test_build_refuses_rf_rows_without_their_admissible_bridge_comparison[absent comparison] _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '80a2a6fe173010c850fa37ad16e08bac820be167', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_results.json')
+what = 'absent comparison'
+
+    @pytest.mark.parametrize("what", fx.BRIDGE_BREAKS)
+    def test_build_refuses_rf_rows_without_their_admissible_bridge_comparison(built, what):
+        """Codex code r3 finding 1: the RF rows publish only through THE shared publication gate (exp45_eval.bridge_gate,
+        the collector's): an absent or unreadable comparison, a compared bridge artifact missing, or one changed after the
+        seal (the cell alone still admits) refuses -- nothing is rendered or sealed."""
+        repo, sha, _ = built
+        cell = fx.break_bridge(tbl.ev, what)
+        if what == "changed bridge artifact":
+            assert tbl.ev.validate_cell(cell, offline=True) == []
+>       with pytest.raises(tbl.TableError, match="bridge"):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp45_table.py:241: Failed
+_ test_build_refuses_rf_rows_without_their_admissible_bridge_comparison[unreadable comparison] _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '80a2a6fe173010c850fa37ad16e08bac820be167', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_results.json')
+what = 'unreadable comparison'
+
+    @pytest.mark.parametrize("what", fx.BRIDGE_BREAKS)
+    def test_build_refuses_rf_rows_without_their_admissible_bridge_comparison(built, what):
+        """Codex code r3 finding 1: the RF rows publish only through THE shared publication gate (exp45_eval.bridge_gate,
+        the collector's): an absent or unreadable comparison, a compared bridge artifact missing, or one changed after the
+        seal (the cell alone still admits) refuses -- nothing is rendered or sealed."""
+        repo, sha, _ = built
+        cell = fx.break_bridge(tbl.ev, what)
+        if what == "changed bridge artifact":
+            assert tbl.ev.validate_cell(cell, offline=True) == []
+>       with pytest.raises(tbl.TableError, match="bridge"):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp45_table.py:241: Failed
+_ test_build_refuses_rf_rows_without_their_admissible_bridge_comparison[missing bridge artifact] _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '80a2a6fe173010c850fa37ad16e08bac820be167', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_results.json')
+what = 'missing bridge artifact'
+
+    @pytest.mark.parametrize("what", fx.BRIDGE_BREAKS)
+    def test_build_refuses_rf_rows_without_their_admissible_bridge_comparison(built, what):
+        """Codex code r3 finding 1: the RF rows publish only through THE shared publication gate (exp45_eval.bridge_gate,
+        the collector's): an absent or unreadable comparison, a compared bridge artifact missing, or one changed after the
+        seal (the cell alone still admits) refuses -- nothing is rendered or sealed."""
+        repo, sha, _ = built
+        cell = fx.break_bridge(tbl.ev, what)
+        if what == "changed bridge artifact":
+            assert tbl.ev.validate_cell(cell, offline=True) == []
+>       with pytest.raises(tbl.TableError, match="bridge"):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp45_table.py:241: Failed
+_ test_build_refuses_rf_rows_without_their_admissible_bridge_comparison[changed bridge artifact] _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '80a2a6fe173010c850fa37ad16e08bac820be167', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_results.json')
+what = 'changed bridge artifact'
+
+    @pytest.mark.parametrize("what", fx.BRIDGE_BREAKS)
+    def test_build_refuses_rf_rows_without_their_admissible_bridge_comparison(built, what):
+        """Codex code r3 finding 1: the RF rows publish only through THE shared publication gate (exp45_eval.bridge_gate,
+        the collector's): an absent or unreadable comparison, a compared bridge artifact missing, or one changed after the
+        seal (the cell alone still admits) refuses -- nothing is rendered or sealed."""
+        repo, sha, _ = built
+        cell = fx.break_bridge(tbl.ev, what)
+        if what == "changed bridge artifact":
+            assert tbl.ev.validate_cell(cell, offline=True) == []
+>       with pytest.raises(tbl.TableError, match="bridge"):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp45_table.py:241: Failed
+__ test_build_carries_the_bridge_comparisons_verdict_and_discrepancies[equal] __
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '80a2a6fe173010c850fa37ad16e08bac820be167', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_results.json')
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_build_carries_the_bridge_0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+verdict = 'equal'
+
+    @pytest.mark.parametrize("verdict", ["equal", "evaluator discrepancy"])
+    def test_build_carries_the_bridge_comparisons_verdict_and_discrepancies(built, bridge_world, verdict):
+        """Codex code r3 finding 1: the admitted comparison's verdict -- and, for an evaluator discrepancy, each cell's
+        differences -- reach the table (exp45_eval.bridge_lines, as the collector prints them) and its sealed evidence."""
+        import shutil
+        repo, sha, _ = built
+        ev = tbl.ev
+        if verdict != "equal":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+            shutil.rmtree(bridge_world["tmp"] / "bundle")
+    
+            def bump(c, m, s):
+                if c["name"] == "exp45_RF100bridge_K8_s43":
+                    m["metrics"]["C50"] += 0.25
+            ev.cmd_bridge(str(TE._bundle(bridge_world, bump, make=False)))
+        md = tbl.build(sha, repo=repo)
+>       rec, _ = tbl.reg.read_sealed(os.path.join(repo, tbl.TABLE_EVIDENCE), EVIDENCE_KEYS)
+
+src/tests/test_exp45_table.py:263: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_table_evidence.json'
+keys = {'bridge', 'exp38_commit', 'exp38_import_sha256', 'exp45_campaign', 'rf_results_sha256', 'rows', ...}
+
+    def read_sealed(path, keys):
+        """(record, sha256) of a sealed receipt with EXACTLY ``keys``; anything else refuses."""
+        try:
+            text = open(path, "rb").read()
+            side = open(path + ".sha256").read().split()
+        except OSError as err:
+            raise GateError(f"receipt {path} missing / unreadable: {err}")
+        digest = hashlib.sha256(text).hexdigest()
+        if side != [digest, os.path.basename(path)]:
+            raise GateError(f"{path} does not match its .sha256 sidecar")
+        try:
+            rec = json.loads(text)
+        except ValueError as err:
+            raise GateError(f"{path}: not JSON ({err})")
+        if not isinstance(rec, dict) or set(rec) != set(keys):
+            got = set(rec) if isinstance(rec, dict) else set()
+>           raise GateError(f"{path}: schema differs (missing {sorted(set(keys) - got)}, extra {sorted(got - set(keys))})")
+E           exp45_registry.GateError: /tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_table_evidence.json: schema differs (missing ['bridge'], extra [])
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py:872: GateError
+_ test_build_carries_the_bridge_comparisons_verdict_and_discrepancies[evaluator discrepancy] _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '80a2a6fe173010c850fa37ad16e08bac820be167', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_results.json')
+bridge_world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_build_carries_the_bridge_1'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+verdict = 'evaluator discrepancy'
+
+    @pytest.mark.parametrize("verdict", ["equal", "evaluator discrepancy"])
+    def test_build_carries_the_bridge_comparisons_verdict_and_discrepancies(built, bridge_world, verdict):
+        """Codex code r3 finding 1: the admitted comparison's verdict -- and, for an evaluator discrepancy, each cell's
+        differences -- reach the table (exp45_eval.bridge_lines, as the collector prints them) and its sealed evidence."""
+        import shutil
+        repo, sha, _ = built
+        ev = tbl.ev
+        if verdict != "equal":
+            for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
+                os.remove(p)
+            shutil.rmtree(bridge_world["tmp"] / "bundle")
+    
+            def bump(c, m, s):
+                if c["name"] == "exp45_RF100bridge_K8_s43":
+                    m["metrics"]["C50"] += 0.25
+            ev.cmd_bridge(str(TE._bundle(bridge_world, bump, make=False)))
+        md = tbl.build(sha, repo=repo)
+>       rec, _ = tbl.reg.read_sealed(os.path.join(repo, tbl.TABLE_EVIDENCE), EVIDENCE_KEYS)
+
+src/tests/test_exp45_table.py:263: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_table_evidence.json'
+keys = {'bridge', 'exp38_commit', 'exp38_import_sha256', 'exp45_campaign', 'rf_results_sha256', 'rows', ...}
+
+    def read_sealed(path, keys):
+        """(record, sha256) of a sealed receipt with EXACTLY ``keys``; anything else refuses."""
+        try:
+            text = open(path, "rb").read()
+            side = open(path + ".sha256").read().split()
+        except OSError as err:
+            raise GateError(f"receipt {path} missing / unreadable: {err}")
+        digest = hashlib.sha256(text).hexdigest()
+        if side != [digest, os.path.basename(path)]:
+            raise GateError(f"{path} does not match its .sha256 sidecar")
+        try:
+            rec = json.loads(text)
+        except ValueError as err:
+            raise GateError(f"{path}: not JSON ({err})")
+        if not isinstance(rec, dict) or set(rec) != set(keys):
+            got = set(rec) if isinstance(rec, dict) else set()
+>           raise GateError(f"{path}: schema differs (missing {sorted(set(keys) - got)}, extra {sorted(got - set(keys))})")
+E           exp45_registry.GateError: /tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_45_rf_data_curve_claude/rf_data_curve_table_evidence.json: schema differs (missing ['bridge'], extra [])
+
+worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_registry.py:872: GateError
+________ test_one_bridge_gate_and_one_renderer_serve_every_exp45_writer ________
+
+    def test_one_bridge_gate_and_one_renderer_serve_every_exp45_writer():
+        """Codex code r3 finding 1: the collector, this table and the shared generator admit RF rows through ONE gate,
+        exp45_eval.bridge_gate (the only caller of validate_bridge_result), and print its verdict through ONE renderer,
+        exp45_eval.bridge_lines."""
+        import inspect
+        import exp45_collect as col
+        gen = open(os.path.join(REPO, "worklog", "worklog_yixun", "gen_model_comparison.py")).read()
+>       assert "ev.bridge_gate(campaign)" in inspect.getsource(col.rf_rows) and "ev.bridge_lines(bridge)" in inspect.getsource(col.render)
+E       assert ('ev.bridge_gate(campaign)' in 'def rf_rows(campaign):\n    """(rows, manifest runs, bridge) of the three RF runs and the RF-100 bridge, every cell t...or(f"{len(problems)} cell problem(s), nothing published: " + "; ".join(problems[:5]))\n    return rows, runs, bridge\n')
+E        +  where 'def rf_rows(campaign):\n    """(rows, manifest runs, bridge) of the three RF runs and the RF-100 bridge, every cell t...or(f"{len(problems)} cell problem(s), nothing published: " + "; ".join(problems[:5]))\n    return rows, runs, bridge\n' = <function getsource at 0x7fdeaf5f41f0>(<function rf_rows at 0x7fdeae353400>)
+E        +    where <function getsource at 0x7fdeaf5f41f0> = <module 'inspect' from '/n/fs/gatrdp/envs/flac/lib/python3.10/inspect.py'>.getsource
+E        +    and   <function rf_rows at 0x7fdeae353400> = <module 'exp45_collect' from '/n/fs/gatrdp/codespace/exp-45-rf-data-curve/worklog/worklog_yixun/exp_45_rf_data_curve_claude/exp45_collect.py'>.rf_rows
+
+src/tests/test_exp45_table.py:281: AssertionError
+__ test_exp45_rows_publish_with_the_sealed_bridge_comparisons_verdict[equal] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_exp45_rows_publish_with_t0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddb61e56f0>
+verdict = 'equal'
+
+    @pytest.mark.parametrize("verdict", ["equal", "evaluator discrepancy"])
+    def test_exp45_rows_publish_with_the_sealed_bridge_comparisons_verdict(tmp_path, monkeypatch, verdict):
+        """Codex code r3 finding 1: through main(), a complete RF run publishes only with the RF-100 bridge comparison that
+        THE shared publication gate (exp45_eval.bridge_gate, loaded from the root's kit) admits against the root's CURRENT
+        bridge artifacts, and carries its verdict -- for an evaluator discrepancy, each cell's differences."""
+        def bump(c, m, s):
+            if c["name"] == "exp45_RF100bridge_K8_s43":
+                m["metrics"]["C50"] += 0.25
+        root, ev = _bridge_world(tmp_path, monkeypatch, None if verdict == "equal" else bump)
+        md, rows = _generate(root, tmp_path / "B" / "model_comparison.md")
+        assert len(rows) == 2 and all(r.count(" ± ") == 6 for r in rows), rows
+        digest = ev.reg.sha256_file(ev._abs(ev.BRIDGE_RESULT))
+>       assert f"**RF-100 bridge comparison** (`rf_data_curve_bridge.json`, sha256 `{digest[:12]}`): " in md
+E       assert '**RF-100 bridge comparison** (`rf_data_curve_bridge.json`, sha256 `ef4111ee11a1`): ' in "# Model comparison — cross-experiment results table\n\nAuto-generated by `gen_model_comparison.py` on 2026-11-17T14:0... patterns) live in `gen_model_comparison.py`; checkpoint paths and eval commands in each experiment's `_command.md`.\n"
+
+src/tests/test_gen_model_comparison_exp45.py:242: AssertionError
+----------------------------- Captured stdout call -----------------------------
+wrote /tmp/pytest-of-yh4742/pytest-0/test_exp45_rows_publish_with_t0/B/model_comparison.md
+_ test_exp45_rows_publish_with_the_sealed_bridge_comparisons_verdict[evaluator discrepancy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_exp45_rows_publish_with_t1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddb537fcd0>
+verdict = 'evaluator discrepancy'
+
+    @pytest.mark.parametrize("verdict", ["equal", "evaluator discrepancy"])
+    def test_exp45_rows_publish_with_the_sealed_bridge_comparisons_verdict(tmp_path, monkeypatch, verdict):
+        """Codex code r3 finding 1: through main(), a complete RF run publishes only with the RF-100 bridge comparison that
+        THE shared publication gate (exp45_eval.bridge_gate, loaded from the root's kit) admits against the root's CURRENT
+        bridge artifacts, and carries its verdict -- for an evaluator discrepancy, each cell's differences."""
+        def bump(c, m, s):
+            if c["name"] == "exp45_RF100bridge_K8_s43":
+                m["metrics"]["C50"] += 0.25
+        root, ev = _bridge_world(tmp_path, monkeypatch, None if verdict == "equal" else bump)
+        md, rows = _generate(root, tmp_path / "B" / "model_comparison.md")
+        assert len(rows) == 2 and all(r.count(" ± ") == 6 for r in rows), rows
+        digest = ev.reg.sha256_file(ev._abs(ev.BRIDGE_RESULT))
+>       assert f"**RF-100 bridge comparison** (`rf_data_curve_bridge.json`, sha256 `{digest[:12]}`): " in md
+E       assert '**RF-100 bridge comparison** (`rf_data_curve_bridge.json`, sha256 `78a458ba5a1e`): ' in "# Model comparison — cross-experiment results table\n\nAuto-generated by `gen_model_comparison.py` on 2026-11-17T14:0... patterns) live in `gen_model_comparison.py`; checkpoint paths and eval commands in each experiment's `_command.md`.\n"
+
+src/tests/test_gen_model_comparison_exp45.py:242: AssertionError
+----------------------------- Captured stdout call -----------------------------
+wrote /tmp/pytest-of-yh4742/pytest-0/test_exp45_rows_publish_with_t1/B/model_comparison.md
+_ test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison[absent comparison] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_exp45_rows_are_withheld_w0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddb5f8f3a0>
+what = 'absent comparison'
+
+    @pytest.mark.parametrize("what", fx.BRIDGE_BREAKS)
+    def test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison(tmp_path, monkeypatch, what):
+        """Codex code r3 finding 1: the same complete, admissible RF run with an absent or unreadable comparison, a compared
+        bridge artifact missing, or one changed after the seal (the cell alone still admits): main() withholds every exp_45
+        row and says why -- no number, no verdict, no disclosures (fail closed)."""
+        root, ev = _bridge_world(tmp_path, monkeypatch)
+        cell = fx.break_bridge(ev, what)
+        if what == "changed bridge artifact":
+            assert ev.validate_cell(cell, offline=True) == []
+        md, rows = _generate(root, tmp_path / "B" / "model_comparison.md")
+>       assert len(rows) == 2 and all("WITHHELD" in r and " ± " not in r for r in rows), rows
+E       AssertionError: ['| rf-data RF roll+flip f=25% @40k (exp_45) | vanilla eval | 1 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 ...illa eval | 8 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 | 6.000 ± 0.000 | 7.000 ± 0.000 | 8.000 ± 0.000 |']
+E       assert (2 == 2 and False)
+E        +  where 2 = len(['| rf-data RF roll+flip f=25% @40k (exp_45) | vanilla eval | 1 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 ...illa eval | 8 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 | 6.000 ± 0.000 | 7.000 ± 0.000 | 8.000 ± 0.000 |'])
+E        +  and   False = all(<generator object test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison.<locals>.<genexpr> at 0x7fddb5e50d60>)
+
+src/tests/test_gen_model_comparison_exp45.py:261: AssertionError
+----------------------------- Captured stdout call -----------------------------
+wrote /tmp/pytest-of-yh4742/pytest-0/test_exp45_rows_are_withheld_w0/B/model_comparison.md
+_ test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison[unreadable comparison] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_exp45_rows_are_withheld_w1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddba300490>
+what = 'unreadable comparison'
+
+    @pytest.mark.parametrize("what", fx.BRIDGE_BREAKS)
+    def test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison(tmp_path, monkeypatch, what):
+        """Codex code r3 finding 1: the same complete, admissible RF run with an absent or unreadable comparison, a compared
+        bridge artifact missing, or one changed after the seal (the cell alone still admits): main() withholds every exp_45
+        row and says why -- no number, no verdict, no disclosures (fail closed)."""
+        root, ev = _bridge_world(tmp_path, monkeypatch)
+        cell = fx.break_bridge(ev, what)
+        if what == "changed bridge artifact":
+            assert ev.validate_cell(cell, offline=True) == []
+        md, rows = _generate(root, tmp_path / "B" / "model_comparison.md")
+>       assert len(rows) == 2 and all("WITHHELD" in r and " ± " not in r for r in rows), rows
+E       AssertionError: ['| rf-data RF roll+flip f=25% @40k (exp_45) | vanilla eval | 1 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 ...illa eval | 8 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 | 6.000 ± 0.000 | 7.000 ± 0.000 | 8.000 ± 0.000 |']
+E       assert (2 == 2 and False)
+E        +  where 2 = len(['| rf-data RF roll+flip f=25% @40k (exp_45) | vanilla eval | 1 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 ...illa eval | 8 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 | 6.000 ± 0.000 | 7.000 ± 0.000 | 8.000 ± 0.000 |'])
+E        +  and   False = all(<generator object test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison.<locals>.<genexpr> at 0x7fddb5eebf40>)
+
+src/tests/test_gen_model_comparison_exp45.py:261: AssertionError
+----------------------------- Captured stdout call -----------------------------
+wrote /tmp/pytest-of-yh4742/pytest-0/test_exp45_rows_are_withheld_w1/B/model_comparison.md
+_ test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison[missing bridge artifact] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_exp45_rows_are_withheld_w2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddb5382950>
+what = 'missing bridge artifact'
+
+    @pytest.mark.parametrize("what", fx.BRIDGE_BREAKS)
+    def test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison(tmp_path, monkeypatch, what):
+        """Codex code r3 finding 1: the same complete, admissible RF run with an absent or unreadable comparison, a compared
+        bridge artifact missing, or one changed after the seal (the cell alone still admits): main() withholds every exp_45
+        row and says why -- no number, no verdict, no disclosures (fail closed)."""
+        root, ev = _bridge_world(tmp_path, monkeypatch)
+        cell = fx.break_bridge(ev, what)
+        if what == "changed bridge artifact":
+            assert ev.validate_cell(cell, offline=True) == []
+        md, rows = _generate(root, tmp_path / "B" / "model_comparison.md")
+>       assert len(rows) == 2 and all("WITHHELD" in r and " ± " not in r for r in rows), rows
+E       AssertionError: ['| rf-data RF roll+flip f=25% @40k (exp_45) | vanilla eval | 1 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 ...illa eval | 8 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 | 6.000 ± 0.000 | 7.000 ± 0.000 | 8.000 ± 0.000 |']
+E       assert (2 == 2 and False)
+E        +  where 2 = len(['| rf-data RF roll+flip f=25% @40k (exp_45) | vanilla eval | 1 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 ...illa eval | 8 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 | 6.000 ± 0.000 | 7.000 ± 0.000 | 8.000 ± 0.000 |'])
+E        +  and   False = all(<generator object test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison.<locals>.<genexpr> at 0x7fddb523fb50>)
+
+src/tests/test_gen_model_comparison_exp45.py:261: AssertionError
+----------------------------- Captured stdout call -----------------------------
+wrote /tmp/pytest-of-yh4742/pytest-0/test_exp45_rows_are_withheld_w2/B/model_comparison.md
+_ test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison[changed bridge artifact] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_exp45_rows_are_withheld_w3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddba300ee0>
+what = 'changed bridge artifact'
+
+    @pytest.mark.parametrize("what", fx.BRIDGE_BREAKS)
+    def test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison(tmp_path, monkeypatch, what):
+        """Codex code r3 finding 1: the same complete, admissible RF run with an absent or unreadable comparison, a compared
+        bridge artifact missing, or one changed after the seal (the cell alone still admits): main() withholds every exp_45
+        row and says why -- no number, no verdict, no disclosures (fail closed)."""
+        root, ev = _bridge_world(tmp_path, monkeypatch)
+        cell = fx.break_bridge(ev, what)
+        if what == "changed bridge artifact":
+            assert ev.validate_cell(cell, offline=True) == []
+        md, rows = _generate(root, tmp_path / "B" / "model_comparison.md")
+>       assert len(rows) == 2 and all("WITHHELD" in r and " ± " not in r for r in rows), rows
+E       AssertionError: ['| rf-data RF roll+flip f=25% @40k (exp_45) | vanilla eval | 1 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 ...illa eval | 8 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 | 6.000 ± 0.000 | 7.000 ± 0.000 | 8.000 ± 0.000 |']
+E       assert (2 == 2 and False)
+E        +  where 2 = len(['| rf-data RF roll+flip f=25% @40k (exp_45) | vanilla eval | 1 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 ...illa eval | 8 | 5 | 1.000 ± 0.000 | 3.0000 ± 0.0000 | 4.000 ± 0.000 | 6.000 ± 0.000 | 7.000 ± 0.000 | 8.000 ± 0.000 |'])
+E        +  and   False = all(<generator object test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison.<locals>.<genexpr> at 0x7fddb5e80120>)
+
+src/tests/test_gen_model_comparison_exp45.py:261: AssertionError
+----------------------------- Captured stdout call -----------------------------
+wrote /tmp/pytest-of-yh4742/pytest-0/test_exp45_rows_are_withheld_w3/B/model_comparison.md
+__ test_the_real_hygiene_gate_tolerates_a_live_writers_receipt_temp_file_only __
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_real_hygiene_gate_tol0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddb567d660>
+
+    def test_the_real_hygiene_gate_tolerates_a_live_writers_receipt_temp_file_only(tmp_path, monkeypatch):
+        """Codex code r2 finding 11: while another SMOKE publishes the environment receipt (it holds the receipt lock, its
+        temp file .rf_data_curve_env_receipt_neuronic.json.sha256.tmp.<pid> on disk), the REAL check_untracked of an
+        arriving SMOKE passes; once that writer is dead (lock free) the same temp file is refused as stale, by name.
+        Codex code r3 finding 2: a publication that COMPLETES between the scan's git listing and its inspection (renamed,
+        unlocked, exited) leaves a listed name that has vanished -- ignored, never reported stale."""
+        import signal
+        monkeypatch.setenv("PYTHONNOUSERSITE", "1")
+        root = _git_tree(tmp_path)
+        data = tmp_path / "AR"
+        data.mkdir()
+        (root / "AcousticRooms").symlink_to(data)
+        (root / reg.VAE_PATH).symlink_to(os.path.realpath(os.path.join(REPO, reg.VAE_PATH)))
+        (root / reg.EXP_DIR).mkdir(parents=True)
+        assert reg.check_untracked("neuronic", str(root)) == []
+        child = subprocess.Popen([sys.executable, "-I", "-c", PAUSED_WRITER, str(root), EXP], stdout=subprocess.PIPE,
+                                 text=True)
+        try:
+            line = child.stdout.readline().strip()
+            assert line.startswith("PAUSED .rf_data_curve_env_receipt_neuronic.json"), line
+            tmp_name = line.split()[1]
+            assert os.path.exists(root / reg.EXP_DIR / tmp_name)
+            assert reg.check_untracked("neuronic", str(root)) == []               # a live writer's temp file
+        finally:
+            child.send_signal(signal.SIGKILL)
+            child.wait(timeout=30)
+        assert os.path.exists(root / reg.EXP_DIR / tmp_name)                      # the killed writer's leftover
+        probs = reg.check_untracked("neuronic", str(root))
+        assert len(probs) == 1 and tmp_name in probs[0] and "stale" in probs[0], probs
+        (root / reg.EXP_DIR / ".rf_data_curve_env_receipt_neuronic.json.tmp.junk").write_text("x")
+        assert any(".tmp.junk" in p for p in reg.check_untracked("neuronic", str(root)))   # only the kit's exact pattern
+        for name in (tmp_name, ".rf_data_curve_env_receipt_neuronic.json.tmp.junk"):        # (removed after checking)
+            os.remove(root / reg.EXP_DIR / name)
+        assert reg.check_untracked("neuronic", str(root)) == []
+        child = subprocess.Popen([sys.executable, "-I", "-B", "-c", RESUMABLE_WRITER, str(root), EXP],
+                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        real_git_out, live = reg._git_out, []
+    
+        def listing_then_the_publication_completes(repo, *args):
+            out = real_git_out(repo, *args)
+            if "--others" in args and "--ignored" not in args and child.poll() is None:
+                assert live[0].encode() in out                                # git listed the live writer's temp name
+                child.stdin.write("go\n")
+                child.stdin.flush()
+                assert child.stdout.readline().strip() == "PUBLISHED"         # renamed, unlocked ...
+                child.wait(timeout=60)                                        # ... and gone
+            return out
+        try:
+            line = child.stdout.readline().strip()
+            assert line.startswith("PAUSED .rf_data_curve_env_receipt_neuronic.json"), line
+            live.append(line.split()[1])
+            monkeypatch.setattr(reg, "_git_out", listing_then_the_publication_completes)
+>           assert reg.check_untracked("neuronic", str(root)) == []
+E           assert ['stale envir...er checking)'] == []
+E             
+E             Left contains one more item: "stale environment-receipt temp file worklog/worklog_yixun/exp_45_rf_data_curve_claude/.rf_data_curve_env_receipt_neur....sha256.tmp.2017431: no live writer holds the receipt lock (a killed publication's leftover; remove it after checking)"
+E             Use -v to get more diff
+
+src/tests/test_exp45_receipts.py:883: AssertionError
+=============================== warnings summary ===============================
+src/tests/test_exp45_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp45_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp45_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_table.py::test_build_renders_all_eighteen_cells_and_the_disclosures
+FAILED src/tests/test_exp45_table.py::test_build_refuses_rf_rows_without_their_admissible_bridge_comparison[absent comparison]
+FAILED src/tests/test_exp45_table.py::test_build_refuses_rf_rows_without_their_admissible_bridge_comparison[unreadable comparison]
+FAILED src/tests/test_exp45_table.py::test_build_refuses_rf_rows_without_their_admissible_bridge_comparison[missing bridge artifact]
+FAILED src/tests/test_exp45_table.py::test_build_refuses_rf_rows_without_their_admissible_bridge_comparison[changed bridge artifact]
+FAILED src/tests/test_exp45_table.py::test_build_carries_the_bridge_comparisons_verdict_and_discrepancies[equal]
+FAILED src/tests/test_exp45_table.py::test_build_carries_the_bridge_comparisons_verdict_and_discrepancies[evaluator discrepancy]
+FAILED src/tests/test_exp45_table.py::test_one_bridge_gate_and_one_renderer_serve_every_exp45_writer
+FAILED src/tests/test_gen_model_comparison_exp45.py::test_exp45_rows_publish_with_the_sealed_bridge_comparisons_verdict[equal]
+FAILED src/tests/test_gen_model_comparison_exp45.py::test_exp45_rows_publish_with_the_sealed_bridge_comparisons_verdict[evaluator discrepancy]
+FAILED src/tests/test_gen_model_comparison_exp45.py::test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison[absent comparison]
+FAILED src/tests/test_gen_model_comparison_exp45.py::test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison[unreadable comparison]
+FAILED src/tests/test_gen_model_comparison_exp45.py::test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison[missing bridge artifact]
+FAILED src/tests/test_gen_model_comparison_exp45.py::test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison[changed bridge artifact]
+FAILED src/tests/test_exp45_receipts.py::test_the_real_hygiene_gate_tolerates_a_live_writers_receipt_temp_file_only
+15 failed, 279 passed, 3 warnings in 879.31s (0:14:39)
+EXIT 1 end 2026-11-17T14:18:42-05:00

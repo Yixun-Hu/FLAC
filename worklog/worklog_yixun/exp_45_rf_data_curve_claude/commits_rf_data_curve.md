@@ -60,6 +60,10 @@ tool with its tests (G, J, L, M, N) — each a single delta of plan r3 §3.2.
 | `8243bf30` | +25 / −2 | fix r2-13: the launcher's supervisor writes no bytecode into exp_38's folder |
 | `da55a4a9` | +3 / −2 | fix r2-13 (test): the bytecode check covers exp_38's folder and the kit folders, not the stdlib |
 | `5b1b2f73` | +1 | fix r2-12 (test): the SDPA-SMOKE half of the admission test uses the SMOKE helper's environment receipt |
+| `90d0202f` | — | records: Coder fix round 2 -- the ledger rows, the worklog entry (disposition table) and every fix-round log |
+| `96030fd3` | — | records: Codex code review r3 (REVISE: HIGH-1, MEDIUM-2) + Yixun's Queries 6–8 + the coordinator's 03:40 entry |
+| `c74fe597` | +317 / −60 | fix r3-1: one shared publication gate -- no writer renders an RF row without the admitted bridge comparison |
+| `7a1a18e8` | +71 / −14 | fix r3-2: receipt temp names are inspected under the receipt lock; a vanished one is a completed publication |
 
 Fix round 1 (Codex code r1 findings 1–16): one commit per finding, test and fix together (F8 + F9 and F2 + F3 share
 one: the same function / the same comparison); the red and green CPU Slurm logs are listed in the worklog's
@@ -71,3 +75,9 @@ Fix round 2 (Codex code r2 findings 1–14): one commit per finding, test and fi
 bridge comparison, r2-1 + r2-14 the neuronic sheet); the red and green logs are in the worklog's round-2 disposition
 table. Above the SOP's 200 changed lines: r2-6 (+310: the isolation helpers, their seven call sites and the new
 isolation test module) -- one finding.
+
+Fix round 3 (Codex code r3 HIGH-1 and MEDIUM-2; Yixun's Query 8 decision C5: no 4th Codex round, the coordinating
+session verifies the diff and the CPU logs): one commit per finding, test and fix together; the red and green logs are
+in the worklog's round-3 disposition table. Above the SOP's 200 changed lines: r3-1 (+317 / −60: the shared gate and
+its renderer, the three writers, and tests through both entry points over real sealed bridge comparisons) -- one
+finding.

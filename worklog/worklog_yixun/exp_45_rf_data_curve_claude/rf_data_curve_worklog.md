@@ -293,3 +293,70 @@
     - (b) approve the r2-6 materialisation exception as Codex recommends.
     - (c) keep deviation 1 (the depth_canon filter; Codex r1 ACCEPT).
 - **Next** — Yixun's decision on (a)–(c); then L1.
+
+## 2026-11-17T15:05:00-05:00 — Coder fix round 3: Codex code r3 HIGH-1 and MEDIUM-2 fixed (TDD, CPU Slurm); L0 green
+- **Goal** — fix the two new findings of `rf_data_curve_codex_code_r3_review.md`, as Yixun approved on 2026-11-17 (Query 8, C5). There is no 4th Codex round: the coordinating session verifies this diff and the CPU logs. Two things stay exactly as they are:
+  - (b) the r2-6 materialisation exception;
+  - (c) deviation 1, the 4-line exp45 filter in `test_gen_model_comparison_depth_canon.py`.
+- **Version Control**
+  - `96030fd3`: the coordinator's five files, unchanged:
+    - the r3 prompt, review and log;
+    - the 03:40 worklog entry;
+    - Queries 6–8.
+  - `AcousticRooms` at the repo root stays untracked.
+  - `c74fe597` (r3-1) and `7a1a18e8` (r3-2): one commit per finding, test and fix together; listed in `commits_rf_data_curve.md`.
+  - Nothing pushed, `main` untouched, no stash, no other worktree touched.
+  - The exp_38, exp_40 and exp_43 folders are byte-equal to the merge `ed9e1770` (exp_38 also to `3593f34c`).
+  - The generator gained 36 lines and lost none (+184 / −0 since the merge).
+- **Fix r3-1 (HIGH: both table writers bypassed the bridge admission)**
+  - **ONE gate: `exp45_eval.bridge_gate(campaign=None)`.**
+    - It admits the ten RF-100 bridge cells OFFLINE under the campaign (default: the E0 receipt's, offline).
+    - It runs `validate_bridge_result` on the sealed `rf_data_curve_bridge.json` against the CURRENT bridge artifacts: each cell's metrics, stream, receipt and dump-manifest copy, plus the bundle and admission bindings.
+    - It returns `(summary, files)`. The summary carries the comparison's path, sha256, verdict, descriptor and admission-record shas, and each discrepant cell's differences.
+    - Any failure raises `EvalError` ("the RF-100 bridge comparison does not admit publication: …"); every exception is wrapped, so the gate never fails open.
+  - **ONE renderer: `exp45_eval.bridge_lines(summary)`.** It is the collector's former text, byte for byte.
+  - **The three writers:**
+    - The collector: `rf_rows` and `render` call the gate and the renderer. Its private `bridge_summary` is gone.
+    - `exp45_table.build`: the gate runs right after the RF rows are derived, before any comparison or rendering, and a refusal raises `TableError`. The table prints the verdict and discrepancies above the disclosures; the sealed evidence gains a `bridge` entry.
+    - The shared generator: new `exp45_bridge_lines` loads the gate from the exp_45 kit at the generator root. On a refusal, `main()` withholds every exp_45 row (WITHHELD, with the reason). Under published rows it prints the verdict before the disclosures.
+- **Fix r3-2 (MEDIUM: a completed publication falsely refused as stale)**
+  - `check_untracked` collects the receipt temp names git lists. `_stale_env_receipt_temps` then inspects them while HOLDING the receipt lock (a non-blocking attempt, released at once):
+    - **The lock is held by a live writer:** a publication is in progress, so its temp names are tolerated, as before.
+    - **The lock is acquired:** no writer is mid-publication. A listed name that has vanished belonged to a publication that completed after the listing, so it is ignored. A name still present is stale.
+  - `_env_receipt_lock_held` is gone.
+- **Command / Validation** — every pytest ran in a CPU Slurm job (partition `all`, 8 CPUs, node-local `TMPDIR=/tmp`). Logs (`rf_data_curve_<ts>_pytest_<label>.log`, in this folder):
+  - **A-red** `2026-11-17_14-03-17_…r3fix_A_red_high1_medium2`: the table, generator-exp45 and eval suites plus the hygiene node, at `96030fd3` + the new tests. 15 failed, 279 passed, and every failure is the expected one:
+    - table: DID NOT RAISE ×4, the evidence lacks `bridge` ×3, the structural check;
+    - generator: no bridge line ×2, and numbers rendered with the comparison absent / unreadable / a bridge artifact missing / changed ×4;
+    - hygiene: "stale environment-receipt temp file …" for the completed writer's vanished name.
+    - The refactored `test_exp45_eval._bundle` passed in every bridge test.
+  - **B-green** `2026-11-17_14-19-49_…r3fix_B_green_high1`: after the r3-1 fix (before its commit), 434 passed. It covers the table, generator-exp45, eval and merge-provenance suites, the four other generator suites and the command sheets.
+  - **C-green** `2026-11-17_14-34-59_…r3fix_C_green_medium2`: after the r3-2 fix (before its commit), the receipts, supervise and registry suites: 331 passed, 5 skipped (the registered environment skips).
+  - **Final** `2026-11-17_14-42-37_…r3fix_Z_L0_final_full_scope_green`: the L0 scope of fix round 2, unchanged, at HEAD `7a1a18e8` with the tracked tree clean. **994 passed, 6 skipped, 0 failed** (EXIT 0): round 2's 981 + the 13 new nodes; the 6 skips are the five registered exp_45 environment skips + one generator-suite skip.
+- **Result** — passed: L0 is green with r3-1 and r3-2 fixed. Not run (out of scope): L1–L8, any dry-run, any training or evaluation sbatch, anything on the NAS.
+- **Disposition of the r3 findings** (log names as above; every node is also green in **Final**)
+
+| # | Severity | Commit | Test node(s) | Red | Green |
+|---|---|---|---|---|---|
+| r3-1 | HIGH | `c74fe597` | `test_exp45_table.py::test_build_refuses_rf_rows_without_their_admissible_bridge_comparison[4]`, `::test_build_carries_the_bridge_comparisons_verdict_and_discrepancies[2]`, `::test_build_renders_all_eighteen_cells_and_the_disclosures`, `::test_one_bridge_gate_and_one_renderer_serve_every_exp45_writer`; `test_gen_model_comparison_exp45.py::test_exp45_rows_are_withheld_without_an_admissible_bridge_comparison[4]`, `::test_exp45_rows_publish_with_the_sealed_bridge_comparisons_verdict[2]` | A-red | B-green |
+| r3-2 | MEDIUM | `7a1a18e8` | `test_exp45_receipts.py::test_the_real_hygiene_gate_tolerates_a_live_writers_receipt_temp_file_only` (extended) | A-red | C-green |
+
+- **Analysis — for the coordinator's verification**
+  - **The four refusal cases**, each through BOTH entry points (`gen_model_comparison.main()` and `exp45_table.build()`), are `exp45_fixtures.BRIDGE_BREAKS`:
+    - absent comparison: both files removed;
+    - unreadable comparison: one byte appended, so its sidecar no longer matches;
+    - missing bridge artifact: one compared bridge stream removed;
+    - changed bridge artifact: that stream's preimages stripped after the seal, with its receipt and dump-manifest links re-bound. The cell alone still admits offline (asserted), so only the comparison's binding refuses.
+  - **Verdicts are carried, not refused.** Per plan r3 §3.2 / N5, an evaluator discrepancy is reported until explained. Both entry points print "evaluator discrepancy in 1 of 10 cells" with the cell's differing key. An equal comparison prints "equal on all ten cells.". The table's evidence records the summary.
+  - **The generator's world** is a root holding one complete RF run (f=25 %, K=8 + K=1, five seeds each) and the ten bridge cells, with the comparison sealed by the real `cmd_bridge` into the root's exp_45 folder.
+    - Sealing's online admission (the E0 receipt, the cells' dumps) is the offline one there, a seam on the test's own module object only.
+    - `main()` loads its own, unpatched kit from the root.
+  - **The table's world** is `test_exp45_eval`'s bridge world: a real E0 receipt, ten admitted bridge cells with dumps, exp_43's bundle and `cmd_bridge`.
+    - `built` now builds over it, and the real offline E0 validation replaces the fake campaign.
+    - Only the fraction rows' admission stays patched, as before.
+  - **At L8 the gate needs nothing new in G.** The collector's manifest already lists the bridge result + sidecar and the ten bridge cells' files (`runs[exp45_RF100bridge]`, 42 entries), so `materialise` carries them.
+  - **The r3-2 regression.** A resumable writer pauses at its first rename. The test intercepts the scan's `git ls-files --others` and asserts the live temp name is listed. It then lets the publication finish (rename, unlock, exit) before returning the listing.
+    - Red at the old code: the vanished name was reported stale.
+    - Green after: the receipt is published, the name is gone and the scan passes.
+  - **Sizes:** r3-1 is +317 / −60 over `*.py`, above the SOP's 200. That covers the gate and renderer, three writers, two entry-point worlds and the shared bundle / break helpers, all one finding. r3-2 is +71 / −14.
+- **Next** — the coordinating session verifies the diff and the logs; then L1.
