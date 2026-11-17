@@ -1,9 +1,9 @@
 # exp_46 c4flip_data_curve — plan: C4 + flip yaw augmentation at 25 / 50 / 75 / 100 % of AR, trained on neuronic
 
-**Status:** r2, 2026-11-17 ≈ 15:30 EST, by the neuronic coordinating session (Claude Opus 5.5). **NOT approved —
+**Status:** r2, 2026-11-17 ≈ 14:28 EST, by the neuronic coordinating session (Claude Opus 5.5). **NOT approved —
 awaiting Yixun.** Codex plan rounds used: 2 of 3 (round 1 on r0: REVISE, 11 findings, fixed in r1; round 2 on r1:
 REVISE, 7 of 11 resolved, 4 partial, 6 new — all fixed in r2, §12); code rounds: 0 of 3.
-**Origin:** Yixun's queries 6–8 (`c4flip_data_curve_yixun_query.md`; decisions C1–C5 approved 2026-11-17 ≈ 11:30 EST).
+**Origin:** Yixun's queries 6–8 (`c4flip_data_curve_yixun_query.md`; decisions C1–C5 approved 2026-11-17, before 13:45 EST).
 **Branch / worktree:** `exp-46-c4flip-data-curve`, cut from `exp-45-rf-data-curve` at `90d0202f`; neuronic worktree
 `/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve`. Before L0 starts, the exp_46 records commits are rebased onto
 exp_45's code-round-3-fixed tip **`X45f`** (exp_45 is local and unpushed, so nothing published is rewritten). `main`
@@ -275,15 +275,15 @@ done.
 
 ## 11. Changelog
 
-- r0 (2026-11-17 ≈ 12:30 EST): first plan, a delta to exp_45 plan r3, from Yixun's decisions C1–C5.
-- r1 (2026-11-17 ≈ 14:40 EST): all 11 Codex r1 findings (§12): C4F config admitted to the closure (named
+- r0 (2026-11-17 ≈ 13:45 EST): first plan, a delta to exp_45 plan r3, from Yixun's decisions C1–C5.
+- r1 (2026-11-17 ≈ 14:10 EST): all 11 Codex r1 findings (§12): C4F config admitted to the closure (named
   `exp46_…`, explicit path, tests); G7 corrected (full config unrestricted; 291,210 targets, 4,550 steps / epoch,
   epoch 8) with an f100 data binding (audit `full_split`, context-policy check, delta content manifest verified before
   and after); isolation extended to exp_45's roots; E4 bounds every historical comparison and a test disposition
   replaces blind copying; E5 declares the generator test edit; the Y46 E0 exception; acceptance and disclosures
   restated for C4F; C3 as a whole-campaign exclusion; G2 / G3 wording; the constructor comment allowed; the 20-row
   table.
-- r2 (2026-11-17 ≈ 15:30 EST): all 6 Codex r2 findings and the 4 partial r1 items (§12): exp_46 snapshot roots, the
+- r2 (2026-11-17 ≈ 14:28 EST): all 6 Codex r2 findings and the 4 partial r1 items (§12): exp_46 snapshot roots, the
   A6000 SMOKE path refused, exp_38's snapshot namespace protected, a path-literal sweep; the f100 delta re-verified
   inside the FULL job before sealing, its record required at every admission; the manifest renamed `exp46_…` and
   admitted to the closure (145,494 files, registered count); node-level test disposition and `ENV_SKIPS` extension;

@@ -11,7 +11,7 @@ it was answering about exp_45; the same entries (Queries 6–8) are in exp_45's 
 **Answer given.** No; nothing was submitted. The experiment that existed (exp_45) uses exp_43's RF arm, whose roll is
 the full circle (no `offset_step`), not C4. Asked: run RF as planned, or a true C4 + flip arm?
 
-## Query 7 — 2026-11-17 ≈ 11:00 EST
+## Query 7 — 2026-11-17 ≈ 11:15 EST
 
 > 我要 C4 + flip
 
@@ -19,7 +19,7 @@ the full circle (no `offset_step`), not C4. Asked: run RF as planned, or a true 
 **Not assumed; put to Yixun as C1–C5** (definition of C4, new experiment vs exp_45, RF on hold, a 100 % anchor, the
 exp_45 round-3 decisions).
 
-## Query 8 — 2026-11-17 ≈ 11:30 EST (answer to "按推荐批准 C1–C5 吗？")
+## Query 8 — 2026-11-17, before 13:45 EST (exact minute not recorded; exp_45's copy says ≈ 11:30, which is too early) (answer to "按推荐批准 C1–C5 吗？")
 
 > 按推荐批准
 
