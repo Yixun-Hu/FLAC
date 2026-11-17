@@ -10,3 +10,11 @@
   `diffusion.py` 305–308); the draw order already composes (offsets → grid snap → rotate → flip bits from the same
   generator); the banner composes; 4 tests assert the refusal; no C4 + flip config or model exists; 232 GiB free.
 - Plan r0 written (`plan_c4flip_data_curve.md`, a delta to exp_45 plan r3). Next: Codex plan review round 1.
+
+## 2026-11-17 14:40 EST — Codex plan round 1: REVISE (3 HIGH, 6 MEDIUM, 2 NIT) → plan r1 (coordinating session)
+
+- Review `c4flip_data_curve_codex_plan_r1_review.md` (log `c4flip_data_curve_2026-11-17_13-49-06_codex_plan_r1.log.gz`,
+  e-mail addresses redacted). Codex confirmed G1, G4, G5, G6, G8, G9; G2 / G3 overstated; **G7 wrong** (the full
+  train config does not set `restrict_to_split`; exp_38's audit `full_split` entry: 291,210 targets, 0 outside, 0
+  removed — re-checked here).
+- All 11 findings fixed in plan r1; dispositions in plan §12. Next: Codex plan round 2.
