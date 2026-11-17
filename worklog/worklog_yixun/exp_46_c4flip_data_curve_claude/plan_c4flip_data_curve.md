@@ -1,8 +1,9 @@
 # exp_46 c4flip_data_curve — plan: C4 + flip yaw augmentation at 25 / 50 / 75 / 100 % of AR, trained on neuronic
 
-**Status:** r2, 2026-11-17 ≈ 14:28 EST, by the neuronic coordinating session (Claude Opus 5.5). **NOT approved —
-awaiting Yixun.** Codex plan rounds used: 2 of 3 (round 1 on r0: REVISE, 11 findings, fixed in r1; round 2 on r1:
-REVISE, 7 of 11 resolved, 4 partial, 6 new — all fixed in r2, §12); code rounds: 0 of 3.
+**Status:** r3 (final), 2026-11-17 ≈ 14:50 EST, by the neuronic coordinating session (Claude Opus 5.5). **NOT
+approved — awaiting Yixun.** Codex plan rounds used: 3 of 3 (round 1 on r0: REVISE, 11 findings, fixed in r1; round 2
+on r1: REVISE, 6 new, fixed in r2; round 3 on r2: **APPROVE-WITH-CHANGES, no BLOCKING / HIGH**, every earlier finding
+RESOLVED, one NIT — fixed in r3 **without re-review**, per the review cap; §12); code rounds: 0 of 3.
 **Origin:** Yixun's queries 6–8 (`c4flip_data_curve_yixun_query.md`; decisions C1–C5 approved 2026-11-17, before 13:45 EST).
 **Branch / worktree:** `exp-46-c4flip-data-curve`, cut from `exp-45-rf-data-curve` at `90d0202f`; neuronic worktree
 `/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve`. Before L0 starts, the exp_46 records commits are rebased onto
@@ -122,9 +123,9 @@ New tests (red first; `src/tests/test_exp46_c4flip_*.py`):
 - (E5) `src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically` (220):
   the function-local exp45 filter (exp_45 deviation 1, accepted by Codex) is extended to exp_46's additive output —
   exactly the **eight** exp_46 rows **and** the exact exp_46 disclosure block the generator prints once exp_46 rows are
-  numeric (Codex r2 finding 5). The test asserts that exactly eight rows and one disclosure block of the registered
-  contents were removed, and it is exercised both with exp_46 rows pending and with published exp_46 evidence (exp_45
-  dormant in both). No other line of that file changes.
+  numeric (Codex r2 finding 5). The expectation is conditional (Codex r3 NIT): **eight rows in both cases; zero
+  disclosure blocks while exp_46 rows are pending; exactly one block of the registered contents once exp_46 evidence is
+  published** — both cases asserted (exp_45 dormant in both). No other line of that file changes.
 - (E6) any further node that L1 shows changed by the two source edits or the generator contract is added here with
   its replacement assertion before `X46` is frozen — never allowed silently. Parent node ids are preserved or each
   replacement is registered.
@@ -257,7 +258,7 @@ on `all` may queue; the ECC-flaky node list (no automatic exclusion); the delta 
 
 ## 9. Review budget
 
-Codex plan ≤ 3 rounds (2 used), code ≤ 3 rounds (0 used); all code of a round at once; every prompt forbids
+Codex plan: 3 of 3 used (no further plan round); code ≤ 3 rounds (0 used); all code of a round at once; every prompt forbids
 installing or modifying environments. A BLOCKING finding left after round 3 goes to Yixun.
 
 ## 10. Decisions for Yixun (recommendation first)
@@ -288,6 +289,8 @@ done.
   inside the FULL job before sealing, its record required at every admission; the manifest renamed `exp46_…` and
   admitted to the closure (145,494 files, registered count); node-level test disposition and `ENV_SKIPS` extension;
   E5 also removes the exp_46 disclosure block; epoch wording.
+- r3 (2026-11-17 ≈ 14:50 EST, final, no re-review): Codex r3 APPROVE-WITH-CHANGES (no BLOCKING / HIGH); E5's
+  disclosure-block expectation made conditional (zero while pending, one once published).
 
 ## 12. Codex plan round 1 — dispositions (`c4flip_data_curve_codex_plan_r1_review.md`, verdict REVISE)
 
@@ -316,3 +319,12 @@ PARTIAL — their remaining parts are covered by the round-2 findings below.
 | r2-4 | MEDIUM | file-level test disposition; `ENV_SKIPS` | Fixed: node-level disposition, mixed files split, the RF-100 endpoint test stays exp_45's; `ENV_SKIPS` keeps every entry and gains the copied nodes with unchanged reasons (§3.2). |
 | r2-5 | MEDIUM | E5 misses the exp_46 disclosure block | Fixed: E5 removes the exact block too, asserts its contents, exercised with pending and with published exp_46 evidence (§3.1 E5). |
 | r2-6 | NIT | epoch indices labelled as epochs | Fixed: ≈ 34.84 / 17.57 / 11.72 / 8.79 consumed; indices 34 / 17 / 11 / 8 (§8 item 3). |
+
+Round 3 (`c4flip_data_curve_codex_plan_r3_review.md`, on r2, the last round): **APPROVE-WITH-CHANGES, no BLOCKING / HIGH**;
+r2-1 … r2-6 and round-1 items 2–5 RESOLVED; no new HIGH or BLOCKING from the admission, isolation, `main`, argv and
+comparability pass. The one remaining change is fixed in r3 **without re-review** (review cap) and gets a test in the
+code round:
+
+| # | Sev. | Finding (short) | Disposition (r3, no re-review) |
+|---|---|---|---|
+| r3-1 | NIT | E5's disclosure-count assertion needs a conditional expectation | Fixed: eight rows in both cases; zero blocks while pending, exactly one registered block once published; both asserted (§3.1 E5). |

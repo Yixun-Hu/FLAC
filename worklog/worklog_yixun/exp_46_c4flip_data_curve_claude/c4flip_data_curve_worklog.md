@@ -28,3 +28,10 @@
 - Note for exp_45 (on hold): the same inherited snapshot root (`exp45_eval.py` 236 → `/home/yixunhu/codespace/exp-38-snapshots`)
   means exp_45's kit would write its snapshots into exp_38's snapshot namespace. Recorded as an open item for any
   exp_45 resumption (exp_45 has no review rounds left; a resumption is Yixun's decision).
+
+## 2026-11-17 14:50 EST — Codex plan round 3 (final): APPROVE-WITH-CHANGES → plan r3, sent to Yixun (coordinating session)
+
+- Review `c4flip_data_curve_codex_plan_r3_review.md` (log `…_14-29-21_codex_plan_r3.log.gz`, redacted): every r2 item
+  and the four partial r1 items RESOLVED; no new BLOCKING / HIGH; one NIT (E5's conditional disclosure-block count),
+  fixed in r3 without re-review (review cap). Plan rounds: 3 of 3 used.
+- Plan r3 goes to Yixun for approval with decisions M1–M4. No code before his approval.

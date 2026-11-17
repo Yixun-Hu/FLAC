@@ -12,7 +12,7 @@ You are the Reviewer (OpenAI Codex). This is a read-only review.
 across `/n/fs` (shared filesystem); read only the paths named here and files in this repository.
 
 The workdir is the worktree `/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve` (branch `exp-46-c4flip-data-curve`, HEAD
-`bb8f67a6`). All exp_46 files are in `worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/`.
+`d04e031a`). All exp_46 files are in `worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/`.
 
 ## Context
 
