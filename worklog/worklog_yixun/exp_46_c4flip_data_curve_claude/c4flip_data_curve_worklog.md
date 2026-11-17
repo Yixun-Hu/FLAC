@@ -18,3 +18,13 @@
   train config does not set `restrict_to_split`; exp_38's audit `full_split` entry: 291,210 targets, 0 outside, 0
   removed — re-checked here).
 - All 11 findings fixed in plan r1; dispositions in plan §12. Next: Codex plan round 2.
+
+## 2026-11-17 15:30 EST — Codex plan round 2: REVISE (2 HIGH, 3 MEDIUM, 1 NIT) → plan r2 (coordinating session)
+
+- Review `c4flip_data_curve_codex_plan_r2_review.md` (log `…_14-10-30_codex_plan_r2.log.gz`, redacted). Round-1 items
+  1, 6–11 resolved; 2–5 partial. New: inherited snapshot paths into exp_38's namespace (HIGH); post-FULL verification
+  after sealing (HIGH); manifest outside the closure; node-level test disposition / ENV_SKIPS; E5 disclosure block;
+  epoch wording. All fixed in r2 (plan §12). Next: Codex plan round 3 (the last).
+- Note for exp_45 (on hold): the same inherited snapshot root (`exp45_eval.py` 236 → `/home/yixunhu/codespace/exp-38-snapshots`)
+  means exp_45's kit would write its snapshots into exp_38's snapshot namespace. Recorded as an open item for any
+  exp_45 resumption (exp_45 has no review rounds left; a resumption is Yixun's decision).
