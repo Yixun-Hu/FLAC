@@ -360,3 +360,27 @@
     - Green after: the receipt is published, the name is gone and the scan passes.
   - **Sizes:** r3-1 is +317 / −60 over `*.py`, above the SOP's 200. That covers the gate and renderer, three writers, two entry-point worlds and the shared bundle / break helpers, all one finding. r3-2 is +71 / −14.
 - **Next** — the coordinating session verifies the diff and the logs; then L1.
+
+## 2026-11-17 15:15 EST — code round 3 closed: the coordinator's verification (no 4th Codex round, Yixun's C5 (a))
+
+- Coder commits `96030fd3` (records, the coordinator's 5 files unchanged), `c74fe597` (r3-1 HIGH-1), `7a1a18e8` (r3-2
+  MEDIUM-2), `45325884` (records). Verified by reading the diff:
+  - HIGH-1: `exp45_eval.bridge_gate()` admits the ten bridge cells offline and the sealed comparison through
+    `validate_bridge_result` against the current artifacts; every exception becomes `EvalError` (fails closed).
+    `exp45_table.build` raises `TableError` before rendering and records `bridge` in its evidence; the generator's
+    `exp45_bridge_lines` withholds every exp_45 row on any gate problem; the collector uses the same gate and
+    renderer (`bridge_lines`). Generator change additive only (+36 / −0).
+  - MEDIUM-2: `_stale_env_receipt_temps` inspects the listed temp names while holding the receipt lock; a held lock
+    tolerates them, a vanished name is ignored, a present one is stale. Matches the r3 fix.
+- Logs: A-red 15 failed / 279 passed (only the new tests, each for the expected reason); B / C green; final full L0
+  scope `…_14-42-37_pytest_r3fix_Z_L0_final_full_scope_green.log`: **994 passed, 6 skipped, EXIT 0** at `7a1a18e8`,
+  tracked tree clean, CPU Slurm (neu316). No address in any log. exp_38 / 40 / 43 folders byte-equal to the merge.
+  Nothing pushed (`origin/exp-45-rf-data-curve` still `a6815617`).
+- r3-1 exceeds the SOP's 200 changed lines (one finding; noted by the Coder).
+- **exp_45 status: ON HOLD (Yixun's C3, 2026-11-17).** L1–L8 not run. exp_46 (C4 + flip) is cut from this tip (`X45f`).
+- **Standing rules for any exp_45 resumption** (from exp_46 plan r3): (1) C3 is a whole-campaign exclusion — exp_45 may
+  resume only after every exp_46 storage reservation has cleared (sealed or abandoned), checked read-only on
+  `/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/.exp46_storage.json`; resumption is Yixun's
+  decision. (2) Open item found by exp_46's Codex plan r2: `exp45_eval.py` ≈ 236 `SNAPSHOT_ROOT =
+  /home/yixunhu/codespace/exp-38-snapshots` (and the supervisor's copy, and the A6000 `outputs_FLAC/exp38_smoke`
+  destination) would write exp_45's snapshots into exp_38's namespace; to be fixed before any exp_45 E0 / launch.
