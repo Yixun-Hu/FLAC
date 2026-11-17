@@ -1499,25 +1499,34 @@ UNTRACKED_RECORDS = re.compile(r"^" + re.escape(EXP_DIR) + r"/(rf_data_curve_[^/
                                r"|exp45_neuronic_submissions\.log|\.collect\.lock|\.rf_data_curve_env_receipt\.lock)$")
 IMPORTABLE = (".py", ".pyc", ".pyo", ".so", ".pyd", ".pth", ".egg-link", ".egg-info", ".dist-info")
 # the kit's own temporary names while the environment receipt is published (atomic_write_bytes' ".<name>.tmp.<pid>"):
-# tolerated ONLY while another live process holds the receipt lock (Codex code r2 finding 11); stale otherwise
+# tolerated ONLY while another live process holds the receipt lock (Codex code r2 finding 11); stale otherwise -- unless
+# the name vanished before it was inspected under that lock (a publication that completed meanwhile, r3 finding 2)
 ENV_RECEIPT_TMP = re.compile(r"^" + re.escape(EXP_DIR) + r"/\.rf_data_curve_env_receipt_neuronic\.json(\.sha256)?"
                              r"\.tmp\.[0-9]+$")
 
 
-def _env_receipt_lock_held(repo=None):
-    """Does another live process hold the environment-receipt lock? (a non-blocking probe, released at once; a dead
-    holder's lock is released by the kernel, so its leftover temp file reads as stale)"""
+def _stale_env_receipt_temps(names, repo):
+    """Which receipt temp names git listed are a dead publication's leftovers? (Codex code r2 finding 11, r3 finding 2)
+    They are inspected while HOLDING the receipt lock (a non-blocking attempt, released at once): the writers create
+    these names only under that lock, so while it is held none is mid-publication -- a listed name that has
+    disappeared belonged to a publication that completed after the listing and is ignored; one still present is
+    stale (a dead holder's lock is released by the kernel). A lock another live process holds means a publication is
+    in progress: its temp names are tolerated. No lock file: no writer ever ran here, nothing is mid-publication."""
     import fcntl
-    path = _abs(f"{EXP_DIR}/.rf_data_curve_env_receipt.lock", repo)
+    if not names:
+        return []
+    path = _abs(ENV_RECEIPT_LOCK, repo)
     if not os.path.exists(path):
-        return False
+        return [rel for rel in names if os.path.lexists(os.path.join(repo, rel))]
     with open(path, "a") as fh:
         try:
             fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            return True
-        fcntl.flock(fh, fcntl.LOCK_UN)
-    return False
+            return []
+        try:
+            return [rel for rel in names if os.path.lexists(os.path.join(repo, rel))]
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
 
 
 def _importable(rel):
@@ -1531,19 +1540,19 @@ def check_untracked(platform, repo=None):
     ``__pycache__`` excepted), and every allowed link validated by content (and, on this box, by its
     registered target)."""
     repo = repo or REPO
-    p = []
+    p, temps = [], []
     untracked = _git_out(repo, "ls-files", "-z", "--others", "--exclude-standard").decode().split("\0")
     for rel in filter(None, untracked):
         if rel in TREE_LINKS or any(rel.startswith(k + "/") for k in TREE_LINKS):
             continue
         if ENV_RECEIPT_TMP.match(rel):
-            if not _env_receipt_lock_held(repo):
-                p.append(f"stale environment-receipt temp file {rel}: no live writer holds the receipt lock "
-                         "(a killed publication's leftover; remove it after checking)")
+            temps.append(rel)                            # inspected below, under the receipt lock
             continue
         if UNTRACKED_RECORDS.match(rel) and not _importable(rel):
             continue
         p.append(f"unexpected untracked entry {rel}")
+    p += [f"stale environment-receipt temp file {rel}: no live writer holds the receipt lock (a killed publication's "
+          "leftover; remove it after checking)" for rel in _stale_env_receipt_temps(temps, repo)]
     ignored = _git_out(repo, "ls-files", "-z", "--others", "--ignored", "--exclude-standard").decode().split("\0")
     for rel in filter(None, ignored):
         if "__pycache__" in rel.split("/") or rel.rstrip("/") in TREE_LINKS:

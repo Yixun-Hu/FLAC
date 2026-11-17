@@ -808,12 +808,32 @@ def paused_replace(src, dst):                         # the first publication pa
 os.replace = paused_replace
 reg.ensure_env_receipt("neuronic", repo=sys.argv[1])
 """
+RESUMABLE_WRITER = """
+import os, sys
+sys.path.insert(0, sys.argv[2])
+import exp45_registry as reg
+reg.env_problems = lambda: []
+reg.env_snapshot = lambda platform: {k: k for k in reg.ENV_RECEIPT_KEYS}
+real_replace, paused = os.replace, []
+
+def paused_replace(src, dst):                         # the publication's first rename waits for a line on stdin
+    if not paused:
+        paused.append(src)
+        print("PAUSED " + os.path.basename(src), flush=True)
+        sys.stdin.readline()
+    return real_replace(src, dst)
+os.replace = paused_replace
+reg.ensure_env_receipt("neuronic", repo=sys.argv[1])
+print("PUBLISHED", flush=True)
+"""
 
 
 def test_the_real_hygiene_gate_tolerates_a_live_writers_receipt_temp_file_only(tmp_path, monkeypatch):
     """Codex code r2 finding 11: while another SMOKE publishes the environment receipt (it holds the receipt lock, its
     temp file .rf_data_curve_env_receipt_neuronic.json.sha256.tmp.<pid> on disk), the REAL check_untracked of an
-    arriving SMOKE passes; once that writer is dead (lock free) the same temp file is refused as stale, by name."""
+    arriving SMOKE passes; once that writer is dead (lock free) the same temp file is refused as stale, by name.
+    Codex code r3 finding 2: a publication that COMPLETES between the scan's git listing and its inspection (renamed,
+    unlocked, exited) leaves a listed name that has vanished -- ignored, never reported stale."""
     import signal
     monkeypatch.setenv("PYTHONNOUSERSITE", "1")
     root = _git_tree(tmp_path)
@@ -839,6 +859,34 @@ def test_the_real_hygiene_gate_tolerates_a_live_writers_receipt_temp_file_only(t
     assert len(probs) == 1 and tmp_name in probs[0] and "stale" in probs[0], probs
     (root / reg.EXP_DIR / ".rf_data_curve_env_receipt_neuronic.json.tmp.junk").write_text("x")
     assert any(".tmp.junk" in p for p in reg.check_untracked("neuronic", str(root)))   # only the kit's exact pattern
+    for name in (tmp_name, ".rf_data_curve_env_receipt_neuronic.json.tmp.junk"):        # (removed after checking)
+        os.remove(root / reg.EXP_DIR / name)
+    assert reg.check_untracked("neuronic", str(root)) == []
+    child = subprocess.Popen([sys.executable, "-I", "-B", "-c", RESUMABLE_WRITER, str(root), EXP],
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    real_git_out, live = reg._git_out, []
+
+    def listing_then_the_publication_completes(repo, *args):
+        out = real_git_out(repo, *args)
+        if "--others" in args and "--ignored" not in args and child.poll() is None:
+            assert live[0].encode() in out                                # git listed the live writer's temp name
+            child.stdin.write("go\n")
+            child.stdin.flush()
+            assert child.stdout.readline().strip() == "PUBLISHED"         # renamed, unlocked ...
+            child.wait(timeout=60)                                        # ... and gone
+        return out
+    try:
+        line = child.stdout.readline().strip()
+        assert line.startswith("PAUSED .rf_data_curve_env_receipt_neuronic.json"), line
+        live.append(line.split()[1])
+        monkeypatch.setattr(reg, "_git_out", listing_then_the_publication_completes)
+        assert reg.check_untracked("neuronic", str(root)) == []
+        assert child.returncode == 0 and not os.path.lexists(root / reg.EXP_DIR / live[0])
+        assert os.path.exists(root / reg.env_receipt_rel("neuronic"))
+    finally:
+        if child.poll() is None:
+            child.kill()
+        child.wait(timeout=30)
 
 
 @pytest.mark.skipif(not all(os.path.exists(t) for t in reg.A6000_LINK_TARGETS.values()), reason="A6000 box only")
