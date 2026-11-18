@@ -5,7 +5,7 @@
 evaluation cells and the result publications run on the A6000 box (`c4flip_data_curve_command.md`: evaluation and
 publication only). A SMOKE or FULL refuses on any other platform; exp_46 has no A6000 training path.
 
-**Order (pending Yixun D2 — the coordinator's and Codex's recommendation, not yet decided).** final code round → L2a
+**Order (approved by Yixun 2026-11-18 (D2) — the coordinator's and Codex's recommendation).** final code round → L2a
 the f100 delta manifest build (CPU Slurm, sequential reads) → L2b the pin commit for `F100_DELTA_SHA256` → L1 the
 definitive regression comparison (three full suites, every node, no deselection) → L2c the union verification
 (recorded) before any f100 SMOKE → L3 the init-digest prediction → L4 the four launch-path dry-runs, then freeze `X46` (Yixun's go) → the A6000 E0 at
@@ -40,7 +40,7 @@ export PYTHONNOUSERSITE=1 HF_HOME=/n/fs/gatrdp/hf_cache HF_HUB_OFFLINE=1; unset 
 M=/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
 RUNS="exp46_C4Ff025_l40_2x32 exp46_C4Ff050_l40_2x32 exp46_C4Ff075_l40_2x32 exp46_C4Ff100_l40_2x32"
 
-# L2a (pending Yixun D2), after the final code round: the f100 delta content manifest, ONCE, in a CPU Slurm job --
+# L2a (approved by Yixun 2026-11-18 (D2)), after the final code round: the f100 delta content manifest, ONCE, in a CPU Slurm job --
 #     145,494 files (72,747 waveforms + their metadata), read SEQUENTIALLY (no thread pool, no fan-out on /n/fs); the
 #     log records its wall time, which sizes f100's extra FULL hour below. L2b starts only after a build that exited 0
 cd $M
@@ -52,7 +52,7 @@ git add -f $E/exp46_f100_delta_manifest.txt.gz $E/exp46_registry.py
 git diff --cached --name-only        # exactly the manifest and the registry
 git commit -m "exp_46 L2: pin the f100 delta manifest <sha256(text)>"
 
-# L1 (definitive; pending Yixun D2 for its place and D1 for item 13): the SAME full CPU suite on the exp_46 tip M and on
+# L1 (definitive; approved by Yixun 2026-11-18 (D2) for its place and D1 for item 13): the SAME full CPU suite on the exp_46 tip M and on
 #    both parents' worktrees -- every node, no deselection, no -k selection -- then the two-parent node policy; the
 #    parent worktrees are detached checkouts of exp_38's merged tip and of exp_43's training pin
 L1=$M/$E/l1
@@ -82,7 +82,7 @@ for n in merged parent_3593f34c parent_4a7e3b3a; do test -s $L1/$n.junit.xml; te
 #    three tie-audit tests; only the registered environment skips); any other exit stops the sheet here
 $PY -B $E/exp46_regression_compare.py --merged $L1/merged.junit.xml --exp38 $L1/parent_3593f34c.junit.xml --exp43 $L1/parent_4a7e3b3a.junit.xml --merged-root $M --exp38-root $P38 --exp43-root $P43 --out $L1/regression_compare.json
 
-# L2c (pending Yixun D2): the union verification, recorded, BEFORE any f100 SMOKE -- exp_38's subset audit and f075
+# L2c (approved by Yixun 2026-11-18 (D2)): the union verification, recorded, BEFORE any f100 SMOKE -- exp_38's subset audit and f075
 #     content manifest (exp_38's tools, read-only, -B) and exp_46's f100 delta manifest, in ONE CPU Slurm job whose log
 #     is committed with the worklog entry recording PASS; then f100's static binding (full config, unrestricted policy,
 #     the audit's full_split entry). --wait: the job's exit status decides; any failed verification stops the sheet

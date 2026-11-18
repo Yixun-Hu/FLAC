@@ -3,7 +3,7 @@
 recovery, the staged NAS publication through exp_46's own admission, the verified materialisation / import and both
 regenerations writing outside main's tracked tree) and the A6000 sheet (c4flip_data_curve_command.md: E0, the Y46
 records commit, the 40 evaluations and the results commit -- evaluation and publication ONLY). They stay well-formed,
-name exp_46's own kit and registered paths, and keep the campaign order that is pending Yixun's D2.
+name exp_46's own kit and registered paths, and keep the campaign order Yixun approved on 2026-11-18 (D2).
 
 Modelled on exp_45's test_exp45_command_sheets.py (exp_45 history, not copied: it tests exp_45's own sheets).
 
@@ -110,11 +110,13 @@ def test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit(name):
         assert os.path.isfile(os.path.join(EXP, script)), script
 
 
-def test_the_campaign_order_is_the_recommended_one_and_marked_pending_yixun_d2():
-    """The coordinator's recommendation (Codex code r1 open item 10), still Yixun's decision D2: final code round -> L2
+def test_the_campaign_order_is_the_recommended_one_and_marked_approved_by_yixun_d2():
+    """The coordinator's recommendation (Codex code r1 open item 10), approved by Yixun 2026-11-18 (D2): final code round -> L2
     delta build -> pin commit -> definitive L1 -> L2 union verification before any f100 SMOKE -> L3 -> L4 freeze X46."""
     text, b = _text(NEURONIC), _blocks(NEURONIC)
-    assert "pending Yixun D2" in text and b.count("pending Yixun D2") >= 2 and "Yixun's D1" in text
+    approved = "approved by Yixun 2026-11-18 (D2)"                    # D2 decided (Yixun 2026-11-18): no "pending" left
+    assert approved in text and b.count(approved) >= 2 and "Yixun's D1" in text
+    assert "pending Yixun D2" not in text and "pending Yixun D2" not in _text(A6000) and approved in _text(A6000)
     order = ["$PY -B $E/exp46_content_manifest.py --build $E/exp46_f100_delta_manifest.txt.gz",
              'git commit -m "exp_46 L2: pin the f100 delta manifest',
              "--junitxml=$L1/merged.junit.xml", "$PY -B $E/exp46_regression_compare.py --merged",

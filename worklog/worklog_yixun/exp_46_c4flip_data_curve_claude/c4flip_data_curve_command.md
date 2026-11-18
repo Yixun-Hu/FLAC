@@ -7,7 +7,7 @@ every records commit (`Y46`, the results `R46`) is made and pushed on Yixun's go
 training path: the supervisor refuses SMOKE / SMOKE_DDP / FULL on this box; every training runs on neuronic, from
 `c4flip_data_curve_neuronic_commands.md`). Card locks are exp_38's (`~/codespace/.exp38_card<i>.lock`, the only
 intentional sharing). `E=worklog/worklog_yixun/exp_46_c4flip_data_curve_claude`. The order of the campaign (L2 → pin →
-L1 → union verify → L3 → L4) is the neuronic sheet's, pending Yixun D2. Nothing below has been run yet.
+L1 → union verify → L3 → L4) is the neuronic sheet's, approved by Yixun 2026-11-18 (D2). Nothing below has been run yet.
 
 ```bash
 # 0. tree 46 at X46 (once, after L4): the links, the environment receipt, E0 (L4b; before any SMOKE)
