@@ -199,3 +199,71 @@ def test_an_unsupported_no_replace_rename_refuses_and_a_competitor_is_never_repl
     with pytest.raises(reg.GateError, match="RENAME_NOREPLACE unsupported"):
         nas.publish(str(root), RUN)
     assert renamed == [] and not os.path.lexists(dst)
+
+
+# ------------------------------------------------------------------ fix round 3, Codex code r3 finding 7: provisioning
+@pytest.fixture
+def nas_mount(tmp_path, monkeypatch):
+    """A stand-in NAS (<tmp>/diskstation/FLAC with its checkpoints folder) reported as the registered cifs; the two
+    exp_46 roots (the A6000 save root = L7's dest root, and the evaluator's dump root) placed below it."""
+    import exp46_eval as ev
+    flac = tmp_path / "diskstation" / "FLAC"
+    (flac / "checkpoints").mkdir(parents=True)
+    ck, dump = flac / "checkpoints" / "exp46_c4flip_data_curve", flac / "exp46_pred_waveforms"
+    monkeypatch.setitem(reg.PLATFORMS["a6000"], "save_root", str(ck))
+    monkeypatch.setattr(ev, "DUMP_ROOT", str(dump))
+    monkeypatch.setattr(reg, "mount_fstype", lambda path: ("cifs", str(tmp_path / "diskstation")))
+    return flac, ck, dump
+
+
+def test_provision_creates_exactly_the_two_exp46_namespaces_once(nas_mount):
+    """Both NEW exp_46 namespaces are created (real directories, nothing else on the NAS), a second run creates nothing
+    (idempotent), and stage then finds its dest root (the first campaign no longer stops at publication / dumps)."""
+    flac, ck, dump = nas_mount
+    out = nas.provision()
+    assert {v["path"]: v["created"] for v in out.values()} == {str(ck): True, str(dump): True}
+    assert os.path.isdir(ck) and os.path.isdir(dump) and not os.path.islink(ck) and not os.path.islink(dump)
+    assert _listing(flac) == sorted(["checkpoints", "checkpoints/exp46_c4flip_data_curve", "exp46_pred_waveforms"])
+    assert [v["created"] for v in nas.provision().values()] == [False, False]
+    assert nas.main(["provision"]) == 0
+    assert nas.stage(str(ck), RUN) == str(ck / f"{RUN}.incoming")
+
+
+def test_provision_refuses_a_missing_or_foreign_mount_before_creating_anything(nas_mount, tmp_path, monkeypatch):
+    """A missing NAS parent (not mounted) or a parent on another filesystem (a local disk) refuses -- and neither root
+    is created, not even the one whose parent exists."""
+    flac, ck, dump = nas_mount
+    os.rmdir(flac / "checkpoints")
+    with pytest.raises(reg.GateError, match="not mounted"):
+        nas.provision()
+    assert _listing(tmp_path / "diskstation") == ["FLAC"]
+    assert nas.main(["provision"]) == 2
+    (flac / "checkpoints").mkdir()
+    monkeypatch.setattr(reg, "mount_fstype", lambda path: ("ext4", "/"))
+    with pytest.raises(reg.GateError, match="not the registered NAS filesystem"):
+        nas.provision()
+    assert _listing(flac) == ["checkpoints"]
+
+
+@pytest.mark.parametrize("entry", ["a link", "a dangling link", "a file", "inside a protected root"])
+def test_provision_refuses_anything_but_a_real_directory_at_either_root(nas_mount, tmp_path, monkeypatch, entry):
+    """A link (dangling or not) or a file at either root, or a root inside a protected one, refuses before EITHER root
+    is created (the protected root and the link's target untouched)."""
+    flac, ck, dump = nas_mount
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    if entry == "a link":
+        ck.symlink_to(elsewhere)
+    elif entry == "a dangling link":
+        dump.symlink_to(tmp_path / "absent")
+    elif entry == "a file":
+        dump.write_text("x")
+    else:
+        prot = flac / "checkpoints" / "exp38_data_efficiency"
+        prot.mkdir()
+        monkeypatch.setattr(reg, "PROTECTED_ABSOLUTE", (str(prot),))
+        monkeypatch.setitem(reg.PLATFORMS["a6000"], "save_root", str(prot / "exp46_c4flip_data_curve"))
+    before = _listing(tmp_path)
+    with pytest.raises(reg.GateError):
+        nas.provision()
+    assert _listing(tmp_path) == before

@@ -17,12 +17,14 @@ without the renameat2 wrapper (glibc < 2.28) gets the raw syscall.
 
     python -B exp46_nas_publish.py stage   --dest-root <dir> --run <run id>
     python -B exp46_nas_publish.py publish --dest-root <dir> --run <run id>
+    python -B exp46_nas_publish.py provision     # the two exp_46 NAS roots, once (Codex code r3 finding 7)
 
 Exit 0 = done (the path is printed), 2 = refused. Written by the exp_46 Coder (Claude Opus 5.5).
 """
 import argparse
 import ctypes
 import errno
+import json
 import os
 import platform
 import sys
@@ -115,14 +117,54 @@ def publish(dest_root, run):
     return final, how
 
 
+def nas_roots():
+    """The two NEW exp_46 namespaces on the NAS: the checkpoint root (the A6000 save root -- L7's dest root and the
+    evaluator's run dirs) and the scored-waveform dump root. Read from their single sources (registry, evaluator)."""
+    import exp46_eval as ev
+    return (("the exp_46 checkpoint root", reg.PLATFORMS["a6000"]["save_root"]), ("the exp_46 dump root", ev.DUMP_ROOT))
+
+
+def provision():
+    """Create both exp_46 NAS namespaces once, before their first use (Codex code r3 finding 7). Each PARENT must
+    already be a real directory on the registered A6000 NAS filesystem (STORAGE_FS["a6000"]): a missing mount refuses --
+    nothing is ever created on a local disk. Each exp_46 directory is created through the isolation guard below its
+    parent (mkdir_below: never inside or aliasing a protected root, never through a link); an existing real directory
+    is accepted (idempotent), anything else at that path refuses. Both are checked before either is created."""
+    plan = []
+    for what, path in nas_roots():
+        parent = os.path.dirname(reg.resolve_dotdot(path))
+        if os.path.islink(parent) or not os.path.isdir(parent):
+            raise reg.GateError(f"{parent} (the parent of {what}) is missing or a link: the NAS is not mounted -- refused")
+        fstype, mnt = reg.mount_fstype(parent)
+        if fstype not in reg.STORAGE_FS["a6000"]:
+            raise reg.GateError(f"{parent} is on {fstype} ({mnt}), not the registered NAS filesystem "
+                                f"{reg.STORAGE_FS['a6000']}: refused")
+        reg.check_destination(path, parent, what)
+        if os.path.lexists(path) and (os.path.islink(path) or not os.path.isdir(path)):
+            raise reg.GateError(f"{path} exists but is not a real directory: refused")
+        plan.append((what, path, parent))
+    out = {}
+    for what, path, parent in plan:
+        created = not os.path.lexists(path)
+        if created:
+            reg.mkdir_below(path, parent, what)
+        out[what] = {"path": path, "created": created}
+    return out
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("cmd", choices=("stage", "publish"))
-    p.add_argument("--dest-root", required=True)
-    p.add_argument("--run", required=True)
+    p.add_argument("cmd", choices=("stage", "publish", "provision"))
+    p.add_argument("--dest-root")
+    p.add_argument("--run")
     a = p.parse_args(argv)
+    if a.cmd != "provision" and not (a.dest_root and a.run):
+        p.error(f"{a.cmd} needs --dest-root and --run")
     try:
-        out = stage(a.dest_root, a.run) if a.cmd == "stage" else publish(a.dest_root, a.run)[0]
+        if a.cmd == "provision":
+            out = json.dumps(provision(), indent=1, sort_keys=True)
+        else:
+            out = stage(a.dest_root, a.run) if a.cmd == "stage" else publish(a.dest_root, a.run)[0]
     except (reg.GateError, OSError, ValueError) as err:
         print(f"EXP46 NAS PUBLICATION REFUSED: {err}", file=sys.stderr)
         return 2
