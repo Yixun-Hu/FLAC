@@ -1,0 +1,6 @@
+HEAD ce849135c2b39b83cbb700c2d4daed02b6c8208f tracked-clean=no host neu302.neuronic.cs.princeton.edu start 2026-11-18T04:10:21-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_init_digest.py src/tests/test_exp46_isolation.py src/tests/test_exp46_paths.py 
+........................................................................ [ 85%]
+............                                                             [100%]
+84 passed in 5.99s
+EXIT 0 end 2026-11-18T04:10:28-05:00

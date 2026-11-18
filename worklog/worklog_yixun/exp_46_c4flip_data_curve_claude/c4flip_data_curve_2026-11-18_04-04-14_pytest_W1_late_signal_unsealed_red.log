@@ -1,0 +1,291 @@
+HEAD e4027a765cef6ce414c90dc26bdf13db0ec5ce0a tracked-clean=no host neu302.neuronic.cs.princeton.edu start 2026-11-18T04:04:20-05:00
+cmd: pytest -q -rfE -k reverifies_the_delta_before_sealing src/tests/test_exp46_f100_delta.py 
+....FF                                                                   [100%]
+=================================== FAILURES ===================================
+_ test_the_f100_full_branch_reverifies_the_delta_before_sealing[pending with a pass] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1cb5909ab0>
+outcome = 'pending with a pass'
+
+    @pytest.mark.parametrize("outcome", ["pass", "fail", "exception", "cancelled", "pending with a pass",
+                                         "pending after the receipt"])
+    def test_the_f100_full_branch_reverifies_the_delta_before_sealing(tmp_path, monkeypatch, outcome):
+        """... and (fix round 1, Codex code r1 finding 3) a TERM that is only PENDING when the verification returns PASS
+        (it arrived during the last read or the grouping), or that arrives after the training receipt, leaves the run
+        unsealed: the signal is checked after the verification and again at the commit boundary (before the run lock is
+        released and the commit marker written)."""
+        monkeypatch.setattr(reg, "F100_DELTA_SHA256", "a" * 64)
+        order = []
+        TS.sv._PENDING.clear()
+    
+        def fake_verify(manifest, dataset_root="AcousticRooms", repo=None, want_sha=None, check=None):
+            order.append(("verify", os.path.exists(os.path.join(str(tmp_path / "nas" / F100), reg.TRAINING_RECEIPT))))
+            assert manifest == reg._abs(reg.F100_DELTA_MANIFEST) and want_sha == "a" * 64 and check is TS.sv.check_signals
+            if outcome == "exception":
+                raise RuntimeError("synthetic verification crash")
+            if outcome == "cancelled":
+                TS.sv._PENDING.append(15)                              # a SIGTERM arrives mid-verification
+                try:
+                    check()
+                finally:
+                    TS.sv._PENDING.clear()
+            if outcome == "pending with a pass":
+                TS.sv._PENDING.append(15)              # a SIGTERM during the last read: only recorded, the result is PASS
+            return _fake_record("FAIL" if outcome == "fail" else "PASS")
+        monkeypatch.setattr(cm46, "verify_record", fake_verify)
+        if outcome.startswith("pending"):
+            hook = (lambda: TS.sv._PENDING.append(15)) if outcome == "pending after the receipt" else None
+            try:
+>               with pytest.raises(TS.sv.Stopped):
+E               Failed: DID NOT RAISE Stopped
+
+src/tests/test_exp46_f100_delta.py:295: Failed
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_C4Ff100_l40_2x32",
+ "mode": "FULL",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-18_04-04-33",
+ "launched_at": "2026-11-18T04:04:33-0500",
+ "host": "neu302.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": {
+  "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "head": "ffffffffffffffffffffffffffffffffffffffff"
+ },
+ "smoke": {
+  "smoke_receipt": "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve4/smoke_receipt.json",
+  "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+ },
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs",
+  "reservation": {
+   "free_bytes": 1000000000000000,
+   "outstanding_bytes": 13731483648,
+   "reserved_bytes": 13731483648
+  }
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve4/nas/exp46_C4Ff100_l40_2x32",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve4/snaps/exp46_C4Ff100_l40_2x32_FULL_2026-11-18_04-04-33",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve4/snaps/exp46_C4Ff100_l40_2x32_FULL_2026-11-18_04-04-33",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve4/nas/exp46_C4Ff100_l40_2x32"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_USER": "yh4742",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASK_PID": "125542",
+  "SLURM_LOCALID": "0",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_JOB_START_TIME": "1794992660",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_END_TIME": "1794993860",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOBID": "4270338",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_PROCID": "0",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_TOPOLOGY_ADDR": "neu302",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_NODELIST": "neu302",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_NNODES": "1",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_JOB_ID": "4270338",
+  "SLURM_NODEID": "0",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_JOB_NAME": "exp46-pytest-W1_late_signal_unsealed_red",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NODELIST": "neu302"
+ },
+ "supervisor_sha256": "0f44e42520d65a340c9c87ee0609f9913eb3fb7138654b0797f227436183ebb9",
+ "supervisor_pid": 125559,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve4/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-18_04-04-33_exp46_C4Ff100_l40_2x32_a6000_FULL_train.log",
+ "status": "launching"
+}
+storage reservation of exp46_C4Ff100_l40_2x32: released {"reason": "sealed", "released_at": "2026-11-18T04:04:35-0500", "reserved_at": "2026-11-18T04:04:33-0500", "reserved_bytes": 13731483648, "run": "exp46_C4Ff100_l40_2x32", "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve4/nas/exp46_C4Ff100_l40_2x32", "token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+EXP46 exp46_C4Ff100_l40_2x32 FULL COMPLETE
+_ test_the_f100_full_branch_reverifies_the_delta_before_sealing[pending after the receipt] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1cb565d1e0>
+outcome = 'pending after the receipt'
+
+    @pytest.mark.parametrize("outcome", ["pass", "fail", "exception", "cancelled", "pending with a pass",
+                                         "pending after the receipt"])
+    def test_the_f100_full_branch_reverifies_the_delta_before_sealing(tmp_path, monkeypatch, outcome):
+        """... and (fix round 1, Codex code r1 finding 3) a TERM that is only PENDING when the verification returns PASS
+        (it arrived during the last read or the grouping), or that arrives after the training receipt, leaves the run
+        unsealed: the signal is checked after the verification and again at the commit boundary (before the run lock is
+        released and the commit marker written)."""
+        monkeypatch.setattr(reg, "F100_DELTA_SHA256", "a" * 64)
+        order = []
+        TS.sv._PENDING.clear()
+    
+        def fake_verify(manifest, dataset_root="AcousticRooms", repo=None, want_sha=None, check=None):
+            order.append(("verify", os.path.exists(os.path.join(str(tmp_path / "nas" / F100), reg.TRAINING_RECEIPT))))
+            assert manifest == reg._abs(reg.F100_DELTA_MANIFEST) and want_sha == "a" * 64 and check is TS.sv.check_signals
+            if outcome == "exception":
+                raise RuntimeError("synthetic verification crash")
+            if outcome == "cancelled":
+                TS.sv._PENDING.append(15)                              # a SIGTERM arrives mid-verification
+                try:
+                    check()
+                finally:
+                    TS.sv._PENDING.clear()
+            if outcome == "pending with a pass":
+                TS.sv._PENDING.append(15)              # a SIGTERM during the last read: only recorded, the result is PASS
+            return _fake_record("FAIL" if outcome == "fail" else "PASS")
+        monkeypatch.setattr(cm46, "verify_record", fake_verify)
+        if outcome.startswith("pending"):
+            hook = (lambda: TS.sv._PENDING.append(15)) if outcome == "pending after the receipt" else None
+            try:
+>               with pytest.raises(TS.sv.Stopped):
+E               Failed: DID NOT RAISE Stopped
+
+src/tests/test_exp46_f100_delta.py:295: Failed
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_C4Ff100_l40_2x32",
+ "mode": "FULL",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-18_04-04-35",
+ "launched_at": "2026-11-18T04:04:35-0500",
+ "host": "neu302.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": {
+  "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "head": "ffffffffffffffffffffffffffffffffffffffff"
+ },
+ "smoke": {
+  "smoke_receipt": "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve5/smoke_receipt.json",
+  "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+ },
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs",
+  "reservation": {
+   "free_bytes": 1000000000000000,
+   "outstanding_bytes": 13731483648,
+   "reserved_bytes": 13731483648
+  }
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve5/nas/exp46_C4Ff100_l40_2x32",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve5/snaps/exp46_C4Ff100_l40_2x32_FULL_2026-11-18_04-04-35",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve5/snaps/exp46_C4Ff100_l40_2x32_FULL_2026-11-18_04-04-35",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve5/nas/exp46_C4Ff100_l40_2x32"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_USER": "yh4742",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASK_PID": "125542",
+  "SLURM_LOCALID": "0",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_JOB_START_TIME": "1794992660",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_END_TIME": "1794993860",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOBID": "4270338",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_PROCID": "0",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_TOPOLOGY_ADDR": "neu302",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_NODELIST": "neu302",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_NNODES": "1",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_JOB_ID": "4270338",
+  "SLURM_NODEID": "0",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_JOB_NAME": "exp46-pytest-W1_late_signal_unsealed_red",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NODELIST": "neu302"
+ },
+ "supervisor_sha256": "0f44e42520d65a340c9c87ee0609f9913eb3fb7138654b0797f227436183ebb9",
+ "supervisor_pid": 125559,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve5/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-18_04-04-35_exp46_C4Ff100_l40_2x32_a6000_FULL_train.log",
+ "status": "launching"
+}
+storage reservation of exp46_C4Ff100_l40_2x32: released {"reason": "sealed", "released_at": "2026-11-18T04:04:37-0500", "reserved_at": "2026-11-18T04:04:35-0500", "reserved_bytes": 13731483648, "run": "exp46_C4Ff100_l40_2x32", "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_the_f100_full_branch_reve5/nas/exp46_C4Ff100_l40_2x32", "token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+EXP46 exp46_C4Ff100_l40_2x32 FULL COMPLETE
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_f100_delta.py::test_the_f100_full_branch_reverifies_the_delta_before_sealing[pending with a pass]
+FAILED src/tests/test_exp46_f100_delta.py::test_the_f100_full_branch_reverifies_the_delta_before_sealing[pending after the receipt]
+2 failed, 4 passed, 18 deselected in 16.18s
+EXIT 1 end 2026-11-18T04:04:37-05:00

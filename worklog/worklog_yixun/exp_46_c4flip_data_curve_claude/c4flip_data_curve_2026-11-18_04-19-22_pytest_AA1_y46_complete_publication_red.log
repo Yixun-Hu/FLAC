@@ -1,0 +1,427 @@
+HEAD 8b3e60a26fac2395427ed38448ffd27b10a9aa94 tracked-clean=no host neu306.neuronic.cs.princeton.edu start 2026-11-18T04:19:23-05:00
+cmd: pytest -q -rfE -k y46_rule\ or\ closure_digest_at src/tests/test_exp46_provenance.py 
+FFFFFF.FF                                                                [100%]
+=================================== FAILURES ===================================
+_ test_the_y46_rule_checks_the_complete_publication_and_the_closure[complete] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c0')
+case = 'complete'
+
+    @pytest.mark.parametrize("case", ["complete", "23 files", "25 files", "a closure file changed outside the kit",
+                                      "a closure file changed inside the kit", "a prose file", "X46 not an ancestor",
+                                      "an E0 file modified, not added"])
+    def test_the_y46_rule_checks_the_complete_publication_and_the_closure(tmp_path, case):
+        repo, commit, x46 = _synthetic(tmp_path)
+        subject = f"exp_46 records: E0 PASS at {x46}"
+        receipt = {f"{EXPREL46}/c4flip_data_curve_e0_receipt.json": b"{}"}
+        if case == "an E0 file modified, not added":
+            commit({sorted(E0_FILES)[0]: b"early"}, "exp_46 records: notes")     # already tracked before Y46
+        files = dict(_e0(23 if case == "23 files" else 24), **receipt)
+        if case == "25 files":
+            files[f"{E0_FARM}/E0a/extra.json"] = b"x"
+        if case == "a closure file changed outside the kit":
+            files["src/x.py"] = b"changed code"
+        if case == "a closure file changed inside the kit":
+            files[f"{EXPREL46}/exp46_registry.py"] = b"changed kit"          # inside EXPREL46: only the closure check sees it
+        if case == "a prose file":
+            files["README.md"] = b"changed prose"
+        if case == "X46 not an ancestor":
+            subject = f"exp_46 records: E0 PASS at {'0' * 40}"
+        y46 = commit(files, subject)
+>       problems = e0_publication_problems(y46, subject, str(repo))
+
+src/tests/test_exp46_provenance.py:415: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+sha = '8468b97f41466afd4b9c77ae90650cf228504e10'
+subject = 'exp_46 records: E0 PASS at 7fe5020b89765ad522dd05d920cf5540acb0ef40'
+repo = '/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c0/repo'
+
+    def e0_publication_problems(sha, subject, repo=REPO):
+        """The Y46 rule as a whole, for one commit: an exact-subject E0 publication commit ADDS, outside EXPREL46, exactly
+        the 24 registered E0-cell files (23 or 25 refuses; nothing else), its subject's X46 is an ancestor, and
+        closure(Y46) == closure(X46) (registry.closure_digest_at over both commits' trees)."""
+        if E0_SUBJECT.fullmatch(subject) is None:
+            return []
+        x46 = subject.rsplit(" ", 1)[1]
+        out = subprocess.run(["git", "-C", repo, "diff-tree", "-r", "--no-commit-id", "--no-renames", "--name-status", sha],
+                             capture_output=True, text=True, check=True).stdout
+        outside = {path: status for status, path in (ln.split("\t", 1) for ln in out.splitlines())
+                   if not path.startswith(EXPREL46 + "/")}
+        p = []
+        if set(outside) != E0_FILES or any(s != "A" for s in outside.values()):
+            p.append(f"{sha[:10]}: outside {EXPREL46} it changes {len(outside)} path(s), not exactly the 24 E0-cell files "
+                     f"added (missing {sorted(E0_FILES - set(outside))[:2]}, extra {sorted(set(outside) - E0_FILES)[:2]})")
+        if subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", x46, sha], capture_output=True).returncode:
+            return p + [f"{sha[:10]}: the subject's X46 {x46[:10]} is not an ancestor of the E0 publication commit"]
+        reg = _reg()
+>       if reg.closure_digest_at(sha, repo) != reg.closure_digest_at(x46, repo):
+E       AttributeError: module 'exp46_registry' has no attribute 'closure_digest_at'. Did you mean: 'closure_digest'?
+
+src/tests/test_exp46_provenance.py:365: AttributeError
+_ test_the_y46_rule_checks_the_complete_publication_and_the_closure[23 files] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c1')
+case = '23 files'
+
+    @pytest.mark.parametrize("case", ["complete", "23 files", "25 files", "a closure file changed outside the kit",
+                                      "a closure file changed inside the kit", "a prose file", "X46 not an ancestor",
+                                      "an E0 file modified, not added"])
+    def test_the_y46_rule_checks_the_complete_publication_and_the_closure(tmp_path, case):
+        repo, commit, x46 = _synthetic(tmp_path)
+        subject = f"exp_46 records: E0 PASS at {x46}"
+        receipt = {f"{EXPREL46}/c4flip_data_curve_e0_receipt.json": b"{}"}
+        if case == "an E0 file modified, not added":
+            commit({sorted(E0_FILES)[0]: b"early"}, "exp_46 records: notes")     # already tracked before Y46
+        files = dict(_e0(23 if case == "23 files" else 24), **receipt)
+        if case == "25 files":
+            files[f"{E0_FARM}/E0a/extra.json"] = b"x"
+        if case == "a closure file changed outside the kit":
+            files["src/x.py"] = b"changed code"
+        if case == "a closure file changed inside the kit":
+            files[f"{EXPREL46}/exp46_registry.py"] = b"changed kit"          # inside EXPREL46: only the closure check sees it
+        if case == "a prose file":
+            files["README.md"] = b"changed prose"
+        if case == "X46 not an ancestor":
+            subject = f"exp_46 records: E0 PASS at {'0' * 40}"
+        y46 = commit(files, subject)
+>       problems = e0_publication_problems(y46, subject, str(repo))
+
+src/tests/test_exp46_provenance.py:415: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+sha = '1714f1addb98d69c753894abe1e4a57e45b8672a'
+subject = 'exp_46 records: E0 PASS at 7fe5020b89765ad522dd05d920cf5540acb0ef40'
+repo = '/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c1/repo'
+
+    def e0_publication_problems(sha, subject, repo=REPO):
+        """The Y46 rule as a whole, for one commit: an exact-subject E0 publication commit ADDS, outside EXPREL46, exactly
+        the 24 registered E0-cell files (23 or 25 refuses; nothing else), its subject's X46 is an ancestor, and
+        closure(Y46) == closure(X46) (registry.closure_digest_at over both commits' trees)."""
+        if E0_SUBJECT.fullmatch(subject) is None:
+            return []
+        x46 = subject.rsplit(" ", 1)[1]
+        out = subprocess.run(["git", "-C", repo, "diff-tree", "-r", "--no-commit-id", "--no-renames", "--name-status", sha],
+                             capture_output=True, text=True, check=True).stdout
+        outside = {path: status for status, path in (ln.split("\t", 1) for ln in out.splitlines())
+                   if not path.startswith(EXPREL46 + "/")}
+        p = []
+        if set(outside) != E0_FILES or any(s != "A" for s in outside.values()):
+            p.append(f"{sha[:10]}: outside {EXPREL46} it changes {len(outside)} path(s), not exactly the 24 E0-cell files "
+                     f"added (missing {sorted(E0_FILES - set(outside))[:2]}, extra {sorted(set(outside) - E0_FILES)[:2]})")
+        if subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", x46, sha], capture_output=True).returncode:
+            return p + [f"{sha[:10]}: the subject's X46 {x46[:10]} is not an ancestor of the E0 publication commit"]
+        reg = _reg()
+>       if reg.closure_digest_at(sha, repo) != reg.closure_digest_at(x46, repo):
+E       AttributeError: module 'exp46_registry' has no attribute 'closure_digest_at'. Did you mean: 'closure_digest'?
+
+src/tests/test_exp46_provenance.py:365: AttributeError
+_ test_the_y46_rule_checks_the_complete_publication_and_the_closure[25 files] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c2')
+case = '25 files'
+
+    @pytest.mark.parametrize("case", ["complete", "23 files", "25 files", "a closure file changed outside the kit",
+                                      "a closure file changed inside the kit", "a prose file", "X46 not an ancestor",
+                                      "an E0 file modified, not added"])
+    def test_the_y46_rule_checks_the_complete_publication_and_the_closure(tmp_path, case):
+        repo, commit, x46 = _synthetic(tmp_path)
+        subject = f"exp_46 records: E0 PASS at {x46}"
+        receipt = {f"{EXPREL46}/c4flip_data_curve_e0_receipt.json": b"{}"}
+        if case == "an E0 file modified, not added":
+            commit({sorted(E0_FILES)[0]: b"early"}, "exp_46 records: notes")     # already tracked before Y46
+        files = dict(_e0(23 if case == "23 files" else 24), **receipt)
+        if case == "25 files":
+            files[f"{E0_FARM}/E0a/extra.json"] = b"x"
+        if case == "a closure file changed outside the kit":
+            files["src/x.py"] = b"changed code"
+        if case == "a closure file changed inside the kit":
+            files[f"{EXPREL46}/exp46_registry.py"] = b"changed kit"          # inside EXPREL46: only the closure check sees it
+        if case == "a prose file":
+            files["README.md"] = b"changed prose"
+        if case == "X46 not an ancestor":
+            subject = f"exp_46 records: E0 PASS at {'0' * 40}"
+        y46 = commit(files, subject)
+>       problems = e0_publication_problems(y46, subject, str(repo))
+
+src/tests/test_exp46_provenance.py:415: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+sha = '30384a7c2d5c88df3d4ffaebe402ca5ed7406fd1'
+subject = 'exp_46 records: E0 PASS at bfbd0de9fa6495333205b1d3a9096a15d3d92309'
+repo = '/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c2/repo'
+
+    def e0_publication_problems(sha, subject, repo=REPO):
+        """The Y46 rule as a whole, for one commit: an exact-subject E0 publication commit ADDS, outside EXPREL46, exactly
+        the 24 registered E0-cell files (23 or 25 refuses; nothing else), its subject's X46 is an ancestor, and
+        closure(Y46) == closure(X46) (registry.closure_digest_at over both commits' trees)."""
+        if E0_SUBJECT.fullmatch(subject) is None:
+            return []
+        x46 = subject.rsplit(" ", 1)[1]
+        out = subprocess.run(["git", "-C", repo, "diff-tree", "-r", "--no-commit-id", "--no-renames", "--name-status", sha],
+                             capture_output=True, text=True, check=True).stdout
+        outside = {path: status for status, path in (ln.split("\t", 1) for ln in out.splitlines())
+                   if not path.startswith(EXPREL46 + "/")}
+        p = []
+        if set(outside) != E0_FILES or any(s != "A" for s in outside.values()):
+            p.append(f"{sha[:10]}: outside {EXPREL46} it changes {len(outside)} path(s), not exactly the 24 E0-cell files "
+                     f"added (missing {sorted(E0_FILES - set(outside))[:2]}, extra {sorted(set(outside) - E0_FILES)[:2]})")
+        if subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", x46, sha], capture_output=True).returncode:
+            return p + [f"{sha[:10]}: the subject's X46 {x46[:10]} is not an ancestor of the E0 publication commit"]
+        reg = _reg()
+>       if reg.closure_digest_at(sha, repo) != reg.closure_digest_at(x46, repo):
+E       AttributeError: module 'exp46_registry' has no attribute 'closure_digest_at'. Did you mean: 'closure_digest'?
+
+src/tests/test_exp46_provenance.py:365: AttributeError
+_ test_the_y46_rule_checks_the_complete_publication_and_the_closure[a closure file changed outside the kit] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c3')
+case = 'a closure file changed outside the kit'
+
+    @pytest.mark.parametrize("case", ["complete", "23 files", "25 files", "a closure file changed outside the kit",
+                                      "a closure file changed inside the kit", "a prose file", "X46 not an ancestor",
+                                      "an E0 file modified, not added"])
+    def test_the_y46_rule_checks_the_complete_publication_and_the_closure(tmp_path, case):
+        repo, commit, x46 = _synthetic(tmp_path)
+        subject = f"exp_46 records: E0 PASS at {x46}"
+        receipt = {f"{EXPREL46}/c4flip_data_curve_e0_receipt.json": b"{}"}
+        if case == "an E0 file modified, not added":
+            commit({sorted(E0_FILES)[0]: b"early"}, "exp_46 records: notes")     # already tracked before Y46
+        files = dict(_e0(23 if case == "23 files" else 24), **receipt)
+        if case == "25 files":
+            files[f"{E0_FARM}/E0a/extra.json"] = b"x"
+        if case == "a closure file changed outside the kit":
+            files["src/x.py"] = b"changed code"
+        if case == "a closure file changed inside the kit":
+            files[f"{EXPREL46}/exp46_registry.py"] = b"changed kit"          # inside EXPREL46: only the closure check sees it
+        if case == "a prose file":
+            files["README.md"] = b"changed prose"
+        if case == "X46 not an ancestor":
+            subject = f"exp_46 records: E0 PASS at {'0' * 40}"
+        y46 = commit(files, subject)
+>       problems = e0_publication_problems(y46, subject, str(repo))
+
+src/tests/test_exp46_provenance.py:415: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+sha = '8d7f6170b0f7b7e78d69d479cdec3504b9c8908d'
+subject = 'exp_46 records: E0 PASS at bfbd0de9fa6495333205b1d3a9096a15d3d92309'
+repo = '/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c3/repo'
+
+    def e0_publication_problems(sha, subject, repo=REPO):
+        """The Y46 rule as a whole, for one commit: an exact-subject E0 publication commit ADDS, outside EXPREL46, exactly
+        the 24 registered E0-cell files (23 or 25 refuses; nothing else), its subject's X46 is an ancestor, and
+        closure(Y46) == closure(X46) (registry.closure_digest_at over both commits' trees)."""
+        if E0_SUBJECT.fullmatch(subject) is None:
+            return []
+        x46 = subject.rsplit(" ", 1)[1]
+        out = subprocess.run(["git", "-C", repo, "diff-tree", "-r", "--no-commit-id", "--no-renames", "--name-status", sha],
+                             capture_output=True, text=True, check=True).stdout
+        outside = {path: status for status, path in (ln.split("\t", 1) for ln in out.splitlines())
+                   if not path.startswith(EXPREL46 + "/")}
+        p = []
+        if set(outside) != E0_FILES or any(s != "A" for s in outside.values()):
+            p.append(f"{sha[:10]}: outside {EXPREL46} it changes {len(outside)} path(s), not exactly the 24 E0-cell files "
+                     f"added (missing {sorted(E0_FILES - set(outside))[:2]}, extra {sorted(set(outside) - E0_FILES)[:2]})")
+        if subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", x46, sha], capture_output=True).returncode:
+            return p + [f"{sha[:10]}: the subject's X46 {x46[:10]} is not an ancestor of the E0 publication commit"]
+        reg = _reg()
+>       if reg.closure_digest_at(sha, repo) != reg.closure_digest_at(x46, repo):
+E       AttributeError: module 'exp46_registry' has no attribute 'closure_digest_at'. Did you mean: 'closure_digest'?
+
+src/tests/test_exp46_provenance.py:365: AttributeError
+_ test_the_y46_rule_checks_the_complete_publication_and_the_closure[a closure file changed inside the kit] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c4')
+case = 'a closure file changed inside the kit'
+
+    @pytest.mark.parametrize("case", ["complete", "23 files", "25 files", "a closure file changed outside the kit",
+                                      "a closure file changed inside the kit", "a prose file", "X46 not an ancestor",
+                                      "an E0 file modified, not added"])
+    def test_the_y46_rule_checks_the_complete_publication_and_the_closure(tmp_path, case):
+        repo, commit, x46 = _synthetic(tmp_path)
+        subject = f"exp_46 records: E0 PASS at {x46}"
+        receipt = {f"{EXPREL46}/c4flip_data_curve_e0_receipt.json": b"{}"}
+        if case == "an E0 file modified, not added":
+            commit({sorted(E0_FILES)[0]: b"early"}, "exp_46 records: notes")     # already tracked before Y46
+        files = dict(_e0(23 if case == "23 files" else 24), **receipt)
+        if case == "25 files":
+            files[f"{E0_FARM}/E0a/extra.json"] = b"x"
+        if case == "a closure file changed outside the kit":
+            files["src/x.py"] = b"changed code"
+        if case == "a closure file changed inside the kit":
+            files[f"{EXPREL46}/exp46_registry.py"] = b"changed kit"          # inside EXPREL46: only the closure check sees it
+        if case == "a prose file":
+            files["README.md"] = b"changed prose"
+        if case == "X46 not an ancestor":
+            subject = f"exp_46 records: E0 PASS at {'0' * 40}"
+        y46 = commit(files, subject)
+>       problems = e0_publication_problems(y46, subject, str(repo))
+
+src/tests/test_exp46_provenance.py:415: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+sha = 'ee6544ffad00c5e990752bc66f0e09b1fad21273'
+subject = 'exp_46 records: E0 PASS at bfbd0de9fa6495333205b1d3a9096a15d3d92309'
+repo = '/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c4/repo'
+
+    def e0_publication_problems(sha, subject, repo=REPO):
+        """The Y46 rule as a whole, for one commit: an exact-subject E0 publication commit ADDS, outside EXPREL46, exactly
+        the 24 registered E0-cell files (23 or 25 refuses; nothing else), its subject's X46 is an ancestor, and
+        closure(Y46) == closure(X46) (registry.closure_digest_at over both commits' trees)."""
+        if E0_SUBJECT.fullmatch(subject) is None:
+            return []
+        x46 = subject.rsplit(" ", 1)[1]
+        out = subprocess.run(["git", "-C", repo, "diff-tree", "-r", "--no-commit-id", "--no-renames", "--name-status", sha],
+                             capture_output=True, text=True, check=True).stdout
+        outside = {path: status for status, path in (ln.split("\t", 1) for ln in out.splitlines())
+                   if not path.startswith(EXPREL46 + "/")}
+        p = []
+        if set(outside) != E0_FILES or any(s != "A" for s in outside.values()):
+            p.append(f"{sha[:10]}: outside {EXPREL46} it changes {len(outside)} path(s), not exactly the 24 E0-cell files "
+                     f"added (missing {sorted(E0_FILES - set(outside))[:2]}, extra {sorted(set(outside) - E0_FILES)[:2]})")
+        if subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", x46, sha], capture_output=True).returncode:
+            return p + [f"{sha[:10]}: the subject's X46 {x46[:10]} is not an ancestor of the E0 publication commit"]
+        reg = _reg()
+>       if reg.closure_digest_at(sha, repo) != reg.closure_digest_at(x46, repo):
+E       AttributeError: module 'exp46_registry' has no attribute 'closure_digest_at'. Did you mean: 'closure_digest'?
+
+src/tests/test_exp46_provenance.py:365: AttributeError
+_ test_the_y46_rule_checks_the_complete_publication_and_the_closure[a prose file] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c5')
+case = 'a prose file'
+
+    @pytest.mark.parametrize("case", ["complete", "23 files", "25 files", "a closure file changed outside the kit",
+                                      "a closure file changed inside the kit", "a prose file", "X46 not an ancestor",
+                                      "an E0 file modified, not added"])
+    def test_the_y46_rule_checks_the_complete_publication_and_the_closure(tmp_path, case):
+        repo, commit, x46 = _synthetic(tmp_path)
+        subject = f"exp_46 records: E0 PASS at {x46}"
+        receipt = {f"{EXPREL46}/c4flip_data_curve_e0_receipt.json": b"{}"}
+        if case == "an E0 file modified, not added":
+            commit({sorted(E0_FILES)[0]: b"early"}, "exp_46 records: notes")     # already tracked before Y46
+        files = dict(_e0(23 if case == "23 files" else 24), **receipt)
+        if case == "25 files":
+            files[f"{E0_FARM}/E0a/extra.json"] = b"x"
+        if case == "a closure file changed outside the kit":
+            files["src/x.py"] = b"changed code"
+        if case == "a closure file changed inside the kit":
+            files[f"{EXPREL46}/exp46_registry.py"] = b"changed kit"          # inside EXPREL46: only the closure check sees it
+        if case == "a prose file":
+            files["README.md"] = b"changed prose"
+        if case == "X46 not an ancestor":
+            subject = f"exp_46 records: E0 PASS at {'0' * 40}"
+        y46 = commit(files, subject)
+>       problems = e0_publication_problems(y46, subject, str(repo))
+
+src/tests/test_exp46_provenance.py:415: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+sha = 'ae671ea77e3710bef604ba51384ee4b36b68249c'
+subject = 'exp_46 records: E0 PASS at bfbd0de9fa6495333205b1d3a9096a15d3d92309'
+repo = '/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c5/repo'
+
+    def e0_publication_problems(sha, subject, repo=REPO):
+        """The Y46 rule as a whole, for one commit: an exact-subject E0 publication commit ADDS, outside EXPREL46, exactly
+        the 24 registered E0-cell files (23 or 25 refuses; nothing else), its subject's X46 is an ancestor, and
+        closure(Y46) == closure(X46) (registry.closure_digest_at over both commits' trees)."""
+        if E0_SUBJECT.fullmatch(subject) is None:
+            return []
+        x46 = subject.rsplit(" ", 1)[1]
+        out = subprocess.run(["git", "-C", repo, "diff-tree", "-r", "--no-commit-id", "--no-renames", "--name-status", sha],
+                             capture_output=True, text=True, check=True).stdout
+        outside = {path: status for status, path in (ln.split("\t", 1) for ln in out.splitlines())
+                   if not path.startswith(EXPREL46 + "/")}
+        p = []
+        if set(outside) != E0_FILES or any(s != "A" for s in outside.values()):
+            p.append(f"{sha[:10]}: outside {EXPREL46} it changes {len(outside)} path(s), not exactly the 24 E0-cell files "
+                     f"added (missing {sorted(E0_FILES - set(outside))[:2]}, extra {sorted(set(outside) - E0_FILES)[:2]})")
+        if subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", x46, sha], capture_output=True).returncode:
+            return p + [f"{sha[:10]}: the subject's X46 {x46[:10]} is not an ancestor of the E0 publication commit"]
+        reg = _reg()
+>       if reg.closure_digest_at(sha, repo) != reg.closure_digest_at(x46, repo):
+E       AttributeError: module 'exp46_registry' has no attribute 'closure_digest_at'. Did you mean: 'closure_digest'?
+
+src/tests/test_exp46_provenance.py:365: AttributeError
+_ test_the_y46_rule_checks_the_complete_publication_and_the_closure[an E0 file modified, not added] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c7')
+case = 'an E0 file modified, not added'
+
+    @pytest.mark.parametrize("case", ["complete", "23 files", "25 files", "a closure file changed outside the kit",
+                                      "a closure file changed inside the kit", "a prose file", "X46 not an ancestor",
+                                      "an E0 file modified, not added"])
+    def test_the_y46_rule_checks_the_complete_publication_and_the_closure(tmp_path, case):
+        repo, commit, x46 = _synthetic(tmp_path)
+        subject = f"exp_46 records: E0 PASS at {x46}"
+        receipt = {f"{EXPREL46}/c4flip_data_curve_e0_receipt.json": b"{}"}
+        if case == "an E0 file modified, not added":
+            commit({sorted(E0_FILES)[0]: b"early"}, "exp_46 records: notes")     # already tracked before Y46
+        files = dict(_e0(23 if case == "23 files" else 24), **receipt)
+        if case == "25 files":
+            files[f"{E0_FARM}/E0a/extra.json"] = b"x"
+        if case == "a closure file changed outside the kit":
+            files["src/x.py"] = b"changed code"
+        if case == "a closure file changed inside the kit":
+            files[f"{EXPREL46}/exp46_registry.py"] = b"changed kit"          # inside EXPREL46: only the closure check sees it
+        if case == "a prose file":
+            files["README.md"] = b"changed prose"
+        if case == "X46 not an ancestor":
+            subject = f"exp_46 records: E0 PASS at {'0' * 40}"
+        y46 = commit(files, subject)
+>       problems = e0_publication_problems(y46, subject, str(repo))
+
+src/tests/test_exp46_provenance.py:415: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+sha = '6277bcfd7de59552e832861a97b7bd06b86cfe23'
+subject = 'exp_46 records: E0 PASS at bfbd0de9fa6495333205b1d3a9096a15d3d92309'
+repo = '/tmp/pytest-of-yh4742/pytest-0/test_the_y46_rule_checks_the_c7/repo'
+
+    def e0_publication_problems(sha, subject, repo=REPO):
+        """The Y46 rule as a whole, for one commit: an exact-subject E0 publication commit ADDS, outside EXPREL46, exactly
+        the 24 registered E0-cell files (23 or 25 refuses; nothing else), its subject's X46 is an ancestor, and
+        closure(Y46) == closure(X46) (registry.closure_digest_at over both commits' trees)."""
+        if E0_SUBJECT.fullmatch(subject) is None:
+            return []
+        x46 = subject.rsplit(" ", 1)[1]
+        out = subprocess.run(["git", "-C", repo, "diff-tree", "-r", "--no-commit-id", "--no-renames", "--name-status", sha],
+                             capture_output=True, text=True, check=True).stdout
+        outside = {path: status for status, path in (ln.split("\t", 1) for ln in out.splitlines())
+                   if not path.startswith(EXPREL46 + "/")}
+        p = []
+        if set(outside) != E0_FILES or any(s != "A" for s in outside.values()):
+            p.append(f"{sha[:10]}: outside {EXPREL46} it changes {len(outside)} path(s), not exactly the 24 E0-cell files "
+                     f"added (missing {sorted(E0_FILES - set(outside))[:2]}, extra {sorted(set(outside) - E0_FILES)[:2]})")
+        if subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", x46, sha], capture_output=True).returncode:
+            return p + [f"{sha[:10]}: the subject's X46 {x46[:10]} is not an ancestor of the E0 publication commit"]
+        reg = _reg()
+>       if reg.closure_digest_at(sha, repo) != reg.closure_digest_at(x46, repo):
+E       AttributeError: module 'exp46_registry' has no attribute 'closure_digest_at'. Did you mean: 'closure_digest'?
+
+src/tests/test_exp46_provenance.py:365: AttributeError
+__________ test_closure_digest_at_a_commit_equals_the_checkout_digest __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_closure_digest_at_a_commi0')
+
+    def test_closure_digest_at_a_commit_equals_the_checkout_digest(tmp_path):
+        """registry.closure_digest_at(commit) is closure_digest() of that commit's checkout: the same files, the same digest;
+        a closure blob changes it, a prose file does not."""
+        reg = _reg()
+        repo, commit, x46 = _synthetic(tmp_path)
+>       assert reg.closure_digest_at(x46, str(repo)) == reg.closure_digest(str(repo))
+E       AttributeError: module 'exp46_registry' has no attribute 'closure_digest_at'. Did you mean: 'closure_digest'?
+
+src/tests/test_exp46_provenance.py:431: AttributeError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_provenance.py::test_the_y46_rule_checks_the_complete_publication_and_the_closure[complete]
+FAILED src/tests/test_exp46_provenance.py::test_the_y46_rule_checks_the_complete_publication_and_the_closure[23 files]
+FAILED src/tests/test_exp46_provenance.py::test_the_y46_rule_checks_the_complete_publication_and_the_closure[25 files]
+FAILED src/tests/test_exp46_provenance.py::test_the_y46_rule_checks_the_complete_publication_and_the_closure[a closure file changed outside the kit]
+FAILED src/tests/test_exp46_provenance.py::test_the_y46_rule_checks_the_complete_publication_and_the_closure[a closure file changed inside the kit]
+FAILED src/tests/test_exp46_provenance.py::test_the_y46_rule_checks_the_complete_publication_and_the_closure[a prose file]
+FAILED src/tests/test_exp46_provenance.py::test_the_y46_rule_checks_the_complete_publication_and_the_closure[an E0 file modified, not added]
+FAILED src/tests/test_exp46_provenance.py::test_closure_digest_at_a_commit_equals_the_checkout_digest
+8 failed, 1 passed, 14 deselected in 4.71s
+EXIT 1 end 2026-11-18T04:19:29-05:00

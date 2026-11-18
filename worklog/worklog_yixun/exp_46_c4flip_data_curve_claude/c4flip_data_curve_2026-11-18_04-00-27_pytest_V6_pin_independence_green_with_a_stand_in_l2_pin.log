@@ -1,0 +1,5 @@
+HEAD af287964f0ee4d30b9d376526839705b7c12df7b tracked-clean=no host neu302.neuronic.cs.princeton.edu start 2026-11-18T04:01:20-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_f100_delta.py::test_every_f100_launch_needs_the_pinned_manifest src/tests/test_gen_model_comparison_exp46.py::test_the_f100_rows_need_the_sealed_delta_verification_at_the_pinned_manifest 
+..                                                                       [100%]
+2 passed in 12.85s
+EXIT 0 end 2026-11-18T04:01:34-05:00

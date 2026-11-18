@@ -1,0 +1,262 @@
+HEAD e2003dc2a65fa8c6cfe2545996eda74dfe50718f tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-18T04:31:25-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_command_sheets.py 
+FFFFFFFFFFFFF                                                            [100%]
+=================================== FAILURES ===================================
+_ test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit[c4flip_data_curve_command.md] _
+
+name = 'c4flip_data_curve_command.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit(name):
+>       text = _text(name)
+
+src/tests/test_exp46_command_sheets.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'c4flip_data_curve_command.md'
+
+    def _text(name):
+>       return open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_command.md'
+
+src/tests/test_exp46_command_sheets.py:65: FileNotFoundError
+_ test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit[c4flip_data_curve_neuronic_commands.md] _
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit(name):
+>       text = _text(name)
+
+src/tests/test_exp46_command_sheets.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    def _text(name):
+>       return open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_neuronic_commands.md'
+
+src/tests/test_exp46_command_sheets.py:65: FileNotFoundError
+__ test_the_campaign_order_is_the_recommended_one_and_marked_pending_yixun_d2 __
+
+    def test_the_campaign_order_is_the_recommended_one_and_marked_pending_yixun_d2():
+        """The coordinator's recommendation (Codex code r1 open item 10), still Yixun's decision D2: final code round -> L2
+        delta build -> pin commit -> definitive L1 -> L2 union verification before any f100 SMOKE -> L3 -> L4 freeze X46."""
+>       text, b = _text(NEURONIC), _blocks(NEURONIC)
+
+src/tests/test_exp46_command_sheets.py:112: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    def _text(name):
+>       return open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_neuronic_commands.md'
+
+src/tests/test_exp46_command_sheets.py:65: FileNotFoundError
+__ test_the_l1_comparison_runs_every_node_with_no_deselection_and_is_complete __
+
+    def test_the_l1_comparison_runs_every_node_with_no_deselection_and_is_complete():
+        """L1 (Codex code r1 open item 1): the SAME full CPU suite (src/tests, every node -- no --deselect, no -k / -m
+        selection: L0's deselections are NOT carried forward) on the exp_46 tip and on both parents' worktrees at exp_38's
+        tip and exp_43's pin, then exp46_regression_compare.py with the three junit inputs and all three checkout roots."""
+>       b = _blocks(NEURONIC)
+
+src/tests/test_exp46_command_sheets.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_command_sheets.py:69: in _blocks
+    return "\n".join(re.findall(r"```bash\n(.*?)\n```", _text(name), flags=re.S))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    def _text(name):
+>       return open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_neuronic_commands.md'
+
+src/tests/test_exp46_command_sheets.py:65: FileNotFoundError
+__ test_the_f100_full_gets_one_more_hour_and_every_full_is_one_monolithic_job __
+
+    def test_the_f100_full_gets_one_more_hour_and_every_full_is_one_monolithic_job():
+>       b = _blocks(NEURONIC)
+
+src/tests/test_exp46_command_sheets.py:158: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_command_sheets.py:69: in _blocks
+    return "\n".join(re.findall(r"```bash\n(.*?)\n```", _text(name), flags=re.S))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    def _text(name):
+>       return open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_neuronic_commands.md'
+
+src/tests/test_exp46_command_sheets.py:65: FileNotFoundError
+______ test_the_neuronic_sheet_submits_every_campaign_run_smoke_then_full ______
+
+    def test_the_neuronic_sheet_submits_every_campaign_run_smoke_then_full():
+>       b = _blocks(NEURONIC)
+
+src/tests/test_exp46_command_sheets.py:169: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_command_sheets.py:69: in _blocks
+    return "\n".join(re.findall(r"```bash\n(.*?)\n```", _text(name), flags=re.S))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    def _text(name):
+>       return open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_neuronic_commands.md'
+
+src/tests/test_exp46_command_sheets.py:65: FileNotFoundError
+______________ test_the_a6000_sheet_evaluates_and_publishes_only _______________
+
+    def test_the_a6000_sheet_evaluates_and_publishes_only():
+        assert reg.TRAINING_PLATFORM == "neuronic"
+>       b = _blocks(A6000)
+
+src/tests/test_exp46_command_sheets.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_command_sheets.py:69: in _blocks
+    return "\n".join(re.findall(r"```bash\n(.*?)\n```", _text(name), flags=re.S))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'c4flip_data_curve_command.md'
+
+    def _text(name):
+>       return open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_command.md'
+
+src/tests/test_exp46_command_sheets.py:65: FileNotFoundError
+_________ test_the_y46_commit_is_exactly_the_registered_e0_publication _________
+
+    def test_the_y46_commit_is_exactly_the_registered_e0_publication():
+        """The A6000 sheet's Y46 commit is the provenance test's E0 rule: its exact subject (a full 40-hex X46) and exactly
+        the E0 receipt + sidecar inside the exp_46 folder and the four E0 gates' farm folders."""
+>       b = _blocks(A6000)
+
+src/tests/test_exp46_command_sheets.py:192: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_command_sheets.py:69: in _blocks
+    return "\n".join(re.findall(r"```bash\n(.*?)\n```", _text(name), flags=re.S))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'c4flip_data_curve_command.md'
+
+    def _text(name):
+>       return open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_command.md'
+
+src/tests/test_exp46_command_sheets.py:65: FileNotFoundError
+________________ test_exp38s_tools_always_run_without_bytecode _________________
+
+    def test_exp38s_tools_always_run_without_bytecode():
+        """exp_38's two read-only tools are run with -B (Codex code r1 finding 1: nothing is written into exp_38's folder;
+        exp_46's own tools disable bytecode themselves)."""
+        for name in SHEETS:
+>           for cmd in _commands(_text(name)):
+
+src/tests/test_exp46_command_sheets.py:206: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'c4flip_data_curve_command.md'
+
+    def _text(name):
+>       return open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_command.md'
+
+src/tests/test_exp46_command_sheets.py:65: FileNotFoundError
+_ test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout[c4flip_data_curve_command.md] _
+
+name = 'c4flip_data_curve_command.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout(name):
+        """Both regenerations read their evidence from G and write the table into B (--out); every other command touching
+        the main checkout is a registered read-only / metadata / untracked-only form."""
+        cwd_main = False
+>       for cmd in _commands(_text(name)):
+
+src/tests/test_exp46_command_sheets.py:231: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'c4flip_data_curve_command.md'
+
+    def _text(name):
+>       return open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_command.md'
+
+src/tests/test_exp46_command_sheets.py:65: FileNotFoundError
+_ test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout[c4flip_data_curve_neuronic_commands.md] _
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout(name):
+        """Both regenerations read their evidence from G and write the table into B (--out); every other command touching
+        the main checkout is a registered read-only / metadata / untracked-only form."""
+        cwd_main = False
+>       for cmd in _commands(_text(name)):
+
+src/tests/test_exp46_command_sheets.py:231: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    def _text(name):
+>       return open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_neuronic_commands.md'
+
+src/tests/test_exp46_command_sheets.py:65: FileNotFoundError
+__ test_l8_makes_the_published_evidence_available_and_verified_before_any_use __
+
+    def test_l8_makes_the_published_evidence_available_and_verified_before_any_use():
+>       b = _blocks(NEURONIC)
+
+src/tests/test_exp46_command_sheets.py:241: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_command_sheets.py:69: in _blocks
+    return "\n".join(re.findall(r"```bash\n(.*?)\n```", _text(name), flags=re.S))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    def _text(name):
+>       return open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_neuronic_commands.md'
+
+src/tests/test_exp46_command_sheets.py:65: FileNotFoundError
+______________ test_c3_recovery_and_the_nas_admission_are_stated _______________
+
+    def test_c3_recovery_and_the_nas_admission_are_stated():
+>       text, b = _text(NEURONIC), _blocks(NEURONIC)
+
+src/tests/test_exp46_command_sheets.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    def _text(name):
+>       return open(os.path.join(EXP, name)).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_neuronic_commands.md'
+
+src/tests/test_exp46_command_sheets.py:65: FileNotFoundError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_command_sheets.py::test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit[c4flip_data_curve_command.md]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit[c4flip_data_curve_neuronic_commands.md]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_campaign_order_is_the_recommended_one_and_marked_pending_yixun_d2
+FAILED src/tests/test_exp46_command_sheets.py::test_the_l1_comparison_runs_every_node_with_no_deselection_and_is_complete
+FAILED src/tests/test_exp46_command_sheets.py::test_the_f100_full_gets_one_more_hour_and_every_full_is_one_monolithic_job
+FAILED src/tests/test_exp46_command_sheets.py::test_the_neuronic_sheet_submits_every_campaign_run_smoke_then_full
+FAILED src/tests/test_exp46_command_sheets.py::test_the_a6000_sheet_evaluates_and_publishes_only
+FAILED src/tests/test_exp46_command_sheets.py::test_the_y46_commit_is_exactly_the_registered_e0_publication
+FAILED src/tests/test_exp46_command_sheets.py::test_exp38s_tools_always_run_without_bytecode
+FAILED src/tests/test_exp46_command_sheets.py::test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout[c4flip_data_curve_command.md]
+FAILED src/tests/test_exp46_command_sheets.py::test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout[c4flip_data_curve_neuronic_commands.md]
+FAILED src/tests/test_exp46_command_sheets.py::test_l8_makes_the_published_evidence_available_and_verified_before_any_use
+FAILED src/tests/test_exp46_command_sheets.py::test_c3_recovery_and_the_nas_admission_are_stated
+13 failed in 88.16s (0:01:28)
+EXIT 1 end 2026-11-18T04:33:00-05:00

@@ -1,0 +1,127 @@
+HEAD ce849135c2b39b83cbb700c2d4daed02b6c8208f tracked-clean=no host neu325.neuronic.cs.princeton.edu start 2026-11-18T04:09:21-05:00
+cmd: pytest -q -rfE -k genuine_absence\ or\ complete_foreign_ledger_schema src/tests/test_exp46_storage.py 
+FFFFF.FF                                                                 [100%]
+=================================== FAILURES ===================================
+______________ test_c3_only_genuine_absence_reads_as_nothing_held ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_only_genuine_absence_r0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa333460340>
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
+    def test_c3_only_genuine_absence_reads_as_nothing_held(tmp_path, monkeypatch):
+        """Codex code r1 finding 7: genuine absence -- no such entry, the ledger or a directory above it missing -- is
+        "nothing held"; a stat error is not: a parent directory without search permission (the ledger's existence cannot be
+        known) or a parent that is a file refuses."""
+        foreign = _foreign(tmp_path, monkeypatch, _C3_CASES["an outstanding reservation"][0])
+        foreign.chmod(0o600)                                       # no search permission: lstat fails with EACCES
+        try:
+>           with pytest.raises(reg.GateError, match="C3"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_storage.py:621: Failed
+_ test_c3_the_complete_foreign_ledger_schema_is_validated[a release with a non-integer size] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_the_complete_foreign_l0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa33e517550>
+case = 'a release with a non-integer size'
+
+    @pytest.mark.parametrize("case", sorted(_C3_SCHEMA_BREAKS))
+    def test_c3_the_complete_foreign_ledger_schema_is_validated(tmp_path, monkeypatch, case):
+        """Codex code r1 finding 7: the WHOLE foreign ledger is exp_45's registered schema (its LEDGER_KEYS /
+        RELEASE_KEYS at X45f, exact keys and types) -- a malformed release entry refuses even with no reservation held."""
+        foreign = _foreign(tmp_path, monkeypatch, json.dumps(_C3_SCHEMA_BREAKS[case]).encode())
+        before = _state(str(foreign))
+>       with pytest.raises(reg.GateError, match="C3"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_storage.py:656: Failed
+_ test_c3_the_complete_foreign_ledger_schema_is_validated[a release with a non-string field] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_the_complete_foreign_l1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa333461c90>
+case = 'a release with a non-string field'
+
+    @pytest.mark.parametrize("case", sorted(_C3_SCHEMA_BREAKS))
+    def test_c3_the_complete_foreign_ledger_schema_is_validated(tmp_path, monkeypatch, case):
+        """Codex code r1 finding 7: the WHOLE foreign ledger is exp_45's registered schema (its LEDGER_KEYS /
+        RELEASE_KEYS at X45f, exact keys and types) -- a malformed release entry refuses even with no reservation held."""
+        foreign = _foreign(tmp_path, monkeypatch, json.dumps(_C3_SCHEMA_BREAKS[case]).encode())
+        before = _state(str(foreign))
+>       with pytest.raises(reg.GateError, match="C3"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_storage.py:656: Failed
+_ test_c3_the_complete_foreign_ledger_schema_is_validated[a release with an extra key] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_the_complete_foreign_l2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa3334a1f00>
+case = 'a release with an extra key'
+
+    @pytest.mark.parametrize("case", sorted(_C3_SCHEMA_BREAKS))
+    def test_c3_the_complete_foreign_ledger_schema_is_validated(tmp_path, monkeypatch, case):
+        """Codex code r1 finding 7: the WHOLE foreign ledger is exp_45's registered schema (its LEDGER_KEYS /
+        RELEASE_KEYS at X45f, exact keys and types) -- a malformed release entry refuses even with no reservation held."""
+        foreign = _foreign(tmp_path, monkeypatch, json.dumps(_C3_SCHEMA_BREAKS[case]).encode())
+        before = _state(str(foreign))
+>       with pytest.raises(reg.GateError, match="C3"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_storage.py:656: Failed
+_ test_c3_the_complete_foreign_ledger_schema_is_validated[a release without its reason] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_the_complete_foreign_l3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa333461810>
+case = 'a release without its reason'
+
+    @pytest.mark.parametrize("case", sorted(_C3_SCHEMA_BREAKS))
+    def test_c3_the_complete_foreign_ledger_schema_is_validated(tmp_path, monkeypatch, case):
+        """Codex code r1 finding 7: the WHOLE foreign ledger is exp_45's registered schema (its LEDGER_KEYS /
+        RELEASE_KEYS at X45f, exact keys and types) -- a malformed release entry refuses even with no reservation held."""
+        foreign = _foreign(tmp_path, monkeypatch, json.dumps(_C3_SCHEMA_BREAKS[case]).encode())
+        before = _state(str(foreign))
+>       with pytest.raises(reg.GateError, match="C3"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_storage.py:656: Failed
+__ test_c3_the_complete_foreign_ledger_schema_is_validated[releases: [null]] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_the_complete_foreign_l5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa3334a2c50>
+case = 'releases: [null]'
+
+    @pytest.mark.parametrize("case", sorted(_C3_SCHEMA_BREAKS))
+    def test_c3_the_complete_foreign_ledger_schema_is_validated(tmp_path, monkeypatch, case):
+        """Codex code r1 finding 7: the WHOLE foreign ledger is exp_45's registered schema (its LEDGER_KEYS /
+        RELEASE_KEYS at X45f, exact keys and types) -- a malformed release entry refuses even with no reservation held."""
+        foreign = _foreign(tmp_path, monkeypatch, json.dumps(_C3_SCHEMA_BREAKS[case]).encode())
+        before = _state(str(foreign))
+>       with pytest.raises(reg.GateError, match="C3"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_storage.py:656: Failed
+_____ test_c3_the_complete_foreign_ledger_schema_is_validated[schema true] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_the_complete_foreign_l6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa333490310>
+case = 'schema true'
+
+    @pytest.mark.parametrize("case", sorted(_C3_SCHEMA_BREAKS))
+    def test_c3_the_complete_foreign_ledger_schema_is_validated(tmp_path, monkeypatch, case):
+        """Codex code r1 finding 7: the WHOLE foreign ledger is exp_45's registered schema (its LEDGER_KEYS /
+        RELEASE_KEYS at X45f, exact keys and types) -- a malformed release entry refuses even with no reservation held."""
+        foreign = _foreign(tmp_path, monkeypatch, json.dumps(_C3_SCHEMA_BREAKS[case]).encode())
+        before = _state(str(foreign))
+>       with pytest.raises(reg.GateError, match="C3"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_storage.py:656: Failed
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_storage.py::test_c3_only_genuine_absence_reads_as_nothing_held
+FAILED src/tests/test_exp46_storage.py::test_c3_the_complete_foreign_ledger_schema_is_validated[a release with a non-integer size]
+FAILED src/tests/test_exp46_storage.py::test_c3_the_complete_foreign_ledger_schema_is_validated[a release with a non-string field]
+FAILED src/tests/test_exp46_storage.py::test_c3_the_complete_foreign_ledger_schema_is_validated[a release with an extra key]
+FAILED src/tests/test_exp46_storage.py::test_c3_the_complete_foreign_ledger_schema_is_validated[a release without its reason]
+FAILED src/tests/test_exp46_storage.py::test_c3_the_complete_foreign_ledger_schema_is_validated[releases: [null]]
+FAILED src/tests/test_exp46_storage.py::test_c3_the_complete_foreign_ledger_schema_is_validated[schema true]
+7 failed, 1 passed, 41 deselected in 34.02s
+EXIT 1 end 2026-11-18T04:10:03-05:00

@@ -1,0 +1,84 @@
+HEAD 671ae6c02532bb5d90137fab92d4d902fb7c9686 tracked-clean=no host neu305.neuronic.cs.princeton.edu start 2026-11-18T03:42:16-05:00
+cmd: pytest -q -rfE -k bytecode src/tests/test_exp46_isolation.py 
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_ test_the_standalone_manifest_tool_writes_no_bytecode_into_exp38s_folder[verify] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_standalone_manifest_t0')
+argv = ['--verify', 'x.txt.gz']
+
+    @pytest.mark.parametrize("argv", [["--verify", "x.txt.gz"], ["--build", "out/x.txt.gz"]], ids=["verify", "build"])
+    def test_the_standalone_manifest_tool_writes_no_bytecode_into_exp38s_folder(tmp_path, argv):
+        """Codex code r1 finding 1 (HIGH): the documented plain invocation `python exp46_content_manifest.py --build /
+        --verify` (no -B, PYTHONDONTWRITEBYTECODE ignored by -I) imports exp_38's tools from exp_38's folder; it disables
+        bytecode writes before those imports, so no __pycache__ appears there -- nor anywhere else in the tree."""
+        import subprocess
+        root = _copied_tree(tmp_path)
+        assert _bytecode(root) == []
+        res = subprocess.run([sys.executable, "-I", str(root / reg.EXP_DIR / "exp46_content_manifest.py"), *argv],
+                             cwd=str(root), capture_output=True, text=True, timeout=300)
+        assert res.returncode in (1, 2), res.stderr[-2000:]                 # refused or FAIL: the imports did happen
+        assert "Traceback" not in res.stderr, res.stderr[-2000:]
+>       assert _bytecode(root) == [], _bytecode(root)
+E       AssertionError: ['worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__', 'worklog/worklog_yixun/exp_38_data_efficiency_clau...laude/__pycache__', 'worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/__pycache__/exp46_registry.cpython-310.pyc']
+E       assert ['worklog/wor...thon-310.pyc'] == []
+E         
+E         Left contains 5 more items, first extra item: 'worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__'
+E         Use -v to get more diff
+
+src/tests/test_exp46_isolation.py:389: AssertionError
+_ test_the_standalone_manifest_tool_writes_no_bytecode_into_exp38s_folder[build] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_standalone_manifest_t1')
+argv = ['--build', 'out/x.txt.gz']
+
+    @pytest.mark.parametrize("argv", [["--verify", "x.txt.gz"], ["--build", "out/x.txt.gz"]], ids=["verify", "build"])
+    def test_the_standalone_manifest_tool_writes_no_bytecode_into_exp38s_folder(tmp_path, argv):
+        """Codex code r1 finding 1 (HIGH): the documented plain invocation `python exp46_content_manifest.py --build /
+        --verify` (no -B, PYTHONDONTWRITEBYTECODE ignored by -I) imports exp_38's tools from exp_38's folder; it disables
+        bytecode writes before those imports, so no __pycache__ appears there -- nor anywhere else in the tree."""
+        import subprocess
+        root = _copied_tree(tmp_path)
+        assert _bytecode(root) == []
+        res = subprocess.run([sys.executable, "-I", str(root / reg.EXP_DIR / "exp46_content_manifest.py"), *argv],
+                             cwd=str(root), capture_output=True, text=True, timeout=300)
+        assert res.returncode in (1, 2), res.stderr[-2000:]                 # refused or FAIL: the imports did happen
+        assert "Traceback" not in res.stderr, res.stderr[-2000:]
+>       assert _bytecode(root) == [], _bytecode(root)
+E       AssertionError: ['worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__', 'worklog/worklog_yixun/exp_38_data_efficiency_clau...laude/__pycache__', 'worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/__pycache__/exp46_registry.cpython-310.pyc']
+E       assert ['worklog/wor...thon-310.pyc'] == []
+E         
+E         Left contains 5 more items, first extra item: 'worklog/worklog_yixun/exp_38_data_efficiency_claude/__pycache__'
+E         Use -v to get more diff
+
+src/tests/test_exp46_isolation.py:389: AssertionError
+_______ test_a_supervisor_process_writes_no_bytecode_into_exp38s_folder ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_supervisor_process_writ0')
+
+    def test_a_supervisor_process_writes_no_bytecode_into_exp38s_folder(tmp_path):
+        """The supervisor imports exp_38's subset audit and content manifest from exp_38's folder (the sbatch runs it with
+        -B; a standalone DRY_RUN does not): importing it disables bytecode writes for the process first."""
+        import subprocess
+        root = _copied_tree(tmp_path)
+        code = ("import sys; sys.path.insert(0, sys.argv[1]); import exp46_supervise; import exp38_subset_audit; "
+                "import exp38_content_manifest; import exp46_content_manifest; print(sys.dont_write_bytecode)")
+        res = subprocess.run([sys.executable, "-I", "-c", code, str(root / reg.EXP_DIR)], cwd=str(root),
+                             capture_output=True, text=True, timeout=300)
+>       assert res.returncode == 0 and res.stdout.strip().endswith("True"), res.stderr[-2000:]
+E       AssertionError: 
+E       assert (0 == 0 and False)
+E        +  where 0 = CompletedProcess(args=['/n/fs/gatrdp/envs/flac/bin/python', '-I', '-c', 'import sys; sys.path.insert(0, sys.argv[1]); ..._process_writ0/tree/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude'], returncode=0, stdout='False\n', stderr='').returncode
+E        +  and   False = <built-in method endswith of str object at 0x7fa7cb3f3630>('True')
+E        +    where <built-in method endswith of str object at 0x7fa7cb3f3630> = 'False'.endswith
+E        +      where 'False' = <built-in method strip of str object at 0x7fa7ca143570>()
+E        +        where <built-in method strip of str object at 0x7fa7ca143570> = 'False\n'.strip
+E        +          where 'False\n' = CompletedProcess(args=['/n/fs/gatrdp/envs/flac/bin/python', '-I', '-c', 'import sys; sys.path.insert(0, sys.argv[1]); ..._process_writ0/tree/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude'], returncode=0, stdout='False\n', stderr='').stdout
+
+src/tests/test_exp46_isolation.py:401: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_isolation.py::test_the_standalone_manifest_tool_writes_no_bytecode_into_exp38s_folder[verify]
+FAILED src/tests/test_exp46_isolation.py::test_the_standalone_manifest_tool_writes_no_bytecode_into_exp38s_folder[build]
+FAILED src/tests/test_exp46_isolation.py::test_a_supervisor_process_writes_no_bytecode_into_exp38s_folder
+3 failed, 51 deselected in 77.91s (0:01:17)
+EXIT 1 end 2026-11-18T03:43:49-05:00

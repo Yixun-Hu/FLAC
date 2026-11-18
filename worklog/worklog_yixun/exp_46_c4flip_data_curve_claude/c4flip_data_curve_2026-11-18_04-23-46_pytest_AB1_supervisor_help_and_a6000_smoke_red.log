@@ -1,0 +1,35 @@
+HEAD 7d5bd63c068525f5c5e810e554264df1724ae4d5 tracked-clean=no host neu323.neuronic.cs.princeton.edu start 2026-11-18T04:24:24-05:00
+cmd: pytest -q -rfE -k a6000_smoke_is_refused_first src/tests/test_exp46_supervise.py 
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__ test_an_a6000_smoke_is_refused_first_and_the_help_names_no_a6000_training ___
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f17196b2560>
+
+    def test_an_a6000_smoke_is_refused_first_and_the_help_names_no_a6000_training(monkeypatch):
+        """Fix round 1 (Codex code r1 finding 12): the supervisor's documentation no longer advertises A6000 SMOKE /
+        SMOKE_DDP training, and an A6000 SMOKE is refused first, like SMOKE_DDP -- no gate (common_gates is a tripwire)."""
+        monkeypatch.setattr(sv, "common_gates", lambda a, p: (_ for _ in ()).throw(AssertionError("gated")))
+        for mode in ("SMOKE", "SMOKE_DDP"):
+            a = sv.parse(["--platform", "a6000", "--mode", mode, "--run", "exp46_C4Ff025_l40_2x32", "--expect-sha", "f" * 40])
+            with pytest.raises(sv.Refused, match="no A6000 training path"):
+>               sv.mode_campaign(a, "a6000")
+
+src/tests/test_exp46_supervise.py:595: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_supervise.py:538: in mode_campaign
+    arm, tag, rung, exe, d, pins = common_gates(a, platform)
+src/tests/test_exp46_supervise.py:591: in <lambda>
+    monkeypatch.setattr(sv, "common_gates", lambda a, p: (_ for _ in ()).throw(AssertionError("gated")))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <tuple_iterator object at 0x7f17196b3fa0>
+
+>   monkeypatch.setattr(sv, "common_gates", lambda a, p: (_ for _ in ()).throw(AssertionError("gated")))
+E   AssertionError: gated
+
+src/tests/test_exp46_supervise.py:591: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_supervise.py::test_an_a6000_smoke_is_refused_first_and_the_help_names_no_a6000_training
+1 failed, 65 deselected in 3.99s
+EXIT 1 end 2026-11-18T04:24:29-05:00

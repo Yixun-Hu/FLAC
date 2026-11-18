@@ -1,0 +1,5 @@
+HEAD af287964f0ee4d30b9d376526839705b7c12df7b tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-18T04:02:20-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_f100_delta.py src/tests/test_gen_model_comparison_exp46.py 
+..............................                                           [100%]
+30 passed in 47.72s
+EXIT 0 end 2026-11-18T04:03:09-05:00

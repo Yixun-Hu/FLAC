@@ -1,0 +1,418 @@
+HEAD e4027a765cef6ce414c90dc26bdf13db0ec5ce0a tracked-clean=no host neu323.neuronic.cs.princeton.edu start 2026-11-18T04:06:21-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_init_digest.py 
+..........FFFFFFFFFFFF                                                   [100%]
+=================================== FAILURES ===================================
+_______________ test_l3_passes_exactly_the_registered_prediction _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_l3_passes_exactly_the_reg0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddf1a064d0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7fddf1a05a80>
+
+    def test_l3_passes_exactly_the_registered_prediction(tmp_path, monkeypatch, capsys):
+        """The L3 command compares the measurement with exp_38's registered values and exits 0 only when every one
+        agrees; its --json record carries the measurement and the verdict."""
+        for run in reg.required_runs():
+            monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r))
+            out = tmp_path / f"{run}.json"
+            assert idg.main(["--run", run, "--json", str(out)]) == 0
+>           rec = json.load(open(out))
+E           NameError: name 'json' is not defined
+
+src/tests/test_exp46_init_digest.py:104: NameError
+----------------------------- Captured stdout call -----------------------------
+{
+ "n_state_tensors": 1279,
+ "rng_after_build": {
+  "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+  "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+  "torch_cpu": "7461f975015a0a9df867cc0521d9a6bc71fc82a8f2e47da7289e94a0645b15b6"
+ },
+ "run": "exp46_C4Ff025_l40_2x32",
+ "sobol": {
+  "dimension": 1,
+  "num_generated": 0,
+  "scramble": true,
+  "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+ },
+ "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
+}
+_ test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[a missing rng] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddf19c6a70>
+case = 'a missing rng'
+
+    @pytest.mark.parametrize("case", sorted(OFF))
+    def test_l3_exits_nonzero_on_any_disagreement_with_the_prediction(tmp_path, monkeypatch, case):
+        field, value = OFF[case]
+        monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r, **{field: value}))
+        out = tmp_path / "init_digest.json"
+>       assert idg.main(["--run", RUN_C4F, "--json", str(out)]) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function main at 0x7fded6d5e7a0>(['--run', 'exp46_C4Ff025_l40_2x32', '--json', '/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d0/init_digest.json'])
+E        +    where <function main at 0x7fded6d5e7a0> = idg.main
+
+src/tests/test_exp46_init_digest.py:131: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "n_state_tensors": 1279,
+ "rng_after_build": {
+  "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+  "torch_cpu": "7461f975015a0a9df867cc0521d9a6bc71fc82a8f2e47da7289e94a0645b15b6"
+ },
+ "run": "exp46_C4Ff025_l40_2x32",
+ "sobol": {
+  "dimension": 1,
+  "num_generated": 0,
+  "scramble": true,
+  "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+ },
+ "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
+}
+_ test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[a wrong cuda rng] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddf1a07220>
+case = 'a wrong cuda rng'
+
+    @pytest.mark.parametrize("case", sorted(OFF))
+    def test_l3_exits_nonzero_on_any_disagreement_with_the_prediction(tmp_path, monkeypatch, case):
+        field, value = OFF[case]
+        monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r, **{field: value}))
+        out = tmp_path / "init_digest.json"
+>       assert idg.main(["--run", RUN_C4F, "--json", str(out)]) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function main at 0x7fded6d5e7a0>(['--run', 'exp46_C4Ff025_l40_2x32', '--json', '/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d1/init_digest.json'])
+E        +    where <function main at 0x7fded6d5e7a0> = idg.main
+
+src/tests/test_exp46_init_digest.py:131: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "n_state_tensors": 1279,
+ "rng_after_build": {
+  "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+  "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+  "torch_cpu": "7461f975015a0a9df867cc0521d9a6bc71fc82a8f2e47da7289e94a0645b15b6",
+  "torch_cuda": "4444444444444444444444444444444444444444444444444444444444444444"
+ },
+ "run": "exp46_C4Ff025_l40_2x32",
+ "sobol": {
+  "dimension": 1,
+  "num_generated": 0,
+  "scramble": true,
+  "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+ },
+ "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
+}
+__ test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[another run] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddf19c5b40>
+case = 'another run'
+
+    @pytest.mark.parametrize("case", sorted(OFF))
+    def test_l3_exits_nonzero_on_any_disagreement_with_the_prediction(tmp_path, monkeypatch, case):
+        field, value = OFF[case]
+        monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r, **{field: value}))
+        out = tmp_path / "init_digest.json"
+>       assert idg.main(["--run", RUN_C4F, "--json", str(out)]) == 1
+
+src/tests/test_exp46_init_digest.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_init_digest.py:69: in main
+    out = init_digest(a.run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+r = 'exp46_C4Ff025_l40_2x32', repo = None
+
+>   monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r, **{field: value}))
+E   TypeError: _measured() got multiple values for argument 'run'
+
+src/tests/test_exp46_init_digest.py:129: TypeError
+____ test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[cpu rng] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddf1a04f40>
+case = 'cpu rng'
+
+    @pytest.mark.parametrize("case", sorted(OFF))
+    def test_l3_exits_nonzero_on_any_disagreement_with_the_prediction(tmp_path, monkeypatch, case):
+        field, value = OFF[case]
+        monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r, **{field: value}))
+        out = tmp_path / "init_digest.json"
+>       assert idg.main(["--run", RUN_C4F, "--json", str(out)]) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function main at 0x7fded6d5e7a0>(['--run', 'exp46_C4Ff025_l40_2x32', '--json', '/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d3/init_digest.json'])
+E        +    where <function main at 0x7fded6d5e7a0> = idg.main
+
+src/tests/test_exp46_init_digest.py:131: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "n_state_tensors": 1279,
+ "rng_after_build": {
+  "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+  "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+  "torch_cpu": "2222222222222222222222222222222222222222222222222222222222222222"
+ },
+ "run": "exp46_C4Ff025_l40_2x32",
+ "sobol": {
+  "dimension": 1,
+  "num_generated": 0,
+  "scramble": true,
+  "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+ },
+ "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
+}
+__ test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[python rng] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddf1981ae0>
+case = 'python rng'
+
+    @pytest.mark.parametrize("case", sorted(OFF))
+    def test_l3_exits_nonzero_on_any_disagreement_with_the_prediction(tmp_path, monkeypatch, case):
+        field, value = OFF[case]
+        monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r, **{field: value}))
+        out = tmp_path / "init_digest.json"
+>       assert idg.main(["--run", RUN_C4F, "--json", str(out)]) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function main at 0x7fded6d5e7a0>(['--run', 'exp46_C4Ff025_l40_2x32', '--json', '/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d4/init_digest.json'])
+E        +    where <function main at 0x7fded6d5e7a0> = idg.main
+
+src/tests/test_exp46_init_digest.py:131: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "n_state_tensors": 1279,
+ "rng_after_build": {
+  "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+  "python": "3333333333333333333333333333333333333333333333333333333333333333",
+  "torch_cpu": "7461f975015a0a9df867cc0521d9a6bc71fc82a8f2e47da7289e94a0645b15b6"
+ },
+ "run": "exp46_C4Ff025_l40_2x32",
+ "sobol": {
+  "dimension": 1,
+  "num_generated": 0,
+  "scramble": true,
+  "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+ },
+ "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
+}
+__ test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[sobol drawn] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fded6ca6410>
+case = 'sobol drawn'
+
+    @pytest.mark.parametrize("case", sorted(OFF))
+    def test_l3_exits_nonzero_on_any_disagreement_with_the_prediction(tmp_path, monkeypatch, case):
+        field, value = OFF[case]
+        monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r, **{field: value}))
+        out = tmp_path / "init_digest.json"
+>       assert idg.main(["--run", RUN_C4F, "--json", str(out)]) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function main at 0x7fded6d5e7a0>(['--run', 'exp46_C4Ff025_l40_2x32', '--json', '/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d5/init_digest.json'])
+E        +    where <function main at 0x7fded6d5e7a0> = idg.main
+
+src/tests/test_exp46_init_digest.py:131: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "n_state_tensors": 1279,
+ "rng_after_build": {
+  "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+  "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+  "torch_cpu": "7461f975015a0a9df867cc0521d9a6bc71fc82a8f2e47da7289e94a0645b15b6"
+ },
+ "run": "exp46_C4Ff025_l40_2x32",
+ "sobol": {
+  "dimension": 1,
+  "num_generated": 1,
+  "scramble": true,
+  "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+ },
+ "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
+}
+__ test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[sobol state] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddf1898940>
+case = 'sobol state'
+
+    @pytest.mark.parametrize("case", sorted(OFF))
+    def test_l3_exits_nonzero_on_any_disagreement_with_the_prediction(tmp_path, monkeypatch, case):
+        field, value = OFF[case]
+        monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r, **{field: value}))
+        out = tmp_path / "init_digest.json"
+>       assert idg.main(["--run", RUN_C4F, "--json", str(out)]) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function main at 0x7fded6d5e7a0>(['--run', 'exp46_C4Ff025_l40_2x32', '--json', '/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d6/init_digest.json'])
+E        +    where <function main at 0x7fded6d5e7a0> = idg.main
+
+src/tests/test_exp46_init_digest.py:131: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "n_state_tensors": 1279,
+ "rng_after_build": {
+  "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+  "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+  "torch_cpu": "7461f975015a0a9df867cc0521d9a6bc71fc82a8f2e47da7289e94a0645b15b6"
+ },
+ "run": "exp46_C4Ff025_l40_2x32",
+ "sobol": {
+  "dimension": 1,
+  "num_generated": 0,
+  "scramble": true,
+  "state_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+ },
+ "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
+}
+_ test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[state digest] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d7')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddf19fb6a0>
+case = 'state digest'
+
+    @pytest.mark.parametrize("case", sorted(OFF))
+    def test_l3_exits_nonzero_on_any_disagreement_with_the_prediction(tmp_path, monkeypatch, case):
+        field, value = OFF[case]
+        monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r, **{field: value}))
+        out = tmp_path / "init_digest.json"
+>       assert idg.main(["--run", RUN_C4F, "--json", str(out)]) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function main at 0x7fded6d5e7a0>(['--run', 'exp46_C4Ff025_l40_2x32', '--json', '/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d7/init_digest.json'])
+E        +    where <function main at 0x7fded6d5e7a0> = idg.main
+
+src/tests/test_exp46_init_digest.py:131: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "n_state_tensors": 1279,
+ "rng_after_build": {
+  "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+  "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+  "torch_cpu": "7461f975015a0a9df867cc0521d9a6bc71fc82a8f2e47da7289e94a0645b15b6"
+ },
+ "run": "exp46_C4Ff025_l40_2x32",
+ "sobol": {
+  "dimension": 1,
+  "num_generated": 0,
+  "scramble": true,
+  "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+ },
+ "state_dict_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}
+_ test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[tensor count] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d8')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddf189bc70>
+case = 'tensor count'
+
+    @pytest.mark.parametrize("case", sorted(OFF))
+    def test_l3_exits_nonzero_on_any_disagreement_with_the_prediction(tmp_path, monkeypatch, case):
+        field, value = OFF[case]
+        monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r, **{field: value}))
+        out = tmp_path / "init_digest.json"
+>       assert idg.main(["--run", RUN_C4F, "--json", str(out)]) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function main at 0x7fded6d5e7a0>(['--run', 'exp46_C4Ff025_l40_2x32', '--json', '/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d8/init_digest.json'])
+E        +    where <function main at 0x7fded6d5e7a0> = idg.main
+
+src/tests/test_exp46_init_digest.py:131: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "n_state_tensors": 1280,
+ "rng_after_build": {
+  "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+  "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+  "torch_cpu": "7461f975015a0a9df867cc0521d9a6bc71fc82a8f2e47da7289e94a0645b15b6"
+ },
+ "run": "exp46_C4Ff025_l40_2x32",
+ "sobol": {
+  "dimension": 1,
+  "num_generated": 0,
+  "scramble": true,
+  "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+ },
+ "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
+}
+_ test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[tensor count as a float] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d9')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddf1a07100>
+case = 'tensor count as a float'
+
+    @pytest.mark.parametrize("case", sorted(OFF))
+    def test_l3_exits_nonzero_on_any_disagreement_with_the_prediction(tmp_path, monkeypatch, case):
+        field, value = OFF[case]
+        monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r, **{field: value}))
+        out = tmp_path / "init_digest.json"
+>       assert idg.main(["--run", RUN_C4F, "--json", str(out)]) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function main at 0x7fded6d5e7a0>(['--run', 'exp46_C4Ff025_l40_2x32', '--json', '/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d9/init_digest.json'])
+E        +    where <function main at 0x7fded6d5e7a0> = idg.main
+
+src/tests/test_exp46_init_digest.py:131: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "n_state_tensors": 1279.0,
+ "rng_after_build": {
+  "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+  "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+  "torch_cpu": "7461f975015a0a9df867cc0521d9a6bc71fc82a8f2e47da7289e94a0645b15b6"
+ },
+ "run": "exp46_C4Ff025_l40_2x32",
+ "sobol": {
+  "dimension": 1,
+  "num_generated": 0,
+  "scramble": true,
+  "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+ },
+ "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
+}
+_ test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[the ddp cpu rng] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d10')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fddf189ada0>
+case = 'the ddp cpu rng'
+
+    @pytest.mark.parametrize("case", sorted(OFF))
+    def test_l3_exits_nonzero_on_any_disagreement_with_the_prediction(tmp_path, monkeypatch, case):
+        field, value = OFF[case]
+        monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r, **{field: value}))
+        out = tmp_path / "init_digest.json"
+>       assert idg.main(["--run", RUN_C4F, "--json", str(out)]) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function main at 0x7fded6d5e7a0>(['--run', 'exp46_C4Ff025_l40_2x32', '--json', '/tmp/pytest-of-yh4742/pytest-0/test_l3_exits_nonzero_on_any_d10/init_digest.json'])
+E        +    where <function main at 0x7fded6d5e7a0> = idg.main
+
+src/tests/test_exp46_init_digest.py:131: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "n_state_tensors": 1279,
+ "rng_after_build": {
+  "numpy": "9701712d219c85a63378972112819f19e48d92e38babd180e9bdcde9a5e36cc6",
+  "python": "a52169fac48aa2d80acadd41f776ce38656ab70adc3b32c80c1fb1f0ee56b71f",
+  "torch_cpu": "5feb54a46230d321d888e9b43cf5a57492665f199e4377408d79ee460e36679c"
+ },
+ "run": "exp46_C4Ff025_l40_2x32",
+ "sobol": {
+  "dimension": 1,
+  "num_generated": 0,
+  "scramble": true,
+  "state_sha256": "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
+ },
+ "state_dict_sha256": "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
+}
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_init_digest.py::test_l3_passes_exactly_the_registered_prediction
+FAILED src/tests/test_exp46_init_digest.py::test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[a missing rng]
+FAILED src/tests/test_exp46_init_digest.py::test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[a wrong cuda rng]
+FAILED src/tests/test_exp46_init_digest.py::test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[another run]
+FAILED src/tests/test_exp46_init_digest.py::test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[cpu rng]
+FAILED src/tests/test_exp46_init_digest.py::test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[python rng]
+FAILED src/tests/test_exp46_init_digest.py::test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[sobol drawn]
+FAILED src/tests/test_exp46_init_digest.py::test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[sobol state]
+FAILED src/tests/test_exp46_init_digest.py::test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[state digest]
+FAILED src/tests/test_exp46_init_digest.py::test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[tensor count]
+FAILED src/tests/test_exp46_init_digest.py::test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[tensor count as a float]
+FAILED src/tests/test_exp46_init_digest.py::test_l3_exits_nonzero_on_any_disagreement_with_the_prediction[the ddp cpu rng]
+12 failed, 10 passed in 5.95s
+EXIT 1 end 2026-11-18T04:06:28-05:00

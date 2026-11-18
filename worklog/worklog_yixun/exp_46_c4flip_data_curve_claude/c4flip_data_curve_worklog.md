@@ -259,3 +259,49 @@ removes the H / B nodes from the copies (the three mixed files: eval, registry, 
   definitive L1 (or repeat L1 after it); 13 prefer (a), (c) sound if every node still reaches the compared junit, reject (b).
 - **Decisions sent to Yixun:** D1 item 13 (a) as a declared edit E7; D2 the order — final code round → L2 manifest build →
   pin commit → definitive L1 → L2 union verify → L3 → L4; D3 accept item 3.
+
+## 2026-11-18 03:31 → 04:40 EST — fix round 1: Codex code r1 findings F1–F5, F7–F12 and open item 1 (exp_46 Coder, Claude Opus 5.5)
+
+Every finding except F6 (open item 13, on hold for Yixun's D1; test_exp45_sampler.py untouched) fixed test-first, one
+area per commit, each red / green in a CPU Slurm job (`pyt46.sh`, `JOBTMP=/tmp`); commits, sizes and logs in the
+ledger. The exp_38 / 40 / 43 / 45 folders and the yaw_*.py files stay byte-identical to X45f; the declared edits stay
+E1–E5. Temporary, uncommitted stand-ins used only for red runs (each restored to its committed bytes before the next
+job): a stand-in L2 pin in the registry (F4), the committed init-digest tool (F5), the committed supervisor (F12), the
+registry without `closure_digest_at` (F9), the sheets held aside (F10).
+
+- **Change / Validation / Result (per finding):**
+  - F1 HIGH (`b3932b53`): `exp46_content_manifest.py` and `exp46_supervise.py` set `sys.dont_write_bytecode` before any
+    import; a standalone `--build` / `--verify` in a copied tree (`python -I`) leaves no `__pycache__` anywhere (V1
+    red: 5 bytecode entries incl. exp_38's folder; V2 green 149 passed).
+  - F2 (`af287964`): `build()` output, init digest `--json`, L1 `--out`, `snapshot_tools()` isolation-checked (resolved)
+    before any read or write; in the 42-node matrix with tripwires (V3 red 42 failed; V4 green 367 passed).
+  - F3 (`ce849135`): `check_signals()` after the f100 re-verification (before the receipt) and at the commit boundary
+    (before the lock release, record seal, commit marker); a TERM pending with a PASS, or arriving during the receipt,
+    leaves the run unsealed (W1 red 2 failed; W2 green 130 passed).
+  - F4 (`e4027a76`): both tests inject the unpinned None (V5 red under a stand-in L2 pin; V6 green under it; V7 green
+    unpinned, 30 passed).
+  - F5 (`b23cfae6`): `prediction()` / `prediction_problems()`; exit 0 only on exp_38's values (state digest, tensor count,
+    Sobol, the single-topology fit-start python / numpy / torch_cpu digests = exp_38's recorded L3 measurement), 1 on any
+    disagreement, 2 on a refused destination (X1b red 12 failed; X3 green 84 passed; X1 / X2 ABORTED: test bugs).
+  - F7 (`8b3e60a2`): lstat-based absence (FileNotFoundError only); full exp_45 ledger schema (Y1 red 7 failed; Y2 green
+    219 passed).
+  - F8 (`f22ae572`): exact eight C4F source and published rows in `build()`; `render()` enforces the 20 rows and the cell
+    shape (Z1b red 5 failed; Z3 green 84 passed; Z1 / Z2 ABORTED: a test bug, then a message wording).
+  - F9 (`7d5bd63c`): `closure_digest_at(commit)`; `e0_publication_problems()` per E0 commit, synthetic repos (AA1 red 8
+    failed; AA2 green 34 passed).
+  - F10 (`86425120`): both sheets + `test_exp46_command_sheets.py` (AC1 red 13 failed; AC2 green 52 passed). The order
+    is marked "pending Yixun D2".
+  - F11 (`0c107125`, NIT): the oracle's seed is X45f's own `_yaw_aug_step_seed` (AST-extracted from `git show X45f:...`);
+    a drift test (AB2 green).
+  - F12 (`e2003dc2`, NIT): supervisor docstring; an A6000 SMOKE refused first (AB1 red; AB2 green 193 passed).
+  - Open item 1 (`5286f6a6`): the policy already inherits only the parent's identical node / outcome / normalised
+    signature and refuses a node missing from the merged junit; a test pins it for the wandb case.
+- **Beyond the findings (each with its reason):** (1) F12 also makes an A6000 SMOKE refuse FIRST — without it the new
+  help text would describe a mode that still ran every gate (nvidia-smi probes, E0 checks) before refusing; (2) F2's
+  init digest writes its record with an exclusive create (no clobber of a file created meanwhile); (3) F7's stricter
+  schema needed the C3 FULL-start test's exp_45 fixture entry made well-formed; (4) F3 added an `after_receipt` hook to
+  the supervisor test harness; (5) F10's commit is 492 lines (sheets + their test), above 200, not flagged in its
+  message (no amend).
+- **Analysis:** no finding needed a plan change. Open for the coordinator: F6 / item 13 (Yixun's D1); the campaign order
+  (D2) is written into the neuronic sheet as pending. Minor: one more trivial `python3 -` no-op ran on the login node
+  (an empty stdin, by mistake) before a file edit; no test code ran there.

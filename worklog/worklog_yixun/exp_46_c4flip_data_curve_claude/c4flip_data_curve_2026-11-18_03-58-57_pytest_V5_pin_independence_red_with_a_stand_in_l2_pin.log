@@ -1,0 +1,58 @@
+HEAD af287964f0ee4d30b9d376526839705b7c12df7b tracked-clean=no host neu302.neuronic.cs.princeton.edu start 2026-11-18T03:59:19-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_f100_delta.py::test_every_f100_launch_needs_the_pinned_manifest src/tests/test_gen_model_comparison_exp46.py::test_the_f100_rows_need_the_sealed_delta_verification_at_the_pinned_manifest 
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_______________ test_every_f100_launch_needs_the_pinned_manifest _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_f100_launch_needs_t0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f33a1459c90>
+
+    def test_every_f100_launch_needs_the_pinned_manifest(tmp_path, monkeypatch):
+>       assert reg.F100_DELTA_SHA256 is None                       # pinned at L2: until then f100 refuses
+E       AssertionError: assert 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' is None
+E        +  where 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' = reg.F100_DELTA_SHA256
+
+src/tests/test_exp46_f100_delta.py:173: AssertionError
+_ test_the_f100_rows_need_the_sealed_delta_verification_at_the_pinned_manifest _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_f100_rows_need_the_se0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f33a145bca0>
+
+    def test_the_f100_rows_need_the_sealed_delta_verification_at_the_pinned_manifest(tmp_path, monkeypatch):
+        """plan r3 §3.2 "Data binding for f100": the generator's offline admission of an f100 cell re-opens the run's
+        retained delta verification record (through the training receipt's offline check); missing, changed, or under no
+        / another pin -> the row does not validate. The registry ships the pin None (L2), so no f100 row can publish yet."""
+        root, ev = _tmp_root(tmp_path, monkeypatch)
+        files = _write_run(root, ev, RUNS[3], 8)
+        assert gen.validate_exp46_cell(files, repo_root=str(root), expected_run=RUNS[3], expected_k=8) == (True, [])
+        farm = os.path.dirname(files[0])
+        rec = os.path.join(farm, "receipts", ev.reg.F100_VERIFICATION)
+        good = open(rec, "rb").read()
+        for pin in (None, "f" * 64):
+            monkeypatch.setattr(ev.reg, "F100_DELTA_SHA256", pin)
+            ok, probs = gen.validate_exp46_cell(files, repo_root=str(root), expected_run=RUNS[3], expected_k=8)
+            assert not ok and any("f100 delta" in p for p in probs), probs
+        monkeypatch.setattr(ev.reg, "F100_DELTA_SHA256", "e" * 64)
+        os.remove(rec)
+        ok, probs = gen.validate_exp46_cell(files, repo_root=str(root), expected_run=RUNS[3], expected_k=8)
+        assert not ok and any("f100" in p for p in probs), probs
+        open(rec, "wb").write(good.replace(b'"PASS"', b'"FAIL"'))
+        ok, probs = gen.validate_exp46_cell(files, repo_root=str(root), expected_run=RUNS[3], expected_k=8)
+        assert not ok, probs
+>       assert open(os.path.join(REPO, EXP_REL, "exp46_registry.py")).read().count("\nF100_DELTA_SHA256 = None") == 1
+E       assert 0 == 1
+E        +  where 0 = <built-in method count of str object at 0x55f4a0d4d1e0>('\nF100_DELTA_SHA256 = None')
+E        +    where <built-in method count of str object at 0x55f4a0d4d1e0> = '#!/usr/bin/env python3\n"""exp_46 c4flip_data_curve — the single source of truth for every training run.\n\nForked fr...USED: {err}", file=sys.stderr)\n        return 2\n    return 0\n\n\nif __name__ == "__main__":\n    sys.exit(_cli())\n'.count
+E        +      where '#!/usr/bin/env python3\n"""exp_46 c4flip_data_curve — the single source of truth for every training run.\n\nForked fr...USED: {err}", file=sys.stderr)\n        return 2\n    return 0\n\n\nif __name__ == "__main__":\n    sys.exit(_cli())\n' = <built-in method read of _io.TextIOWrapper object at 0x7f33a157b440>()
+E        +        where <built-in method read of _io.TextIOWrapper object at 0x7f33a157b440> = <_io.TextIOWrapper name='/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py' mode='r' encoding='UTF-8'>.read
+E        +          where <_io.TextIOWrapper name='/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py' mode='r' encoding='UTF-8'> = open('/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py')
+E        +            where '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py' = <function join at 0x7f348c872dd0>('/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve', 'worklog/worklog_yixun/exp_46_c4flip_data_curve_claude', 'exp46_registry.py')
+E        +              where <function join at 0x7f348c872dd0> = <module 'posixpath' from '/n/fs/gatrdp/envs/flac/lib/python3.10/posixpath.py'>.join
+E        +                where <module 'posixpath' from '/n/fs/gatrdp/envs/flac/lib/python3.10/posixpath.py'> = os.path
+
+src/tests/test_gen_model_comparison_exp46.py:165: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_f100_delta.py::test_every_f100_launch_needs_the_pinned_manifest
+FAILED src/tests/test_gen_model_comparison_exp46.py::test_the_f100_rows_need_the_sealed_delta_verification_at_the_pinned_manifest
+2 failed in 15.09s
+EXIT 1 end 2026-11-18T03:59:36-05:00

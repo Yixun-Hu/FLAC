@@ -1,0 +1,24 @@
+HEAD b23cfae62eb28e2b84bf16d58978aefdb3ac23aa tracked-clean=no host neu323.neuronic.cs.princeton.edu start 2026-11-18T04:16:23-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_table.py src/tests/test_exp46_isolation.py src/tests/test_exp46_paths.py 
+............F........................................................... [ 85%]
+............                                                             [100%]
+=================================== FAILURES ===================================
+______________________ test_build_refuses_a_missing_cell _______________________
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', 'a6f359f10a3d537f9f4e9981daac2967082361ab', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9386484070>
+
+    def test_build_refuses_a_missing_cell(built, monkeypatch):
+        repo, sha, _ = built
+        real = tbl.c4f_rows
+        monkeypatch.setattr(tbl, "c4f_rows", lambda c: {k: v for k, v in real(c).items() if k != "c4f|075|1"})
+>       with pytest.raises(tbl.TableError, match="missing"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'missing'
+E         Actual message: "the C4F source rows are not exactly the eight C4F rows: ['c4f|075|1']"
+
+src/tests/test_exp46_table.py:384: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_table.py::test_build_refuses_a_missing_cell - Ass...
+1 failed, 83 passed in 31.36s
+EXIT 1 end 2026-11-18T04:16:55-05:00
