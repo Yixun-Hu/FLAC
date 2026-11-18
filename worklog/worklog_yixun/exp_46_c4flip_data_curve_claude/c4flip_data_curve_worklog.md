@@ -466,3 +466,21 @@ ran first against the previous sheets (AL1). No pytest, python or test code ran 
   deselected the same wandb-environment nodes of `test_exp43_kit.py` (open item 1; the definitive L1 keeps them).
 - Analysis: every Codex code r2 finding (F2 / R2-3, F8 / R2-4, R2-1 … R2-9) is closed and tested; F6 / item 13 waits for
   Yixun's D1; ready for Codex code round 3, the last (the coordinator's call).
+
+## 2026-11-18 08:25 EST — coordinator: fix round 2 verified; Codex code round 3 (FINAL) → REVISE (1 HIGH, 6 MEDIUM); review cap reached (coordinating session)
+
+- **Verification:** at `fa6b8eee` tracked-clean; since `4b5efd90` only `EXPREL46` and `src/tests/test_exp46_*` changed;
+  the exp_38 / 40 / 43 / 45 folders, `src/data`, `src/training`, `test_exp45_sampler.py` and `gen_model_comparison.py`
+  unchanged; FR2 log confirmed (2,928 passed, 15 skipped, 41 deselected, EXIT 0, `5827fe08`, tracked-clean, neu308).
+- **Codex code r3** (`c4flip_data_curve_codex_code_r3_review.md`, prompt `…_r3_prompt.md`, log
+  `c4flip_data_curve_2026-11-18_07-59-41_codex_code_r3.log.gz`): R2-2 … R2-7, R2-9, F8 RESOLVED; R2-1, R2-8, F2, F10
+  PARTIAL. **E7 pre-review:** the four-line restore is correct for that test and every existing lightning reference, but
+  not sufficient alone — `test_exp38_sampler.py:100` leaks the same global rank. New: R3-1 HIGH `destination_problems()`
+  validates an `abspath()`-normalised path but writers use the original (`symlink/..` bypass); R3-2 the first E0
+  snapshot refuses the shared `outputs_FLAC` container; R3-3 the exp_38 sampler polluter; R3-4 the NAS fallback rename
+  is not no-clobber; R3-5 the A6000 sheet's bare `wait` discards a failed lane; R3-6 the neuronic sheet orders
+  submissions, not successful completion (no barriers, failures continue); R3-7 the new NAS checkpoint and dump roots are
+  never provisioned.
+- **Review cap (3 + 3) reached — no fourth round.** Per CLAUDE.md, every open finding (R3-1, R3-2, R3-4 … R3-7 and the
+  PARTIAL items) is fixed by the Coder test-first, recorded as fixed without re-review, and verified by the coordinator.
+  R3-3 joins D1 (now two frozen files: `test_exp45_sampler.py` E7 and `test_exp38_sampler.py` E8), waiting for Yixun.
