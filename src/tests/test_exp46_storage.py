@@ -607,3 +607,55 @@ def test_c3_reads_exactly_exp45s_registered_ledger_path(monkeypatch):
     reg45 = subprocess.run(["git", "-C", REPO, "show", "1e37ead2:worklog/worklog_yixun/exp_45_rf_data_curve_claude/"
                             "exp45_registry.py"], capture_output=True, text=True, check=True).stdout
     assert 'STORAGE_LEDGER = ".exp45_storage.json"' in reg45 and f'"save_root": "{reg.EXP45_SAVE_ROOTS[1]}"' in reg45
+
+
+# ------------------------------------------------------------------ fix round 1, Codex code r1 finding 7
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
+def test_c3_only_genuine_absence_reads_as_nothing_held(tmp_path, monkeypatch):
+    """Codex code r1 finding 7: genuine absence -- no such entry, the ledger or a directory above it missing -- is
+    "nothing held"; a stat error is not: a parent directory without search permission (the ledger's existence cannot be
+    known) or a parent that is a file refuses."""
+    foreign = _foreign(tmp_path, monkeypatch, _C3_CASES["an outstanding reservation"][0])
+    foreign.chmod(0o600)                                       # no search permission: lstat fails with EACCES
+    try:
+        with pytest.raises(reg.GateError, match="C3"):
+            reg.check_foreign_ledger()
+        with pytest.raises(reg.GateError, match="C3"):
+            reg.reserve_storage(RUNS[0], TOKENS[RUNS[0]], str(tmp_path / "x"), str(tmp_path), need=1, floor=0)
+    finally:
+        foreign.chmod(0o700)
+    a_file = tmp_path / "a_file"
+    a_file.write_text("not a directory")
+    monkeypatch.setattr(reg, "EXP45_LEDGER", str(a_file / ".exp45_storage.json"))   # ENOTDIR
+    with pytest.raises(reg.GateError, match="C3"):
+        reg.check_foreign_ledger()
+    for absent in (tmp_path / "exp45_save_root" / "missing.json", tmp_path / "no_such_root" / ".exp45_storage.json"):
+        monkeypatch.setattr(reg, "EXP45_LEDGER", str(absent))
+        assert reg.check_foreign_ledger()["outstanding"] == 0
+
+
+_REL = dict(_HELD, released_at="2026-11-17T01:00:00-0500", reason="abandoned")
+_C3_SCHEMA_BREAKS = {
+    "releases: [null]": {"schema": 1, "reservations": {}, "releases": [None]},
+    "a release without its reason": {"schema": 1, "reservations": {}, "releases": [
+        {k: v for k, v in _REL.items() if k != "reason"}]},
+    "a release with an extra key": {"schema": 1, "reservations": {}, "releases": [dict(_REL, extra=1)]},
+    "a release with a non-integer size": {"schema": 1, "reservations": {}, "releases": [dict(_REL, reserved_bytes="1")]},
+    "a release with a non-string field": {"schema": 1, "reservations": {}, "releases": [dict(_REL, run=None)]},
+    "schema true": {"schema": True, "reservations": {}, "releases": []},
+    "a reservation keyed by another run": {"schema": 1, "reservations": {"other": dict(_HELD)}, "releases": []},
+}
+
+
+@pytest.mark.parametrize("case", sorted(_C3_SCHEMA_BREAKS))
+def test_c3_the_complete_foreign_ledger_schema_is_validated(tmp_path, monkeypatch, case):
+    """Codex code r1 finding 7: the WHOLE foreign ledger is exp_45's registered schema (its LEDGER_KEYS /
+    RELEASE_KEYS at X45f, exact keys and types) -- a malformed release entry refuses even with no reservation held."""
+    foreign = _foreign(tmp_path, monkeypatch, json.dumps(_C3_SCHEMA_BREAKS[case]).encode())
+    before = _state(str(foreign))
+    with pytest.raises(reg.GateError, match="C3"):
+        reg.check_foreign_ledger()
+    assert _state(str(foreign)) == before
+    ok = {"schema": 1, "reservations": {}, "releases": [_REL]}       # the well-formed counterpart proceeds
+    (foreign / ".exp45_storage.json").write_text(json.dumps(ok))
+    assert reg.check_foreign_ledger()["outstanding"] == 0

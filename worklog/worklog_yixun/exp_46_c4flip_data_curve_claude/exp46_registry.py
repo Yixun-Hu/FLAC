@@ -1239,18 +1239,36 @@ class _Ledger:
 EXP45_LEDGER = f"{EXP45_SAVE_ROOTS[1]}/.exp45_storage.json"
 
 
+def _foreign_entry_ok(r, keys):
+    """One exp_45 ledger entry exactly as exp_45's writer makes it (its LEDGER_KEYS / RELEASE_KEYS at X45f, which are
+    exp_46's): exactly ``keys``, an integer reserved_bytes, every other field a string."""
+    return isinstance(r, dict) and set(r) == keys and type(r["reserved_bytes"]) is int \
+        and all(isinstance(r[k], str) for k in keys - {"reserved_bytes"})
+
+
 def foreign_ledger_problems(path=None):
-    """Problems (empty = no exp_45 reservation outstanding) of exp_45's ledger, read once, read-only."""
+    """Problems (empty = no exp_45 reservation outstanding) of exp_45's ledger, read once, read-only. Codex code r1
+    finding 7: only GENUINE absence (no such entry: the ledger or a directory above it does not exist) reads as nothing
+    held -- any other stat error (no permission on a parent, a parent that is a file, a loop) refuses; and the WHOLE
+    file must be the registered schema (every reservation and release entry included)."""
     path = EXP45_LEDGER if path is None else path
-    if not os.path.lexists(path):
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
         return []
+    except OSError as err:
+        return [f"C3: exp_45's storage ledger {path} cannot be stat'ed ({type(err).__name__}: {err}): its absence is "
+                f"not established"]
     try:
         with open(path, "rb") as fh:
             data = json.loads(fh.read())
     except (OSError, ValueError) as err:
         return [f"C3: exp_45's storage ledger {path} is unreadable / malformed ({err})"]
-    if not isinstance(data, dict) or set(data) != {"schema", "reservations", "releases"} or data["schema"] != 1 \
-            or not isinstance(data["reservations"], dict) or not isinstance(data["releases"], list):
+    if not isinstance(data, dict) or set(data) != {"schema", "reservations", "releases"} \
+            or type(data["schema"]) is not int or data["schema"] != 1 \
+            or not isinstance(data["reservations"], dict) or not isinstance(data["releases"], list) \
+            or not all(_foreign_entry_ok(r, LEDGER_KEYS) and r["run"] == key for key, r in data["reservations"].items()) \
+            or not all(_foreign_entry_ok(r, RELEASE_KEYS) for r in data["releases"]):
         return [f"C3: exp_45's storage ledger {path} is not the registered ledger schema"]
     if data["reservations"]:
         return [f"C3: exp_45 holds {len(data['reservations'])} outstanding storage reservation(s) "

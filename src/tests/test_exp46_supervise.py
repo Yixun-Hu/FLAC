@@ -548,7 +548,9 @@ def test_c3_the_full_start_refuses_before_any_child_once_exp45_holds_a_reservati
     ledger = tmp_path / "exp45_root" / ".exp45_storage.json"
     ledger.parent.mkdir()
     monkeypatch.setattr(sv.reg, "EXP45_LEDGER", str(ledger))
-    held = json.dumps({"schema": 1, "reservations": {"exp45_RFf025_l40_2x32": {"token": "b" * 32}}, "releases": []})
+    entry = {"run": "exp45_RFf025_l40_2x32", "token": "b" * 32, "run_dir": "/x/exp45_RFf025_l40_2x32",
+             "reserved_bytes": 1, "reserved_at": "2026-11-17T00:00:00-0500"}      # a well-formed exp_45 entry
+    held = json.dumps({"schema": 1, "reservations": {entry["run"]: entry}, "releases": []})
     real = sv.reg.reserve_storage
 
     def reserve_then_exp45_reserves(*a, **k):                  # the submitter's step, then exp_45 reserves
