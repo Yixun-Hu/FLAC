@@ -5,11 +5,11 @@ Codex code r1 HIGH 6).
 
 Run on the neuronic login node from the exp-46 checkout (HEAD pushed, tracked tree clean):
 
-    exp46_submit_neuronic.py submit    --run exp46_RFf025_l40_2x32 --mode SMOKE --time 01:00:00 [--dry-run]
-    exp46_submit_neuronic.py submit    --run exp46_RFf025_l40_2x32 --mode FULL  --time 3-00:00:00 [--dry-run]
-    exp46_submit_neuronic.py reconcile --run exp46_RFf025_l40_2x32 --mode FULL      # after an interrupted submit
-    exp46_submit_neuronic.py abandon   --run exp46_RFf025_l40_2x32 --mode FULL      # only once the job is proven gone
-    exp46_submit_neuronic.py release   --run exp46_RFf025_l40_2x32                  # a SEALED run's stranded hold
+    exp46_submit_neuronic.py submit    --run exp46_C4Ff025_l40_2x32 --mode SMOKE --time 01:00:00 [--dry-run]
+    exp46_submit_neuronic.py submit    --run exp46_C4Ff025_l40_2x32 --mode FULL  --time 3-00:00:00 [--dry-run]
+    exp46_submit_neuronic.py reconcile --run exp46_C4Ff025_l40_2x32 --mode FULL      # after an interrupted submit
+    exp46_submit_neuronic.py abandon   --run exp46_C4Ff025_l40_2x32 --mode FULL      # only once the job is proven gone
+    exp46_submit_neuronic.py release   --run exp46_C4Ff025_l40_2x32                  # a SEALED run's stranded hold
 
 Ownership: ONE stable owner record per (run, mode), ``<save root>/.exp46_owners/<run>__<MODE>/``,
 created atomically (``mkdir``) with ``intent.json`` (state "submitting") BEFORE ``sbatch``; the job id

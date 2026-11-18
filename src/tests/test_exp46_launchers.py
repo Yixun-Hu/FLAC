@@ -23,7 +23,7 @@ EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_46_c4flip_data_curve_c
 EXP38 = os.path.join(REPO, "worklog", "worklog_yixun", "exp_38_data_efficiency_claude")   # read-only reuse
 SBATCH = os.path.join(EXP, "exp46_train.sbatch")
 ENV_PREFIX = os.path.dirname(os.path.dirname(os.path.realpath(sys.executable)))
-RF050 = "exp46_RFf050_l40_2x32"
+RF050 = "exp46_C4Ff050_l40_2x32"
 
 
 def _load(name):
@@ -49,7 +49,7 @@ def _env(**kw):
     return env
 
 
-def _sbatch_dry(run="exp46_RFf025_l40_2x32", mode="FULL", save_dir="/x", **kw):
+def _sbatch_dry(run="exp46_C4Ff025_l40_2x32", mode="FULL", save_dir="/x", **kw):
     env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN=run, MODE=mode, EXPECT_SHA="a" * 40,
                EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION, SAVE_DIR=save_dir, **kw)
     env.pop("SLURM_JOB_ID", None)
@@ -61,7 +61,7 @@ def test_launcher_body_is_one_function_called_last():
     assert lines[-2:] == ['main "$@"', "exit $?"] and "main() {" in lines
 
 
-@pytest.mark.parametrize("run,mode", [("exp46_RFf025_l40_2x32", "FULL"), ("exp46_RFf050_l40_2x32", "SMOKE"), ("exp46_RFf075_l40_2x32", "FULL")])
+@pytest.mark.parametrize("run,mode", [("exp46_C4Ff025_l40_2x32", "FULL"), ("exp46_C4Ff050_l40_2x32", "SMOKE"), ("exp46_C4Ff075_l40_2x32", "FULL")])
 def test_sbatch_dry_run_prints_the_torchrun_lines(run, mode, tmp_path):
     """Codex code r1 finding 10: the sbatch test hook routes the dry run through an ISOLATED save root
     (EXP38_DRY_SAVE_ROOT -> --dry-save-root), so the result does not depend on the live run directories."""
@@ -88,7 +88,7 @@ def test_the_dry_run_checks_its_isolated_root_even_with_the_production_run_dir_o
     on an isolated save root still passes -- it checks, and prints, only the isolated root -- while the same dry run
     against the production root refuses."""
     sv = _load("exp46_supervise")
-    run = "exp46_RFf025_l40_2x32"
+    run = "exp46_C4Ff025_l40_2x32"
     prod, iso = tmp_path / "production_save_root", tmp_path / "dry_save_root"
     (prod / run).mkdir(parents=True)
     (prod / run / reg.ckpt_name(2500, "025")).write_bytes(b"a live run's checkpoint")
@@ -113,8 +113,8 @@ def test_the_dry_run_checks_its_isolated_root_even_with_the_production_run_dir_o
 def test_sbatch_refuses_unregistered_runs_and_an_unallowed_rung():
     base = dict(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, MODE="FULL", EXPECT_SHA="a" * 40,
                 EXP38_TOKEN="0" * 32, SAVE_DIR="/x")
-    for run, needle in (("de_yaw_f025", "not a registered"), ("exp46_RFf025_l40_8x8", "not a registered"),
-                        ("exp46_RFf100_l40_2x32", "not a registered"), ("exp46_RFf025_l40_2x32_r8x8", "not a registered")):
+    for run, needle in (("de_yaw_f025", "not a registered"), ("exp46_C4Ff025_l40_8x8", "not a registered"),
+                        ("exp46_C4Ff100_l40_2x32", "not a registered"), ("exp46_C4Ff025_l40_2x32_r8x8", "not a registered")):
         env = _env(RUN=run, **base)
         env.pop("SLURM_JOB_ID", None)
         r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
@@ -155,7 +155,7 @@ def no_preflight(monkeypatch):
         os.remove(p)
 
 
-def _submit(tmp_path, run="exp46_RFf025_l40_2x32", mode="FULL", fake=None, **kw):
+def _submit(tmp_path, run="exp46_C4Ff025_l40_2x32", mode="FULL", fake=None, **kw):
     return sub.submit(run, mode, "3-00:00:00", "flash", reg.FLASH_VERSION, run.endswith("_r8x8"), False,
                       root=str(tmp_path), runner=fake or FakeScheduler(), **kw)
 
@@ -167,23 +167,23 @@ def test_submit_is_exactly_once_per_run_and_mode(tmp_path, no_preflight, mode):
     sbatches = lambda: [c for c in fake.calls if c[0] == "sbatch"]  # noqa: E731
     assert out["job_id"] == "4242" and len(sbatches()) == 1
     argv = sbatches()[0]
-    assert f"--job-name=exp46-exp46_RFf025_l40_2x32-{mode.lower()}-{out['token'][:8]}" in argv and "--gres=gpu:l40:2" in argv
+    assert f"--job-name=exp46-exp46_C4Ff025_l40_2x32-{mode.lower()}-{out['token'][:8]}" in argv and "--gres=gpu:l40:2" in argv
     assert f"--comment=exp46:{out['token']}" in argv and argv[-1].endswith("/exp46_train.sbatch")
-    assert "--no-requeue" in argv and any(a.startswith(f"--export=ALL,RUN=exp46_RFf025_l40_2x32,MODE={mode}") for a in argv)
-    od, intent = sub.find_intent("exp46_RFf025_l40_2x32", mode, root=str(tmp_path))
+    assert "--no-requeue" in argv and any(a.startswith(f"--export=ALL,RUN=exp46_C4Ff025_l40_2x32,MODE={mode}") for a in argv)
+    od, intent = sub.find_intent("exp46_C4Ff025_l40_2x32", mode, root=str(tmp_path))
     assert intent["state"] == "submitted" and intent["job_id"] == "4242" and set(intent) == sub.INTENT_KEYS
-    assert intent["save_dir"] == str(tmp_path / ("exp46_RFf025_l40_2x32" if mode == "FULL" else "exp46_RFf025_l40_2x32_smoke"))
+    assert intent["save_dir"] == str(tmp_path / ("exp46_C4Ff025_l40_2x32" if mode == "FULL" else "exp46_C4Ff025_l40_2x32_smoke"))
     held = json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"] if mode == "FULL" else {}
-    assert (out["storage"] is None) == (mode == "SMOKE") and sorted(held) == (["exp46_RFf025_l40_2x32"] if mode == "FULL" else [])
-    assert mode == "SMOKE" or (held["exp46_RFf025_l40_2x32"]["token"] == out["token"]
-                               and held["exp46_RFf025_l40_2x32"]["reserved_bytes"] == reg.RUN_RESERVE_BYTES)
+    assert (out["storage"] is None) == (mode == "SMOKE") and sorted(held) == (["exp46_C4Ff025_l40_2x32"] if mode == "FULL" else [])
+    assert mode == "SMOKE" or (held["exp46_C4Ff025_l40_2x32"]["token"] == out["token"]
+                               and held["exp46_C4Ff025_l40_2x32"]["reserved_bytes"] == reg.RUN_RESERVE_BYTES)
     assert intent["partition_max_time"] == "7-00:00:00" and intent["time"] == "3-00:00:00"
     with pytest.raises(reg.GateError):                          # the owner record refuses a second submission
         _submit(tmp_path, mode=mode, fake=fake)
     assert len(sbatches()) == 1
 
 
-def _claim(tmp_path, monkeypatch, out, run="exp46_RFf025_l40_2x32", mode="FULL", **over):
+def _claim(tmp_path, monkeypatch, out, run="exp46_C4Ff025_l40_2x32", mode="FULL", **over):
     od, intent = sub.find_intent(run, mode, root=str(tmp_path))
     monkeypatch.setenv("SLURM_JOB_ID", str(over.pop("jid", intent["job_id"] or "4242")))
     monkeypatch.setenv("SLURM_JOB_NAME", over.pop("jname", intent["job_name"]))
@@ -196,7 +196,7 @@ def _claim(tmp_path, monkeypatch, out, run="exp46_RFf025_l40_2x32", mode="FULL",
 
 @pytest.mark.parametrize("over", [{"token": "1" * 32}, {"head": "b" * 40}, {"backend": "sdpa"},
                                   {"flash_version": "2.8.0"}, {"allow_nonmatched": True}, {"sd": "/elsewhere"},
-                                  {"jid": "999"}, {"jname": "exp46-exp46_RFf025_l40_2x32-full-deadbeef"}])
+                                  {"jid": "999"}, {"jname": "exp46-exp46_C4Ff025_l40_2x32-full-deadbeef"}])
 def test_the_job_must_match_its_owner_intent_exactly(tmp_path, monkeypatch, no_preflight, over):
     out = _submit(tmp_path)
     with pytest.raises(reg.GateError):
@@ -216,42 +216,42 @@ def test_one_attempt_per_owner_and_its_record(tmp_path, monkeypatch, no_prefligh
 
 def test_a_job_started_before_the_id_was_recorded_may_claim(tmp_path, monkeypatch, no_preflight):
     with pytest.raises(sub.SubmitError):
-        _submit(tmp_path, run="exp46_RFf050_l40_2x32", fake=FakeScheduler(fail={"sbatch"}))
-    od, intent = sub.find_intent("exp46_RFf050_l40_2x32", "FULL", root=str(tmp_path))
+        _submit(tmp_path, run="exp46_C4Ff050_l40_2x32", fake=FakeScheduler(fail={"sbatch"}))
+    od, intent = sub.find_intent("exp46_C4Ff050_l40_2x32", "FULL", root=str(tmp_path))
     assert intent["state"] == "submitting" and intent["job_id"] is None
     monkeypatch.setenv("SLURM_JOB_ID", "555")
     monkeypatch.setenv("SLURM_JOB_NAME", intent["job_name"])
-    sub.claim_attempt("exp46_RFf050_l40_2x32", "FULL", intent["token"], "a" * 40, "flash", intent["save_dir"],
+    sub.claim_attempt("exp46_C4Ff050_l40_2x32", "FULL", intent["token"], "a" * 40, "flash", intent["save_dir"],
                       reg.FLASH_VERSION, False, root=str(tmp_path))
 
 
 def test_reconcile_resolves_only_an_unambiguous_state(tmp_path, no_preflight):
     with pytest.raises(sub.SubmitError):
-        _submit(tmp_path, run="exp46_RFf050_l40_2x32", fake=FakeScheduler(fail={"sbatch"}))
-    _, intent = sub.find_intent("exp46_RFf050_l40_2x32", "FULL", root=str(tmp_path))
+        _submit(tmp_path, run="exp46_C4Ff050_l40_2x32", fake=FakeScheduler(fail={"sbatch"}))
+    _, intent = sub.find_intent("exp46_C4Ff050_l40_2x32", "FULL", root=str(tmp_path))
     name = intent["job_name"]
     with pytest.raises(sub.SubmitError):                       # zero jobs: refuse, never guess
-        sub.reconcile("exp46_RFf050_l40_2x32", "FULL", root=str(tmp_path), runner=FakeScheduler())
+        sub.reconcile("exp46_C4Ff050_l40_2x32", "FULL", root=str(tmp_path), runner=FakeScheduler())
     two = FakeScheduler(squeue="777|PENDING\n778|PENDING\n")
     with pytest.raises(sub.SubmitError):                       # two jobs carry the token
-        sub.reconcile("exp46_RFf050_l40_2x32", "FULL", root=str(tmp_path), runner=two)
+        sub.reconcile("exp46_C4Ff050_l40_2x32", "FULL", root=str(tmp_path), runner=two)
     fake = FakeScheduler(squeue="777|PENDING\n", sacct=f"777|{name}|PENDING\n")
-    out = sub.reconcile("exp46_RFf050_l40_2x32", "FULL", root=str(tmp_path), runner=fake)
+    out = sub.reconcile("exp46_C4Ff050_l40_2x32", "FULL", root=str(tmp_path), runner=fake)
     assert out["intent"]["state"] == "submitted" and out["intent"]["job_id"] == "777" and out["intent"]["reconciled"]
     with pytest.raises(sub.SubmitError):                       # recorded 777 but the scheduler shows 778
-        sub.reconcile("exp46_RFf050_l40_2x32", "FULL", root=str(tmp_path), runner=FakeScheduler(squeue="778|RUNNING\n"))
+        sub.reconcile("exp46_C4Ff050_l40_2x32", "FULL", root=str(tmp_path), runner=FakeScheduler(squeue="778|RUNNING\n"))
     with pytest.raises(sub.SubmitError):                       # live job: never abandon
-        sub.abandon("exp46_RFf050_l40_2x32", "FULL", root=str(tmp_path), runner=fake)
+        sub.abandon("exp46_C4Ff050_l40_2x32", "FULL", root=str(tmp_path), runner=fake)
     done = FakeScheduler(sacct=f"777|{name}|FAILED\n")
-    (tmp_path / "exp46_RFf050_l40_2x32").mkdir()
-    assert "exp46_RFf050_l40_2x32" in json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"]   # held while owned
-    moved = sub.abandon("exp46_RFf050_l40_2x32", "FULL", root=str(tmp_path), runner=done)
+    (tmp_path / "exp46_C4Ff050_l40_2x32").mkdir()
+    assert "exp46_C4Ff050_l40_2x32" in json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"]   # held while owned
+    moved = sub.abandon("exp46_C4Ff050_l40_2x32", "FULL", root=str(tmp_path), runner=done)
     assert moved["storage_released"] and json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"] == {}
-    assert not os.path.exists(tmp_path / "exp46_RFf050_l40_2x32") and os.path.isdir(moved["run_dir_moved_to"])
+    assert not os.path.exists(tmp_path / "exp46_C4Ff050_l40_2x32") and os.path.isdir(moved["run_dir_moved_to"])
     assert os.path.isdir(moved["owner_moved_to"]) and "/abandoned/" in moved["owner_moved_to"]
     with pytest.raises(sub.SubmitError):                       # an abandoned record is never found again
-        sub.find_intent("exp46_RFf050_l40_2x32", "FULL", root=str(tmp_path))
-    _submit(tmp_path, run="exp46_RFf050_l40_2x32")                        # ... and the run may be submitted afresh
+        sub.find_intent("exp46_C4Ff050_l40_2x32", "FULL", root=str(tmp_path))
+    _submit(tmp_path, run="exp46_C4Ff050_l40_2x32")                        # ... and the run may be submitted afresh
 
 
 def test_a_full_submission_reserves_before_any_owner_record_and_refuses_below_the_floor(tmp_path, monkeypatch, no_preflight):
@@ -266,8 +266,8 @@ def test_a_full_submission_reserves_before_any_owner_record_and_refuses_below_th
     assert _submit(tmp_path, fake=fake)["storage"]["reserved_bytes"] == reg.RUN_RESERVE_BYTES
     assert _submit(tmp_path, mode="SMOKE", fake=fake)["storage"] is None          # a SMOKE writes no checkpoint
     with pytest.raises(reg.GateError, match="floor"):                             # the next candidate: no room
-        _submit(tmp_path, run="exp46_RFf050_l40_2x32", fake=fake)
-    assert not os.path.exists(os.path.join(sub.owner_dir("exp46_RFf050_l40_2x32", "FULL", str(tmp_path))))
+        _submit(tmp_path, run="exp46_C4Ff050_l40_2x32", fake=fake)
+    assert not os.path.exists(os.path.join(sub.owner_dir("exp46_C4Ff050_l40_2x32", "FULL", str(tmp_path))))
 
 
 @pytest.mark.parametrize("time_limit,scontrol,ok", [
@@ -314,27 +314,27 @@ def test_scheduler_queries_fail_closed(tmp_path):
 
 
 def test_abandon_refuses_when_the_recorded_job_is_invisible(tmp_path, no_preflight):
-    _submit(tmp_path, run="exp46_RFf050_l40_2x32", fake=FakeScheduler(sbatch="99"))
+    _submit(tmp_path, run="exp46_C4Ff050_l40_2x32", fake=FakeScheduler(sbatch="99"))
     with pytest.raises(sub.SubmitError):
-        sub.abandon("exp46_RFf050_l40_2x32", "FULL", root=str(tmp_path), runner=FakeScheduler())
+        sub.abandon("exp46_C4Ff050_l40_2x32", "FULL", root=str(tmp_path), runner=FakeScheduler())
 
 
 def test_run_dirs_owner_dirs_and_resources():
-    assert sub.run_dir("exp46_RFf025_l40_2x32", "SMOKE", "/r") == "/r/exp46_RFf025_l40_2x32_smoke"
-    assert sub.run_dir("exp46_RFf025_l40_2x32", "FULL", "/r") == "/r/exp46_RFf025_l40_2x32"
-    assert sub.owner_dir("exp46_RFf025_l40_2x32", "SMOKE", "/r") == "/r/.exp46_owners/exp46_RFf025_l40_2x32__SMOKE"
-    assert sub.resources("exp46_RFf025_l40_2x32") == {"ngpu": 2, "cpus": 22, "mem": "64G"}
+    assert sub.run_dir("exp46_C4Ff025_l40_2x32", "SMOKE", "/r") == "/r/exp46_C4Ff025_l40_2x32_smoke"
+    assert sub.run_dir("exp46_C4Ff025_l40_2x32", "FULL", "/r") == "/r/exp46_C4Ff025_l40_2x32"
+    assert sub.owner_dir("exp46_C4Ff025_l40_2x32", "SMOKE", "/r") == "/r/.exp46_owners/exp46_C4Ff025_l40_2x32__SMOKE"
+    assert sub.resources("exp46_C4Ff025_l40_2x32") == {"ngpu": 2, "cpus": 22, "mem": "64G"}
     with pytest.raises(reg.GateError):
         sub.run_dir("de_p1_f050", "FULL", "/r")
     with pytest.raises(sub.SubmitError):
-        sub.submit("exp46_RFf025_l40_2x32", "FULL", "forever", "flash", "", False, True)
+        sub.submit("exp46_C4Ff025_l40_2x32", "FULL", "forever", "flash", "", False, True)
 
 
 def _claim_proc(args):
     tmp, token, jid, name, sd = args
     os.environ["SLURM_JOB_ID"], os.environ["SLURM_JOB_NAME"] = jid, name
     try:
-        sub.claim_attempt("exp46_RFf050_l40_2x32", "FULL", token, "a" * 40, "flash", sd, reg.FLASH_VERSION, False, root=tmp)
+        sub.claim_attempt("exp46_C4Ff050_l40_2x32", "FULL", token, "a" * 40, "flash", sd, reg.FLASH_VERSION, False, root=tmp)
         return jid
     except reg.GateError:
         return None
@@ -345,8 +345,8 @@ def test_two_simultaneous_jobs_of_one_owner_cannot_both_claim(tmp_path, no_prefl
     once: the fixed owner-scoped claim admits exactly one."""
     import multiprocessing as mp
     with pytest.raises(sub.SubmitError):
-        _submit(tmp_path, run="exp46_RFf050_l40_2x32", fake=FakeScheduler(fail={"sbatch"}))
-    od, intent = sub.find_intent("exp46_RFf050_l40_2x32", "FULL", root=str(tmp_path))
+        _submit(tmp_path, run="exp46_C4Ff050_l40_2x32", fake=FakeScheduler(fail={"sbatch"}))
+    od, intent = sub.find_intent("exp46_C4Ff050_l40_2x32", "FULL", root=str(tmp_path))
     args = [(str(tmp_path), intent["token"], str(1000 + i), intent["job_name"], intent["save_dir"]) for i in range(6)]
     with mp.get_context("fork").Pool(6) as pool:
         got = pool.map(_claim_proc, args)
@@ -358,14 +358,14 @@ def test_an_untracked_importable_next_to_the_kit_refuses_every_mode(tmp_path):
     shadow = os.path.join(EXP, f"zz_exp46_shadow_test_{os.getpid()}.py")
     open(shadow, "w").write("raise SystemExit(99)\n")
     try:
-        r = _sbatch_dry(save_dir=str(tmp_path / "exp46_RFf025_l40_2x32"))
+        r = _sbatch_dry(save_dir=str(tmp_path / "exp46_C4Ff025_l40_2x32"))
         assert r.returncode == 3 and "untracked importable files in the kit folder" in r.stderr
     finally:
         os.remove(shadow)
 
 
 # ------------------------------------------------------------------ release: a sealed run's stranded hold (Codex code r2 finding 8)
-def _sealed_full(tmp_path, run="exp46_RFf025_l40_2x32"):
+def _sealed_full(tmp_path, run="exp46_C4Ff025_l40_2x32"):
     """A FULL run sealed by the kit's own marker writer: the run dir holds a training receipt and a COMPLETE
     launch record of this owner's attempt, bound by TRAINING_COMMITTED.json."""
     od, intent = sub.find_intent(run, "FULL", root=str(tmp_path))
@@ -392,15 +392,15 @@ def test_release_frees_only_the_ledger_hold_of_a_sealed_terminal_run(tmp_path, n
     before = _tree_state(rd, od)
     live = FakeScheduler(squeue="4242|RUNNING\n", sacct=f"4242|{name}|RUNNING\n")
     with pytest.raises(sub.SubmitError, match="not terminal"):
-        sub.release("exp46_RFf025_l40_2x32", root=str(tmp_path), runner=live)
-    assert list(json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"]) == ["exp46_RFf025_l40_2x32"]
+        sub.release("exp46_C4Ff025_l40_2x32", root=str(tmp_path), runner=live)
+    assert list(json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"]) == ["exp46_C4Ff025_l40_2x32"]
     done = FakeScheduler(sacct=f"4242|{name}|COMPLETED\n")
-    got = sub.release("exp46_RFf025_l40_2x32", root=str(tmp_path), runner=done)
+    got = sub.release("exp46_C4Ff025_l40_2x32", root=str(tmp_path), runner=done)
     led = json.load(open(tmp_path / reg.STORAGE_LEDGER))
     assert got["released"] and led["reservations"] == {} and led["releases"][-1]["token"] == out["token"]
     assert "sealed" in led["releases"][-1]["reason"]
     assert _tree_state(rd, od) == before                         # the run dir and the owner record are untouched
-    assert sub.release("exp46_RFf025_l40_2x32", root=str(tmp_path), runner=done)["released"] is False   # idempotent
+    assert sub.release("exp46_C4Ff025_l40_2x32", root=str(tmp_path), runner=done)["released"] is False   # idempotent
     with pytest.raises(SystemExit):
         sub.main(["release"])                                     # the CLI verb exists (and needs --run)
 
@@ -429,17 +429,17 @@ def test_release_refuses_an_unsealed_foreign_or_unproven_run(tmp_path, no_prefli
         for f in (reg.COMMIT_MARKER, reg.COMMIT_MARKER + ".sha256"):
             os.remove(rd / f)
         json.dump(rec, open(rd / lr, "w"))
-        reg.write_commit_marker(str(rd), "exp46_RFf025_l40_2x32", cm["training_receipt_sha256"], str(rd / lr))
+        reg.write_commit_marker(str(rd), "exp46_C4Ff025_l40_2x32", cm["training_receipt_sha256"], str(rd / lr))
     elif what == "foreign token":
         p = tmp_path / reg.STORAGE_LEDGER
         led = json.load(open(p))
-        led["reservations"]["exp46_RFf025_l40_2x32"]["token"] = "9" * 32
+        led["reservations"]["exp46_C4Ff025_l40_2x32"]["token"] = "9" * 32
         json.dump(led, open(p, "w"))
     else:
         runner = FakeScheduler()                                   # the recorded job is not visible
     with pytest.raises(reg.GateError):
-        sub.release("exp46_RFf025_l40_2x32", root=str(tmp_path), runner=runner)
-    assert list(json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"]) == ["exp46_RFf025_l40_2x32"]
+        sub.release("exp46_C4Ff025_l40_2x32", root=str(tmp_path), runner=runner)
+    assert list(json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"]) == ["exp46_C4Ff025_l40_2x32"]
 
 
 def test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools(tmp_path):
@@ -449,7 +449,7 @@ def test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools(tmp_path):
     have written lands there instead of in the repo -- and none for exp_38's folder may appear (the supervisor's own
     probe subprocesses, which import no exp_38 tool, may still cache stdlib bytecode there)."""
     prefix = tmp_path / "pycache_prefix"
-    env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN="exp46_RFf025_l40_2x32", MODE="FULL",
+    env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN="exp46_C4Ff025_l40_2x32", MODE="FULL",
                EXPECT_SHA="a" * 40, EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
                SAVE_DIR="/x", ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(tmp_path), PYTHONPYCACHEPREFIX=str(prefix))
     env.pop("SLURM_JOB_ID", None)

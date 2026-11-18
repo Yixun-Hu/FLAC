@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""exp_46 collector (forked from exp_45's exp45_collect.py at X45f, from exp_38's; plan_c4flip_data_curve.md r3 §3.2): the 30 RF result cells
+"""exp_46 collector (forked from exp_45's exp45_collect.py at X45f, from exp_38's; plan_c4flip_data_curve.md r3 §3.2): the C4F result cells (10 per run)
 and the E0 receipt -> c4flip_data_curve_results.{json,md} (exp_46 has no bridge: plan r3 §3.2).
 
-rf_rows() replaces exp_38's reference_rows() / EXP14_ROWS / P1-bridge path (Codex plan r2 finding 3): every cell
+c4f_rows() replaces exp_38's reference_rows() / EXP14_ROWS / P1-bridge path (Codex plan r2 finding 3): every cell
 goes through exp46_eval's OFFLINE admission (validate_cell(..., offline=True): exact metrics / by-scene /
 receipt schemas, protocol, the run's TRAINING_COMPLETE copy in the farm, the stream's input AND assignment hashes, the dump-manifest copy) under the sealed
 E0 receipt (validate_e0_receipt(offline=True)), so the results re-derive from the tracked evidence alone; NAS
@@ -19,7 +19,7 @@ collector lock; the JSON carries {path: sha256} of every file the admission cons
 with its sha256 and the Markdown names the JSON's sha256, so a checkout of the results commit, a publication
 worktree or the neuronic generator root is verified by re-hashing exactly those files. ``materialise`` copies them,
 plus what exp46_eval's offline admission reads besides the evidence (generator_static: the exp_46 kit's
-exp46_eval.py / exp46_registry.py, the RF + E0 configs, exp_38's E0a decision and reference cells), byte for byte to
+exp46_eval.py / exp46_registry.py, the C4F + E0 configs, exp_38's E0a decision and reference cells), byte for byte to
 the same relative paths under DIR -- an existing file must already be identical, every copy is re-hashed -- and then
 verifies DIR. Run from the tree holding the publication (tree 45 -> the publication worktree on the A6000 box; the
 build checkout of the results commit -> the generator root on neuronic).
@@ -78,10 +78,10 @@ def farm_files(run):
     return out
 
 
-def rf_rows(campaign):
+def c4f_rows(campaign):
     """(rows, manifest runs) of the campaign runs, every cell through exp46_eval's OFFLINE admission under ``campaign``;
     refuses (EvalError) if any cell is missing or not admitted (plan r3 §3.2; no bridge in exp_46)."""
-    blocks = [(run, "rf", reg.parse_run_id(run)[1], ev.run_cells(run)) for run in reg.campaign_runs()]
+    blocks = [(run, "c4f", reg.parse_run_id(run)[1], ev.run_cells(run)) for run in reg.campaign_runs()]
     rows, runs, problems = {}, {}, []
     for run, model, frac, cells in blocks:
         probs = [x for c in cells for x in ev.validate_cell(c, campaign, offline=True)]
@@ -111,7 +111,7 @@ def e0_files(campaign):
         [f for c in ev.e0_cells() for f in (c["metrics"], c["stream"], c["receipt"])]
 
 
-MODELS = {"rf": "Roll + Flip (RF)"}
+MODELS = {"c4f": "C4 + flip (C4F)"}
 
 
 def render(rows, pending):
@@ -121,7 +121,7 @@ def render(rows, pending):
     for K in (8, 1):
         out += [f"## K = {K}" + (" (headline)" if K == 8 else ""), "",
                 "| model | data | " + " | ".join(SHOW) + " | source |", "|---|---|" + "---|" * len(SHOW) + "---|"]
-        for model, frac in [("rf", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()]:
+        for model, frac in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()]:
             st = rows[(model, frac, K)]["stats"]
             cells = [f"{st[m][0]:.3f} ± {st[m][1]:.3f}" for m in SHOW]
             out.append(f"| {MODELS[model]} | {FRAC_LABEL[frac]} | " + " | ".join(cells) + f" | {rows[(model, frac, K)]['source']} |")
@@ -150,7 +150,7 @@ def publish(rows, pending, manifest, repo=None):
 
 def collect():
     campaign = ev.validate_e0_receipt(offline=True)
-    rows, runs = rf_rows(campaign)
+    rows, runs = c4f_rows(campaign)
     manifest = {"campaign": {k: campaign[k] for k in ("head", "closure_sha256", "env_receipt_sha256",
                                                       "eval_snapshot_sha256", "sha256")},
                 "artifacts": _sha_map(e0_files(campaign)), "runs": runs}
@@ -160,8 +160,8 @@ def collect():
 def generator_static():
     """What exp46_eval's OFFLINE admission reads in another root besides the published evidence (the files a
     generator root must hold for the shared table's exp_46 rows): the exp_46 kit's exp46_eval.py + exp46_registry.py,
-    the RF and E0 model configs, exp_38's E0a decision + sidecar and its reference manifest + cells."""
-    return (f"{reg.EXP_DIR}/exp46_eval.py", f"{reg.EXP_DIR}/exp46_registry.py", reg.ARMS["rf"]["config"],
+    the C4F and E0 model configs, exp_38's E0a decision + sidecar and its reference manifest + cells."""
+    return (f"{reg.EXP_DIR}/exp46_eval.py", f"{reg.EXP_DIR}/exp46_registry.py", reg.ARMS["c4f"]["config"],
             *(v["config"] for v in reg.E0_CONFIGS.values()), reg.E0A_DECISION, reg.E0A_DECISION + ".sha256",
             reg.REF_MANIFEST, *(f"{reg.REF_DIR}/{r}" for r in reg.ref_set()))
 

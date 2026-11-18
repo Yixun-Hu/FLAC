@@ -185,21 +185,21 @@ def test_the_single_rank_smoke_is_refused_before_any_work(monkeypatch, capsys):
     """Codex code r1 finding 11: exp_46 registers no single-rank path (plan r3 §5 L5: 2 x L40, 2 x 32): the a6000
     one-rank SMOKE is refused explicitly, before any gate, card lock or directory."""
     touched = []
-    monkeypatch.setattr(sv, "common_gates", lambda *a, **k: touched.append("gates") or ("rf", "025", "2x32", PY, {}, {}))
+    monkeypatch.setattr(sv, "common_gates", lambda *a, **k: touched.append("gates") or ("c4f", "025", "2x32", PY, {}, {}))
     monkeypatch.setattr(sv, "lock_cards", lambda *a, **k: touched.append("locks") or [])
-    a = sv.parse(["--platform", "a6000", "--mode", "SMOKE", "--run", "exp46_RFf025_l40_2x32"])
+    a = sv.parse(["--platform", "a6000", "--mode", "SMOKE", "--run", "exp46_C4Ff025_l40_2x32"])
     assert sv._dispatch(a) == sv.Refused("x").code
     err = capsys.readouterr().err
     assert "single-rank SMOKE" in err and "2 x 32 only" in err and touched == []
 
 
 @pytest.mark.parametrize("argv", [
-    ["--platform", "a6000", "--mode", "FULL", "--run", "exp46_RFf025_l40_2x32", "--dry-save-root", "/x"],
-    ["--platform", "a6000", "--mode", "SMOKE", "--run", "exp46_RFf025_l40_2x32", "--lockdir", "/x"],
-    ["--platform", "neuronic", "--mode", "SMOKE_DDP", "--run", "exp46_RFf025_l40_2x32"],
-    ["--platform", "neuronic", "--mode", "FULL", "--run", "exp46_RFf025_l40_2x32", "--save-dir", "/x"],
-    ["--platform", "neuronic", "--mode", "FULL", "--run", "exp46_RFf025_l40_2x32", "--token", "xyz", "--save-dir", "/x"],
-    ["--platform", "a6000", "--mode", "SMOKE", "--run", "exp46_RFf025_l40_2x32", "--smoke-steps", "500"],
+    ["--platform", "a6000", "--mode", "FULL", "--run", "exp46_C4Ff025_l40_2x32", "--dry-save-root", "/x"],
+    ["--platform", "a6000", "--mode", "SMOKE", "--run", "exp46_C4Ff025_l40_2x32", "--lockdir", "/x"],
+    ["--platform", "neuronic", "--mode", "SMOKE_DDP", "--run", "exp46_C4Ff025_l40_2x32"],
+    ["--platform", "neuronic", "--mode", "FULL", "--run", "exp46_C4Ff025_l40_2x32", "--save-dir", "/x"],
+    ["--platform", "neuronic", "--mode", "FULL", "--run", "exp46_C4Ff025_l40_2x32", "--token", "xyz", "--save-dir", "/x"],
+    ["--platform", "a6000", "--mode", "SMOKE", "--run", "exp46_C4Ff025_l40_2x32", "--smoke-steps", "500"],
 ])
 def test_cli_refusals(argv):
     with pytest.raises(SystemExit):
@@ -390,7 +390,7 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
         if smode == "FULL":
             logger[v0 + "metrics.csv"] = fx.loss_csv(sv.reg).decode()
     reg = sv.reg
-    run = "exp46_RFf025_l40_2x32"
+    run = "exp46_C4Ff025_l40_2x32"
     monkeypatch.setattr(reg, "REPO", str(tmp_path))
     monkeypatch.setattr(reg, "TRAINING_PLATFORM", "a6000")     # exercise the local lifecycle (D2 itself: below)
     (tmp_path / reg.EXP_DIR).mkdir(parents=True)
@@ -398,7 +398,7 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
     (tmp_path / "nas").mkdir()
     monkeypatch.setitem(sv.SNAPSHOT_ROOT, "a6000", str(tmp_path / "snaps"))
     gpus = sorted([u, "NVIDIA RTX A6000"] for u in reg.A6000_UUIDS)
-    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("rf", "025", "2x32", PY, {"argv": []}, {}))
+    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("c4f", "025", "2x32", PY, {"argv": []}, {}))
     monkeypatch.setattr(sv, "campaign_gates", lambda a, p: ("f" * 40, "d" * 64, "c" * 64))
     monkeypatch.setattr(sv, "lock_cards", lambda cards, lockdir: [])
     monkeypatch.setattr(sv, "a6000_gpu_gate", lambda *x: gpus)
@@ -501,7 +501,7 @@ def test_a_full_run_launches_from_the_snapshot_gates_and_publishes(tmp_path, mon
     assert "storage_released" not in rec and rec["storage"]["reservation"]["reserved_bytes"] == sv.reg.RUN_RESERVE_BYTES
     led = json.load(open(tmp_path / "nas" / sv.reg.STORAGE_LEDGER))
     assert led["reservations"] == {} and [(r["run"], r["reason"]) for r in led["releases"]] == [
-        ("exp46_RFf025_l40_2x32", "sealed")]
+        ("exp46_C4Ff025_l40_2x32", "sealed")]
 
 
 @pytest.mark.parametrize("mode,audit_ok,want", [("crash", True, 1), ("badstart", True, sv.EXIT_START),
@@ -511,10 +511,10 @@ def test_a_failed_full_run_keeps_its_crash_marker(tmp_path, monkeypatch, mode, a
     assert code == want and (rd / ".exp46_lock").is_dir() and "finished_at" in rec
     assert rec["status"] != "COMPLETE" and len(calls) == (2 if mode == "ok" else 1) and calls[-1] == ("commits", [])
     with pytest.raises(sv.reg.GateError):
-        sv.reg.check_run_dir(str(rd), "exp46_RFf025_l40_2x32", 0)          # never relaunched into: archive first
+        sv.reg.check_run_dir(str(rd), "exp46_C4Ff025_l40_2x32", 0)          # never relaunched into: archive first
     # a crash keeps the storage hold (released only on seal / abandon)
     held = json.load(open(tmp_path / "nas" / sv.reg.STORAGE_LEDGER))["reservations"]
-    assert list(held) == ["exp46_RFf025_l40_2x32"] and "storage_released" not in rec
+    assert list(held) == ["exp46_C4Ff025_l40_2x32"] and "storage_released" not in rec
 
 
 def test_a_full_run_without_its_reservation_is_refused_before_any_child(tmp_path, monkeypatch):
@@ -526,7 +526,7 @@ def test_a_full_run_without_its_reservation_is_refused_before_any_child(tmp_path
 def test_a_neuronic_smoke_seals_its_receipt_from_the_snapshot(tmp_path, monkeypatch, audit_ok, want):
     """exp_46: the SMOKE lifecycle is the neuronic one (exp_45's A6000 SMOKE_DDP path is refused, test below)."""
     code, rec, rd, calls = _campaign(tmp_path, monkeypatch, audit_ok=audit_ok, smode="SMOKE")
-    assert code == want and len(calls) == 2 and rd == tmp_path / "nas" / "exp46_RFf025_l40_2x32_smoke"
+    assert code == want and len(calls) == 2 and rd == tmp_path / "nas" / "exp46_C4Ff025_l40_2x32_smoke"
     assert "start_gate" not in rec and rec["mode"] == "SMOKE" and rec["cwd"] == str(rd / ".exp46_tools")
     # the SMOKE branch moves nothing: its logger dir stays where PL wrote it (the SMOKE gate checks it)
     assert sv.reg.logger_entries(str(rd)) == ["version_0", "version_0/hparams.yaml"] and "loss_record" not in rec
@@ -632,8 +632,8 @@ def test_an_exception_after_spawn_stops_our_group(tmp_path, monkeypatch, where):
 def test_d2_full_refuses_off_the_training_platform(monkeypatch):
     """D1 (exp_46) / D2 (exp_38): every training runs on neuronic; a FULL on this box refuses before any work."""
     assert sv.reg.TRAINING_PLATFORM == "neuronic"
-    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("rf", "025", "2x32", PY, {}, {}))
-    a = sv.parse(["--platform", "a6000", "--mode", "FULL", "--run", "exp46_RFf025_l40_2x32", "--expect-sha", "f" * 40])
+    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("c4f", "025", "2x32", PY, {}, {}))
+    a = sv.parse(["--platform", "a6000", "--mode", "FULL", "--run", "exp46_C4Ff025_l40_2x32", "--expect-sha", "f" * 40])
     with pytest.raises(sv.Refused, match="D2"):
         sv.mode_campaign(a, "a6000")
 
@@ -665,7 +665,7 @@ def _completed_full_run(tmp_path, monkeypatch, release=None):
     import test_exp46_receipts as tr
     import exp46_fixtures as fx
     reg = sv.reg
-    run = "exp46_RFf050_l40_2x32"
+    run = "exp46_C4Ff050_l40_2x32"
     arm, tag, rung = reg.parse_run_id(run)
     tree = tmp_path / "tree"
     (tree / reg.EXP_DIR).mkdir(parents=True)

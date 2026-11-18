@@ -99,7 +99,7 @@ def train_log(reg, run, ngpu=2, steps=30, losses=3, end=True, backend="flash"):
     if backend == "sdpa":
         parts += [reg.FLASH_MISSING + ", disabling Flash Attention"] * ngpu
     parts += [f"Initializing distributed: GLOBAL_RANK: {r}, MEMBER: {r + 1}/{ngpu}" for r in range(ngpu)]
-    parts.append(reg.ARMS[arm]["banner"])                       # one RF line (rank 0)
+    parts.append(reg.ARMS[arm]["banner"])                       # one C4F line (rank 0)
     spe = reg.FRACS[tag]["steps_per_epoch"]
     parts += [f"Epoch 0:   0%|          | {i + 1}/{spe} [00:05<1:00:00,  0.30it/s, train/loss=0.5{i}]" for i in range(losses)]
     text = "\n".join(parts)

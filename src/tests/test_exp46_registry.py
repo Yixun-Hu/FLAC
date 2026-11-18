@@ -28,7 +28,7 @@ def _load(name):
 
 reg = _load("exp46_registry")
 
-RF = {t: f"exp46_RFf{t}_l40_2x32" for t in ("025", "050", "075")}
+C4F = {t: f"exp46_C4Ff{t}_l40_2x32" for t in ("025", "050", "075")}
 # plan r3 fact F2: exp_38's de_yaw_f025 FULL argv on neuronic, verbatim (cmd of
 # at_launch_de_yaw_f025_neuronic_FULL_2026-11-09_18-01-10.json without the torchrun prefix)
 DE_YAW_F025_RD = "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f025"
@@ -48,15 +48,15 @@ def _opt(argv, flag):
 
 
 # ------------------------------------------------------------------ runs and rungs
-def test_the_registry_imports_and_registers_exactly_the_three_rf_runs():
+def test_the_registry_imports_and_registers_exactly_the_c4f_runs():
     """plan r3 §3.2: exactly three runs; no P1 bridge, no 8x8 rung, no _r suffix (import-time construction)."""
-    assert reg.required_runs() == reg.all_runs() == reg.campaign_runs() == [RF["025"], RF["050"], RF["075"]]
-    assert reg.REGISTERED_RUNS == frozenset(RF.values()) and reg.OPTIONAL_RUNS == ()
-    assert sorted(reg.ARMS) == ["rf"] and sorted(reg.RUNGS) == ["2x32"]
-    for t, run in RF.items():
-        assert reg.parse_run_id(run) == ("rf", t, "2x32") and reg.run_id("rf", t) == run
-    for bad in ("de_yaw_f025", "de_bf_f025", "de_p1_f025", "exp46_RFf100_l40_2x32", "exp46_RFf025_l40_8x8",
-                "exp46_RFf025_l40_2x32_r8x8", "exp45_YAWf025_l40_2x32", "exp46_RFf025_a6000_2x32", "", None):
+    assert reg.required_runs() == reg.all_runs() == reg.campaign_runs() == [C4F["025"], C4F["050"], C4F["075"]]
+    assert reg.REGISTERED_RUNS == frozenset(C4F.values()) and reg.OPTIONAL_RUNS == ()
+    assert sorted(reg.ARMS) == ["c4f"] and sorted(reg.RUNGS) == ["2x32"]
+    for t, run in C4F.items():
+        assert reg.parse_run_id(run) == ("c4f", t, "2x32") and reg.run_id("c4f", t) == run
+    for bad in ("de_yaw_f025", "de_bf_f025", "de_p1_f025", "exp46_C4Ff100_l40_2x32", "exp46_C4Ff025_l40_8x8",
+                "exp46_C4Ff025_l40_2x32_r8x8", "exp45_YAWf025_l40_2x32", "exp46_C4Ff025_a6000_2x32", "", None):
         with pytest.raises(reg.GateError):
             reg.parse_run_id(bad)
 
@@ -74,15 +74,41 @@ def test_the_one_rung_keeps_eff_and_syncbn_batch_64():
 
 
 # ------------------------------------------------------------------ configs
-def test_the_rf_config_is_exp15s_yaw_config_plus_only_the_flip():
-    """plan r3 F1: the RF config (sha d6a02dde…) differs from exp_15's YAW config only in training.yaw_aug.flip."""
-    rf = json.load(open(os.path.join(REPO, reg.ARMS["rf"]["config"])))
+RF_CONFIG = "worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json"      # this unit test only (plan §2)
+
+
+def test_the_c4f_config_is_exp43s_rf_config_plus_only_the_offset_step():
+    """plan r3 §2 (C1): the C4F config = exp_43's RF config (d6a02dde…) + exactly training.yaw_aug.offset_step = 128 in
+    YAW_AUG_KEYS order (byte level: one inserted line); vs exp_38's de_yaw config (exp_15's YAW, b14caae2…) exactly
+    offset_step and flip differ. At runtime the config is bound by its sha + exact block only: the RF file is no
+    runtime input (not in EXTERNAL_CONFIGS, not in the closure)."""
+    rel = reg.ARMS["c4f"]["config"]
+    raw, rf_raw = open(os.path.join(REPO, rel), "rb").read(), open(os.path.join(REPO, RF_CONFIG), "rb").read()
+    assert rel == "worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_FLAC_AR_YAWAUG_C4FLIP.json"
+    assert hashlib.sha256(raw).hexdigest() == reg.ARMS["c4f"]["config_sha256"] == \
+        "4b854bcd2a97768089e981f0775de6d1615bdb0177ffa78b0591ae885a028fb5"
+    assert hashlib.sha256(rf_raw).hexdigest() == "d6a02ddebdc37c3844038898cc4888b4562e1d9d6669dd52ef021e221ac5086d"
+    seed = b'            "seed": 42,\n'
+    assert rf_raw.count(seed) == 1 and raw == rf_raw.replace(seed, seed + b'            "offset_step": 128,\n')
+    c4f, rf = json.loads(raw), json.loads(rf_raw)
     yaw = json.load(open(os.path.join(REPO, reg.E0_CONFIGS["yaw"]["config"])))
-    assert reg.sha256_file(os.path.join(REPO, reg.ARMS["rf"]["config"])) == \
-        "d6a02ddebdc37c3844038898cc4888b4562e1d9d6669dd52ef021e221ac5086d"
-    assert rf["training"]["yaw_aug"].pop("flip") is True and rf == yaw
-    assert reg.check_config("rf", "2x32")["training"]["yaw_aug"] == reg.RF_YAW_AUG
-    assert reg.chunk_plan("rf", "2x32") is None                 # no frame averaging: no chunk plan
+    assert list(c4f["training"]["yaw_aug"]) == ["enabled", "img_w", "seed", "offset_step", "flip"]
+    assert c4f["training"]["yaw_aug"].pop("offset_step") == 128 and c4f == rf
+    assert c4f["training"]["yaw_aug"].pop("flip") is True and c4f == yaw
+    assert reg.C4F_YAW_AUG == {"enabled": True, "img_w": 512, "seed": 42, "offset_step": 128, "flip": True}
+    assert reg.check_config("c4f", "2x32")["training"]["yaw_aug"] == reg.C4F_YAW_AUG
+    assert reg.chunk_plan("c4f", "2x32") is None                 # no frame averaging: no chunk plan
+    assert RF_CONFIG not in reg.EXTERNAL_CONFIGS and not reg._in_closure(RF_CONFIG)
+
+
+def test_the_c4f_banner_constant_is_the_wrappers_line():
+    """The registry's banner is exactly the line §3.1 test 6 pins on the real wrapper, and differs from every other
+    yaw arm's whole line (the log gate refuses those)."""
+    wrapper_test = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_exp46_c4flip_wrapper.py")).read()
+    assert reg.ARMS["c4f"]["banner"] == reg.C4F_BANNER == "yaw_aug ENABLED img_w=512 seed=42 offset_step=128 flip=0.5"
+    assert f'C4F_BANNER = "{reg.C4F_BANNER}"' in wrapper_test
+    others = {reg.YAW_BANNER, reg.C16_BANNER, reg.RF_BANNER}
+    assert len(others) == 3 and reg.C4F_BANNER not in others
 
 
 def test_the_e0_reference_configs_are_pinned_and_not_launchable():
@@ -100,21 +126,23 @@ def test_the_e0_reference_configs_are_pinned_and_not_launchable():
     ("no flip", lambda tr: tr["yaw_aug"].pop("flip")), ("seed", lambda tr: tr["yaw_aug"].update(seed=7)),
     ("img_w", lambda tr: tr["yaw_aug"].update(img_w=256)), ("disabled", lambda tr: tr["yaw_aug"].update(enabled=False)),
     ("c16 grid", lambda tr: tr["yaw_aug"].update(offset_step=32)), ("no yaw_aug", lambda tr: tr.pop("yaw_aug")),
+    ("no grid (RF)", lambda tr: tr["yaw_aug"].pop("offset_step")), ("grid float", lambda tr: tr["yaw_aug"].update(offset_step=128.0)),
+    ("grid 64", lambda tr: tr["yaw_aug"].update(offset_step=64)), ("extra key", lambda tr: tr["yaw_aug"].update(p=0.5)),
     ("fa cond", lambda tr: tr.update(cond_method="fa_invariant")), ("fa angles", lambda tr: tr.update(frame_avg_angles=[0.0])),
     ("canonicalize", lambda tr: tr.update(canonicalize={"enabled": True})), ("ema", lambda tr: tr.update(use_ema=False)),
 ])
-def test_check_config_refuses_every_rf_block_mutation(tmp_path, monkeypatch, name, mutate):
-    rel = reg.ARMS["rf"]["config"]
+def test_check_config_refuses_every_c4f_block_mutation(tmp_path, monkeypatch, name, mutate):
+    rel = reg.ARMS["c4f"]["config"]
     root = tmp_path / "repo"
     (root / os.path.dirname(rel)).mkdir(parents=True)
     cfg = json.load(open(os.path.join(REPO, rel)))
     mutate(cfg["training"])
     (root / rel).write_text(json.dumps(cfg, indent=4))
     with pytest.raises(reg.GateError):                          # the sha pin first ...
-        reg.check_config("rf", "2x32", repo=str(root))
-    monkeypatch.setitem(reg.ARMS["rf"], "config_sha256", reg.sha256_file(str(root / rel)))
+        reg.check_config("c4f", "2x32", repo=str(root))
+    monkeypatch.setitem(reg.ARMS["c4f"], "config_sha256", reg.sha256_file(str(root / rel)))
     with pytest.raises(reg.GateError):                          # ... and the block check behind it
-        reg.check_config("rf", "2x32", repo=str(root))
+        reg.check_config("c4f", "2x32", repo=str(root))
 
 
 # ------------------------------------------------------------------ subsets
@@ -157,7 +185,7 @@ def _touch(d, names):
 
 def test_run_dir_fresh_and_complete_states_only(tmp_path):
     """No resume state exists (Codex code r1 HIGH 2): a run dir is fresh (0) or complete (40,000)."""
-    run = RF["025"]
+    run = C4F["025"]
     assert reg.check_run_dir(str(tmp_path / "absent"), run, 0)["state"] == "fresh"
     d = tmp_path / "rd"
     _touch(d, [f"at_launch_{run}_x.json"])
@@ -195,14 +223,14 @@ def test_run_dir_fresh_and_complete_states_only(tmp_path):
 
 def test_d2_campaign_is_the_three_rf_runs(monkeypatch):
     assert reg.TRAINING_PLATFORM == "neuronic"
-    assert reg.campaign_runs() == list(RF.values()) and all(r in reg.REGISTERED_RUNS for r in reg.campaign_runs())
+    assert reg.campaign_runs() == list(C4F.values()) and all(r in reg.REGISTERED_RUNS for r in reg.campaign_runs())
     monkeypatch.setattr(reg, "TRAINING_PLATFORM", "a6000")
     assert reg.campaign_runs() == reg.required_runs()            # no bridge run on any platform
 
 
 def test_only_the_registered_matrix_is_launchable():
     assert sorted(reg.REGISTERED_RUNS) == sorted(reg.all_runs("2x32"))
-    for bad in ("de_p1_f025", "de_yaw_f025", "exp46_RFf025_l40_2x32 ", "exp46_RFf100_l40_2x32", "", None):
+    for bad in ("de_p1_f025", "de_yaw_f025", "exp46_C4Ff025_l40_2x32 ", "exp46_C4Ff100_l40_2x32", "", None):
         with pytest.raises(reg.GateError):
             reg.parse_run_id(bad)
         with pytest.raises(reg.GateError):
@@ -214,10 +242,10 @@ def test_only_the_registered_matrix_is_launchable():
 def test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions(tag):
     """plan r3 §2 argv rule: F2 with exactly --model-config (RF), the fraction's dataset config, --name /
     --experiment-name = run id, --save-dir / --evidence-json under the exp_46 save root -- nothing else."""
-    run = RF[tag]
+    run = C4F[tag]
     rd = f"/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/{run}"
     want = list(DE_YAW_F025_ARGV)
-    for flag, value in (("--model-config", reg.ARMS["rf"]["config"]), ("--dataset-config", reg.FRACS[tag]["dataset_config"]),
+    for flag, value in (("--model-config", reg.ARMS["c4f"]["config"]), ("--dataset-config", reg.FRACS[tag]["dataset_config"]),
                         ("--name", run), ("--experiment-name", run), ("--save-dir", rd),
                         ("--evidence-json", rd + "/evidence/run_evidence.json")):
         want[want.index(flag) + 1] = value
@@ -230,11 +258,11 @@ def test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitution
     assert [i for i, (x, y) in enumerate(zip(proj, proj38)) if x != y] == ([2] if tag == "025" else [2, 4])
 
 
-@pytest.mark.parametrize("run", sorted(RF.values()))
+@pytest.mark.parametrize("run", sorted(C4F.values()))
 def test_argv_per_run(run):
     arm, tag, _ = reg.parse_run_id(run)
     argv = reg.build_train_argv(run, "a6000")
-    assert _opt(argv, "--model-config") == reg.ARMS["rf"]["config"]
+    assert _opt(argv, "--model-config") == reg.ARMS["c4f"]["config"]
     assert _opt(argv, "--dataset-config") == reg.FRACS[tag]["dataset_config"]
     assert (_opt(argv, "--batch-size"), _opt(argv, "--num-gpus"), _opt(argv, "--accum-batches")) == ("32", "2", "1")
     assert (_opt(argv, "--sync-batchnorm"), _opt(argv, "--precision"), _opt(argv, "--seed")) == ("true", "bf16-mixed", "42")
@@ -252,25 +280,25 @@ def test_there_is_no_resume_argv(capsys):
     for run in reg.all_runs():
         assert "--ckpt-path" not in reg.build_train_argv(run, "neuronic")
     with pytest.raises(SystemExit):
-        reg._cli(["argv", RF["050"], "--platform", "neuronic", "--resume-step", "10000"])
+        reg._cli(["argv", C4F["050"], "--platform", "neuronic", "--resume-step", "10000"])
     with pytest.raises(SystemExit):
-        reg._cli(["run-dir-check", "/x", "--run", RF["050"], "--state", "10000"])
+        reg._cli(["run-dir-check", "/x", "--run", C4F["050"], "--state", "10000"])
 
 
 def test_smoke_argv_is_ddp_only():
     """Codex code r1 finding 11 (plan r3 §5 L5: every SMOKE is 2 x L40): the single-rank SMOKE argv is refused."""
     for kw in ({}, {"ddp": False}):
         with pytest.raises(reg.GateError, match="2 x 32"):
-            reg.build_smoke_argv(RF["025"], 20, "/tmp/x", **kw)
-    ddp = reg.build_smoke_argv(RF["025"], 30, f"/tmp/smk/{RF['025']}_x", ddp=True)
-    full = reg.build_train_argv(RF["025"], "a6000")
+            reg.build_smoke_argv(C4F["025"], 20, "/tmp/x", **kw)
+    ddp = reg.build_smoke_argv(C4F["025"], 30, f"/tmp/smk/{C4F['025']}_x", ddp=True)
+    full = reg.build_train_argv(C4F["025"], "a6000")
     diff = {i for i, (a, b) in enumerate(zip(ddp, full)) if a != b}
     assert len(ddp) == len(full) and {ddp[i - 1] for i in diff} == {"--max-steps", "--checkpoint-every",
                                                                      "--save-dir", "--name", "--experiment-name",
                                                                      "--evidence-json"}
     assert (_opt(ddp, "--max-steps"), _opt(ddp, "--checkpoint-every")) == ("30", "1000000")
     with pytest.raises(reg.GateError):
-        reg.build_smoke_argv(RF["025"], 500, "/tmp/x", ddp=True)
+        reg.build_smoke_argv(C4F["025"], 500, "/tmp/x", ddp=True)
 
 
 # ------------------------------------------------------------------ checkpoint audit (exact schemas, Codex code r1 HIGH 1)
@@ -411,7 +439,7 @@ def _mutations():
 
 
 def test_audit_ckpt_pass_and_every_schema_mutation(tmp_path):
-    run, step = RF["025"], 40000
+    run, step = C4F["025"], 40000
     good = tmp_path / reg.ckpt_name(step, "025")
     _fake_ckpt(str(good), run, step)
     out = reg.audit_ckpt(str(good), run, step, run_dir=str(tmp_path), inventory=False)
@@ -434,7 +462,7 @@ def test_audit_ckpt_pass_and_every_schema_mutation(tmp_path):
         reg.audit_ckpt(str(good), run, step, run_dir=str(tmp_path), inventory=False)
 
 
-@pytest.mark.parametrize("arm,rung", [("rf", "2x32")])
+@pytest.mark.parametrize("arm,rung", [("c4f", "2x32")])
 def test_the_real_inventory_path_for_every_arm_and_rung(arm, rung):
     """A fresh wrapper's own state_dict + optimizer shapes pass; one dropped key, one reshaped
     tensor and one wrong optimizer-state shape are refused (the path audit_ckpt runs)."""
@@ -457,7 +485,7 @@ def test_the_real_inventory_path_for_every_arm_and_rung(arm, rung):
 
 
 def test_ckpt_manifest_needs_the_full_cadence(tmp_path):
-    run = RF["075"]
+    run = C4F["075"]
     d = tmp_path / run
     _touch(d, [reg.ckpt_name(s, "075") for s in reg.cadence_steps(37500)])
     with pytest.raises(reg.GateError):
@@ -472,7 +500,7 @@ def test_ckpt_manifest_needs_the_full_cadence(tmp_path):
 
 
 # ------------------------------------------------------------------ log gates
-def _log(run=RF["025"], ngpu=2, n=73473, banner=None, flash_missing=0, step=True, end=False,
+def _log(run=C4F["025"], ngpu=2, n=73473, banner=None, flash_missing=0, step=True, end=False,
          loss="0.512", members=None, spe=None):
     arm, tag, _ = reg.parse_run_id(run)
     spe = reg.FRACS[tag]["steps_per_epoch"] if spe is None else spe
@@ -482,7 +510,7 @@ def _log(run=RF["025"], ngpu=2, n=73473, banner=None, flash_missing=0, step=True
     if ngpu > 1:
         for r in (members if members is not None else range(ngpu)):
             parts.append(f"Initializing distributed: GLOBAL_RANK: {r}, MEMBER: {r + 1}/{ngpu}")
-    parts += [reg.RF_BANNER] if banner is None else list(banner)
+    parts += [reg.C4F_BANNER] if banner is None else list(banner)
     if step:
         parts.append(f"Epoch 0:   0%|          | 1/{spe} [00:05<1:00:00,  0.30it/s, train/loss={loss}]")
     text = "\n".join(parts)
@@ -492,29 +520,33 @@ def _log(run=RF["025"], ngpu=2, n=73473, banner=None, flash_missing=0, step=True
 
 
 def test_log_gate_start_pass():
-    assert reg.log_gate(_log(), RF["025"], "start", "flash", 2) == []
-    assert reg.log_gate(_log(flash_missing=2), RF["025"], "start", "sdpa", 2) == []
-    assert reg.log_gate(_log(RF["075"], n=218463), RF["075"], "start", "flash", 2) == []
+    assert reg.log_gate(_log(), C4F["025"], "start", "flash", 2) == []
+    assert reg.log_gate(_log(flash_missing=2), C4F["025"], "start", "sdpa", 2) == []
+    assert reg.log_gate(_log(C4F["075"], n=218463), C4F["075"], "start", "flash", 2) == []
 
 
 @pytest.mark.parametrize("ngpu,spe", [(1, 2296), (1, 1148), (4, 574), (0, 1148)])
 def test_log_gate_refuses_every_world_size_but_2(ngpu, spe):
     """Codex code r1 finding 11: every exp_46 launch path is 2 x 32 (plan r3 §5 L5, RUNGS); a log of any other world
     size is refused explicitly -- whatever its loader length (a single rank's own 2,296 batches included)."""
-    probs = reg.log_gate(_log(ngpu=max(ngpu, 1), spe=spe), RF["025"], "start", "flash", ngpu)
+    probs = reg.log_gate(_log(ngpu=max(ngpu, 1), spe=spe), C4F["025"], "start", "flash", ngpu)
     assert probs and "2 x 32 only" in probs[0] and f"{ngpu}-rank" in probs[0]
     assert reg.RUNGS == {"2x32": {"ngpu": 2, "micro": 32, "default": True}}
 
 
 C16_BANNER = "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"
+assert C16_BANNER == reg.C16_BANNER
 
 
 @pytest.mark.parametrize("kw,backend", [
     ({"banner": []}, "flash"),                                   # no banner
-    ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+    ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of C4F's
     ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
-    ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
-    ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+    ({"banner": [reg.RF_BANNER]}, "flash"),                      # exp_43's RF line (no grid)
+    ({"banner": ["yaw_aug ENABLED img_w=512 seed=42 offset_step=128"]}, "flash"),   # C4 without the flip
+    ({"banner": [reg.C4F_BANNER, reg.C4F_BANNER]}, "flash"),     # two C4F banners (one per rank is impossible: G4)
+    ({"banner": [reg.C4F_BANNER, reg.YAW_BANNER]}, "flash"),     # C4F + another arm's line
+    ({"banner": [reg.C4F_BANNER, reg.RF_BANNER]}, "flash"),      # C4F + the RF line
     ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
     ({"n": 291210}, "flash"),
     ({"members": [0]}, "flash"),
@@ -525,18 +557,18 @@ C16_BANNER = "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"
     ({"loss": "-inf"}, "flash"),
 ])
 def test_log_gate_start_failures(kw, backend):
-    assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+    assert reg.log_gate(_log(**kw), C4F["025"], "start", backend, 2) != []
 
 
 def test_log_gate_banner_after_the_first_step_fails():
-    text = _log(banner=[]) + "\n" + reg.RF_BANNER
-    assert any("banner" in p for p in reg.log_gate(text, RF["025"], "start", "flash", 2))
+    text = _log(banner=[]) + "\n" + reg.C4F_BANNER
+    assert any("banner" in p for p in reg.log_gate(text, C4F["025"], "start", "flash", 2))
 
 
 def test_log_gate_end_needs_lightnings_marker_and_enough_finite_losses():
-    assert reg.log_gate(_log(end=True), RF["025"], "end", "flash", 2) == []
-    assert reg.log_gate(_log(), RF["025"], "end", "flash", 2) != []
-    assert reg.log_gate(_log(end=True), RF["025"], "end", "flash", 2, min_losses=2) != []
+    assert reg.log_gate(_log(end=True), C4F["025"], "end", "flash", 2) == []
+    assert reg.log_gate(_log(), C4F["025"], "end", "flash", 2) != []
+    assert reg.log_gate(_log(end=True), C4F["025"], "end", "flash", 2, min_losses=2) != []
 
 
 def test_parse_losses_is_strict():
@@ -659,22 +691,22 @@ def test_the_snapshot_carries_every_read_only_exp38_dependency_with_its_hash(tmp
 def test_snapshot_is_complete_immutable_and_usable(tmp_path):
     """Codex code r1 HIGH 5: training is launched FROM the snapshot -- the closure (same digest as
     the tree), the subset-audit sidecar, and the two cwd-relative data links."""
-    files = reg.snapshot_files(RF["050"])
-    if reg.ARMS["rf"]["config"] not in files or f"{reg.EXP_DIR}/exp46_supervise.py" not in files:
+    files = reg.snapshot_files(C4F["050"])
+    if reg.ARMS["c4f"]["config"] not in files or f"{reg.EXP_DIR}/exp46_supervise.py" not in files:
         pytest.skip("the exp_46 kit is not committed yet (the closure lists tracked files only)")
     assert "train.py" in files and "src/training/run_evidence.py" in files and reg.SUBSET_AUDIT in files
     assert not any(f.startswith("src/tests/") for f in files)
     dest = tmp_path / "snap"
-    out = reg.snapshot_tools(RF["050"], str(dest))
+    out = reg.snapshot_tools(C4F["050"], str(dest))
     assert reg.verify_snapshot(str(dest), out["snapshot_sha256"])["verified"]
     assert reg.closure_digest(str(dest)) == reg.closure_digest()
     for rel in reg.SNAPSHOT_LINKS:
         assert os.path.islink(dest / rel) and os.readlink(dest / rel) == os.path.realpath(os.path.join(REPO, rel))
-    reg.check_config("rf", "2x32", repo=str(dest))
+    reg.check_config("c4f", "2x32", repo=str(dest))
     reg.check_subset("050", repo=str(dest))
     assert reg.check_subset_audit(str(dest))["sha256"]
     with pytest.raises(reg.GateError):
-        reg.snapshot_tools(RF["050"], str(dest))                # never overwritten
+        reg.snapshot_tools(C4F["050"], str(dest))                # never overwritten
     with pytest.raises(reg.GateError):
         reg.verify_snapshot(str(dest), "0" * 64)                # not the launch record's snapshot
     link = dest / "AcousticRooms"
@@ -704,7 +736,7 @@ def test_snapshot_is_complete_immutable_and_usable(tmp_path):
             q = dest / extra.rstrip("/")
             q.unlink() if (q.is_symlink() or q.is_file()) else q.rmdir()
         reg.verify_snapshot(str(dest))
-    cfg = dest / reg.ARMS["rf"]["config"]
+    cfg = dest / reg.ARMS["c4f"]["config"]
     cfg.write_text(cfg.read_text() + " ")
     with pytest.raises(reg.GateError):
         reg.verify_snapshot(str(dest))
@@ -724,7 +756,7 @@ def test_cli_dry_run_exit_codes(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(reg, "check_subset_audit", lambda repo=None: {"sha256": "0" * 64})
     assert reg._cli(["dry-run", "--platform", "a6000", "--save-root", str(tmp_path)]) == 0
     assert "DRY-RUN OK: 3 run(s) on a6000" in capsys.readouterr().out
-    _touch(tmp_path / RF["050"], ["epoch=2-step=2500.ckpt"])
+    _touch(tmp_path / C4F["050"], ["epoch=2-step=2500.ckpt"])
     assert reg._cli(["dry-run", "--platform", "a6000", "--save-root", str(tmp_path)]) == 2
     with pytest.raises(SystemExit):                              # the 8x8 rung does not exist
         reg._cli(["dry-run", "--platform", "neuronic", "--rung", "8x8", "--save-root", str(tmp_path)])

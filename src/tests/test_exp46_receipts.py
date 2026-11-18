@@ -70,7 +70,7 @@ def write_evidence(d, recs):
 
 # ------------------------------------------------------------------ evidence
 @have_smokes
-@pytest.mark.parametrize("cond,run", [("vanilla", "de_yaw_f025")])   # RF shares the vanilla pins
+@pytest.mark.parametrize("cond,run", [("vanilla", "de_yaw_f025")])   # C4F shares the vanilla pins
 def test_the_real_gpu0_smoke_evidence_passes_the_exact_gate(cond, run):
     recs = reg.load_evidence(BASE[cond], 1)
     assert reg.evidence_problems(recs, reg.required_runs()[0], 1, "flash", 20) == []   # exp_38's YAW smoke
@@ -117,7 +117,7 @@ EVIDENCE_MUTATIONS = {
 
 
 @pytest.mark.parametrize("name", sorted(EVIDENCE_MUTATIONS))
-@pytest.mark.parametrize("run", ["exp46_RFf050_l40_2x32", "exp46_RFf075_l40_2x32"])
+@pytest.mark.parametrize("run", ["exp46_C4Ff050_l40_2x32", "exp46_C4Ff075_l40_2x32"])
 def test_each_evidence_mutation_on_one_rank_is_refused(name, run):
     recs = records(run)
     EVIDENCE_MUTATIONS[name](recs[1])
@@ -125,13 +125,13 @@ def test_each_evidence_mutation_on_one_rank_is_refused(name, run):
 
 
 def test_the_backend_is_part_of_the_evidence():
-    assert reg.evidence_problems(records("exp46_RFf025_l40_2x32"), "exp46_RFf025_l40_2x32", 2, "sdpa", 30)
-    assert reg.evidence_problems(records("exp46_RFf025_l40_2x32", backend="sdpa"), "exp46_RFf025_l40_2x32", 2, "flash", 30)
+    assert reg.evidence_problems(records("exp46_C4Ff025_l40_2x32"), "exp46_C4Ff025_l40_2x32", 2, "sdpa", 30)
+    assert reg.evidence_problems(records("exp46_C4Ff025_l40_2x32", backend="sdpa"), "exp46_C4Ff025_l40_2x32", 2, "flash", 30)
 
 
 def test_load_evidence_needs_exactly_the_rank_files(tmp_path):
     d = tmp_path / "evidence"
-    write_evidence(str(d), records("exp46_RFf025_l40_2x32"))
+    write_evidence(str(d), records("exp46_C4Ff025_l40_2x32"))
     assert sorted(reg.load_evidence(str(d), 2)) == [0, 1]
     with pytest.raises(reg.GateError):
         reg.load_evidence(str(d), 8)
@@ -171,7 +171,7 @@ def test_sealed_records(tmp_path):
 # ------------------------------------------------------------------ SMOKE_DDP receipts
 CLOSURE, ENV_SHA, AUDIT_SHA, HEAD = fx.FIX_CLOSURE, "d" * 64, "a" * 64, "f" * 40
 A6000_GPUS = sorted([u, "NVIDIA RTX A6000"] for u in reg.A6000_UUIDS)
-RF050 = "exp46_RFf050_l40_2x32"
+RF050 = "exp46_C4Ff050_l40_2x32"
 
 
 def smoke_log(run, ngpu=2, steps=30, losses=3, end=True, backend="flash"):
@@ -180,7 +180,7 @@ def smoke_log(run, ngpu=2, steps=30, losses=3, end=True, backend="flash"):
     if backend == "sdpa":
         parts += [reg.FLASH_MISSING + ", disabling Flash Attention"] * ngpu
     parts += [f"Initializing distributed: GLOBAL_RANK: {r}, MEMBER: {r + 1}/{ngpu}" for r in range(ngpu)]
-    parts.append(reg.ARMS[arm]["banner"])                       # one RF line (rank 0)
+    parts.append(reg.ARMS[arm]["banner"])                       # one C4F line (rank 0)
     spe = reg.FRACS[tag]["steps_per_epoch"]
     parts += [f"Epoch 0:   0%|          | {i + 1}/{spe} [00:05<1:00:00,  0.30it/s, train/loss=0.5{i}]" for i in range(losses)]
     text = "\n".join(parts)
@@ -194,7 +194,7 @@ def tree(tmp_path, monkeypatch):
     monkeypatch.setattr(reg, "check_subset_audit", lambda repo=None: {"sha256": AUDIT_SHA})
     (tmp_path / reg.EXP_DIR).mkdir(parents=True)
     import shutil
-    for arm, rung in (("rf", "2x32"),):
+    for arm, rung in (("c4f", "2x32"),):
         rel = reg.model_config_rel(arm, rung)
         os.makedirs(tmp_path / os.path.dirname(rel), exist_ok=True)
         shutil.copyfile(os.path.join(REPO, rel), tmp_path / rel)
@@ -205,7 +205,7 @@ def tree(tmp_path, monkeypatch):
     return tmp_path
 
 
-def _smoke(tree, run="exp46_RFf025_l40_2x32", ts="2026-11-08_04-00-00", rc=0, ckpt=False, recs=None, log=None, backend="flash",
+def _smoke(tree, run="exp46_C4Ff025_l40_2x32", ts="2026-11-08_04-00-00", rc=0, ckpt=False, recs=None, log=None, backend="flash",
            platform="a6000", gpus=None, logger=None):
     sd = tree / f"smoke_{ts}"
     for rel, data in ({"lightning_logs/version_0/hparams.yaml": "{}\n"} if logger is None else logger).items():
@@ -227,13 +227,13 @@ def test_the_smoke_writer_recomputes_every_gate(tree):
     assert _smoke(tree)["verdict"] == "PASS"
     assert _smoke(tree, ts="t1", rc=1)["verdict"] == "FAIL"
     assert _smoke(tree, ts="t2", ckpt=True)["verdict"] == "FAIL"
-    bad = records("exp46_RFf025_l40_2x32")
+    bad = records("exp46_C4Ff025_l40_2x32")
     bad[1]["rng_at_fit_start"]["torch_cuda"] = "0" * 64
     out = _smoke(tree, ts="t3", recs=bad)
     assert out["verdict"] == "FAIL" and out["evidence_gate"] != "PASS"
-    out = _smoke(tree, ts="t4", log=smoke_log("exp46_RFf025_l40_2x32", end=False))
+    out = _smoke(tree, ts="t4", log=smoke_log("exp46_C4Ff025_l40_2x32", end=False))
     assert out["verdict"] == "FAIL" and out["log_gate"] != "PASS"
-    out = _smoke(tree, ts="t5", recs={0: records("exp46_RFf025_l40_2x32")[0]})
+    out = _smoke(tree, ts="t5", recs={0: records("exp46_C4Ff025_l40_2x32")[0]})
     assert out["verdict"] == "FAIL"                               # a missing rank's evidence
     assert _smoke(tree, ts="t6")["logger_gate"] == "PASS"
     v0 = "lightning_logs/version_0/"
@@ -292,11 +292,11 @@ def test_the_writers_refuse_an_environment_receipt_changed_during_the_run(tree, 
 
 def test_the_smoke_consumer_accepts_the_newest_matching_pass(tree):
     out = _smoke(tree)
-    got = reg.check_smoke_receipt("exp46_RFf025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
+    got = reg.check_smoke_receipt("exp46_C4Ff025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
     assert got["smoke_receipt"] == out["smoke_receipt"]
     _smoke(tree, ts="2026-11-08_05-00-00", rc=1)                  # a newer FAIL
     with pytest.raises(reg.GateError):
-        reg.check_smoke_receipt("exp46_RFf025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
+        reg.check_smoke_receipt("exp46_C4Ff025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
 
 
 def _reseal(path, fn):
@@ -310,7 +310,7 @@ def _reseal(path, fn):
 SMOKE_MUTATIONS = {
     "backend": lambda r: r.update(backend="sdpa"), "head": lambda r: r.update(head="e" * 40),
     "closure": lambda r: r.update(closure_sha256="0" * 64), "env": lambda r: r.update(env_receipt_sha256="0" * 64),
-    "audit": lambda r: r.update(subset_audit_sha256="0" * 64), "run": lambda r: r.update(run="exp46_RFf050_l40_2x32"),
+    "audit": lambda r: r.update(subset_audit_sha256="0" * 64), "run": lambda r: r.update(run="exp46_C4Ff050_l40_2x32"),
     "platform": lambda r: r.update(platform="neuronic"), "mode": lambda r: r.update(mode="SMOKE"),
     "argv": lambda r: r.update(argv_projection=r["argv_projection"][:-2]),
     "model cfg": lambda r: r.update(model_config_sha256="0" * 64), "data cfg": lambda r: r.update(dataset_config_sha256="0" * 64),
@@ -335,7 +335,7 @@ def test_the_smoke_consumer_refuses_each_field_mutation(tree, name):
     out = _smoke(tree)
     _reseal(out["smoke_receipt"], SMOKE_MUTATIONS[name])
     with pytest.raises(reg.GateError):
-        reg.check_smoke_receipt("exp46_RFf025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
+        reg.check_smoke_receipt("exp46_C4Ff025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
 
 
 def test_the_smoke_consumer_re_opens_its_log_and_snapshot(tree):
@@ -343,50 +343,50 @@ def test_the_smoke_consumer_re_opens_its_log_and_snapshot(tree):
     although the sealed receipt is untouched; a log that no longer passes its gate refuses too."""
     out = _smoke(tree)
     rec = json.load(open(out["smoke_receipt"]))
-    reg.check_smoke_receipt("exp46_RFf025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
+    reg.check_smoke_receipt("exp46_C4Ff025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
     open(os.path.join(rec["snapshot_dir"], "x.txt"), "a").write("tampered\n")
     with pytest.raises(reg.GateError, match="snapshot"):
-        reg.check_smoke_receipt("exp46_RFf025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
+        reg.check_smoke_receipt("exp46_C4Ff025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
     out = _smoke(tree, ts="2026-11-08_05-00-00")
     rec = json.load(open(out["smoke_receipt"]))
     (__import__("pathlib").Path(rec["smoke_dir"]) / "lightning_logs" / "version_1").mkdir()
     with pytest.raises(reg.GateError, match="smoke logger"):
-        reg.check_smoke_receipt("exp46_RFf025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
+        reg.check_smoke_receipt("exp46_C4Ff025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
     out = _smoke(tree, ts="2026-11-08_05-30-00")
     rec = json.load(open(out["smoke_receipt"]))
     open(rec["log"], "a").write("one more line\n")
     with pytest.raises(reg.GateError, match="log"):
-        reg.check_smoke_receipt("exp46_RFf025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
+        reg.check_smoke_receipt("exp46_C4Ff025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
 
 
 def test_the_smoke_consumer_checks_the_request(tree, monkeypatch):
     out = _smoke(tree)
-    for args in (("exp46_RFf025_l40_2x32", "a6000", "sdpa", HEAD), ("exp46_RFf025_l40_2x32", "a6000", "flash", "e" * 40),
-                 ("exp46_RFf050_l40_2x32", "a6000", "flash", HEAD)):
+    for args in (("exp46_C4Ff025_l40_2x32", "a6000", "sdpa", HEAD), ("exp46_C4Ff025_l40_2x32", "a6000", "flash", "e" * 40),
+                 ("exp46_C4Ff050_l40_2x32", "a6000", "flash", HEAD)):
         with pytest.raises(reg.GateError):
             reg.check_smoke_receipt(*args, A6000_GPUS, repo=str(tree))
     monkeypatch.setattr(reg, "env_receipt_sha", lambda platform, repo=None: "9" * 64)   # a recreated env receipt
     with pytest.raises(reg.GateError):
-        reg.check_smoke_receipt("exp46_RFf025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
+        reg.check_smoke_receipt("exp46_C4Ff025_l40_2x32", "a6000", "flash", HEAD, A6000_GPUS, repo=str(tree))
     open(out["smoke_receipt"], "ab").write(b" ")
     with pytest.raises(reg.GateError):
-        reg.check_smoke_receipt("exp46_RFf025_l40_2x32", "a6000", "flash", HEAD, None, repo=str(tree))
+        reg.check_smoke_receipt("exp46_C4Ff025_l40_2x32", "a6000", "flash", HEAD, None, repo=str(tree))
 
 
 def test_a_neuronic_smoke_receipt_needs_its_l40_allocation(tree):
     gpus = [[f"GPU-{i}", "NVIDIA L40"] for i in range(2)]
     _smoke(tree, platform="neuronic", gpus=gpus)
-    assert reg.check_smoke_receipt("exp46_RFf025_l40_2x32", "neuronic", "flash", HEAD, repo=str(tree))
+    assert reg.check_smoke_receipt("exp46_C4Ff025_l40_2x32", "neuronic", "flash", HEAD, repo=str(tree))
     _smoke(tree, ts="2026-11-08_06-00-00", platform="neuronic", gpus=[["GPU-0", "NVIDIA A100"]] * 2)
     with pytest.raises(reg.GateError):
-        reg.check_smoke_receipt("exp46_RFf025_l40_2x32", "neuronic", "flash", HEAD, repo=str(tree))
+        reg.check_smoke_receipt("exp46_C4Ff025_l40_2x32", "neuronic", "flash", HEAD, repo=str(tree))
 
 
 # ------------------------------------------------------------------ TRAINING_COMPLETE
 import exp46_eval  # noqa: E402  (E0_KEYS for the retained E0 copy)
 
 
-def _admitted(tree, monkeypatch, run="exp46_RFf050_l40_2x32", backend="flash"):
+def _admitted(tree, monkeypatch, run="exp46_C4Ff050_l40_2x32", backend="flash"):
     """The sealed E0 / environment / SMOKE_DDP receipts a FULL launch validated, in the campaign tree,
     mutually consistent; returns (paths, digests)."""
     exp = tree / reg.EXP_DIR
@@ -413,7 +413,7 @@ def _admitted(tree, monkeypatch, run="exp46_RFf050_l40_2x32", backend="flash"):
     return paths, {"e0": e0d, "env": envd, "smoke": smkd, "smoke_log": str(slog)}
 
 
-def _full_run(tree, monkeypatch, run="exp46_RFf050_l40_2x32", losses=60, rc=0, drop=None, backend="flash"):
+def _full_run(tree, monkeypatch, run="exp46_C4Ff050_l40_2x32", losses=60, rc=0, drop=None, backend="flash"):
     arm, tag, _ = reg.parse_run_id(run)
     rd = tree / run
     rd.mkdir()
@@ -433,7 +433,7 @@ def _full_run(tree, monkeypatch, run="exp46_RFf050_l40_2x32", losses=60, rc=0, d
     return rd, log, retained, paths, digests
 
 
-def _write_tr(tree, rd, log, retained, paths, digests, run="exp46_RFf050_l40_2x32", rc=0, content=None, commit=True,
+def _write_tr(tree, rd, log, retained, paths, digests, run="exp46_C4Ff050_l40_2x32", rc=0, content=None, commit=True,
               backend="flash"):
     rec = reg.write_training_receipt(run, "a6000", backend, HEAD, str(rd), str(log), rc, digests["snapshot"],
                                      digests["e0"], {"smoke_receipt": paths["smoke"], "sha256": digests["smoke"]},
@@ -453,12 +453,12 @@ def test_the_training_receipt_is_published_only_after_every_end_audit(tree, monk
         [os.path.basename(p) for p in paths.values()] + [os.path.basename(p) + ".sha256" for p in paths.values()]
         + ["train.log", "smoke_log.log", "SNAPSHOT.sha256", "SNAPSHOT.links", reg.LOSS_RECORD, reg.LOSS_RECORD_HPARAMS])
     assert (rec["loss_record_sha256"], rec["loss_record_rows"]) == (digests["loss"]["loss_record_sha256"], 400)
-    got, digest = reg.check_training_receipt("exp46_RFf050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"],
+    got, digest = reg.check_training_receipt("exp46_C4Ff050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"],
                                              platform="a6000")
     assert got == rec and len(digest) == 64
     for kw in ({"closure": "0" * 64}, {"e0_sha": "0" * 64}, {"platform": "neuronic"}):
         with pytest.raises(reg.GateError):
-            reg.check_training_receipt("exp46_RFf050_l40_2x32", str(rd), **kw)
+            reg.check_training_receipt("exp46_C4Ff050_l40_2x32", str(rd), **kw)
     with pytest.raises(reg.GateError):
         _write_tr(tree, rd, log, retained, paths, digests)                       # written once
     with pytest.raises(reg.GateError):
@@ -472,12 +472,12 @@ def test_a_consistent_sdpa_training_chain_is_refused_at_admission(tree, monkeypa
     rd, log, retained, paths, digests = _full_run(tree, monkeypatch, backend="sdpa")
     _write_tr(tree, rd, log, retained, paths, digests, backend="sdpa")
     with pytest.raises(reg.GateError, match="flash"):
-        reg.check_training_receipt("exp46_RFf050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"],
+        reg.check_training_receipt("exp46_C4Ff050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"],
                                    platform="a6000")
     monkeypatch.setattr(reg, "env_receipt_sha", lambda platform, repo=None: ENV_SHA)   # the SMOKE helper's receipt
     _smoke(tree, backend="sdpa")
     with pytest.raises(reg.GateError, match="flash"):
-        reg.check_smoke_receipt("exp46_RFf025_l40_2x32", "a6000", "sdpa", HEAD, A6000_GPUS, repo=str(tree))
+        reg.check_smoke_receipt("exp46_C4Ff025_l40_2x32", "a6000", "sdpa", HEAD, A6000_GPUS, repo=str(tree))
 
 
 def test_an_sdpa_launch_is_refused_before_any_work(tmp_path, monkeypatch):
@@ -497,15 +497,15 @@ def test_an_sdpa_launch_is_refused_before_any_work(tmp_path, monkeypatch):
         return types.SimpleNamespace(returncode=1, stdout="", stderr="no scheduler in this test")
     for mode in ("SMOKE", "FULL"):
         with pytest.raises(sub.SubmitError, match="flash"):
-            sub.submit("exp46_RFf025_l40_2x32", mode, "01:00:00", "sdpa", "", False, False, root=str(tmp_path / "r"),
+            sub.submit("exp46_C4Ff025_l40_2x32", mode, "01:00:00", "sdpa", "", False, False, root=str(tmp_path / "r"),
                        runner=no_scheduler)
     assert called == [] and not (tmp_path / "r").exists()
     for argv in (["--platform", "neuronic", "--mode", "SMOKE", "--token", "a" * 32, "--save-dir", "/x"],
                  ["--platform", "neuronic", "--mode", "FULL", "--token", "a" * 32, "--save-dir", "/x"],
                  ["--platform", "a6000", "--mode", "SMOKE_DDP"], ["--platform", "a6000", "--mode", "FULL"]):
         with pytest.raises(SystemExit):
-            sv.parse(argv + ["--run", "exp46_RFf025_l40_2x32", "--backend", "sdpa"])
-    sv.parse(["--platform", "neuronic", "--mode", "DRY_RUN", "--run", "exp46_RFf025_l40_2x32", "--backend", "sdpa"])
+            sv.parse(argv + ["--run", "exp46_C4Ff025_l40_2x32", "--backend", "sdpa"])
+    sv.parse(["--platform", "neuronic", "--mode", "DRY_RUN", "--run", "exp46_C4Ff025_l40_2x32", "--backend", "sdpa"])
 
 
 @pytest.mark.parametrize("case", ["rc", "few losses", "missing ckpt", "bad evidence", "sdpa evidence", "content"])
@@ -513,10 +513,10 @@ def test_the_training_receipt_refuses_a_failed_run(tree, monkeypatch, case):
     rd, log, retained, paths, digests = _full_run(tree, monkeypatch, losses=10 if case == "few losses" else 60,
                                                   drop=20000 if case == "missing ckpt" else None)
     if case == "bad evidence":
-        write_evidence(str(rd / "evidence"), {**records("exp46_RFf050_l40_2x32", max_steps=40000),
-                                              1: dict(records("exp46_RFf050_l40_2x32", max_steps=40000)[1], local_rank=0)})
+        write_evidence(str(rd / "evidence"), {**records("exp46_C4Ff050_l40_2x32", max_steps=40000),
+                                              1: dict(records("exp46_C4Ff050_l40_2x32", max_steps=40000)[1], local_rank=0)})
     if case == "sdpa evidence":
-        write_evidence(str(rd / "evidence"), records("exp46_RFf050_l40_2x32", backend="sdpa", max_steps=40000))
+        write_evidence(str(rd / "evidence"), records("exp46_C4Ff050_l40_2x32", backend="sdpa", max_steps=40000))
     with pytest.raises(reg.GateError):
         _write_tr(tree, rd, log, retained, paths, digests, rc=1 if case == "rc" else 0,
                   content="0" * 64 if case == "content" else None)
@@ -551,7 +551,7 @@ TR_MUTATIONS = {
     "closure (valid-looking)": lambda r: r.update(closure_sha256="9" * 64),
     "time order": lambda r: r.update(launched_at="2099-11-10T04:00:00-0500"),
     "content checks": lambda r: r.update(data_content_checks=["pre-launch"]),
-    "time": lambda r: r.update(finished_at=None), "schema": lambda r: r.update(schema=2), "run": lambda r: r.update(run="exp46_RFf025_l40_2x32"),
+    "time": lambda r: r.update(finished_at=None), "schema": lambda r: r.update(schema=2), "run": lambda r: r.update(run="exp46_C4Ff025_l40_2x32"),
     "loss sha": lambda r: r.update(loss_record_sha256="1" * 64), "loss rows": lambda r: r.update(loss_record_rows=399),
     "loss rows type": lambda r: r.update(loss_record_rows=400.0), "loss sha malformed": lambda r: r.update(loss_record_sha256="x"),
     "receipts loss name": lambda r: r["receipts"].update(loss_record="metrics.csv"),
@@ -566,7 +566,7 @@ def test_the_training_receipt_consumer_refuses_each_field_mutation(tree, monkeyp
     _write_tr(tree, rd, log, retained, paths, digests)
     _reseal_tr(rd, TR_MUTATIONS[name])
     with pytest.raises(reg.GateError):
-        reg.check_training_receipt("exp46_RFf050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"])
+        reg.check_training_receipt("exp46_C4Ff050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"])
 
 
 @pytest.mark.parametrize("what", ["e0 copy", "env copy", "smoke copy resealed", "log copy", "evidence file",
@@ -621,7 +621,7 @@ def test_the_training_receipt_re_opens_its_retained_records(tree, monkeypatch, w
         e["n_state_tensors"] = 1
         json.dump(e, open(f, "w"))
     with pytest.raises(reg.GateError):
-        reg.check_training_receipt("exp46_RFf050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"])
+        reg.check_training_receipt("exp46_C4Ff050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"])
 
 
 # ------------------------------------------------------------------ the loss record (plan r3 §3.2, §3.3)
@@ -704,12 +704,12 @@ def test_the_training_receipt_binds_manifest_sha_and_bytes(tree, monkeypatch):
     final = rd / reg.ckpt_name(40000, "050")
     final.write_bytes(b"ckpt 40001")                                             # same length, other bytes
     with pytest.raises(reg.GateError):
-        reg.check_training_receipt("exp46_RFf050_l40_2x32", str(rd), closure=CLOSURE)
-    reg.check_training_receipt("exp46_RFf050_l40_2x32", str(rd), closure=CLOSURE, verify_bytes=False)
+        reg.check_training_receipt("exp46_C4Ff050_l40_2x32", str(rd), closure=CLOSURE)
+    reg.check_training_receipt("exp46_C4Ff050_l40_2x32", str(rd), closure=CLOSURE, verify_bytes=False)
     man = rd / "CHECKPOINTS.sha256"
     man.write_text(man.read_text().replace("-step=2500.ckpt", "-step=2501.ckpt"))
     with pytest.raises(reg.GateError):
-        reg.check_training_receipt("exp46_RFf050_l40_2x32", str(rd), closure=CLOSURE, verify_bytes=False)
+        reg.check_training_receipt("exp46_C4Ff050_l40_2x32", str(rd), closure=CLOSURE, verify_bytes=False)
 
 
 # ------------------------------------------------------------------ environment receipt
@@ -940,25 +940,25 @@ def test_the_commit_marker_needs_the_terminal_record(tree, monkeypatch):
     rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
     _write_tr(tree, rd, log, retained, paths, digests, commit=False)
     with pytest.raises(reg.GateError, match="committed"):
-        reg.check_training_receipt("exp46_RFf050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"])
+        reg.check_training_receipt("exp46_C4Ff050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"])
     digest = reg.sha256_file(str(rd / reg.TRAINING_RECEIPT))
     lr = rd / "at_launch_x.json"
-    json.dump({"run": "exp46_RFf050_l40_2x32", "status": "end audit failed", "training_receipt_sha256": digest}, open(lr, "w"))
+    json.dump({"run": "exp46_C4Ff050_l40_2x32", "status": "end audit failed", "training_receipt_sha256": digest}, open(lr, "w"))
     with pytest.raises(reg.GateError):
-        reg.write_commit_marker(str(rd), "exp46_RFf050_l40_2x32", digest, str(lr))   # never for a non-COMPLETE record
-    fx.commit(reg, str(rd), "exp46_RFf050_l40_2x32", digest)
-    reg.check_training_receipt("exp46_RFf050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"])
+        reg.write_commit_marker(str(rd), "exp46_C4Ff050_l40_2x32", digest, str(lr))   # never for a non-COMPLETE record
+    fx.commit(reg, str(rd), "exp46_C4Ff050_l40_2x32", digest)
+    reg.check_training_receipt("exp46_C4Ff050_l40_2x32", str(rd), closure=CLOSURE, e0_sha=digests["e0"])
 
 
 def test_the_publication_cli_needs_its_campaign_context(tree, monkeypatch, capsys):
     rd, log, retained, paths, digests = _full_run(tree, monkeypatch)
     _write_tr(tree, rd, log, retained, paths, digests)
     with pytest.raises(SystemExit):
-        reg._cli(["training-check", "exp46_RFf050_l40_2x32", "--run-dir", str(rd)])
-    base = ["training-check", "exp46_RFf050_l40_2x32", "--run-dir", str(rd), "--platform", "a6000"]
+        reg._cli(["training-check", "exp46_C4Ff050_l40_2x32", "--run-dir", str(rd)])
+    base = ["training-check", "exp46_C4Ff050_l40_2x32", "--run-dir", str(rd), "--platform", "a6000"]
     assert reg._cli(base + ["--closure", CLOSURE, "--e0-sha", digests["e0"]]) == 0
     assert reg._cli(base + ["--closure", "0" * 64, "--e0-sha", digests["e0"]]) == 2
-    assert reg._cli(["training-check", "exp46_RFf050_l40_2x32", "--run-dir", str(rd), "--platform", "neuronic",
+    assert reg._cli(["training-check", "exp46_C4Ff050_l40_2x32", "--run-dir", str(rd), "--platform", "neuronic",
                      "--closure", CLOSURE, "--e0-sha", digests["e0"]]) == 2
 
 

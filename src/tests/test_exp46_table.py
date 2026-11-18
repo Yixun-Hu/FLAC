@@ -200,9 +200,9 @@ def built(imp, world, monkeypatch):
     repo, root, sha = imp
     assert TE.ev is tbl.ev
     tbl.import_exp38(sha, repo=repo)
-    rows = {f"rf|{t}|{K}": {k: [2.0, 0.1, 5] for k in tbl.ev.METRIC_KEYS} for t in tbl.FRACS for K in (8, 1)}
-    monkeypatch.setattr(tbl, "rf_rows", lambda campaign: json.loads(json.dumps(rows)))
-    res = {"rows": [{"model": "rf", "fraction": k.split("|")[1], "K": int(k.split("|")[2]),
+    rows = {f"c4f|{t}|{K}": {k: [2.0, 0.1, 5] for k in tbl.ev.METRIC_KEYS} for t in tbl.FRACS for K in (8, 1)}
+    monkeypatch.setattr(tbl, "c4f_rows", lambda campaign: json.loads(json.dumps(rows)))
+    res = {"rows": [{"model": "c4f", "fraction": k.split("|")[1], "K": int(k.split("|")[2]),
                      "stats": {m: {"mean": v[0], "sd": v[1], "n": v[2]} for m, v in st.items()}} for k, st in rows.items()]}
     path = os.path.join(repo, tbl.reg.EXP_DIR, "c4flip_data_curve_results.json")
     json.dump(res, open(path, "w"))
@@ -223,7 +223,7 @@ def test_build_renders_all_eighteen_cells_and_the_disclosures(built):
     assert ev_rec["exp38_commit"] == sha and len(ev_rec["rows"]) == 18
 
 
-EVIDENCE_KEYS = {"schema", "exp38_commit", "exp38_import_sha256", "exp46_campaign", "rf_results_sha256", "rows",
+EVIDENCE_KEYS = {"schema", "exp38_commit", "exp38_import_sha256", "exp46_campaign", "c4f_results_sha256", "rows",
                  "written_at"}
 
 
@@ -310,11 +310,12 @@ def test_build_reopens_the_bundle_blobs_at_the_requested_commit(built):
 
 def test_the_disclosures_have_one_source_and_appear_under_every_exp46_table(built):
     """Codex code r1 finding 15: the plan r3 §8 disclosures live in ONE place (exp46_registry.DISCLOSURES) and print
-    under every exp_46 table -- this comparison table, the collector's results Markdown (all but item 7: it has no
-    OrbitRIR row) and the shared generator's exp_46 block (test_gen_model_comparison_exp45.py) -- so they cannot drift."""
+    under every exp_46 table -- this comparison table, the collector's results Markdown (all but items 7 and 12: it
+    has no OrbitRIR / YAW-Aug row) and the shared generator's exp_46 block (test_gen_model_comparison_exp45.py) -- so they cannot drift."""
     reg = tbl.reg
-    assert len(reg.DISCLOSURES) == 11 and tbl.DISCLOSURES == reg.disclosures("table") == reg.DISCLOSURES
-    assert reg.disclosures("collect") == tuple(d for i, d in enumerate(reg.DISCLOSURES, 1) if i != 7)
+    assert len(reg.DISCLOSURES) == 12 and tbl.DISCLOSURES == reg.disclosures("table") == reg.DISCLOSURES
+    assert reg.disclosures("collect") == tuple(d for i, d in enumerate(reg.DISCLOSURES, 1) if i not in (7, 12))
+    assert reg.disclosures("generator") == reg.DISCLOSURES[:11]                 # item 12 is about the 20-row table
     gen = os.path.join(REPO, "worklog", "worklog_yixun", "gen_model_comparison.py")
     for d in reg.DISCLOSURES:                            # the text itself is written once, in the registry
         needle = d[3:60]
@@ -325,7 +326,7 @@ def test_the_disclosures_have_one_source_and_appear_under_every_exp46_table(buil
     assert all(d in md for d in reg.disclosures("table"))
     import exp46_collect as col
     rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in tbl.ev.METRIC_KEYS}, "source": "s"}
-            for m, f in [("rf", t) for t in tbl.FRACS] for K in (8, 1)}
+            for m, f in [("c4f", t) for t in tbl.FRACS] for K in (8, 1)}
     cmd = col.render(rows, [])
     assert all(d in cmd for d in reg.disclosures("collect")) and reg.DISCLOSURES[6] not in cmd
 
@@ -373,8 +374,8 @@ def test_the_import_materialiser_never_clobbers_a_destination(tmp_path, monkeypa
 
 def test_build_refuses_a_missing_cell(built, monkeypatch):
     repo, sha, _ = built
-    real = tbl.rf_rows
-    monkeypatch.setattr(tbl, "rf_rows", lambda c: {k: v for k, v in real(c).items() if k != "rf|075|1"})
+    real = tbl.c4f_rows
+    monkeypatch.setattr(tbl, "c4f_rows", lambda c: {k: v for k, v in real(c).items() if k != "c4f|075|1"})
     with pytest.raises(tbl.TableError, match="missing"):
         tbl.build(sha, repo=repo)
 
@@ -387,4 +388,4 @@ def test_build_never_reads_the_preliminary_files(built, monkeypatch):
     tbl.build(sha, repo=repo)
     assert opened and not [p for p in opened if "prelim_eval" in p or "_sessions" in p]
     import inspect
-    assert "prelim" not in inspect.getsource(tbl.build) + inspect.getsource(tbl.rf_rows)
+    assert "prelim" not in inspect.getsource(tbl.build) + inspect.getsource(tbl.c4f_rows)

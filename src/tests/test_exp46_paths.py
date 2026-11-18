@@ -29,7 +29,7 @@ KIT = ("exp46_registry.py", "exp46_supervise.py", "exp46_submit_neuronic.py", "e
        "exp46_collect.py", "exp46_table.py", "exp46_regression_compare.py")
 # another experiment's name followed by a path / name character (prose like "exp_38's" is not a literal path)
 FOREIGN = re.compile(r"exp[-_]?(38|45)(?=[-_./a-zA-Z0-9]|$)")
-RUN = "exp46_RFf025_l40_2x32"
+RUN = "exp46_C4Ff025_l40_2x32"
 
 # the registered dispositions of every foreign literal in the kit (the commit message of the sweep lists them too)
 READ_ONLY_EXP38 = "read-only exp_38 dependency (EXP38_DIR tools / artifacts, never written)"
@@ -142,7 +142,7 @@ def test_the_a6000_smoke_destination_is_refused_before_any_gate_or_write(tmp_pat
 
 
 def test_the_dry_run_names_no_a6000_smoke_destination(capsys, monkeypatch):
-    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("rf", "025", "2x32", sys.executable,
+    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("c4f", "025", "2x32", sys.executable,
                                                           {"argv": ["--save-dir", "/x"], "run_dir_state": "fresh"}, {}))
     monkeypatch.setattr(sv, "backend_gate", lambda *x: {})
     monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": "c" * 64})

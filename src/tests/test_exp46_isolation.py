@@ -23,7 +23,7 @@ EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_46_c4flip_data_curve_c
 sys.path.insert(0, EXP)
 import exp46_registry as reg  # noqa: E402
 
-RUN = "exp46_RFf025_l40_2x32"
+RUN = "exp46_C4Ff025_l40_2x32"
 
 
 def _load(path, name):
@@ -64,7 +64,7 @@ def test_equal_contained_and_containing_aliases_are_refused(tmp_path, protected)
     save38, _ = protected
     alias = tmp_path / "exp46_alias"
     alias.symlink_to(save38)
-    for path in (alias, alias / "exp46_RFf025_l40_2x32", tmp_path, save38):   # equal (via the link), inside, contains
+    for path in (alias, alias / "exp46_C4Ff025_l40_2x32", tmp_path, save38):   # equal (via the link), inside, contains
         assert reg.isolation_problems(str(path), "x", trees=[str(tmp_path / "tree")]), path
     assert reg.isolation_problems(str(tmp_path / "exp46_sibling"), "x", trees=[str(tmp_path / "tree")]) == []
     assert reg.isolation_problems(str(tmp_path), "x", trees=[str(tmp_path / "tree")], contains=False) == []
@@ -113,7 +113,7 @@ def test_the_supervisor_refuses_an_aliased_save_root_before_any_claim_or_directo
     alias.symlink_to(save38)
     monkeypatch.setitem(reg.PLATFORMS["a6000"], "save_root", str(alias))
     touched = []
-    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("rf", "025", "2x32", sys.executable, {"argv": []}, {}))
+    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("c4f", "025", "2x32", sys.executable, {"argv": []}, {}))
     monkeypatch.setattr(sv, "campaign_gates", lambda a, p: touched.append("campaign_gates") or ("f" * 40, "d" * 64, "c" * 64))
     monkeypatch.setattr(reg, "TRAINING_PLATFORM", "a6000")
     a = sv.parse(["--platform", "a6000", "--mode", "FULL", "--run", RUN, "--expect-sha", "f" * 40, "--token", "a" * 32])
@@ -145,7 +145,7 @@ def _publication(root, col):
         (root / rel).write_bytes(data)
     manifest = {"artifacts": {ev_rel: hashlib.sha256(b"e0 cell").hexdigest()}, "runs": {}}
     rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
-            for m, f in [("rf", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+            for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
     col.publish(rows, [], manifest, repo=str(root))
 
 

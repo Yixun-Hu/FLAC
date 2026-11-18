@@ -8,8 +8,8 @@ plan_c4flip_data_curve.md r3 §3.2. exp_38's tools and artifacts are reused READ
 reference cells and the sealed E0a decision.
 
 Every launch path (the neuronic sbatch + submitter, the eval driver) asks THIS module for the run's
-config, dataset config, argv, expected checkpoint names and gates. Exactly three runs exist: exp_43's RF
-arm (full-circle roll + mirror flip p = 1/2) at exp_38's 25 / 50 / 75 % subsets on neuronic 2 x L40 x 32
+config, dataset config, argv, expected checkpoint names and gates. The runs are exp_46's C4F arm (C4 + flip: yaw
+rolls uniform over {0, 90, 180, 270} degrees, then the mirror flip p = 1/2) at exp_38's subsets on neuronic 2 x L40 x 32
 (plan_c4flip_data_curve.md r3 §2, §3.2; exp_38: plan_data_efficiency.md §6-§7, §10 item 4).
 
 Pure functions on top; a small CLI at the bottom (``python exp46_registry.py -h``). torch is
@@ -64,8 +64,11 @@ VIT_REV = "114c1379950215c8b35dfcd4e90a5c251dde0d32"
 VIT_FILES = {"config.json": "9481247be9f95a134a5599402b4bfc838eecdf9a7fffbf4debd1c70ec213898b",
              "model.safetensors": "4610ad75edef83e75afdebf162d148dc628045ea6cbb83d67d4708c709c4f91d"}
 YAW_BANNER = "yaw_aug ENABLED img_w=512 seed=42"            # exp_15's YAW line: never in an exp_46 log
-# exp_43's RF line: printed ONCE, by rank 0 (diffusion.py _print_yaw_aug_banner is rank_zero_only; plan F1)
-RF_BANNER = "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"
+C16_BANNER = "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"   # exp_40's C16 line: never in an exp_46 log
+RF_BANNER = "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"    # exp_43's RF line: never in an exp_46 log
+# exp_46's C4F line (plan r3 G4, §3.1 test 6): printed ONCE, by rank 0 (diffusion.py _print_yaw_aug_banner is
+# rank_zero_only and composes offset_step, then flip)
+C4F_BANNER = "yaw_aug ENABLED img_w=512 seed=42 offset_step=128 flip=0.5"
 FLASH_MISSING = "flash_attn not installed"
 OVERLAY_MESSAGE = "exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA"
 FIT_END = "`Trainer.fit` stopped: `max_steps={n}` reached."
@@ -89,13 +92,14 @@ FRACS = {
 }
 
 ARMS = {
-    # exp_43's RF arm, its config used in place and unchanged (sha256 at 4a7e3b3a; plan F1): exp_15's YAW config
-    # + exactly training.yaw_aug.flip = true
-    "rf": {"config": "worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json",
-           "config_sha256": "d6a02ddebdc37c3844038898cc4888b4562e1d9d6669dd52ef021e221ac5086d",
-           "cond_method": "vanilla", "banner": RF_BANNER, "min_free_mib": 12288, "required": True},
+    # exp_46's C4F arm (plan r3 §2, C1): exp_43's RF config (d6a02dde...) + exactly training.yaw_aug.offset_step = 128
+    # (YAW_AUG_KEYS order). At runtime it is bound by its sha256 and the exact yaw_aug block only: no runtime
+    # dependency on the RF file (the one-key difference is a unit test)
+    "c4f": {"config": f"{EXP_DIR}/exp46_FLAC_AR_YAWAUG_C4FLIP.json",
+            "config_sha256": "4b854bcd2a97768089e981f0775de6d1615bdb0177ffa78b0591ae885a028fb5",
+            "cond_method": "vanilla", "banner": C4F_BANNER, "min_free_mib": 12288, "required": True},
 }
-RF_YAW_AUG = {"enabled": True, "img_w": 512, "seed": 42, "flip": True}
+C4F_YAW_AUG = {"enabled": True, "img_w": 512, "seed": 42, "offset_step": 128, "flip": True}
 # exp_38's E0 reference configs (E0a / E0d: P1, E0b: B-F 100 %, E0c: YAW 100 %): read by the E0 cells, never
 # launchable training arms (plan r3 §3.2)
 E0_CONFIGS = {
@@ -118,18 +122,20 @@ OPTIONAL_RUNS = ()
 
 # seed-42 initial wrapper state (exp38_init_digest.py on the CPU == the in-process evidence of the
 # GPU-0 smokes, 2026-11-07; identical for YAW, B-F and P1 -- their .model sections are equal). exp_46's
-# REGISTERED PREDICTION for RF is the same value (plan r3 §3.2: the flip adds no state tensor and no RNG draw at
-# construction); verified fail-closed by exp46_init_digest.py (L3) and the SMOKE evidence
+# REGISTERED PREDICTION for C4F is the same value (plan r3 §3.2 "Init digest": the change only removes two raises;
+# the C4F constructor creates no state tensor and draws nothing at construction); verified fail-closed by exp46_init_digest.py (L3) and the SMOKE evidence
 INIT_STATE_SHA256 = "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
 INIT_SOBOL_SHA256 = "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
 FLASH_VERSION = "2.7.4.post1"
-CAMPAIGN_ROOT = {"a6000": "/home/yixunhu/codespace/exp-46-campaign"}   # tree 45 (plan r3 §4)
+CAMPAIGN_ROOT = {"a6000": "/home/yixunhu/codespace/exp-46-campaign"}   # tree 46 (plan r3 §4)
 # exact untracked symlinks a campaign tree may carry on this box (content is pinned separately)
 SYMLINK_ALLOWLIST = {"a6000": {"AcousticRooms": "/media/diskstation/yixunhu/FLAC/AcousticRooms",
                                "weights/AGREE": "/home/yixunhu/codespace/FLAC/weights/AGREE",
                                "weights/FLAC/VAE.safetensors": "/home/yixunhu/codespace/FLAC/weights/FLAC/VAE.safetensors",
                                "weights/FLAC/VAE.ckpt": "/home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt"}}
-EXTERNAL_CONFIGS = (ARMS["rf"]["config"],) + tuple(v["config"] for v in E0_CONFIGS.values())
+# the C4F config lives in EXP_DIR (closure membership: plan r3 §3.2 "Closure"); exp_43's RF config is NOT in the
+# runtime closure (plan r3 §2: no runtime dependency on the RF file)
+EXTERNAL_CONFIGS = tuple(v["config"] for v in E0_CONFIGS.values())
 SHADOW_NAMES = ("sitecustomize.py", "usercustomize.py", "flash_attn", "flash_attn.py")
 
 
@@ -162,30 +168,30 @@ def run_id(arm, tag, rung="2x32"):
 
 
 def required_runs(rung="2x32"):
-    return [run_id("rf", t, rung) for t in ("025", "050", "075")]
+    return [run_id("c4f", t, rung) for t in ("025", "050", "075")]
 
 
 def all_runs(rung="2x32"):
     return required_runs(rung)
 
 
-# the launchable matrix: exactly the three RF runs (plan r3 §2, §3.2) -- no P1 bridge, no 8x8, no _r suffix
+# the launchable matrix: exactly the registered C4F runs (plan r3 §2, §3.2) -- no bridge, no 8x8, no _r suffix
 REGISTERED_RUNS = frozenset(required_runs("2x32"))
 # D1 (Yixun, 2026-11-14): exp_46 trains on neuronic 2 x L40 x 32 (exp_38's D2). FULL refuses elsewhere.
 TRAINING_PLATFORM = "neuronic"
 
 
 def campaign_runs():
-    """The runs the campaign must train and evaluate: the three RF runs."""
+    """The runs the campaign must train and evaluate: the registered C4F runs."""
     return required_runs("2x32")
-_RUN_RE = re.compile(r"^exp46_RFf(025|050|075)_l40_2x32$")
+_RUN_RE = re.compile(r"^exp46_C4Ff(025|050|075)_l40_2x32$")
 
 
 def parse_run_id(run):
     m = _RUN_RE.match(run if isinstance(run, str) else "")
     if not m or run not in REGISTERED_RUNS:
         raise GateError(f"not a registered exp_46 run id: {run!r}")
-    return "rf", m.group(1), "2x32"
+    return "c4f", m.group(1), "2x32"
 
 
 def check_rung(platform, rung, allow_nonmatched=False):
@@ -205,7 +211,7 @@ def model_config_rel(arm, rung):
 
 
 def chunk_plan(arm, rung):
-    """Announcement 06 record: the RF arm runs no frame-averaged conditioning, so there is no chunk plan."""
+    """Announcement 06 record: the C4F arm runs no frame-averaged conditioning, so there is no chunk plan."""
     if ARMS[arm]["cond_method"] != "vanilla":
         raise GateError(f"arm {arm}: only vanilla-conditioned arms are registered")
     return None
@@ -226,8 +232,8 @@ def check_config(arm, rung, repo=None):
         raise GateError(f"{rel}: img_w 512 and use_ema true required")
     if tr.get("cond_method", "vanilla") != ARMS[arm]["cond_method"]:
         raise GateError(f"{rel}: cond_method {tr.get('cond_method')!r} != {ARMS[arm]['cond_method']}")
-    if canonical(tr.get("yaw_aug")) != canonical(RF_YAW_AUG):                    # type-strict (1 is not True)
-        raise GateError(f"{rel}: training.yaw_aug is not the registered RF block {RF_YAW_AUG}")
+    if canonical(tr.get("yaw_aug")) != canonical(C4F_YAW_AUG):                   # type-strict (1 is not True)
+        raise GateError(f"{rel}: training.yaw_aug is not the registered C4F block {C4F_YAW_AUG}")
     if any(k.startswith("frame_avg") for k in tr):
         raise GateError(f"{rel}: unexpected frame-averaging keys")
     opt = tr.get("optimizer_configs", {}).get("diffusion", {})
@@ -768,14 +774,14 @@ def log_gate(text, run, phase, backend, ngpu, n_items=None, max_steps=MAX_STEPS,
             problems.append(f"DDP members {sorted(members)} != {sorted(want)}")
     elif any(_MEMBER.search(line) for line in lines):
         problems.append("a single-rank run initialised distributed")
-    # exactly ONE RF banner line (rank 0 only, plan F1), before the first step; no other arm's yaw_aug line
+    # exactly ONE C4F banner line (rank 0 only, plan G4), before the first step; no other arm's yaw_aug line
     banner = ARMS[arm]["banner"]
     idx = [i for i, line in enumerate(lines) if line.strip() == banner]
     if len(idx) != 1 or (step_i is not None and idx[0] > step_i):
         problems.append(f"banner {banner!r}: {len(idx)} line(s); exactly one, before the first step")
     other = sorted({line.strip() for line in lines if "yaw_aug ENABLED" in line and line.strip() != banner})
     if other:
-        problems.append(f"another arm's yaw_aug banner {other[:2]} (exp_15 YAW / exp_40 C16)")
+        problems.append(f"another arm's yaw_aug banner {other[:2]} (exp_15 YAW / exp_40 C16 / exp_43 RF)")
     # the loader length, observed from the progress bar's per-epoch step count (plan r3 §5 L5, evidence wording)
     totals = sorted({int(m.group(1)) for m in map(_EPOCH_TOTAL.search, lines) if m})
     if step_i is not None and totals != [FRACS[tag]["steps_per_epoch"]]:
@@ -1175,26 +1181,37 @@ def release_storage(run, token, root, reason="released"):
 
 # ---------------------------------------------------------------- the plan r3 §8 disclosures (ONE source)
 # printed under every exp_46 table -- exp46_collect.py's results Markdown, exp46_table.py's comparison table and the
-# shared generator's exp_46 block (Codex code r1 finding 15): brief §9 items 1-7 + plan r3 §8 items 8-11, written
-# here only, so the three cannot drift apart
+# shared generator's exp_46 block (exp_45 Codex code r1 finding 15): exp_46 plan r3 §8 items 1-12, which replace exp_45's
+# §8 and its brief's §9 entirely (nothing RF-specific carries over), written here only, so the three cannot drift apart
 DISCLOSURES = (
     "1. One training seed and one subset draw per point; the SD is evaluation randomness only (eval seeds 42-46): no "
     "significance claim is made, paired per-seed deltas are descriptive only.",
-    "2. Nominal fractions; the effective item fractions are 25.2302 / 50.0206 / 75.0191 %.",
-    "3. Fixed 40,000 updates, not matched epochs (≈ 34.84 / 17.57 / 11.72 epochs vs 8.79 at 100 %).",
-    "4. RF 25 / 50 / 75 % trained on 2 x L40 (neuronic); RF 100 % on 2 x A6000 with the unrestricted 100 % config "
-    "(exp_38's subset audit: removed = 0, outside = 0 at 100 %); the curve is cross-platform at 100 %.",
-    "5. The RF frame audit passed under gate A2, adopted after the originally registered gate failed.",
+    "2. Nominal fractions; the effective item fractions are 25.2302 / 50.0206 / 75.0191 / 100 % of 291,210 targets.",
+    "3. Fixed 40,000 updates, not matched epochs (≈ 34.84 / 17.57 / 11.72 / 8.79 epochs consumed; final checkpoint epoch "
+    "indices 34 / 17 / 11 / 8).",
+    "4. All four C4F points were trained on 2 x L40 (neuronic, torchrun) with one recipe. The fraction runs restrict "
+    "context candidates to their split; f100 uses the existing full train config, which does not set restrict_to_split; "
+    "exp_38's subset audit found no out-of-split candidate for the full split (outside 0, removed 0), so the two "
+    "policies draw the same pool.",
+    "5. No frame audit was run for C4F. exp_43's RF frame audit (it passed under gate A2, adopted after the originally "
+    "registered gate failed) concerns the shared rotation and mirror operators and is cited as upstream evidence only, "
+    "not as a C4F audit.",
     "6. Item-weighted aggregation over the 6,337 unseen items, not the paper's per-scene protocol.",
     "7. OrbitRIR rows use their own fa_invariant inference protocol: the comparison is descriptive, not an "
     "augmentation-only controlled comparison.",
-    "8. Cross-lineage tree: RF's training path is exp_43's, the data side exp_38's (byte-identical to their parents, tested).",
-    "9. RF's loss record comes from PL's CSV logger (exp_43's from W&B offline); same quantity and cadence.",
-    "10. Launcher difference vs RF 100 % (torchrun vs PL spawn), as between exp_38's fraction and 100 % rows.",
-    "11. E0 cells carry no waveform dumps (N10), as exp_38's registered E0.")
-# where each applies: the collector's table (RF 25 / 50 / 75 % only) has no OrbitRIR row, so item 7
-# does not apply there; the comparison table and the shared generator table carry OrbitRIR rows
-DISCLOSURE_ITEMS = {"collect": (1, 2, 3, 4, 5, 6, 8, 9, 10, 11), "table": tuple(range(1, 12)),
+    "8. Cross-lineage tree: the data side is exp_38's; the training path is exp_43's pin plus the two removed scope "
+    "refusals of plan §3.1 (tested); it is not byte-identical to either parent's training code.",
+    "9. Loss record from PL's CSV logger; the same quantity and cadence as exp_38's runs and exp_43's W&B record.",
+    "10. E0 cells carry no waveform dumps (N10), as exp_38's registered E0.",
+    "11. 'C4 + flip' = rolls uniform over {0, 90, 180, 270} degrees, then a mirror flip with p = 1/2: the D4 group as "
+    "the intended mathematical action (panorama roll and mirror are exact column permutations; pose vectors are rotated "
+    "in float32). Not PanoFormer's quarter-range continuous roll, not exp_43's full-circle roll.",
+    "12. YAW-Aug and OrbitRIR appear at 25 / 50 / 75 % only; their 100 % rows in model_comparison.md come from earlier "
+    "A6000 runs in other evaluation trees and are not part of this table.")
+# where each applies: the collector's table (C4F only) has no OrbitRIR / YAW-Aug row, so items 7 and 12 do not apply
+# there; the 20-row comparison table carries all twelve; the shared generator table carries OrbitRIR rows (item 7) and
+# those 100 % rows themselves, so item 12 (about the 20-row table) does not apply there
+DISCLOSURE_ITEMS = {"collect": (1, 2, 3, 4, 5, 6, 8, 9, 10, 11), "table": tuple(range(1, 13)),
                     "generator": tuple(range(1, 12))}
 
 

@@ -66,7 +66,7 @@ INPUT_HASH = {
     (8, 45): "ef2c937139f8ec09e4034cccf3751ce15a9ba1761bbc7a5f6ec748bb6753063e",
     (8, 46): "163f89a4b84a8071f1fa8091883cc9ab2c9bff97fccdb37b5196bbb8c1490b17",
 }
-# exp_46 (plan r3 §3.2; Codex plan r1 finding 13): the fixed-mode ASSIGNMENT hashes of the unseen split per
+# exp_45 plan r3 §3.2 (inherited unchanged by exp_46 plan r3 §4; Codex plan r1 finding 13): the fixed-mode ASSIGNMENT hashes of the unseen split per
 # (K, seed) -- (i, target_id, d_i), a data property (GPU- and model-independent; eval_FLAC.build_stream_record).
 # Source (2026-11-14): the exp_38 preliminary L40 stream sidecars on neuronic,
 # /n/fs/gatrdp/codespace/_sessions/exp40_c16_runner/prelim_eval/de_yaw_f025/*_K{8,1}_s4{2..6}*.stream.json

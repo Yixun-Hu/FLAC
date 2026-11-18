@@ -39,7 +39,7 @@ import exp46_collect as col  # noqa: E402  (one module graph: col.ev is ev, col.
 import exp46_eval as ev  # noqa: E402
 
 
-RF025 = "exp46_RFf025_l40_2x32"
+RF025 = "exp46_C4Ff025_l40_2x32"
 
 
 def _opt(argv, flag):
@@ -56,7 +56,7 @@ def test_plan_has_8_e0_and_the_campaign_runs_result_cells_with_unique_outputs():
     assert all(c["dump"] == (c["e0"] is None) for c in cells)
 
 
-@pytest.mark.parametrize("run,cond", [("exp46_RFf050_l40_2x32", "vanilla"), ("exp46_RFf075_l40_2x32", "vanilla")])
+@pytest.mark.parametrize("run,cond", [("exp46_C4Ff050_l40_2x32", "vanilla"), ("exp46_C4Ff075_l40_2x32", "vanilla")])
 def test_argv_is_the_reference_cells_shape(run, cond):
     c = [c for c in ev.run_cells(run) if c["K"] == 1 and c["seed"] == 44][0]
     a = ev.eval_argv(c)
@@ -265,7 +265,7 @@ def world(tmp_path, monkeypatch, e0):
     return {"tmp": tmp_path, "campaign": campaign}
 
 
-def _cell(world, run="exp46_RFf025_l40_2x32", K=8, seed=43, dump=True):
+def _cell(world, run="exp46_C4Ff025_l40_2x32", K=8, seed=43, dump=True):
     tmp = world["tmp"]
     cell = [c for c in ev.run_cells(run) if c["K"] == K and c["seed"] == seed][0]
     farm = os.path.dirname(cell["ckpt_link"])
@@ -285,7 +285,7 @@ def test_validate_cell_admits_a_complete_cell(world):
     cell = _cell(world)
     assert ev.validate_cell(cell) == []
     assert ev.validate_cell(cell, world["campaign"]) == []
-    vcell = _cell(world, run="exp46_RFf050_l40_2x32", K=1, seed=46)
+    vcell = _cell(world, run="exp46_C4Ff050_l40_2x32", K=1, seed=46)
     assert ev.validate_cell(vcell) == []
 
 
@@ -328,7 +328,7 @@ def _receipt_mutations():
     out.update({
         "extra": lambda r: r.update(extra=1), "rc": lambda r: r.update(rc=1),
         "sentinel": lambda r: r.update(sentinel="EXP35_NO_FLASH_LAUNCHER attention_backend=flash"),
-        "argv": lambda r: r.update(argv=r["argv"][:-2]), "cell": lambda r: r.update(cell="exp46_RFf025_l40_2x32_K8_s44"),
+        "argv": lambda r: r.update(argv=r["argv"][:-2]), "cell": lambda r: r.update(cell="exp46_C4Ff025_l40_2x32_K8_s44"),
         "head": lambda r: r.update(head="e" * 40), "closure": lambda r: r.update(closure_sha256="0" * 64),
         "e0": lambda r: r.update(e0_receipt_sha256="0" * 64), "e0 none": lambda r: r.update(e0_receipt_sha256=None),
         "env": lambda r: r.update(env_receipt_sha256="0" * 64), "agree": lambda r: r.update(agree_sha256="0" * 64),
@@ -371,7 +371,7 @@ def test_a_cell_is_claimed_exactly_once(world):
     with pytest.raises(ev.EvalError, match="claimed"):
         ev.claim_cell(cell)                                       # a concurrent / crashed run
     import multiprocessing as mp
-    other = [c for c in ev.run_cells("exp46_RFf025_l40_2x32") if c["seed"] == 44 and c["K"] == 1][0]
+    other = [c for c in ev.run_cells("exp46_C4Ff025_l40_2x32") if c["seed"] == 44 and c["K"] == 1][0]
     ctx = mp.get_context("fork")
     with ctx.Pool(4) as pool:
         got = pool.map(_try_claim, [other] * 4)
@@ -389,7 +389,7 @@ def _try_claim(cell):
 def test_run_one_executes_from_the_snapshot_while_the_tree_changes(world, monkeypatch, tmp_path):
     """A fake evaluator mutates the campaign checkout DURING the cell: the cell ran the snapshot's
     bytes, the snapshot verifies after the cell, and the claim is released only on admission."""
-    run = "exp46_RFf025_l40_2x32"
+    run = "exp46_C4Ff025_l40_2x32"
     cell = [c for c in ev.run_cells(run) if c["K"] == 8 and c["seed"] == 45][0]
     _cell(world, seed=43)                                        # the training receipt + farm copies
     for p in (cell["metrics"], cell["stream"], cell["receipt"]):
@@ -514,13 +514,13 @@ def test_dump_manifest_shape_stem_and_cross_links(world, monkeypatch):
 
 def test_training_receipt_binds_the_checkpoint(world):
     cell = _cell(world)
-    rd = world["tmp"] / "nas" / "exp46_RFf025_l40_2x32"
+    rd = world["tmp"] / "nas" / "exp46_C4Ff025_l40_2x32"
     rec, _ = ev.reg.read_sealed(str(rd / ev.reg.TRAINING_RECEIPT), ev.reg.TRAINING_KEYS)
     rec["final_ckpt_bytes"] += 1
     _reseal(str(rd / ev.reg.TRAINING_RECEIPT), rec)
     assert ev.validate_cell(cell) != []
     with pytest.raises(ev.reg.GateError):
-        ev.reg.check_training_receipt("exp46_RFf025_l40_2x32", str(rd), closure=fx.CAMPAIGN["closure_sha256"])
+        ev.reg.check_training_receipt("exp46_C4Ff025_l40_2x32", str(rd), closure=fx.CAMPAIGN["closure_sha256"])
 
 
 def test_offline_validation_needs_no_nas(world):
@@ -544,16 +544,16 @@ def test_e0_cells_validate_under_the_current_campaign(world, monkeypatch):
 
 
 def test_prepare_requires_the_training_receipt(world, monkeypatch):
-    rd = world["tmp"] / "nas" / "exp46_RFf025_l40_2x32"
+    rd = world["tmp"] / "nas" / "exp46_C4Ff025_l40_2x32"
     with pytest.raises(ev.reg.GateError):
-        ev.prepare("exp46_RFf025_l40_2x32")                                # no TRAINING_COMPLETE
-    fx.make_training_receipt(ev, "exp46_RFf025_l40_2x32", str(rd), "0" * 64)
+        ev.prepare("exp46_C4Ff025_l40_2x32")                                # no TRAINING_COMPLETE
+    fx.make_training_receipt(ev, "exp46_C4Ff025_l40_2x32", str(rd), "0" * 64)
     with pytest.raises(ev.reg.GateError):
-        ev.prepare("exp46_RFf025_l40_2x32")                                # trained at another closure
-    rd2 = world["tmp"] / "nas" / "exp46_RFf050_l40_2x32"
-    fx.make_training_receipt(ev, "exp46_RFf050_l40_2x32", str(rd2), fx.CAMPAIGN["closure_sha256"])
+        ev.prepare("exp46_C4Ff025_l40_2x32")                                # trained at another closure
+    rd2 = world["tmp"] / "nas" / "exp46_C4Ff050_l40_2x32"
+    fx.make_training_receipt(ev, "exp46_C4Ff050_l40_2x32", str(rd2), fx.CAMPAIGN["closure_sha256"])
     with pytest.raises(ev.reg.GateError, match="another E0"):
-        ev.prepare("exp46_RFf050_l40_2x32")                                # trained under another E0 receipt
+        ev.prepare("exp46_C4Ff050_l40_2x32")                                # trained under another E0 receipt
 
 
 # ------------------------------------------------------------------ collector
@@ -566,15 +566,15 @@ def test_aggregate_and_seed_set():
 
 
 def _rows():
-    """Synthetic rf_rows() output (the publication order test needs no admitted cells)."""
+    """Synthetic c4f_rows() output (the publication order test needs no admitted cells)."""
     st = {k: (1.0, 0.1, 5) for k in ev.METRIC_KEYS}
-    return {(m, f, K): {"stats": st, "source": "x"} for m, f in [("rf", ev.reg.parse_run_id(r)[1]) for r in ev.reg.campaign_runs()]
+    return {(m, f, K): {"stats": st, "source": "x"} for m, f in [("c4f", ev.reg.parse_run_id(r)[1]) for r in ev.reg.campaign_runs()]
             for K in (8, 1)}
 
 
 def test_render_shows_every_campaign_fraction_and_no_bridge_row():
     md = col.render(_rows(), [])
-    assert md.count("| Roll + Flip (RF) | ") == 2 * len(ev.reg.campaign_runs()) and "PENDING" not in md
+    assert md.count("| C4 + flip (C4F) | ") == 2 * len(ev.reg.campaign_runs()) and "PENDING" not in md
     assert "(bridge)" not in md and "RF-100" not in md
 
 
@@ -662,7 +662,7 @@ def test_collect_admits_every_run_cell_produced_by_cmd_run(world, monkeypatch, t
     names = _cmd_run_world(world, monkeypatch, tmp_path)
     assert len(names) == 10 * len(ev.reg.campaign_runs())
     rows, pending, manifest = col.collect()
-    assert pending == [] and sorted(rows) == sorted(("rf", ev.reg.parse_run_id(r)[1], K) for r in ev.reg.campaign_runs()
+    assert pending == [] and sorted(rows) == sorted(("c4f", ev.reg.parse_run_id(r)[1], K) for r in ev.reg.campaign_runs()
                                                     for K in (8, 1))
     assert all(rows[k]["stats"]["T60"][2] == 5 for k in rows)
     assert sorted(manifest["runs"]) == sorted(ev.reg.campaign_runs()) and "bridge" not in manifest
@@ -701,13 +701,13 @@ def _publication(tmp_path):
     few evidence files, and the generator_static() files -- each at its relative path."""
     root = tmp_path / "published"
     (root / col.reg.EXP_DIR).mkdir(parents=True)
-    ev_files = {f"{ev.FARM}/E0a/x_metrics.json": b"e0 cell", f"{ev.FARM}/exp46_RFf025_l40_2x32/y.stream.json": b"stream",
-                f"{ev.FARM}/exp46_RFf025_l40_2x32/y.receipt.json": b"receipt"}
+    ev_files = {f"{ev.FARM}/E0a/x_metrics.json": b"e0 cell", f"{ev.FARM}/exp46_C4Ff025_l40_2x32/y.stream.json": b"stream",
+                f"{ev.FARM}/exp46_C4Ff025_l40_2x32/y.receipt.json": b"receipt"}
     for rel, data in list(ev_files.items()) + [(rel, b"static " + rel.encode()) for rel in col.generator_static()]:
         os.makedirs(root / os.path.dirname(rel), exist_ok=True)
         (root / rel).write_bytes(data)
     manifest = {"artifacts": {rel: hashlib.sha256(d).hexdigest() for rel, d in list(ev_files.items())[:1]},
-                "runs": {"exp46_RFf025_l40_2x32": {rel: hashlib.sha256(d).hexdigest() for rel, d in list(ev_files.items())[1:]}}}
+                "runs": {"exp46_C4Ff025_l40_2x32": {rel: hashlib.sha256(d).hexdigest() for rel, d in list(ev_files.items())[1:]}}}
     col.publish(_rows(), [], manifest, repo=str(root))
     return root, ev_files
 
@@ -820,7 +820,7 @@ def test_the_manifest_refuses_an_artifact_changed_after_admission(world, monkeyp
         fn = lambda: ev.cell_artifacts(cell)
     elif what == "checkpoint":
         open(os.path.realpath(cell["ckpt_link"]), "ab").write(b"x")
-        fn = lambda: ev.run_artifacts("exp46_RFf025_l40_2x32")
+        fn = lambda: ev.run_artifacts("exp46_C4Ff025_l40_2x32")
     elif what == "cell log":
         open(json.load(open(cell["receipt"]))["log"], "a").write("x\n")
         fn = lambda: ev.cell_artifacts(cell)
@@ -1097,11 +1097,11 @@ def test_the_real_bfc4ea4b_e0a_replay_passes_under_the_widened_decision():
 
 def test_d2_neuronic_campaign_runs_and_admission(world, monkeypatch):
     assert ev.reg.campaign_runs() == ev.reg.required_runs()
-    rd = world["tmp"] / "nas" / "exp46_RFf050_l40_2x32"
-    fx.make_training_receipt(ev, "exp46_RFf050_l40_2x32", str(rd), fx.CAMPAIGN["closure_sha256"], e0_sha=world["campaign"]["sha256"],
+    rd = world["tmp"] / "nas" / "exp46_C4Ff050_l40_2x32"
+    fx.make_training_receipt(ev, "exp46_C4Ff050_l40_2x32", str(rd), fx.CAMPAIGN["closure_sha256"], e0_sha=world["campaign"]["sha256"],
                              e0_path=world["campaign"]["e0_receipt"], platform="a6000")
     with pytest.raises(ev.EvalError, match="D2"):
-        ev.prepare("exp46_RFf050_l40_2x32")                                        # trained on the wrong platform
+        ev.prepare("exp46_C4Ff050_l40_2x32")                                        # trained on the wrong platform
 
 
 def _code_tokens(path):
