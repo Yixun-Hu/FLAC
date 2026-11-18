@@ -292,6 +292,46 @@ SUBSET_AUDIT = f"{EXP38_DIR}/data_efficiency_subset_audit.json"
 # the BYTES of every AR file the registered runs read (exp38_content_manifest.py; Codex code r2 BLOCKING 3)
 AR_CONTENT_MANIFEST = f"{EXP38_DIR}/data_efficiency_ar_content_manifest.txt.gz"
 AR_CONTENT_SHA256 = "369bd4fcf015f232f5dbd0561ea77ccc6b32e1dcc6a71788e264bd9825f0042c"   # 445,414 files, 17.87 GB, 729 groups (2026-11-08)
+# f100's delta content binding (plan r3 §3.2 "Data binding", Codex plan r1 finding 2, r2 findings 2 + 3): exp_38's f075
+# manifest binds every file the fraction runs read; f100 also reads the full split's files that f075 does not cover --
+# by the verified full_split audit exactly these 145,494 (72,747 target waveforms + 72,747 metadata files; every depth
+# panorama is in f075's manifest). exp46_content_manifest.py builds them at L2 into F100_DELTA_MANIFEST (exp_46's own,
+# in the closure by exact path), pinned here by the sha256 of its uncompressed text. Until it is pinned every f100
+# launch refuses; the f100 FULL re-verifies it in the job before sealing and retains the sealed record in receipts/.
+F100_DELTA_FILES = 145_494
+F100_DELTA_SHA256 = None                              # pinned at L2 (exp46_content_manifest.py --build + --verify)
+F100_VERIFICATION = "f100_delta_verification.json"    # receipts/<this> (+ .sha256): the in-job re-verification
+F100_VERIFICATION_KEYS = frozenset({"schema", "kind", "verdict", "problems", "manifest", "manifest_sha256", "files",
+                                    "bytes", "dataset_root", "host", "started_at", "finished_at"})
+
+
+def f100_verification_problems(rec):
+    """Problems of an f100 delta verification record as every consumer admits it: the exact schema, verdict PASS with
+    no problem, the registered manifest at its pinned sha256, the registered file count."""
+    if not isinstance(rec, dict) or set(rec) != F100_VERIFICATION_KEYS:
+        return ["f100 delta verification record: not the registered schema"]
+    p = []
+    if (rec["schema"], rec["kind"], rec["verdict"], rec["problems"]) != (1, "exp46_f100_delta_verification", "PASS", []):
+        p.append(f"f100 delta verification: verdict {rec['verdict']!r}, problems {str(rec['problems'])[:120]}")
+    if F100_DELTA_SHA256 is None or rec["manifest"] != F100_DELTA_MANIFEST or rec["manifest_sha256"] != F100_DELTA_SHA256:
+        p.append("f100 delta verification: not the registered manifest at its pinned sha256")
+    if rec["files"] != F100_DELTA_FILES or type(rec["bytes"]) is not int:
+        p.append(f"f100 delta verification: {rec['files']} files != {F100_DELTA_FILES}")
+    return p
+
+
+def check_f100_delta_pinned(repo=None):
+    """Every f100 launch path, before any work: the delta manifest is pinned, present and at its pinned text sha256."""
+    import gzip
+    if F100_DELTA_SHA256 is None:
+        raise GateError("f100: the delta content manifest is not pinned (F100_DELTA_SHA256; built and verified at L2)")
+    try:
+        text = gzip.decompress(open(_abs(F100_DELTA_MANIFEST, repo), "rb").read())
+    except (OSError, EOFError) as err:
+        raise GateError(f"f100: the delta content manifest is unreadable: {err}")
+    if hashlib.sha256(text).hexdigest() != F100_DELTA_SHA256:
+        raise GateError("f100: the delta content manifest is not the pinned one")
+    return {"f100_delta_manifest": F100_DELTA_MANIFEST, "sha256": F100_DELTA_SHA256, "files": F100_DELTA_FILES}
 SUBSET_AUDIT_BOUND = frozenset({"src/configs/dataset_configs/custom_metadata/AR_md.py", "src/data/dataset.py",
                                 "data/AR/train_frac_manifest_s2026.json", "data/AR/train.json",
                                 f"{EXP38_DIR}/exp38_subset_audit.py"}
@@ -2113,7 +2153,10 @@ TRAINING_KEYS = frozenset({"schema", "run", "platform", "backend", "head", "clos
                            "receipts", "argv", "rc", "log",
                            "log_sha256", "log_gate", "evidence_sha256", "evidence_gate", "checkpoints_sha256",
                            "final_ckpt", "final_ckpt_sha256", "final_ckpt_bytes", "gpus", "launched_at",
-                           "finished_at", "loss_record_sha256", "loss_record_rows"})
+                           "finished_at", "loss_record_sha256", "loss_record_rows",
+                           # exp_46 (plan r3 §3.2): f100's pinned delta manifest + its sealed in-job verification (None
+                           # for the fraction runs)
+                           "f100_delta_sha256", "f100_delta_verification_sha256"})
 
 
 def evidence_digest(evidence_dir):
@@ -2178,7 +2221,7 @@ def _iso(t):
 
 
 def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snapshot_sha, e0_sha, smoke, gpus,
-                           launched_at, env_sha, retained, content_sha, repo=None, tree=None):
+                           launched_at, env_sha, retained, content_sha, repo=None, tree=None, delta_verification=None):
     """Published only after every end audit passes (re-run here, from the snapshot ``repo``; the
     environment receipt is the campaign ``tree``'s, re-checked against the launch-time ``env_sha``).
     The train log is retained beside the launch-time receipt copies (``retained``)."""
@@ -2189,6 +2232,18 @@ def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snaps
         raise GateError(f"train exit status {rc}")
     if content_sha != AR_CONTENT_SHA256:
         raise GateError("the run was not admitted under the pinned AR content manifest")
+    full = tag == FULL_TAG
+    vsha = None
+    if full:                         # f100: the sealed in-job delta re-verification, in receipts/ (plan r3 §3.2)
+        want_v = os.path.realpath(os.path.join(rd, RECEIPTS_DIR, F100_VERIFICATION))
+        if delta_verification is None or os.path.realpath(delta_verification) != want_v:
+            raise GateError(f"f100: no in-job delta verification record at {RECEIPTS_DIR}/{F100_VERIFICATION}")
+        vrec, vsha = read_sealed(want_v, F100_VERIFICATION_KEYS)
+        vp = f100_verification_problems(vrec)
+        if vp:
+            raise GateError("f100: " + "; ".join(vp))
+    elif delta_verification is not None:
+        raise GateError("only f100 carries a delta verification record")
     text = open(log_path, errors="replace").read()
     lg = log_gate(text, run, "end", backend, ngpu, min_losses=FULL_MIN_LOSSES)
     eg = evidence_gate(os.path.join(rd, "evidence"), run, ngpu, backend)
@@ -2225,8 +2280,10 @@ def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snaps
            "checkpoints_sha256": sha256_file(manifest), "final_ckpt": final, "final_ckpt_sha256": audit["sha256"],
            "final_ckpt_bytes": audit["bytes"], "gpus": gpus,
            "receipts": dict(retained, log="train.log", snapshot_manifest="SNAPSHOT.sha256", snapshot_links="SNAPSHOT.links",
-                            loss_record=LOSS_RECORD, loss_record_hparams=LOSS_RECORD_HPARAMS), **loss,
-           "data_content_checks": ["pre-launch", "post-run"],
+                            loss_record=LOSS_RECORD, loss_record_hparams=LOSS_RECORD_HPARAMS,
+                            **({"f100_delta_verification": F100_VERIFICATION} if full else {})), **loss,
+           "data_content_checks": ["pre-launch", "post-run"] + (["f100 delta post-run"] if full else []),
+           "f100_delta_sha256": F100_DELTA_SHA256 if full else None, "f100_delta_verification_sha256": vsha,
            "launched_at": launched_at, "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     write_sealed(os.path.join(rd, TRAINING_RECEIPT), rec)
     return rec
@@ -2266,7 +2323,8 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
             "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"],
             "data_content_sha256": AR_CONTENT_SHA256,
             "argv": build_train_argv(run, plat, allow_nonmatched=rung != "2x32"),
-            "loss_record_rows": MAX_STEPS // LOSS_EVERY}
+            "loss_record_rows": MAX_STEPS // LOSS_EVERY,
+            "f100_delta_sha256": F100_DELTA_SHA256 if tag == FULL_TAG else None}
     p += [f"{k} {str(rec.get(k))[:60]!r} != {str(v)[:60]!r}" for k, v in want.items() if canonical(rec.get(k)) != canonical(v)]
     if closure is not None and rec["closure_sha256"] != closure:
         p.append(f"trained at closure {str(rec['closure_sha256'])[:12]}, not the campaign's {closure[:12]}")
@@ -2287,10 +2345,19 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
     rdir = os.path.join(src, RECEIPTS_DIR)
     names = rec["receipts"] if isinstance(rec["receipts"], dict) else {}
     try:
-        if sorted(names) != ["e0", "env", "log", "loss_record", "loss_record_hparams", "smoke", "smoke_log",
-                             "snapshot_links", "snapshot_manifest"] \
-                or (names["loss_record"], names["loss_record_hparams"]) != (LOSS_RECORD, LOSS_RECORD_HPARAMS):
+        full = tag == FULL_TAG
+        if sorted(names) != sorted(["e0", "env", "log", "loss_record", "loss_record_hparams", "smoke", "smoke_log",
+                                    "snapshot_links", "snapshot_manifest"] + (["f100_delta_verification"] if full else [])) \
+                or (names["loss_record"], names["loss_record_hparams"]) != (LOSS_RECORD, LOSS_RECORD_HPARAMS) \
+                or (full and names["f100_delta_verification"] != F100_VERIFICATION):
             raise GateError(f"retained receipts {sorted(names)}")
+        if full:                     # f100: the in-job delta re-verification, re-opened online and offline (plan r3 §3.2)
+            vrec, vsha = read_sealed(os.path.join(rdir, F100_VERIFICATION), F100_VERIFICATION_KEYS)
+            if vsha != rec["f100_delta_verification_sha256"]:
+                p.append("the retained f100 delta verification != the sha the training receipt bound")
+            p += f100_verification_problems(vrec)
+        elif rec["f100_delta_verification_sha256"] is not None:
+            p.append("a fraction run carries an f100 delta verification")
         # the loss record is re-opened and re-validated, online and offline (plan r3 §3.2, Codex plan r1 finding 9)
         got = check_loss_record(os.path.join(rdir, LOSS_RECORD))
         if (got["loss_record_sha256"], got["loss_record_rows"]) != (rec["loss_record_sha256"], rec["loss_record_rows"]):
@@ -2374,8 +2441,8 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
             p.append("the commit marker / terminal launch record do not bind this receipt")
     except (GateError, OSError, ValueError, KeyError) as err:
         p.append(f"no committed completion: {err}")
-    if rec["data_content_checks"] != ["pre-launch", "post-run"]:
-        p.append("the AR content was not verified before and after the run")
+    if rec["data_content_checks"] != ["pre-launch", "post-run"] + (["f100 delta post-run"] if tag == FULL_TAG else []):
+        p.append("the AR content was not verified before and after the run (f100: and its delta after it)")
     if p:
         raise GateError(f"{run} training receipt: " + "; ".join(p))
     return rec, digest

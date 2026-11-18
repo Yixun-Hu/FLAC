@@ -258,6 +258,9 @@ def test_e0_receipt_sidecar_is_binding(e0):
 @pytest.fixture
 def world(tmp_path, monkeypatch, e0):
     campaign, _ = e0
+    # exp_46 f100: a stand-in for the delta manifest's L2 pin (exp46_fixtures seals the f100 run's in-job delta
+    # verification record at the CURRENT pin; the registry ships it None until L2, which refuses f100)
+    monkeypatch.setattr(ev.reg, "F100_DELTA_SHA256", "e" * 64)
     monkeypatch.setattr(ev, "DUMP_ROOT", str(tmp_path / "dumps"))
     monkeypatch.setattr(ev, "DUMP_SHAPE", [6337, 4])
     monkeypatch.setitem(ev.reg.PLATFORMS["a6000"], "save_root", str(tmp_path / "nas"))

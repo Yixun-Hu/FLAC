@@ -379,8 +379,11 @@ FAKE_TRAIN = textwrap.dedent("""
 """)
 
 
+DELTA_KW = []                          # the delta_verification each fake training-receipt call got (f100)
+
+
 def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_head="f" * 40, content_after_ok=True,
-              logger=None, reserve=True):
+              logger=None, reserve=True, run="exp46_C4Ff025_l40_2x32"):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import test_exp46_receipts as tr
     import exp46_fixtures as fx
@@ -390,7 +393,8 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
         if smode == "FULL":
             logger[v0 + "metrics.csv"] = fx.loss_csv(sv.reg).decode()
     reg = sv.reg
-    run = "exp46_C4Ff025_l40_2x32"
+    DELTA_KW.clear()
+    tag = reg.parse_run_id(run)[1]
     monkeypatch.setattr(reg, "REPO", str(tmp_path))
     monkeypatch.setattr(reg, "TRAINING_PLATFORM", "a6000")     # exercise the local lifecycle (D2 itself: below)
     (tmp_path / reg.EXP_DIR).mkdir(parents=True)
@@ -398,7 +402,8 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
     (tmp_path / "nas").mkdir()
     monkeypatch.setitem(sv.SNAPSHOT_ROOT, "a6000", str(tmp_path / "snaps"))
     gpus = sorted([u, "NVIDIA RTX A6000"] for u in reg.A6000_UUIDS)
-    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("c4f", "025", "2x32", PY, {"argv": []}, {}))
+    monkeypatch.setattr(sv, "common_gates", lambda a, p: ("c4f", tag, "2x32", PY, {"argv": []}, {}))
+    monkeypatch.setattr(reg, "check_f100_delta_pinned", lambda repo=None: {"pinned": "stub"})
     monkeypatch.setattr(sv, "campaign_gates", lambda a, p: ("f" * 40, "d" * 64, "c" * 64))
     monkeypatch.setattr(sv, "lock_cards", lambda cards, lockdir: [])
     monkeypatch.setattr(sv, "a6000_gpu_gate", lambda *x: gpus)
@@ -445,7 +450,10 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
 
     def fake_receipt(*args, **kw):
         real_sig.bind(*args, **kw)                               # the supervisor calls the real signature
-        assert args[12] == "d" * 64 and kw == {"repo": kw["repo"], "tree": str(tmp_path)}
+        DELTA_KW.append(kw.get("delta_verification"))
+        assert args[12] == "d" * 64 and {k: v for k, v in kw.items() if k != "delta_verification"} == \
+            {"repo": kw["repo"], "tree": str(tmp_path)}
+        assert ("delta_verification" in kw) and (kw["delta_verification"] is None) is (tag != reg.FULL_TAG)
         assert sorted(args[13]) == ["e0", "env", "smoke"] and args[14] == reg.AR_CONTENT_SHA256
         assert content_calls == [reg.AR_CONTENT_SHA256] * 2 and retained_calls == [["e0", "env", "smoke"]]
         open(os.path.join(args[4], reg.TRAINING_RECEIPT), "w").write("{}")

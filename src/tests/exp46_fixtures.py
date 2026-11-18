@@ -194,6 +194,14 @@ def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint b
     snap_sha = write_snapshot_manifests(reg, rdir)
     write_evidence(os.path.join(rd, "evidence"), records(reg, run, ngpu, backend, reg.MAX_STEPS))
     loss = write_loss_record(reg, rdir, tag)
+    full = tag == reg.FULL_TAG            # exp_46 f100: the sealed in-job delta verification in receipts/
+    vsha = None
+    if full:
+        vpath = os.path.join(rdir, reg.F100_VERIFICATION)
+        for p_ in (vpath, vpath + ".sha256"):
+            if os.path.exists(p_):
+                os.remove(p_)
+        vsha = reg.write_sealed(vpath, f100_verification_record(reg))
     rec = {"schema": 1, "run": run, "platform": platform, "backend": backend, "head": head,
            "closure_sha256": closure, "snapshot_sha256": snap_sha, "env_receipt_sha256": env_digest,
            "e0_receipt_sha256": e0_digest, "smoke_receipt": "/campaign/" + smoke_name,
@@ -204,8 +212,10 @@ def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint b
            "receipts": {"e0": e0_name, "env": env_name, "smoke": smoke_name, "log": "train.log",
                         "smoke_log": "smoke_log.log", "snapshot_manifest": "SNAPSHOT.sha256",
                         "snapshot_links": "SNAPSHOT.links", "loss_record": reg.LOSS_RECORD,
-                        "loss_record_hparams": reg.LOSS_RECORD_HPARAMS}, **loss,
-           "data_content_checks": ["pre-launch", "post-run"],
+                        "loss_record_hparams": reg.LOSS_RECORD_HPARAMS,
+                        **({"f100_delta_verification": reg.F100_VERIFICATION} if full else {})}, **loss,
+           "data_content_checks": ["pre-launch", "post-run"] + (["f100 delta post-run"] if full else []),
+           "f100_delta_sha256": reg.F100_DELTA_SHA256 if full else None, "f100_delta_verification_sha256": vsha,
            "argv": argv, "rc": 0, "log": "/campaign/train.log", "log_sha256": reg.sha256_file(log),
            "log_gate": "PASS", "evidence_sha256": reg.evidence_digest(os.path.join(rd, "evidence")),
            "evidence_gate": "PASS", "checkpoints_sha256": reg.sha256_file(manifest), "final_ckpt": final,
@@ -217,6 +227,17 @@ def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint b
     digest = reg.write_sealed(os.path.join(rd, reg.TRAINING_RECEIPT), rec)
     commit(reg, rd, run, digest)
     return rec, digest
+
+
+def f100_verification_record(reg, **over):
+    """A PASS record of the f100 in-job delta re-verification (exp46_content_manifest.verify_record's schema) for the
+    registered manifest at its CURRENT pin (a test pins F100_DELTA_SHA256 first)."""
+    rec = {"schema": 1, "kind": "exp46_f100_delta_verification", "verdict": "PASS", "problems": [],
+           "manifest": reg.F100_DELTA_MANIFEST, "manifest_sha256": reg.F100_DELTA_SHA256, "files": reg.F100_DELTA_FILES,
+           "bytes": 7_000_000_000, "dataset_root": "/n/fs/gatrdp/datasets/AcousticRooms", "host": "neu000",
+           "started_at": "2026-11-09T04:00:00-0500", "finished_at": "2026-11-09T04:20:00-0500"}
+    rec.update(over)
+    return rec
 
 
 def commit(reg, rd, run, digest, status="COMPLETE"):

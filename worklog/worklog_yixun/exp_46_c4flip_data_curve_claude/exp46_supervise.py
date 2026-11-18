@@ -453,6 +453,24 @@ def move_loss_record(rd):
     return out
 
 
+def f100_delta_reverification(rd, rec):
+    """f100 FULL only, after the child and the f075 post-run verification, BEFORE the end audit, the training receipt
+    and the commit marker (plan r3 §3.2 "Data binding", Codex plan r2 finding 2): the 145,494 delta files are re-read
+    SEQUENTIALLY in the job (the GPUs idle meanwhile) against the pinned delta manifest. The sealed record goes to
+    receipts/ whatever its verdict and the launch record names it; a FAIL raises (an end-audit failure: unsealed); an
+    exception or a stop (the signal check runs between files) propagates: no record, no receipt, the run lock stays."""
+    import exp46_content_manifest as cm46
+    vrec = cm46.verify_record(reg._abs(reg.F100_DELTA_MANIFEST), "AcousticRooms", reg.REPO,
+                              want_sha=reg.F100_DELTA_SHA256, check=check_signals)
+    path = os.path.join(rd, reg.RECEIPTS_DIR, reg.F100_VERIFICATION)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    reg.write_sealed(path, vrec)
+    rec.update(f100_delta_verification={"verdict": vrec["verdict"], "record": path, "sha256": reg.sha256_file(path)})
+    if vrec["verdict"] != "PASS":
+        raise reg.GateError("f100 delta content verification FAILED: " + "; ".join(vrec["problems"][:3]))
+    return path
+
+
 # ---------------------------------------------------------------- modes
 def ts_now():
     return time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -483,9 +501,12 @@ def mode_dry_run(a, platform):
     else:                            # exp_46 plan r3 §3.2: no A6000 training path (never outputs_FLAC/exp38_smoke)
         print("SMOKE_DDP: refused (exp_46 has no A6000 training path; SMOKE runs on neuronic only)")
     head = git("rev-parse", "HEAD")
-    for label, fn in (("E0 receipt (FULL needs it)", lambda: reg.check_e0_receipt(platform)),
-                      ("SMOKE_DDP receipt (FULL needs it)", lambda: reg.check_smoke_receipt(a.run, platform, a.backend, head)),
-                      ("environment receipt", lambda: reg.env_receipt(platform))):
+    checks = [("E0 receipt (FULL needs it)", lambda: reg.check_e0_receipt(platform)),
+              ("SMOKE_DDP receipt (FULL needs it)", lambda: reg.check_smoke_receipt(a.run, platform, a.backend, head)),
+              ("environment receipt", lambda: reg.env_receipt(platform))]
+    if tag == reg.FULL_TAG:
+        checks.append(("f100 delta content manifest (SMOKE and FULL need it)", reg.check_f100_delta_pinned))
+    for label, fn in checks:
         try:
             print(f"{label}: {json.dumps(fn())}")
         except (reg.GateError, OSError, ValueError, KeyError) as err:
@@ -511,6 +532,8 @@ def mode_campaign(a, platform):
         raise Refused(f"exp_46 has no A6000 training path: {a.mode} on {platform} is refused (the inherited SMOKE "
                       "destination outputs_FLAC/exp38_smoke is never written); SMOKE runs on neuronic only")
     arm, tag, rung, exe, d, pins = common_gates(a, platform)
+    if tag == reg.FULL_TAG:          # f100 (plan r3 §3.2): its delta manifest pinned + present before ANY work, SMOKE too
+        reg.check_f100_delta_pinned()
     # the save root (owner claim, run dir, ledger, probe all live under it) is isolated from exp_38's roots before any
     # mutation (Codex code r2 finding 6)
     reg.check_isolation(reg.PLATFORMS[platform]["save_root"], f"the {platform} save root")
@@ -651,9 +674,11 @@ def mode_campaign(a, platform):
                                    want_sha=reg.AR_CONTENT_SHA256)
                 if cprobs:
                     raise reg.GateError("AR content changed during the run: " + "; ".join(cprobs))
+                delta = f100_delta_reverification(rd, rec) if tag == reg.FULL_TAG else None
                 out = reg.write_training_receipt(a.run, platform, a.backend, head, rd, log, rc, snapshot["snapshot_sha256"],
                                                  e0["sha256"], smoke, gpus, rec.data["launched_at"], env_sha,
-                                                 retained, reg.AR_CONTENT_SHA256, repo=snap, tree=reg.REPO)
+                                                 retained, reg.AR_CONTENT_SHA256, repo=snap, tree=reg.REPO,
+                                                 delta_verification=delta)
                 verdict = "COMPLETE"
                 rec.update(training_receipt=os.path.join(rd, reg.TRAINING_RECEIPT), final_ckpt_sha256=out["final_ckpt_sha256"])
             else:
