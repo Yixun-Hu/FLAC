@@ -404,3 +404,61 @@ def test_the_row_set_is_exactly_the_twenty_registered_rows():
         assert tbl.row_set_problems({k: {} for k in want - {drop}}) == [f"table rows missing {[drop]}"]
     for extra in ("yaw|100|8", "bf|100|1", "c4f|090|8", "rf|025|8"):
         assert tbl.row_set_problems({**{k: {} for k in want}, extra: {}}) == [f"table rows extra {[extra]}"]
+
+
+# ------------------------------------------------------------------ fix round 1, Codex code r1 finding 8: the entry points
+_EXTRA_PUBLISHED = {
+    "an extra C4F fraction": {"model": "c4f", "fraction": "090", "K": 8},
+    "an extra C4F K": {"model": "c4f", "fraction": "025", "K": 4},
+    "a YAW-Aug row in exp_46's results": {"model": "yaw", "fraction": "025", "K": 8},
+    "a duplicate C4F row": {"model": "c4f", "fraction": "025", "K": 8},
+}
+
+
+@pytest.mark.parametrize("case", sorted(_EXTRA_PUBLISHED) + ["a missing C4F row"])
+def test_build_refuses_any_collector_row_outside_the_exact_c4f_set(built, case):
+    """build() admits the collector's published rows only as EXACTLY the eight C4F source rows, value for value: an
+    extra fraction / K, another model's row, a duplicate or a missing row refuses -- nothing is written."""
+    repo, sha, results = built
+    res = json.load(open(results))
+    if case == "a missing C4F row":
+        res["rows"] = [r for r in res["rows"] if not (r["fraction"] == "100" and r["K"] == 1)]
+    else:
+        res["rows"].append(dict(_EXTRA_PUBLISHED[case], stats=json.loads(json.dumps(res["rows"][0]["stats"]))))
+    json.dump(res, open(results, "w"))
+    with pytest.raises(tbl.TableError, match="collector"):
+        tbl.build(sha, repo=repo)
+    assert not os.path.exists(os.path.join(repo, tbl.TABLE_MD)) and not os.path.exists(os.path.join(repo, tbl.TABLE_EVIDENCE))
+
+
+def test_build_refuses_source_rows_outside_the_twenty(built, monkeypatch):
+    """The C4F source rows themselves (c4f_rows) are held to the exact set: an extra source row refuses even when the
+    collector published the same row."""
+    repo, sha, results = built
+    real = tbl.c4f_rows
+    monkeypatch.setattr(tbl, "c4f_rows", lambda campaign: dict(real(campaign), **{"c4f|090|8": real(campaign)["c4f|025|8"]}))
+    res = json.load(open(results))
+    res["rows"].append(dict(res["rows"][0], fraction="090", K=8))
+    json.dump(res, open(results, "w"))
+    with pytest.raises(tbl.TableError):
+        tbl.build(sha, repo=repo)
+    assert not os.path.exists(os.path.join(repo, tbl.TABLE_MD))
+
+
+def test_the_renderer_refuses_any_row_set_but_the_twenty_and_malformed_values(built):
+    """render() -- the rendering boundary -- enforces the exact 20-row set itself (an extra row is never silently
+    dropped) and the value shape of every printed cell ([mean, sd, n] for every headline metric)."""
+    repo, sha, _ = built
+    tbl.build(sha, repo=repo)
+    ev_rec, _ = tbl.reg.read_sealed(os.path.join(repo, tbl.TABLE_EVIDENCE), EVIDENCE_KEYS)
+    rows = ev_rec["rows"]
+    rec, rec_sha = tbl.reg.read_sealed(os.path.join(repo, tbl.IMPORT_RECORD), tbl.IMPORT_KEYS)
+    campaign = ev_rec["exp46_campaign"]
+    md = tbl.render(rows, rec, rec_sha, campaign)
+    assert sum(ln.count(" ± ") for ln in md.split("\n") if ln.startswith("| ")) == 20 * 6
+    for bad in ({**rows, "yaw|100|8": rows["yaw|075|8"]}, {k: v for k, v in rows.items() if k != "bf|050|1"},
+                {**rows, "c4f|025|8": {k: v for k, v in rows["c4f|025|8"].items() if k != "C50"}},
+                {**rows, "c4f|025|8": {**rows["c4f|025|8"], "T60": [1.0, 0.1]}},
+                {**rows, "c4f|025|8": {**rows["c4f|025|8"], "T60": [float("nan"), 0.1, 5]}}):
+        with pytest.raises(tbl.TableError):
+            tbl.render(bad, rec, rec_sha, campaign)
