@@ -601,3 +601,19 @@ X45f; the declared edits stay E1–E5; no pytest / python ran on the login node;
 - **Open for Yixun:** D1 (a′ vs c), D2 (campaign order, marked pending in the neuronic sheet), D3 (accept E4's moved
   check). Next after D1 / D2: L2a delta-manifest build → pin commit → definitive L1 → L2c union verify → L3 → L4
   dry-runs → push `X46` on Yixun's go.
+
+## 2026-11-18 18:45 EST — Yixun decides D1 / D2 / D3 as recommended (coordinating session)
+
+- **Yixun, verbatim:** "按推荐批准" (in reply to the coordinator's list of D1 (a′), D2 and D3 with a recommendation each).
+- **D1 = (a′):** declared edits E7 (`src/tests/test_exp45_sampler.py`) and E8 (`src/tests/test_exp38_sampler.py`), each
+  the same four lines (import of `rank_zero_only`, two comment lines, `monkeypatch.setattr(rank_zero_only, "rank",
+  rank_zero_only.rank)`) inserted after the `from lightning_fabric.plugins.environments import …` line of
+  `test_both_launch_environments_give_the_same_rank_and_world`; then the prepared `d7561047` (wip-exp46-d1-e7-e8) is
+  cherry-picked. Option (c) is not used: the definitive L1 runs every node in one process with no deselection.
+- **D2:** the neuronic sheet's order is approved: L2a delta-manifest build → L2b pin commit of `F100_DELTA_SHA256` →
+  definitive L1 (three full suites, every node) → L2c union verification (recorded) before any f100 SMOKE → L3 → L4
+  dry-runs → push `X46` only on Yixun's separate go.
+- **D3:** E4's removal of exp_45's uncommitted-edit check is accepted; the equivalent check in
+  `test_exp46_provenance.py` stands (Codex code r1 open item 3: accept).
+- **Next:** the Coder applies D1 (test-first: the prepared regression is red before E7 + E8), CPU Slurm job for the
+  affected tests; the coordinator verifies, then L2a.
