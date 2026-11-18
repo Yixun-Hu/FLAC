@@ -21,6 +21,9 @@ EXP38_LABELS = {(arm, tag): f"data-eff {name} f={int(tag)}% @40k (exp_38)"
                 for arm, name in (("yaw", "Yaw-Aug FLAC"), ("bf", "OrbitRIR B-F")) for tag in ("025", "050", "075")}
 # exp_45 rf_data_curve (plan_rf_data_curve.md r3 §3.2, announcement 04): RF (roll + flip) at 25 / 50 / 75 %
 EXP45_LABELS = {tag: f"rf-data RF roll+flip f={int(tag)}% @40k (exp_45)" for tag in ("025", "050", "075")}
+# exp_46 c4flip_data_curve (plan_c4flip_data_curve.md r3 §3.2 "Generator", announcement 04): C4 + flip at 25 / 50 / 75 /
+# 100 % -- additive; exp_45's contract stays dormant
+EXP46_LABELS = {tag: f"c4f-data C4F C4+flip f={int(tag)}% @40k (exp_46)" for tag in ("025", "050", "075", "100")}
 EXP25_LABELS = {"CANON": "depth-canon CANON @40k (exp_25)",
                 "P1": "P1 vanilla @40k — re-measured at the exp_25 pin (P1-pin)",
                 "YAW": "yaw-aug A6000 YAW @40k (exp_17 ckpt) — re-measured at the exp_25 pin (YAW-pin)"}
@@ -208,6 +211,14 @@ ROWS = [
   [f"outputs_FLAC/exp45_rf_data_curve/eval/exp45_RFf{tag}_l40_2x32/*_metrics_1_1.0_exp45_RFf{tag}_l40_2x32_K{k}_s4[2-6].json"],
   "exp45")
  for tag in ("025", "050", "075") for k in (1, 8)
+] + [
+ # --- exp_46 c4flip_data_curve (plan r3 §3.2 "Generator", announcement 04) — ADDITIVE, its own contract ---
+ # C4F at 25 / 50 / 75 / 100 %; every file goes through exp46_eval's OFFLINE cell admission; a run publishes only as a
+ # complete K=1 + K=8 five-seed pair at ONE evaluator pin. No bridge (exp_45's contract is untouched and dormant).
+ (EXP46_LABELS[tag], "vanilla eval", k,
+  [f"outputs_FLAC/exp46_c4flip_data_curve/eval/exp46_C4Ff{tag}_l40_2x32/*_metrics_1_1.0_exp46_C4Ff{tag}_l40_2x32_K{k}_s4[2-6].json"],
+  "exp46")
+ for tag in ("025", "050", "075", "100") for k in (1, 8)
 ]
 
 EXP11_VALIDATOR = os.path.join(REPO, "worklog", "worklog_yixun", "exp_11_fa_orbit_claude",
@@ -1093,6 +1104,111 @@ def exp45_disclosure_lines(rendered, exp45_withheld, repo_root=None):
     return ["", "**exp_45 rows — disclosures (plan_rf_data_curve.md r3 §8):**", ""] + list(items), []
 
 
+# --- exp_46 c4flip_data_curve (plan_c4flip_data_curve.md r3 §3.2 "Generator") — ADDITIVE: exp_45's contract minus the
+# bridge, loaded from the exp_46 kit at the generator root; exp_46 publication never requires an exp_45 row or a bridge
+EXP46_DIR = ("worklog", "worklog_yixun", "exp_46_c4flip_data_curve_claude")
+
+
+def exp46_run_of(label):
+    hit = [tag for tag, v in EXP46_LABELS.items() if v == label]
+    return f"exp46_C4Ff{hit[0]}_l40_2x32" if hit else None
+
+
+def _load_exp46_eval(repo_root=None):
+    import importlib.util
+    d = os.path.join(repo_paths(repo_root)["root"], *EXP46_DIR)
+    if d not in sys.path:
+        sys.path.insert(0, d)
+    spec = importlib.util.spec_from_file_location("exp46_eval_gen", os.path.join(d, "exp46_eval.py"))
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load the exp_46 evaluator driver from {d}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def validate_exp46_cell(files, repo_root=None, expected_run=None, expected_k=None):
+    """``(ok, problems)`` for one exp_46 row: every file is a registered result cell of the declared run and K at its
+    farm path, admitted OFFLINE by exp46_eval.validate_cell (metrics + stream incl. the assignment-hash pin + receipt
+    + dump-manifest copy + the run's training-receipt copies, f100's delta verification included), at ONE pin."""
+    if not files:
+        return True, []
+    root = repo_paths(repo_root)["root"]
+    try:
+        EV = _load_exp46_eval(root)
+        cells = {c["metrics"]: c for c in EV.run_cells(expected_run)}
+    except Exception as exc:                       # the gate must not fail open
+        return False, [f"cannot load the exp_46 validator ({exc})"]
+    problems, pins, seeds = [], set(), []
+    for path in sorted(files):
+        rel = os.path.relpath(os.path.realpath(path), os.path.realpath(root))
+        cell = cells.get(rel)
+        if cell is None or cell["K"] != int(expected_k):
+            problems.append(f"{os.path.basename(path)}: not a registered {expected_run} K={expected_k} cell")
+            continue
+        try:
+            with open(path) as fh:
+                pins.add(str(json.load(fh).get("source_sha")))
+        except (ValueError, OSError) as exc:
+            problems.append(f"{os.path.basename(path)}: unreadable ({exc})")
+            continue
+        cwd = os.getcwd()
+        try:
+            os.chdir(root)
+            problems += EV.validate_cell(cell, offline=True)
+        finally:
+            os.chdir(cwd)
+        seeds.append(cell["seed"])
+    if len(pins) > 1:
+        problems.append(f"the cell spans {len(pins)} evaluator pins")
+    if len(seeds) != len(set(seeds)) or len(seeds) > MIN_SEEDS:
+        problems.append(f"seeds {sorted(seeds)}: one record per seed, at most {MIN_SEEDS}")
+    return (not problems), problems
+
+
+def check_exp46_round(rendered, exp46_cells):
+    """``(withheld_labels, problems)``: an exp_46 run publishes only as a complete, valid K=1 + K=8 pair, and every
+    published exp_46 row shares ONE evaluator pin."""
+    rows = [r for r in rendered if r.get("contract") == "exp46"]
+    started = {label for (label, _k), files in exp46_cells.items() if files}
+    problems, ready = [], set()
+    for label in sorted(started):
+        mine = {r["K"]: r["line"] for r in rows if r["label"] == label}
+        bad = [k for k in (1, 8) if k not in mine or "BLOCKED" in mine[k] or "*pending" in mine[k]]
+        if bad:
+            problems.append(f"{label}: publishes only as a complete, valid K=1 + K=8 pair (K={bad} not ready)")
+        else:
+            ready.add(label)
+    pins = set()
+    for (label, _k), files in exp46_cells.items():
+        for path in files if label in ready else ():
+            with open(path) as fh:
+                pins.add(str(json.load(fh).get("source_sha")))
+    if len(pins) > 1:
+        problems.append(f"the exp_46 rows span {len(pins)} evaluator pins: nothing publishes across pins")
+        ready = set()
+    return started - ready, problems
+
+
+EXP46_DISCLOSURE_HEADER = "**exp_46 rows — disclosures (plan_c4flip_data_curve.md r3 §8):**"
+
+
+def exp46_disclosure_lines(rendered, exp46_withheld, repo_root=None):
+    """``(lines, problems)``: the plan r3 §8 disclosures under the shared table's exp_46 rows, loaded from the exp_46 kit
+    at the generator root (exp46_registry.disclosures("generator"), the one source every exp_46 table prints) whenever
+    an exp_46 row is published; nothing while every exp_46 row is pending or withheld. A published row whose disclosures
+    cannot be loaded is a problem (the gate must not fail open)."""
+    published = [r for r in rendered if r.get("contract") == "exp46" and r["label"] not in exp46_withheld
+                 and "*pending" not in r["line"] and "BLOCKED" not in r["line"] and "WITHHELD" not in r["line"]]
+    if not published:
+        return [], []
+    try:
+        items = _load_exp46_eval(repo_root).reg.disclosures("generator")
+    except Exception as exc:                       # noqa: BLE001 -- the gate must not fail open
+        return [], [f"cannot load the exp_46 disclosures ({exc})"]
+    return ["", EXP46_DISCLOSURE_HEADER, ""] + list(items), []
+
+
 def exp45_bridge_lines(rendered, exp45_withheld, repo_root=None):
     """``(lines, problems)``: the RF-100 bridge comparison under the shared table's exp_45 rows (Codex code r3 finding
     1). Whenever an exp_45 row would publish, exp45_eval.bridge_gate -- THE publication gate the collector and
@@ -1160,6 +1276,13 @@ def render_row(label, proto, K, files, repo_root=None, validator_path=None, cont
     if contract == "exp45":
         ok, problems = validate_exp45_cell(files, repo_root=repo_root,
                                            expected_run=exp45_run_of(label), expected_k=K)
+        if not ok:
+            detail = problems[0] if problems else "unspecified"
+            return (f"| {label} | {proto} | {K} | {len(files)} | "
+                    f"**BLOCKED — row validation failed:** {detail} | | | | | |"), True
+    if contract == "exp46":
+        ok, problems = validate_exp46_cell(files, repo_root=repo_root,
+                                           expected_run=exp46_run_of(label), expected_k=K)
         if not ok:
             detail = problems[0] if problems else "unspecified"
             return (f"| {label} | {proto} | {K} | {len(files)} | "
@@ -1396,6 +1519,7 @@ def main(argv=None):
     exp25_cells, exp38_cells = {}, {}
     exp40_cells = {}
     exp45_cells = {}
+    exp46_cells = {}
     for spec in ROWS:
         label, proto, K, pats = spec[:4]
         contract = spec[4] if len(spec) > 4 else "table"
@@ -1422,6 +1546,8 @@ def main(argv=None):
             exp38_cells[(label, K)] = files
         if contract == "exp45":
             exp45_cells[(label, K)] = files
+        if contract == "exp46":
+            exp46_cells[(label, K)] = files
         if blocked:
             blocked_rows.append(f"{label} (K={K})")
         if is_exp11_row(pats) and files:
@@ -1540,6 +1666,28 @@ def main(argv=None):
     if not exp45_note_problems:                     # the admitted comparison's verdict + discrepancies under the rows
         lines_tail += exp45_bridge
     lines_tail += exp45_notes
+    exp46_withheld, exp46_problems = check_exp46_round(rendered, exp46_cells)
+    if exp46_problems:
+        print("exp_46 rows not publishable:", file=sys.stderr)
+        for problem in exp46_problems:
+            print("  -", problem, file=sys.stderr)
+        for r in rendered:
+            if r.get("contract") == "exp46" and r["label"] in exp46_withheld:
+                r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
+                                         "an exp_46 run publishes only as a complete two-K pair "
+                                         "at the one evaluator pin")
+        lines_tail += ["", "**exp_46 rows WITHHELD:** " + "; ".join(exp46_problems)]
+    exp46_notes, exp46_note_problems = exp46_disclosure_lines(rendered, exp46_withheld, root)
+    if exp46_note_problems:                         # published exp_46 rows need their disclosures
+        print("exp_46 rows not publishable:", file=sys.stderr)
+        for problem in exp46_note_problems:
+            print("  -", problem, file=sys.stderr)
+        for r in rendered:
+            if r.get("contract") == "exp46":
+                r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
+                                         "the exp_46 disclosures could not be loaded")
+        lines_tail += ["", "**exp_46 rows WITHHELD:** " + "; ".join(exp46_note_problems)]
+    lines_tail += exp46_notes
     two_k = check_two_k_coverage(exp11_status)
     if two_k:
         bad_labels = {p.split(":")[0] for p in two_k}

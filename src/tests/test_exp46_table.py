@@ -316,7 +316,7 @@ def test_build_reopens_the_bundle_blobs_at_the_requested_commit(built):
 def test_the_disclosures_have_one_source_and_appear_under_every_exp46_table(built):
     """Codex code r1 finding 15: the plan r3 §8 disclosures live in ONE place (exp46_registry.DISCLOSURES) and print
     under every exp_46 table -- this comparison table, the collector's results Markdown (all but items 7 and 12: it
-    has no OrbitRIR / YAW-Aug row) and the shared generator's exp_46 block (test_gen_model_comparison_exp45.py) -- so they cannot drift."""
+    has no OrbitRIR / YAW-Aug row) and the shared generator's exp_46 block (test_gen_model_comparison_exp46.py) -- so they cannot drift."""
     reg = tbl.reg
     assert len(reg.DISCLOSURES) == 12 and tbl.DISCLOSURES == reg.disclosures("table") == reg.DISCLOSURES
     assert reg.disclosures("collect") == tuple(d for i, d in enumerate(reg.DISCLOSURES, 1) if i not in (7, 12))

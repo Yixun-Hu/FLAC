@@ -235,9 +235,38 @@ def test_every_pre_exp25_row_renders_byte_identically(tmp_path, monkeypatch):
     # exp_45 appended its own additive block of six preregistered RF rows (pending until its cells land)
     exp45 = [ln for ln in cur if any(ln.startswith(f"| {label} |") for label in G.EXP45_LABELS.values())]
     assert len(exp45) == 6
+    # exp_46 appended its own additive block of eight preregistered C4F rows (exp_46 declared edit E5): pending here,
+    # so zero exp_46 disclosure blocks; the published case is asserted below
+    exp46 = [ln for ln in cur if any(ln.startswith(f"| {label} |") for label in G.EXP46_LABELS.values())]
+    assert len(exp46) == 8 and cur.count(G.EXP46_DISCLOSURE_HEADER) == 0
     rest = [ln for ln in cur if ln not in exp25 and ln not in data_curve and ln not in exp40 and ln not in data_eff
-            and ln not in exp45]
+            and ln not in exp45 and ln not in exp46]
     digest = lambda lines: hashlib.sha256("\n".join(lines).encode()).hexdigest()  # noqa: E731
     assert digest(rest) == digest(base) and rest == base
     rows = [ln for ln in base if ln.startswith("| ") and not ln.startswith("| Model")]
     assert len(rows) == len(base_mod.ROWS)                               # every pre-exp25 spec is covered
+    # E5, published: exp_46 evidence for all eight rows (stand-in five-seed cells at one pin, the offline admission
+    # stubbed) -- still eight exp_46 rows, now numeric, and exactly ONE disclosure block of the registered contents
+    # (exp46_registry.disclosures("generator")); every other line as before, exp_45 dormant (its six rows pending)
+    items = list(G._load_exp46_eval(REPO).reg.disclosures("generator"))
+    specs = []
+    for spec in G.ROWS:
+        if len(spec) > 4 and spec[4] == "exp46":
+            d = tmp_path / "exp46_published" / f"{G.exp46_run_of(spec[0])}_K{spec[2]}"
+            d.mkdir(parents=True)
+            for s in range(42, 47):
+                (d / f"cell_s{s}.json").write_text(json.dumps(
+                    {"source_sha": "0" * 40, "metrics": {kk: 1.0 + s / 100 for _, kk in G.KEYS}}))
+            spec = (*spec[:3], [str(d / "cell_s4[2-6].json")], *spec[4:])
+        specs.append(spec)
+    monkeypatch.setattr(G, "ROWS", specs)
+    monkeypatch.setattr(G, "validate_exp46_cell", lambda files, **kw: (True, []))
+    pub = _render_lines(G, tmp_path / "pub.md", monkeypatch)
+    exp46_pub = [ln for ln in pub if any(ln.startswith(f"| {label} |") for label in G.EXP46_LABELS.values())]
+    assert len(exp46_pub) == 8 and all(ln.count(" ± ") == 6 for ln in exp46_pub)
+    assert pub.count(G.EXP46_DISCLOSURE_HEADER) == 1 and len(items) == 11
+    i = pub.index(G.EXP46_DISCLOSURE_HEADER)
+    assert pub[i - 1:i + 2 + len(items)] == ["", G.EXP46_DISCLOSURE_HEADER, ""] + items
+    pub_rest = [ln for ln in pub[:i - 1] + pub[i + 2 + len(items):] if ln not in exp25 and ln not in data_curve
+                and ln not in exp40 and ln not in data_eff and ln not in exp45 and ln not in exp46_pub]
+    assert [ln for ln in pub if ln in exp45] == exp45 and pub_rest == base
