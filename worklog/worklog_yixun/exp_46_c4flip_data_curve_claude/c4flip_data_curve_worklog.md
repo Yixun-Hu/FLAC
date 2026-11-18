@@ -575,3 +575,29 @@ X45f; the declared edits stay E1–E5; no pytest / python ran on the login node;
   FR2 (this round's new tests); the 15 skips and 41 deselected nodes are FR2's.
 - Analysis: every open Codex code r3 finding (R3-1, R3-2, R3-4 … R3-7) and the PARTIAL R2-1 / R2-8 / F2 / F10 are fixed
   without re-review (review cap) and tested; R3-3 waits for Yixun's D1 (E7 + E8 prepared on `wip-exp46-d1-e7-e8`).
+
+## 2026-11-18 10:00 EST — coordinator: fix round 3 verified (no 4th Codex round, review cap); code complete except D1 (coordinating session)
+
+- **State:** HEAD `06e72e05`, tracked-clean, nothing pushed. Since `c8971847` only `EXPREL46` and `src/tests/test_exp46_*`
+  changed (25 files, +1,859 / −116). Against `X45f` the exp_38 / 40 / 43 / 45 folders, `src/data`,
+  `test_exp45_sampler.py` and `test_exp38_sampler.py` are 0 lines; `src/training/` and `gen_model_comparison.py`
+  differ only by the L0 commits (`f796fe81`, `c6c1c197`), untouched since. FR3 log confirmed: 2,955 passed,
+  15 skipped, 41 deselected, EXIT 0, at `4f36ff94`, tracked-clean, neu308.
+- **Coordinator audit of the fixes** (read, not re-run):
+  - R3-1: `resolve_dotdot` walks from `/` or the physical cwd and collapses `..` only over a non-symlink component,
+    refusing a `..` after a symlink. `destination_problems` uses it for path and root, and `check_destination`
+    returns the validated path that the primitives write.
+  - R3-4: `exp46_nas_publish._rename_noreplace` has no fallback. It uses `renameat2(RENAME_NOREPLACE)` through the libc
+    wrapper or the raw syscall, with `use_errno=True`. EEXIST refuses; EINVAL / ENOSYS / EOPNOTSUPP refuse and keep
+    the staging dir.
+  - **Caveat, unverified until the first L7:** the A6000 NAS (cifs) is expected to support it (kernel `cifs_rename2`).
+    If it does not, publication refuses and the operator tells Yixun.
+  - R3-2, R3-5, R3-6, R3-7 are as described in the Coder's entry "2026-11-18 08:21 → 09:15 EST". Each has a red log
+    before its fix.
+- **D1 prepared, not applied:** local branch `wip-exp46-d1-e7-e8` (`d7561047`, child of `06e72e05`; 5 files, +161 / −4:
+  E7/E8 exact-insertion provenance rule, both nodes in `DECLARED_EDITED`, the rank probe and the rank-isolation
+  regression, red until E7 + E8 land). On Yixun's (a′): apply the four lines verbatim to both sampler tests, cherry-pick
+  the WIP commit, run the affected tests; otherwise drop the branch.
+- **Open for Yixun:** D1 (a′ vs c), D2 (campaign order, marked pending in the neuronic sheet), D3 (accept E4's moved
+  check). Next after D1 / D2: L2a delta-manifest build → pin commit → definitive L1 → L2c union verify → L3 → L4
+  dry-runs → push `X46` on Yixun's go.
