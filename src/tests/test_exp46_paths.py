@@ -160,6 +160,13 @@ _register(["exp46_registry.py"], ["/media/diskstation/yixunhu/FLAC/checkpoints/e
                                   "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency",
                                   "/media/diskstation/yixunhu/FLAC/exp38_pred_waveforms",
                                   "outputs_FLAC/exp38_data_efficiency/eval"], PROTECTED)
+_register(["exp46_registry.py"], ["/home/yixunhu/codespace/exp-38-snapshots", "outputs_FLAC/exp38_smoke",   # plan r3
+                                  "worklog/worklog_yixun/exp_45_rf_data_curve_claude",                     # §3.2
+                                  "/media/diskstation/yixunhu/FLAC/checkpoints/exp45_rf_data_curve",        # Isolation
+                                  "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve",
+                                  "/media/diskstation/yixunhu/FLAC/exp45_pred_waveforms",
+                                  "outputs_FLAC/exp45_rf_data_curve/eval", "/home/yixunhu/codespace/exp-45-campaign",
+                                  "/home/yixunhu/codespace/exp-45-publish"], PROTECTED)
 _register(["exp46_eval.py", "exp46_supervise.py"], [".exp38_card"], SHARED_LOCK)
 _register(["exp46_supervise.py"], [" is refused (the inherited SMOKE destination outputs_FLAC/exp38_smoke is never "
                                    "written); SMOKE runs on neuronic only"], REFUSAL)

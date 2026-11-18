@@ -332,6 +332,8 @@ def check_f100_delta_pinned(repo=None):
     if hashlib.sha256(text).hexdigest() != F100_DELTA_SHA256:
         raise GateError("f100: the delta content manifest is not the pinned one")
     return {"f100_delta_manifest": F100_DELTA_MANIFEST, "sha256": F100_DELTA_SHA256, "files": F100_DELTA_FILES}
+
+
 SUBSET_AUDIT_BOUND = frozenset({"src/configs/dataset_configs/custom_metadata/AR_md.py", "src/data/dataset.py",
                                 "data/AR/train_frac_manifest_s2026.json", "data/AR/train.json",
                                 f"{EXP38_DIR}/exp38_subset_audit.py"}
@@ -995,40 +997,59 @@ def mount_fstype(path):
     return fstype, best
 
 
-# ---------------------------------------------------------------- isolation from exp_38's roots (Codex code r2 finding 6)
-# exp_38's protected roots -- exp_38's OWN values (exp38_registry.PLATFORMS[*]["save_root"], exp38_eval.DUMP_ROOT and
-# FARM; pinned against those files by test_exp46_isolation.py): its two save roots, its dump root and, in every tree
-# involved, its farm and its worklog folder (EXP38_DIR). Every exp_46 output namespace is checked as a realpath
-# against them before ANY mutation (a probe, a lock, the ledger, an owner record, a directory).
+# ---------------------------------------------------------------- isolation from exp_38's AND exp_45's roots
+# exp_46 plan r3 §3.2 "Isolation" (Codex plan r1 finding 3, r2 finding 1; exp_45 Codex code r2 finding 6). Protected:
+# exp_38's roots exactly as exp_45 protected them -- exp_38's OWN values (exp38_registry.PLATFORMS[*]["save_root"],
+# exp38_eval.DUMP_ROOT and FARM), pinned against those files by test -- plus exp_38's snapshot namespace (exp_38's and
+# exp_45's kits snapshot there) and its A6000 SMOKE folder (in every tree); and exp_45's roots -- exp_45's OWN values at
+# X45f (exp45_registry.PLATFORMS, exp45_eval.DUMP_ROOT / FARM, CAMPAIGN_ROOT), pinned against those files by test:
+# its two save roots (and everything under them: ledger, owners, locks, run dirs), its dump root, its farm and its
+# worklog folder (in every tree) and its A6000 campaign / publication trees. Every exp_46 output namespace is checked
+# as a realpath (symlinks followed) against them before ANY mutation (a probe, a lock, the ledger, an owner record, a
+# snapshot, a link, a directory).
 EXP38_SAVE_ROOTS = ("/media/diskstation/yixunhu/FLAC/checkpoints/exp38_data_efficiency",
                     "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency")
 EXP38_DUMP_ROOT = "/media/diskstation/yixunhu/FLAC/exp38_pred_waveforms"
 EXP38_FARM = "outputs_FLAC/exp38_data_efficiency/eval"
-_EXP38_NAMESPACE = re.compile(r"/(" + re.escape(EXP38_DIR) + "|" + re.escape(EXP38_FARM) + r")(/|$)")
+EXP38_SNAPSHOT_ROOT = "/home/yixunhu/codespace/exp-38-snapshots"
+EXP38_SMOKE_DIR = "outputs_FLAC/exp38_smoke"
+EXP45_DIR = "worklog/worklog_yixun/exp_45_rf_data_curve_claude"
+EXP45_SAVE_ROOTS = ("/media/diskstation/yixunhu/FLAC/checkpoints/exp45_rf_data_curve",
+                    "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve")
+EXP45_DUMP_ROOT = "/media/diskstation/yixunhu/FLAC/exp45_pred_waveforms"
+EXP45_FARM = "outputs_FLAC/exp45_rf_data_curve/eval"
+EXP45_A6000_ROOTS = ("/home/yixunhu/codespace/exp-45-campaign", "/home/yixunhu/codespace/exp-45-publish")
+PROTECTED_ABSOLUTE = (*EXP38_SAVE_ROOTS, EXP38_DUMP_ROOT, EXP38_SNAPSHOT_ROOT, *EXP45_SAVE_ROOTS, EXP45_DUMP_ROOT,
+                      *EXP45_A6000_ROOTS)
+PROTECTED_IN_TREE = (EXP38_FARM, EXP38_DIR, EXP38_SMOKE_DIR, EXP45_FARM, EXP45_DIR)
 
 
-def exp38_protected_roots(trees=None):
-    """realpaths of exp_38's protected roots: its save roots and dump root, and its farm + worklog folder in each tree."""
+def _foreign_namespace():
+    return re.compile(r"/(" + "|".join(re.escape(rel) for rel in PROTECTED_IN_TREE) + r")(/|$)")
+
+
+def protected_roots(trees=None):
+    """realpaths of every protected root: the absolute ones and, in each tree, the per-tree ones."""
     trees = [REPO] if trees is None else list(trees)
-    roots = list(EXP38_SAVE_ROOTS) + [EXP38_DUMP_ROOT] + [os.path.join(t, rel) for t in trees for rel in (EXP38_FARM, EXP38_DIR)]
+    roots = list(PROTECTED_ABSOLUTE) + [os.path.join(t, rel) for t in trees for rel in PROTECTED_IN_TREE]
     return sorted({os.path.realpath(r) for r in roots})
 
 
 def isolation_problems(path, what, trees=None, contains=True):
-    """Problems if ``path`` (its realpath) equals or lies inside an exp_38 protected root -- or inside ANY tree's exp_38
-    farm / worklog folder -- or, with ``contains``, contains one."""
+    """Problems if ``path`` (its realpath) equals or lies inside a protected exp_38 / exp_45 root -- or inside ANY tree's
+    exp_38 / exp_45 farm, worklog or SMOKE folder -- or, with ``contains``, contains one."""
     real = os.path.realpath(path)
-    out = [f"{what} {path} (-> {real}) aliases exp_38's protected root {r}" for r in exp38_protected_roots(trees)
+    out = [f"{what} {path} (-> {real}) aliases a protected exp_38 / exp_45 root {r}" for r in protected_roots(trees)
            if real == r or real.startswith(r + os.sep) or (contains and r.startswith(real + os.sep))]
-    if not out and _EXP38_NAMESPACE.search(real):
-        out.append(f"{what} {path} (-> {real}) lies inside an exp_38 farm / worklog folder")
+    if not out and _foreign_namespace().search(real):
+        out.append(f"{what} {path} (-> {real}) lies inside an exp_38 / exp_45 farm, worklog or SMOKE folder")
     return out
 
 
 def check_isolation(path, what, trees=None, contains=True):
     probs = isolation_problems(path, what, trees, contains)
     if probs:
-        raise GateError("isolation from exp_38 (Codex code r2 finding 6): " + "; ".join(probs))
+        raise GateError("isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): " + "; ".join(probs))
 
 
 def alias_problem(base, rel):

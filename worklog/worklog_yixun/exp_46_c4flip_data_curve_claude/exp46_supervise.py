@@ -537,6 +537,8 @@ def mode_campaign(a, platform):
     # the save root (owner claim, run dir, ledger, probe all live under it) is isolated from exp_38's roots before any
     # mutation (Codex code r2 finding 6)
     reg.check_isolation(reg.PLATFORMS[platform]["save_root"], f"the {platform} save root")
+    if platform == "a6000":          # the snapshot namespace too, before any directory (plan r3 §3.2 "Isolation")
+        reg.check_isolation(SNAPSHOT_ROOT["a6000"], "the A6000 snapshot root")
     ngpu = reg.RUNGS[rung]["ngpu"]
     full = a.mode == "FULL"
     if full and platform != reg.TRAINING_PLATFORM:
@@ -609,6 +611,7 @@ def mode_campaign(a, platform):
     # ---- snapshot (launch root)
     snap = (os.path.join(SNAPSHOT_ROOT["a6000"], f"{a.run}_{a.mode}_{ts}") if platform == "a6000"
             else os.path.join(rd, ".exp46_tools"))
+    reg.check_isolation(snap, "the training snapshot")          # before its directory (plan r3 §3.2 "Isolation")
     os.makedirs(os.path.dirname(snap), exist_ok=True)
     snapshot = reg.snapshot_tools(a.run, snap, reg.REPO)
     if reg.closure_digest(snap)["closure_sha256"] != closure:

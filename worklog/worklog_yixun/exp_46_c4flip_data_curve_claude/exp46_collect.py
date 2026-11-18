@@ -202,7 +202,7 @@ def materialise(dest, root=None):
         raise ev.EvalError(f"destination {dest} does not exist")
     probs = reg.isolation_problems(dest, "the materialise destination", trees=[root, dest], contains=False)
     if probs:
-        raise ev.EvalError("isolation from exp_38 (Codex code r2 finding 6): " + "; ".join(probs))
+        raise ev.EvalError("isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): " + "; ".join(probs))
     files = verify(root)
     files.update({rel: reg.sha256_file(os.path.join(root, rel)) for rel in generator_static()})
     # every file is checked BEFORE any write (r2 finding 6): exp_38's own files (its reference cells, its E0a decision)

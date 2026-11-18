@@ -230,6 +230,10 @@ def eval_snapshot(closure, create=False):
     if not os.path.isdir(dest):
         if not create:
             raise EvalError(f"no evaluation snapshot {dest} (run `prepare-e0` from the campaign tree)")
+        # exp_46 plan r3 §3.2 (Codex plan r2 finding 1): never into exp_38's / exp_45's snapshot namespace, checked as
+        # a realpath BEFORE any directory is created
+        reg.check_isolation(SNAPSHOT_ROOT, "the evaluation snapshot root")
+        reg.check_isolation(dest, "the evaluation snapshot")
         os.makedirs(_abs("outputs_FLAC"), exist_ok=True)
         os.makedirs(SNAPSHOT_ROOT, exist_ok=True)
         reg.snapshot_tools("eval", dest, reg.REPO, links=EVAL_LINKS)
@@ -745,6 +749,7 @@ def prepare(run):
     the final checkpoint's current sha256 AND byte count == the receipt's, a full-state audit; then
     the farm link + offline copies of the receipt and the checkpoint manifest (Codex code r1 BLOCKING 4)."""
     arm, tag, rung = reg.parse_run_id(run)
+    reg.check_isolation(_abs(FARM), "the farm")                  # before any link or copy (plan r3 §3.2 "Isolation")
     campaign = validate_e0_receipt()
     rd = os.path.join(reg.PLATFORMS["a6000"]["save_root"], run)
     rec, digest = reg.check_training_receipt(run, rd, closure=campaign["closure_sha256"], verify_bytes=True,
@@ -912,9 +917,10 @@ def shutil_rmtree(path):
 
 def campaign_gates():
     """The campaign tree at a clean HEAD, no shadows / unexpected entries, the environment receipt -- and, first, the
-    dump root and the farm isolated from exp_38's roots (Codex code r2 finding 6)."""
+    dump root, the farm and the snapshot root isolated from exp_38's and exp_45's roots (plan r3 §3.2 "Isolation")."""
     reg.check_isolation(DUMP_ROOT, "the dump root")
     reg.check_isolation(_abs(FARM), "the farm")
+    reg.check_isolation(SNAPSHOT_ROOT, "the evaluation snapshot root")
     if os.path.realpath(reg.REPO) != reg.CAMPAIGN_ROOT["a6000"]:
         raise EvalError(f"evaluation runs only from the campaign tree {reg.CAMPAIGN_ROOT['a6000']}")
     if subprocess.run(["git", "-C", reg.REPO, "status", "--porcelain", "--untracked-files=no"],
