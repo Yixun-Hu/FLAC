@@ -148,6 +148,7 @@ def test_every_exp46_commit_and_the_working_tree_touch_only_the_allowed_paths():
                 ok = False                                         # the E0 exception ADDS its files
             if not ok:
                 problems.append(f"{sha[:10]} ({subject[:50]}): {status} {path}")
+        problems += e0_publication_problems(sha, subject)                  # the complete Y46 rule (finding 9)
     for path in git("diff", "--name-only", "HEAD").split("\n"):          # uncommitted tracked edits too
         if path and not matches(path, ALWAYS):
             problems.append(f"working tree: {path}")
@@ -334,3 +335,103 @@ def test_the_generator_gains_the_exp46_contract_only():
     for _, _, c, d in _hunks(GEN):
         text = "\n".join(_lines(new, c, d))
         assert re.search(r"exp_?46|EXP46", text), text[:200]
+
+
+# ------------------------------------------------------------------ fix round 1, Codex code r1 finding 9: the complete Y46
+def _reg():
+    sys.path.insert(0, os.path.join(REPO, EXPREL46))
+    import exp46_registry as reg
+    return reg
+
+
+def e0_publication_problems(sha, subject, repo=REPO):
+    """The Y46 rule as a whole, for one commit: an exact-subject E0 publication commit ADDS, outside EXPREL46, exactly
+    the 24 registered E0-cell files (23 or 25 refuses; nothing else), its subject's X46 is an ancestor, and
+    closure(Y46) == closure(X46) (registry.closure_digest_at over both commits' trees)."""
+    if E0_SUBJECT.fullmatch(subject) is None:
+        return []
+    x46 = subject.rsplit(" ", 1)[1]
+    out = subprocess.run(["git", "-C", repo, "diff-tree", "-r", "--no-commit-id", "--no-renames", "--name-status", sha],
+                         capture_output=True, text=True, check=True).stdout
+    outside = {path: status for status, path in (ln.split("\t", 1) for ln in out.splitlines())
+               if not path.startswith(EXPREL46 + "/")}
+    p = []
+    if set(outside) != E0_FILES or any(s != "A" for s in outside.values()):
+        p.append(f"{sha[:10]}: outside {EXPREL46} it changes {len(outside)} path(s), not exactly the 24 E0-cell files "
+                 f"added (missing {sorted(E0_FILES - set(outside))[:2]}, extra {sorted(set(outside) - E0_FILES)[:2]})")
+    if subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", x46, sha], capture_output=True).returncode:
+        return p + [f"{sha[:10]}: the subject's X46 {x46[:10]} is not an ancestor of the E0 publication commit"]
+    reg = _reg()
+    if reg.closure_digest_at(sha, repo) != reg.closure_digest_at(x46, repo):
+        p.append(f"{sha[:10]}: closure(Y46) != closure(X46 = {x46[:10]})")
+    return p
+
+
+def _synthetic(tmp_path):
+    """A throw-away repository: X46 (two closure files -- src/x.py and the kit's exp46_registry.py -- and a non-closure
+    README) and a helper committing a Y46 on top of it."""
+    repo = tmp_path / "repo"
+    env = dict(os.environ, GIT_AUTHOR_NAME="exp46", GIT_AUTHOR_EMAIL="exp46-test", GIT_COMMITTER_NAME="exp46",
+               GIT_COMMITTER_EMAIL="exp46-test")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, env=env)
+
+    def commit(files, subject):
+        for rel, data in files.items():
+            os.makedirs(repo / os.path.dirname(rel), exist_ok=True)
+            (repo / rel).write_bytes(data)
+        subprocess.run(["git", "-C", str(repo), "add", "-A", "-f"], check=True, env=env)
+        subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", subject], check=True, env=env)
+        return subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True,
+                              check=True).stdout.strip()
+    x46 = commit({"src/x.py": b"code", f"{EXPREL46}/exp46_registry.py": b"kit", "README.md": b"prose"}, "X46")
+    return repo, commit, x46
+
+
+def _e0(n=24):
+    return {p: b"cell" for p in sorted(E0_FILES)[:n]}
+
+
+@pytest.mark.parametrize("case", ["complete", "23 files", "25 files", "a closure file changed outside the kit",
+                                  "a closure file changed inside the kit", "a prose file", "X46 not an ancestor",
+                                  "an E0 file modified, not added"])
+def test_the_y46_rule_checks_the_complete_publication_and_the_closure(tmp_path, case):
+    repo, commit, x46 = _synthetic(tmp_path)
+    subject = f"exp_46 records: E0 PASS at {x46}"
+    receipt = {f"{EXPREL46}/c4flip_data_curve_e0_receipt.json": b"{}"}
+    if case == "an E0 file modified, not added":
+        commit({sorted(E0_FILES)[0]: b"early"}, "exp_46 records: notes")     # already tracked before Y46
+    files = dict(_e0(23 if case == "23 files" else 24), **receipt)
+    if case == "25 files":
+        files[f"{E0_FARM}/E0a/extra.json"] = b"x"
+    if case == "a closure file changed outside the kit":
+        files["src/x.py"] = b"changed code"
+    if case == "a closure file changed inside the kit":
+        files[f"{EXPREL46}/exp46_registry.py"] = b"changed kit"          # inside EXPREL46: only the closure check sees it
+    if case == "a prose file":
+        files["README.md"] = b"changed prose"
+    if case == "X46 not an ancestor":
+        subject = f"exp_46 records: E0 PASS at {'0' * 40}"
+    y46 = commit(files, subject)
+    problems = e0_publication_problems(y46, subject, str(repo))
+    if case == "complete":
+        assert problems == []
+        assert _reg().closure_digest_at(y46, str(repo)) == _reg().closure_digest_at(x46, str(repo))
+    else:
+        assert problems, case
+    if case == "a closure file changed inside the kit":
+        assert problems == [f"{y46[:10]}: closure(Y46) != closure(X46 = {x46[:10]})"]
+    assert e0_publication_problems(y46, "exp_46 records: notes", str(repo)) == []       # the rule needs ITS subject
+
+
+def test_closure_digest_at_a_commit_equals_the_checkout_digest(tmp_path):
+    """registry.closure_digest_at(commit) is closure_digest() of that commit's checkout: the same files, the same digest;
+    a closure blob changes it, a prose file does not."""
+    reg = _reg()
+    repo, commit, x46 = _synthetic(tmp_path)
+    assert reg.closure_digest_at(x46, str(repo)) == reg.closure_digest(str(repo))
+    assert reg.closure_digest_at(x46, str(repo))["n_files"] == 2
+    prose = commit({"README.md": b"other prose"}, "prose")
+    assert reg.closure_digest_at(prose, str(repo)) == reg.closure_digest_at(x46, str(repo))
+    code = commit({"src/x.py": b"other code"}, "code")
+    assert reg.closure_digest_at(code, str(repo)) != reg.closure_digest_at(x46, str(repo))
+    assert reg.closure_digest_at(code, str(repo)) == reg.closure_digest(str(repo))

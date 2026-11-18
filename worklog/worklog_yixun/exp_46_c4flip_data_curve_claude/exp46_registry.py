@@ -1459,6 +1459,35 @@ def closure_digest(repo=None):
     return {"closure_sha256": h.hexdigest(), "n_files": len(files)}
 
 
+def closure_digest_at(commit, repo=None):
+    """closure_digest() of a COMMIT's tree, from git's objects (no checkout): the same file rule (_in_closure over the
+    same roots) and the same digest. Codex code r1 finding 9: the Y46 audit compares closure(Y46) with closure(X46)."""
+    import subprocess
+    repo = repo or REPO
+    listing = _git_out(repo, "ls-tree", "-r", "-z", "--full-tree", commit, "--", *CLOSURE_ROOTS, EXP_DIR,
+                       *EXTERNAL_CONFIGS, *CLOSURE_EXPLICIT).decode()
+    blobs = {}
+    for item in listing.split("\0"):
+        if item:
+            meta, path = item.split("\t", 1)
+            mode, kind, oid = meta.split()
+            if kind == "blob" and _in_closure(path):
+                blobs[path] = oid
+    rels = sorted(blobs)
+    out = subprocess.run(["git", "-C", repo, "cat-file", "--batch"], input="".join(f"{blobs[r]}\n" for r in rels).encode(),
+                         capture_output=True, check=True).stdout
+    h, pos = hashlib.sha256(), 0
+    for rel in rels:
+        header_end = out.index(b"\n", pos)
+        oid, kind, size = out[pos:header_end].decode().split()
+        if oid != blobs[rel] or kind != "blob":
+            raise GateError(f"git cat-file returned {oid} {kind} for {rel}")
+        data = out[header_end + 1:header_end + 1 + int(size)]
+        pos = header_end + 1 + int(size) + 1
+        h.update(f"{rel}\0{hashlib.sha256(data).hexdigest()}\n".encode())
+    return {"closure_sha256": h.hexdigest(), "n_files": len(rels)}
+
+
 # the snapshot's own links (train.py runs with the snapshot as its cwd; the dataset config names
 # "AcousticRooms" and the argv names weights/FLAC/VAE.safetensors, both cwd-relative)
 SNAPSHOT_LINKS = ("AcousticRooms", VAE_PATH)
