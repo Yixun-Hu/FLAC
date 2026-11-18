@@ -62,4 +62,5 @@ CPU Slurm job; a failed attempt keeps its log, renamed `..._ABORTED_<reason>.log
 | `d909632b` | 2026-11-18 07:07 | fix r2 R2-8: `exp46_nas_publish.py` -- exclusive staging before rsync, no-replace publication (renameat2 RENAME_NOREPLACE; checked fallback) | 250 **>200** (helper 108 + test 142; not flagged in the message) | AK1 red, AK2 ABORTED (a final link refused by the alias check first), AK3 green |
 | `e80a88f8` | 2026-11-18 07:09 | fix r2 R2-2 (HIGH), R2-5, R2-6, R2-7 and the sheet parts of R2-8 / R2-9: both command sheets | 434 **>200** (sheets 173 + test 261; flagged) | AL1 red, AL2 green |
 | `b3027add` | 2026-11-18 07:11 | fix r2 R2-1 part 5: the AST audit of every mutating call of the kit (21 audited raw calls) | 98 | AM1 red (the kit before part 1), AM2 green |
-| (this commit) | 2026-11-18 07:20 | records: fix round 2 -- ledger rows, the worklog entry with the mutation-site audit list, every fix-round-2 log | records | — |
+| `5827fe08` | 2026-11-18 07:13 | records: fix round 2 -- ledger rows, the worklog entry with the mutation-site audit list, every fix-round-2 log | records | — |
+| (this commit) | 2026-11-18 07:57 | records: fix round 2's final targeted run | records | **FR2: 2,928 passed, 15 skipped, 41 deselected, 0 failed at `5827fe08`, tracked-clean** (neu308, 40 min 51 s) |

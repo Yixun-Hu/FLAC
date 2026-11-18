@@ -437,7 +437,7 @@ ran first against the previous sheets (AL1). No pytest, python or test code ran 
     audited checked fallback rename.
   - The 21 audited raw calls (the test's AUDITED table, with reasons): `_fsync_dir` os.open (a read-only directory
     fd); `atomic_write_bytes` os.open / os.replace; `publish_no_clobber` mkstemp / link / unlink; `storage_gate` unlink;
-    the six primitives' own os calls; `move_loss_record` rmdir; `shutil_rmtree` rmtree; the table's two mkdtemp, two
+    the five primitives' own os calls (`copyfile_below` goes through `open_below`); `move_loss_record` rmdir; `shutil_rmtree` rmtree; the table's two mkdtemp, two
     rmtree and extractall; the NAS helper's mkdir and fallback rename. Outside Python: Slurm's `--output` into the
     launch checkout's exp_46 folder; the training child writes into the validated run dir, the evaluator child into
     the validated farm folder; the sheets' `mkdir -p` / `cp` run inside the verified publication worktree and rsync
@@ -455,3 +455,14 @@ ran first against the previous sheets (AL1). No pytest, python or test code ran 
   writes is created by the kit itself, so no legitimate path is a link below its root (a tree's own `outputs_FLAC`
   link and every save / snapshot root stay above or at their roots). Open for the coordinator: F6 / item 13 (Yixun's
   D1) and the campaign order (D2), both unchanged.
+
+### 07:13–07:55 — fix round 2's final targeted run: GREEN
+- Command: `JOBTMP=/tmp TLIM=02:00:00 pyt46.sh FR2_final_targeted_yawaug_first_exp45_last -rfEs <the same 8 --deselect>
+  <53 files>` at `5827fe08` (header: tracked-clean=yes, neu308): FR1's 51 files in FR1's order plus this round's
+  two new test files (`test_exp46_mutation_guards.py`, `test_exp46_nas_publish.py`, in the exp_46 group after
+  `test_exp46_launchers.py`); yaw-aug / E1–E3 files first, exp_45's files last (item 13 still open).
+- Result: **2,928 passed, 15 skipped, 41 deselected, 0 failed** (EXIT 0) in 40 min 51 s, log `c4flip_data_curve_2026-11-18_07-13-51_pytest_FR2_final_targeted_yawaug_first_exp45_last.log`.
+  +349 passing nodes over FR1 (this round's new and extended tests); the 15 skips are FR1's environmental ones, the 41
+  deselected the same wandb-environment nodes of `test_exp43_kit.py` (open item 1; the definitive L1 keeps them).
+- Analysis: every Codex code r2 finding (F2 / R2-3, F8 / R2-4, R2-1 … R2-9) is closed and tested; F6 / item 13 waits for
+  Yixun's D1; ready for Codex code round 3, the last (the coordinator's call).
