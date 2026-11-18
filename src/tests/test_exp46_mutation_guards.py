@@ -171,3 +171,85 @@ def test_the_registered_exp38_import_exception_admits_exactly_exp38s_namespaces_
     with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
         reg.check_destination(str(protected_all["exp38 dump root"] / "x"), str(protected_all["exp38 dump root"]),
                               "a file", allow=allow)
+
+
+# ------------------------------------------------------------------ the registry's entry points: aliased children
+def _targets(prot, target):
+    """An alias target in the protected root: an ABSENT file (open() / mkdir() would create it) or an existing one."""
+    if target == "absent":
+        return prot / "absent_target"
+    theirs = prot / "theirs"
+    theirs.write_text("theirs\n")
+    return theirs
+
+
+LEDGER_CHILDREN = {"the storage-ledger lock": reg.STORAGE_LOCK, "the storage ledger": reg.STORAGE_LEDGER,
+                   "the ledger temp file": f".{reg.STORAGE_LEDGER}.tmp.{os.getpid()}"}
+
+
+@pytest.mark.parametrize("target", ["absent", "existing"])
+@pytest.mark.parametrize("child", sorted(LEDGER_CHILDREN))
+@pytest.mark.parametrize("kind", KINDS)
+def test_the_storage_ledger_refuses_an_aliased_child_before_any_write(tmp_path, protected_all, kind, child, target):
+    """Codex code r2 finding 1's probe: a pre-existing .exp46_storage.lock symlink to an ABSENT file inside a protected
+    root, reached by an otherwise valid reservation, created that file; the same for the ledger and its temp name.
+    Every ledger entry point now refuses (GateError) before any write; the protected root is untouched."""
+    prot = protected_root(kind, protected_all, tmp_path)
+    link_to = _targets(prot, target)
+    before = listing(prot)
+    root = tmp_path / "exp46_save_root"
+    root.mkdir()
+    (root / LEDGER_CHILDREN[child]).symlink_to(link_to)
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        reg.reserve_storage(RUN, "a" * 32, str(root / RUN), str(root), need=1, floor=0)
+    for fn in (lambda: reg.recheck_storage(RUN, "a" * 32, str(root), floor=0),
+               lambda: reg.release_storage(RUN, "a" * 32, str(root))):
+        if child != "the ledger temp file":                     # (they never write the ledger: no temp name)
+            with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+                fn()
+    assert listing(prot) == before and (target == "absent" or link_to.read_text() == "theirs\n")
+
+
+@pytest.mark.parametrize("target", ["absent", "existing"])
+@pytest.mark.parametrize("kind", KINDS)
+def test_the_environment_receipt_lock_refuses_an_alias_before_any_write(tmp_path, protected_all, monkeypatch, kind,
+                                                                       target):
+    """The receipt lock beside the environment receipt (and the hygiene gate's probe of it): an aliased lock refuses
+    before the environment is probed and before any write."""
+    prot = protected_root(kind, protected_all, tmp_path)
+    link_to = _targets(prot, target)
+    before = listing(prot)
+    tree = tmp_path / "tree"
+    (tree / reg.EXP_DIR).mkdir(parents=True)
+    (tree / reg.ENV_RECEIPT_LOCK).symlink_to(link_to)
+    monkeypatch.setattr(reg, "env_receipt", lambda *a, **k: (_ for _ in ()).throw(AssertionError("environment probed")))
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        reg.ensure_env_receipt("neuronic", repo=str(tree))
+    tmp_name = f"{reg.EXP_DIR}/.c4flip_data_curve_env_receipt_neuronic.json.tmp.1"
+    (tree / tmp_name).write_text("x")
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        reg._stale_env_receipt_temps([tmp_name], str(tree))
+    assert listing(prot) == before
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_a_run_dir_aliased_into_a_protected_root_refuses_the_registrys_run_dir_writers(tmp_path, protected_all, kind):
+    """The run dir is a child of the checked save root: an aliased run dir refuses the receipt retention and the commit
+    marker before any write (they would otherwise create receipts/ and the marker inside the protected root)."""
+    import json
+    prot = protected_root(kind, protected_all, tmp_path)
+    before = listing(prot)
+    root = tmp_path / "exp46_save_root"
+    root.mkdir()
+    (root / RUN).symlink_to(prot)
+    rd = str(root / RUN)
+    receipt = tmp_path / "receipt.json"
+    receipt.write_text("{}")
+    (tmp_path / "receipt.json.sha256").write_text("x  receipt.json\n")
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        reg.retain_receipts(rd, {"e0": str(receipt)})
+    record = tmp_path / "at_launch.json"
+    record.write_text(json.dumps({"status": "COMPLETE", "run": RUN, "training_receipt_sha256": "7" * 64}))
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        reg.write_commit_marker(rd, RUN, "7" * 64, str(record))
+    assert listing(prot) == before

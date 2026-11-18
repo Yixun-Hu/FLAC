@@ -692,7 +692,7 @@ def write_ckpt_manifest(path, run, allow_lock=False):
     out = os.path.join(path, "CHECKPOINTS.sha256")
     if os.path.exists(out):
         raise GateError(f"{out} already exists")
-    atomic_write_bytes(out, ("\n".join(lines) + "\n").encode())
+    atomic_write_bytes(out, ("\n".join(lines) + "\n").encode(), root=run_root(path))   # below the save root
     return out
 
 
@@ -1104,6 +1104,12 @@ def check_destination(path, root, what, allow=()):
     return os.path.abspath(path)
 
 
+def run_root(rd):
+    """The checked root of a run dir's own writes: its save root (a run dir is a direct child of it), so the run dir
+    itself is one of the validated components."""
+    return os.path.dirname(os.path.abspath(rd))
+
+
 _WRITE_FLAGS = {"a": os.O_WRONLY | os.O_CREAT | os.O_APPEND, "w": os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
                 "x": os.O_WRONLY | os.O_CREAT | os.O_EXCL}
 
@@ -1190,7 +1196,7 @@ def storage_gate(platform, path, need_bytes, tag="exp46"):
     probe = os.path.join(path, f".{tag}_probe_{os.getpid()}_{int(time.time())}")
     payload = os.urandom(16).hex()
     try:
-        with open(probe, "x") as fh:
+        with open_below(probe, "x", path, "the storage probe") as fh:
             fh.write(payload)
             fh.flush()
             os.fsync(fh.fileno())
@@ -1269,10 +1275,12 @@ class _Ledger:
         if not os.path.isdir(root):
             raise GateError(f"storage root {root} does not exist")
         self.root, self.path = root, os.path.join(root, STORAGE_LEDGER)
+        for p, what in ((self.path, "the storage ledger"), (os.path.join(root, STORAGE_LOCK), "the storage-ledger lock")):
+            check_destination(p, root, what)          # the children themselves (Codex code r2 finding 1), before any read
 
     def __enter__(self):
         import fcntl
-        self.lock = open(os.path.join(self.root, STORAGE_LOCK), "a")
+        self.lock = open_below(os.path.join(self.root, STORAGE_LOCK), "a", self.root, "the storage-ledger lock")
         fcntl.flock(self.lock, fcntl.LOCK_EX)
         try:
             data = json.load(open(self.path)) if os.path.exists(self.path) else {"schema": 1, "reservations": {},
@@ -1307,7 +1315,7 @@ class _Ledger:
         return free, out
 
     def save(self):
-        atomic_write_bytes(self.path, (json.dumps(self.data, indent=1, sort_keys=True) + "\n").encode())
+        atomic_write_bytes(self.path, (json.dumps(self.data, indent=1, sort_keys=True) + "\n").encode(), root=self.root)
 
     def __exit__(self, *exc):
         import fcntl
@@ -1587,27 +1595,27 @@ def snapshot_tools(run, dest, repo=None, links=SNAPSHOT_LINKS):
     """Copy the closure into ``dest`` (refused if it exists), link the two data inputs to the
     campaign tree's verified targets, and seal SNAPSHOT.sha256 + SNAPSHOT.links. Training is
     launched FROM the snapshot and every later audit reads it (Codex code r1 HIGH 5)."""
-    import shutil
     repo = repo or REPO
     check_isolation(dest, "the snapshot")        # Codex code r1 finding 2: every caller, before any read or write
     if os.path.lexists(dest):
         raise GateError(f"snapshot dir {dest} exists")
     lines = []
-    for rel in snapshot_files(run, repo):
-        out = os.path.join(dest, rel)
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        shutil.copyfile(_abs(rel, repo), out)
+    for rel in snapshot_files(run, repo):        # every copy below the snapshot root (Codex code r2 finding 1); the
+        out = os.path.join(dest, rel)            # closure's registered read-only exp_38 files keep exp_38's paths
+        allow = (EXP38_DIR,) if rel in EXP38_READONLY + RECEIPT_FILES else ()
+        makedirs_below(os.path.dirname(out), dest, "a snapshot directory", allow=allow)
+        copyfile_below(_abs(rel, repo), out, dest, "a snapshot copy", allow=allow)
         lines.append(f"{sha256_file(out)}  {rel}")
     made = []
     for rel in links:
         target = os.path.realpath(_abs(rel, repo))
         if not os.path.exists(target):
             raise GateError(f"{rel} does not resolve in {repo}")
-        os.makedirs(os.path.dirname(os.path.join(dest, rel)) or dest, exist_ok=True)
-        os.symlink(target, os.path.join(dest, rel))
+        makedirs_below(os.path.dirname(os.path.join(dest, rel)) or dest, dest, "a snapshot directory")
+        symlink_below(target, os.path.join(dest, rel), dest, "a snapshot link")
         made.append(f"{target}  {rel}")
-    atomic_write_bytes(os.path.join(dest, "SNAPSHOT.sha256"), ("\n".join(lines) + "\n").encode())
-    atomic_write_bytes(os.path.join(dest, "SNAPSHOT.links"), ("\n".join(made) + "\n").encode())
+    atomic_write_bytes(os.path.join(dest, "SNAPSHOT.sha256"), ("\n".join(lines) + "\n").encode(), root=dest)
+    atomic_write_bytes(os.path.join(dest, "SNAPSHOT.links"), ("\n".join(made) + "\n").encode(), root=dest)
     return {"snapshot": dest, "files": len(lines), "snapshot_sha256": snapshot_digest(dest)}
 
 
@@ -1819,10 +1827,10 @@ def _stale_env_receipt_temps(names, repo):
     import fcntl
     if not names:
         return []
-    path = _abs(ENV_RECEIPT_LOCK, repo)
+    path = check_destination(_abs(ENV_RECEIPT_LOCK, repo), _abs(EXP_DIR, repo), "the environment-receipt lock")
     if not os.path.exists(path):
         return [rel for rel in names if os.path.lexists(os.path.join(repo, rel))]
-    with open(path, "a") as fh:
+    with open_below(path, "a", _abs(EXP_DIR, repo), "the environment-receipt lock") as fh:
         try:
             fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -2058,7 +2066,7 @@ def env_receipt(platform, write=False, repo=None):
         raise GateError("; ".join(probs))
     now = env_snapshot(platform)
     if write:
-        digest = write_sealed(path, now)
+        digest = write_sealed(path, now, root=_abs(EXP_DIR, repo))
         return {"env_receipt": path, "sha256": digest, "written": True}
     pinned, digest = read_sealed(path, ENV_RECEIPT_KEYS)
     if canonical(pinned) != canonical(now):
@@ -2079,7 +2087,7 @@ def ensure_env_receipt(platform, repo=None):
     every caller -- that one included -- then checks it against its own environment (exact equality, else
     GateError). A dead holder's lock is released by the kernel."""
     import fcntl
-    with open(_abs(ENV_RECEIPT_LOCK, repo), "a") as lock:
+    with open_below(_abs(ENV_RECEIPT_LOCK, repo), "a", _abs(EXP_DIR, repo), "the environment-receipt lock") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         if not os.path.exists(_abs(env_receipt_rel(platform), repo)):
             env_receipt(platform, write=True, repo=repo)
@@ -2214,7 +2222,7 @@ def write_smoke_receipt(run, platform, backend, head, smoke_dir, log_path, rc, g
            "evidence_gate": "PASS" if not eg else eg, "gpus": gpus, "verdict": verdict,
            "launched_at": launched_at, "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     out = _abs(smoke_receipt_rel(run, platform, ts), out_repo or repo)
-    write_sealed(out, rec)
+    write_sealed(out, rec, root=_abs(EXP_DIR, out_repo or repo))
     return {"smoke_receipt": out, "verdict": verdict, "log_gate": rec["log_gate"], "evidence_gate": rec["evidence_gate"],
             "logger_gate": rec["logger_gate"]}
 
@@ -2365,20 +2373,19 @@ def retain_receipts(rd, paths, plain=None):
     """Copy each sealed receipt (+ sidecar) the launch validated into <run dir>/receipts/ under its own
     basename (the sidecar names it), and each ``plain`` backing file (the SMOKE log) under
     ``<role>.<ext>``; returns {role: basename}. Called before the child starts."""
-    import shutil
     d = os.path.join(rd, RECEIPTS_DIR)
     try:
-        os.makedirs(d, exist_ok=False)
+        makedirs_below(d, run_root(rd), "the retained receipts", exist_ok=False)
     except FileExistsError:
         raise GateError(f"{d} exists (receipts are retained once, at launch)")
     out = {}
     for role, path in paths.items():
         for src in (path, path + ".sha256"):
-            shutil.copyfile(src, os.path.join(d, os.path.basename(src)))
+            copyfile_below(src, os.path.join(d, os.path.basename(src)), run_root(rd), "a retained receipt")
         out[role] = os.path.basename(path)
     for role, path in (plain or {}).items():
         name = f"{role}{os.path.splitext(path)[1]}"
-        shutil.copyfile(path, os.path.join(d, name))
+        copyfile_below(path, os.path.join(d, name), run_root(rd), "a retained file")
         out[role] = name
     return out
 
@@ -2393,7 +2400,7 @@ def write_commit_marker(rd, run, training_sha, record_path):
     rec = json.load(open(record_path))
     if rec.get("status") != "COMPLETE" or rec.get("run") != run or rec.get("training_receipt_sha256") != training_sha:
         raise GateError("the terminal launch record does not name this completed training receipt")
-    return write_sealed(os.path.join(rd, COMMIT_MARKER), {
+    return write_sealed(os.path.join(rd, COMMIT_MARKER), root=run_root(rd), rec={
         "schema": 1, "run": run, "training_receipt_sha256": training_sha,
         "launch_record": os.path.basename(record_path), "launch_record_sha256": sha256_file(record_path)})
 
@@ -2417,7 +2424,6 @@ def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snaps
     """Published only after every end audit passes (re-run here, from the snapshot ``repo``; the
     environment receipt is the campaign ``tree``'s, re-checked against the launch-time ``env_sha``).
     The train log is retained beside the launch-time receipt copies (``retained``)."""
-    import shutil
     arm, tag, rung = parse_run_id(run)
     ngpu = RUNGS[rung]["ngpu"]
     if rc != 0:
@@ -2449,11 +2455,11 @@ def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snaps
     if lines.get(final) != audit["sha256"]:
         raise GateError("final checkpoint changed between the audit and the manifest")
     log_copy = os.path.join(rd, RECEIPTS_DIR, "train.log")
-    shutil.copyfile(log_path, log_copy)
+    copyfile_below(log_path, log_copy, run_root(rd), "the retained train log")
     if sha256_file(log_copy) != sha256_file(log_path):
         raise GateError("the retained train log differs from the log")
     for f in ("SNAPSHOT.sha256", "SNAPSHOT.links"):             # the snapshot is reproducible from the bundle
-        shutil.copyfile(os.path.join(repo, f), os.path.join(rd, RECEIPTS_DIR, f))
+        copyfile_below(os.path.join(repo, f), os.path.join(rd, RECEIPTS_DIR, f), run_root(rd), "a snapshot manifest")
     if snapshot_digest(os.path.join(rd, RECEIPTS_DIR)) != snapshot_sha:
         raise GateError("the retained snapshot manifests are not the launched snapshot's")
     loss = check_loss_record(os.path.join(rd, RECEIPTS_DIR, LOSS_RECORD))        # moved in by the supervisor
@@ -2477,7 +2483,7 @@ def write_training_receipt(run, platform, backend, head, rd, log_path, rc, snaps
            "data_content_checks": ["pre-launch", "post-run"] + (["f100 delta post-run"] if full else []),
            "f100_delta_sha256": F100_DELTA_SHA256 if full else None, "f100_delta_verification_sha256": vsha,
            "launched_at": launched_at, "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
-    write_sealed(os.path.join(rd, TRAINING_RECEIPT), rec)
+    write_sealed(os.path.join(rd, TRAINING_RECEIPT), rec, root=run_root(rd))
     return rec
 
 

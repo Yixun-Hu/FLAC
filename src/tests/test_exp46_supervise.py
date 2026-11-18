@@ -861,12 +861,12 @@ def test_three_concurrent_first_smokes_create_exactly_one_environment_receipt(tm
     monkeypatch.setattr(reg, "env_snapshot", slow_snapshot)
     writes, real_write = tmp_path / "receipt_writes.log", reg.write_sealed
 
-    def counted_write(path, rec):                      # one O_APPEND line per write of the receipt, fork-safe
+    def counted_write(path, rec, **kw):                # one O_APPEND line per write of the receipt, fork-safe
         if path == reg._abs(reg.env_receipt_rel("neuronic")):
             fd = os.open(str(writes), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
             os.write(fd, f"{os.getpid()}\n".encode())
             os.close(fd)
-        return real_write(path, rec)
+        return real_write(path, rec, **kw)           # (the checked root: Codex code r2 finding 1)
     monkeypatch.setattr(reg, "write_sealed", counted_write)
     ctx = mp.get_context("fork")
     barrier, q = ctx.Barrier(3), ctx.Queue()
