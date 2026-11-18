@@ -44,7 +44,7 @@ SHEETS = {
         "$PY -B $E/exp46_content_manifest.py --verify $E/exp46_f100_delta_manifest.txt.gz",
         "$PY -B $E/exp46_registry.py check exp46_C4Ff100_l40_2x32 --platform neuronic",
         "$PY -B $E/exp46_init_digest.py --run $RUN --json",
-        "git worktree add --detach /n/fs/gatrdp/codespace/exp-46-launch $Y46",
+        "git -C /n/fs/gatrdp/codespace/FLAC worktree add --detach /n/fs/gatrdp/codespace/exp-46-launch $Y46",
         "$PY -B $E/exp46_registry.py e0-check --platform neuronic", "$PY -B $E/exp46_registry.py untracked --platform neuronic",
         "$PY -B $E/exp46_registry.py dry-run --platform neuronic",
         "exp46_submit_neuronic.py submit --run $RUN --mode SMOKE", "exp46_submit_neuronic.py submit --run $RUN --mode FULL",
@@ -234,8 +234,8 @@ def test_every_python_invocation_of_both_sheets_runs_without_bytecode():
 MAIN = "/n/fs/gatrdp/codespace/FLAC"            # the main checkout (the generator root G)
 MAIN_FORMS = (r"G=/n/fs/gatrdp/codespace/FLAC",
               r"SRC=/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/\$RUN",   # read by the L7 rsync
-              r"cd /n/fs/gatrdp/codespace/FLAC && git fetch origin exp-46-c4flip-data-curve",
-              r"git worktree add --detach /n/fs/gatrdp/codespace/exp-46-launch \$Y46",
+              r"git -C /n/fs/gatrdp/codespace/FLAC fetch origin exp-46-c4flip-data-curve",
+              r"git -C /n/fs/gatrdp/codespace/FLAC worktree add --detach /n/fs/gatrdp/codespace/exp-46-launch \$Y46",
               r'ln -s "\$\(readlink -f /n/fs/gatrdp/codespace/FLAC/[\w/.]+\)" [\w/.]+',
               r"git -C \$G fetch origin [\w. -]+", r"git -C \$G merge-base --is-ancestor \S+ \S+",
               r"git -C \$G worktree add --detach \$B \$R46",
@@ -320,15 +320,15 @@ def test_the_nas_publication_stages_exclusively_and_publishes_without_replacing(
     """Codex code r2 finding 8: the staging directory is created exclusively by the tested helper BEFORE rsync, the
     admission runs on the staged copy, and the final move is the helper's no-replace publication -- no plain
     existence test, no ordinary mv (which nests the staging dir in a final path created meanwhile)."""
-    cmds = [c for c in _commands(_text(NEURONIC)) if "rsync " in c]
-    assert len(cmds) == 1
-    chain = [s.strip() for s in cmds[0].split(" && ")]
-    assert chain[0] == "python -B $E/exp46_nas_publish.py stage --dest-root $DST --run $RUN"
-    assert chain[1].startswith("rsync -a --partial --exclude .exp46_tools neuronic:$SRC/ $DST/$RUN.incoming/")
-    assert chain[2:4] == ["(cd $DST/$RUN.incoming", "sha256sum -c CHECKPOINTS.sha256)"]        # split inside ( )
+    cmds = _commands(_text(NEURONIC))
+    i = cmds.index("python -B $E/exp46_nas_publish.py stage --dest-root $DST --run $RUN")
+    chain = cmds[i - 1:i + 5]                  # one command per line (fix round 3: set -e stops at any refusal)
+    assert chain[0] == "python -B $E/exp46_nas_publish.py provision"
+    assert chain[2].startswith("rsync -a --partial --exclude .exp46_tools neuronic:$SRC/ $DST/$RUN.incoming/")
+    assert chain[3] == "(cd $DST/$RUN.incoming && sha256sum -c CHECKPOINTS.sha256)"
     assert chain[4].startswith("python -B $E/exp46_registry.py training-check $RUN --run-dir $DST/$RUN.incoming")
-    assert len(chain) == 6
-    assert chain[-1] == "python -B $E/exp46_nas_publish.py publish --dest-root $DST --run $RUN"
+    assert chain[5] == "python -B $E/exp46_nas_publish.py publish --dest-root $DST --run $RUN"
+    assert len([c for c in cmds if "rsync " in c]) == 1
     b = _blocks(NEURONIC)
     assert "mv $DST" not in b and "test ! -e $DST" not in b
     assert os.path.isfile(os.path.join(EXP, "exp46_nas_publish.py"))
@@ -344,7 +344,7 @@ def test_l4_dry_runs_every_launch_path_of_the_four_runs_before_the_x46_freeze():
     push = cmds.index("git -C $M push origin exp-46-c4flip-data-curve")
     assert cmds[push + 1].startswith("X46=$(git -C $M rev-parse HEAD)")
     l4 = cmds[l3 + 2:push]                                                          # after the L3 loop
-    assert cmds[l3 + 1] == "done" and l4[0] == 'cd $M && test -z "$(git status --porcelain --untracked-files=no)"'
+    assert cmds[l3 + 1] == "done" and l4[:2] == ["cd $M", 'test -z "$(git status --porcelain --untracked-files=no)"']
     assert "$PY -B $E/exp46_registry.py dry-run --platform neuronic" in l4
     loop = re.search(r"^for RUN in \$RUNS; do\n(.*?)^done$", b[b.index("dry-run --platform neuronic"):], re.M | re.S)
     body = loop.group(1)
@@ -429,3 +429,152 @@ def test_the_regeneration_writes_no_bytecode_into_exp38s_folder(tmp_path):
         assert res.returncode == 0 and "False" in res.stdout, res.stderr[-2000:]          # the loader ran, then refused
         cache = [a for a, ds, fs in os.walk(str(root / reg.EXP38_DIR)) if "__pycache__" in ds]
         assert bool(cache) is want, (run_flags, cache)
+
+
+# ------------------------------------------------------------------ fix round 3: the gates themselves (Codex code r3)
+STUB_SBATCH = r'''#!/bin/bash
+# stand-in sbatch: logs the call and runs the --wrap command here, as the job would (output to --output); a job whose
+# wrap names $SBATCH_KILL is "killed" -- not run, status 1 (what `sbatch --wait` reports for a signalled job)
+wait=0; wrap=""; out=/dev/null
+for a in "$@"; do case "$a" in --wait) wait=1;; --output=*) out="${a#--output=}";; esac; done
+while [ $# -gt 0 ]; do [ "$1" = "--wrap" ] && wrap="$2"; shift; done
+echo "sbatch $wrap" >> "$STUB/calls.log"
+if [ -n "$SBATCH_KILL" ] && [[ "$wrap" == *"$SBATCH_KILL"* ]]; then rc=1; else bash -c "$wrap" > "${out//%j/4242}" 2>&1; rc=$?; fi
+[ $wait = 1 ] && exit $rc
+echo "Submitted batch job 4242"
+'''
+STUB_GIT = r'''#!/bin/bash
+echo "git $*" >> "$STUB/calls.log"
+[ "$1" = "-C" ] && shift 2
+case "$1" in
+  push) touch "$STUB/PUSHED";;
+  rev-parse) echo 0123456789abcdef0123456789abcdef01234567;;
+  worktree) [ "$2" = add ] && mkdir -p "$4/weights/FLAC";;
+esac
+exit 0
+'''
+STUB_PY = r'''#!/bin/bash
+# stand-in interpreter: logs the call; each tool exits with the status the test injects for it
+echo "py $*" >> "$STUB/calls.log"
+for a in "$@"; do case "$a" in --junitxml=*) echo '<testsuites/>' > "${a#--junitxml=}";; esac; done
+case "$*" in
+  *"-m pytest"*) exit ${PYTEST_RC:-0};;
+  *exp46_regression_compare.py*) exit ${COMPARE_RC:-0};;
+  *"exp46_content_manifest.py --build"*) exit ${BUILD_RC:-0};;
+  *"exp46_content_manifest.py --verify"*) exit ${VERIFY_RC:-0};;
+  *exp38_subset_audit.py*|*exp38_content_manifest.py*) exit ${AUDIT_RC:-0};;
+  *"exp46_registry.py check"*) exit ${CHECK_RC:-0};;
+  *exp46_init_digest.py*) exit ${L3_RC:-0};;
+  *"exp46_registry.py dry-run"*) exit ${DRYRUN_RC:-0};;
+  *"--mode FULL"*) exit ${FULL_DRY_RC:-0};;
+  *"--mode SMOKE"*) exit ${SMOKE_DRY_RC:-0};;
+esac
+exit 0
+'''
+LADDER_END = "X46=$(git -C $M rev-parse HEAD)"
+LADDER_VARS = {"PY=/n/fs/gatrdp/envs/flac/bin/python;": "PY=$STUB/py;",
+               "M=/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve\n": "M=$STUB/m\n",
+               "P38=/n/fs/gatrdp/codespace/exp-46-l1-parent-3593f34c; P43=/n/fs/gatrdp/codespace/exp-46-l1-parent-4a7e3b3a":
+               "P38=$STUB/p38; P43=$STUB/p43"}
+
+
+def _ladder(tmp_path, **inject):
+    """The neuronic sheet's L2a ... L4 ladder, VERBATIM up to the X46 line, run as the bash script the sheet says it is
+    -- only its interpreter, checkout and parent paths point at stand-ins (sbatch / git / python, which run each job's
+    wrap and exit with the injected status). Returns (exit status, the call log, whether the push ran)."""
+    import subprocess
+    text = _text(NEURONIC)
+    block = re.search(r"```bash\n(.*?)\n```", text, flags=re.S).group(1)
+    script = block[:block.index(LADDER_END) + len(LADDER_END)]
+    for old, new in LADDER_VARS.items():
+        assert script.count(old) == 1, old
+        script = script.replace(old, new)
+    stub = tmp_path / "stub"
+    (stub / "bin").mkdir(parents=True)
+    for path, body in ((stub / "bin" / "sbatch", STUB_SBATCH), (stub / "bin" / "git", STUB_GIT), (stub / "py", STUB_PY)):
+        path.write_text(body)
+        path.chmod(0o755)
+    (stub / "m" / reg.EXP_DIR).mkdir(parents=True)
+    (stub / "m" / "weights" / "FLAC").mkdir(parents=True)
+    env = dict(os.environ, STUB=str(stub), PATH=f"{stub / 'bin'}:{os.environ['PATH']}", **inject)
+    res = subprocess.run(["bash", "-c", script], cwd=str(tmp_path), env=env, capture_output=True, text=True, timeout=300)
+    return res.returncode, (stub / "calls.log").read_text(), (stub / "PUSHED").exists()
+
+
+LADDER_FAILURES = {"the L2a delta build": {"BUILD_RC": "1"},
+                   "an L1 suite killed (no rc marker)": {"SBATCH_KILL": "merged.junit.xml"},
+                   "an L1 session broken (pytest rc 2)": {"PYTEST_RC": "2"},
+                   "the L1 comparison": {"COMPARE_RC": "1"},
+                   "the L2c exp_38 audit": {"AUDIT_RC": "1"},
+                   "the L2c delta verification": {"VERIFY_RC": "1"},
+                   "the f100 static check": {"CHECK_RC": "1"},
+                   "an L3 disagreement": {"L3_RC": "1"},
+                   "the registry dry-run": {"DRYRUN_RC": "1"},
+                   "a SMOKE submitter dry-run": {"SMOKE_DRY_RC": "2"},
+                   "a FULL submitter dry-run": {"FULL_DRY_RC": "2"}}
+
+
+@pytest.mark.parametrize("case", sorted(LADDER_FAILURES))
+def test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push(tmp_path, case):
+    """Codex code r3 finding 6: the sheet's own L2a ... L4 lines, executed with a single failure injected at one gate,
+    stop there -- the script exits non-zero and the push that freezes X46 never runs (Slurm steps block on the job's
+    status: sbatch --wait; L1 judges each suite's recorded rc; set -eo pipefail)."""
+    rc, calls, pushed = _ladder(tmp_path, **LADDER_FAILURES[case])
+    assert rc != 0 and not pushed and " push " not in calls, (case, rc, calls[-500:])
+
+
+def test_the_neuronic_ladder_reaches_the_push_only_when_every_gate_passed(tmp_path):
+    """With every gate passing (L1 suites with failing nodes -- pytest rc 1 -- are judged by the comparison, not
+    refused), the same lines run in the registered order and end with the push."""
+    rc, calls, pushed = _ladder(tmp_path, PYTEST_RC="1")
+    assert rc == 0 and pushed, calls[-800:]
+    order = ["exp46_content_manifest.py --build", "git commit -m exp_46 L2: pin", "-m pytest", "exp46_regression_compare.py",
+             "exp38_subset_audit.py", "exp46_content_manifest.py --verify", "exp46_registry.py check",
+             "exp46_init_digest.py", "exp46_registry.py dry-run", "--mode FULL", "push origin"]
+    pos = [calls.index(n) for n in order]
+    assert pos == sorted(pos), [order[i] for i in range(len(pos)) if pos[i] != sorted(pos)[i]]
+    lines = calls.split("\n")
+    assert len([ln for ln in lines if ln.startswith("sbatch ")]) == 1 + 3 + 1 + len(reg.campaign_runs())  # L2a, L1, L2c, L3
+    assert len([ln for ln in lines if ln.startswith("py ") and "exp46_init_digest.py" in ln]) == len(reg.campaign_runs())
+    assert len([ln for ln in lines if ln.startswith("py ") and "--dry-run" in ln]) == 2 * len(reg.campaign_runs())
+
+
+def test_the_a6000_eval_lanes_are_waited_on_by_pid_and_either_failure_stops_the_sheet(tmp_path):
+    """Codex code r3 finding 5: the sheet's own lane lines, run with failing stand-in lanes (a shell function in place of
+    the evaluator): each lane is waited on by its PID, the remaining lane is always reaped (it finishes; its cells are
+    independent), and a failure of either lane stops the sheet before anything after it -- a bare `wait` would
+    have returned 0."""
+    import subprocess
+    b = _blocks(A6000)
+    start = b.index("python -B $E/exp46_eval.py run --gpu 0 --cells ${RUN}_K8_s42")
+    end = b.index("\n", b.index("EXP46 EVAL LANES FAILED"))
+    lanes = b[start:end]
+    assert not re.search(r"(^|[;&]\s*)wait\s*($|;)", lanes, flags=re.M), "a bare wait"
+    assert "wait $K8" in lanes and "wait $K1" in lanes and "K8=$!" in lanes and "K1=$!" in lanes
+    prelude = ('set -e\nE=e\nRUN=r\npython() {\n'
+               '  case "$*" in\n'
+               '    *"--gpu 0"*) sleep "$K8_SLEEP"; echo k8 >> "$T/done"; return "$K8_RC";;\n'
+               '    *"--gpu 1"*) sleep "$K1_SLEEP"; echo k1 >> "$T/done"; return "$K1_RC";;\n'
+               '  esac\n}\n')
+    for k8, k1, s8, s1 in ((0, 0, 0, 0), (3, 0, 0, 1), (0, 4, 1, 0), (5, 6, 0, 0)):
+        t = tmp_path / f"lanes_{k8}_{k1}"
+        t.mkdir()
+        env = dict(os.environ, T=str(t), K8_RC=str(k8), K1_RC=str(k1), K8_SLEEP=str(s8), K1_SLEEP=str(s1))
+        res = subprocess.run(["bash", "-c", prelude + lanes + "\necho AFTER\n"], env=env, capture_output=True, text=True,
+                             timeout=120)
+        ok = k8 == 0 and k1 == 0
+        assert (res.returncode == 0) is ok and ("AFTER" in res.stdout) is ok, (k8, k1, res.returncode, res.stderr)
+        assert sorted((t / "done").read_text().split()) == ["k1", "k8"], (k8, k1)     # both lanes reaped
+        assert ok or f"K8 rc {k8}, K1 rc {k1}" in res.stderr
+
+
+def test_both_new_nas_roots_are_provisioned_before_their_first_use():
+    """Codex code r3 finding 7: the A6000 sheet provisions the exp_46 checkpoint and dump roots (the helper verifies the
+    NAS mount, creates only those two through the isolation guard, refuses a missing mount) in step 0, before E0 and
+    any evaluation; the neuronic L7 provisions (idempotently) before it stages into the checkpoint root."""
+    a6, ne = _commands(_text(A6000)), _commands(_text(NEURONIC))
+    prov = "python -B $E/exp46_nas_publish.py provision"
+    assert a6.count(prov) == 1 and ne.count(prov) == 1
+    assert a6.index(prov) < a6.index("python -B $E/exp46_eval.py prepare-e0")
+    assert a6.index(prov) < min(i for i, c in enumerate(a6) if " run --gpu " in c)
+    assert ne.index(prov) < ne.index("python -B $E/exp46_nas_publish.py stage --dest-root $DST --run $RUN")

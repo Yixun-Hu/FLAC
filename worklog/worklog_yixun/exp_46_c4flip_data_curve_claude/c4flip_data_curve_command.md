@@ -24,6 +24,9 @@ ln -s /media/diskstation/yixunhu/FLAC/AcousticRooms AcousticRooms
 ln -s /home/yixunhu/codespace/FLAC/weights/AGREE weights/AGREE
 ln -s /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.safetensors weights/FLAC/VAE.safetensors
 ln -s /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt weights/FLAC/VAE.ckpt
+python -B $E/exp46_nas_publish.py provision     # Codex code r3 finding 7: the NEW exp_46 checkpoint and dump roots on
+#                                                 the NAS, once (their parents must be the mounted cifs NAS: refused
+#                                                 otherwise; created through the isolation guard; idempotent)
 python -B $E/exp46_registry.py untracked --platform a6000
 python -B $E/exp46_eval.py env-receipt --write
 python -B $E/exp46_eval.py prepare-e0          # sha256 + bytes of the 4 E0 references; creates eval_<closure16>
@@ -60,8 +63,21 @@ python -B $E/exp46_registry.py closure      # == the E0 receipt's closure_sha256
 cd ~/codespace/exp-46-campaign || exit 1
 RUN=exp46_C4Ff025_l40_2x32       # then exp46_C4Ff050_l40_2x32, exp46_C4Ff075_l40_2x32, exp46_C4Ff100_l40_2x32
 python -B $E/exp46_eval.py prepare $RUN          # TRAINING_COMPLETE (loss record; f100: its delta verification) at the E0 closure; farm copies
+#    two lanes, one per card (Codex code r3 finding 5): each lane's PID is kept and waited on EXPLICITLY (a bare `wait`
+#    returns 0 whatever the lanes did, and set -e never sees a background job's failure); both lanes are always reaped
+#    (a lane's cells are independent: the other lane finishes and stays valid), then a failure of either stops the
+#    sheet before anything is collected; an interrupted sheet stops both lanes
 python -B $E/exp46_eval.py run --gpu 0 --cells ${RUN}_K8_s42 ${RUN}_K8_s43 ${RUN}_K8_s44 ${RUN}_K8_s45 ${RUN}_K8_s46 &
-python -B $E/exp46_eval.py run --gpu 1 --cells ${RUN}_K1_s42 ${RUN}_K1_s43 ${RUN}_K1_s44 ${RUN}_K1_s45 ${RUN}_K1_s46; wait
+K8=$!
+python -B $E/exp46_eval.py run --gpu 1 --cells ${RUN}_K1_s42 ${RUN}_K1_s43 ${RUN}_K1_s44 ${RUN}_K1_s45 ${RUN}_K1_s46 &
+K1=$!
+trap 'kill $K8 $K1 2>/dev/null' INT TERM
+rc8=0
+wait $K8 || rc8=$?
+rc1=0
+wait $K1 || rc1=$?
+trap - INT TERM
+if [ $rc8 -ne 0 ] || [ $rc1 -ne 0 ]; then echo "EXP46 EVAL LANES FAILED: K8 rc $rc8, K1 rc $rc1" >&2; exit 1; fi
 python -B $E/exp46_collect.py            # after all four runs: all 40 cells + the E0 receipt admitted OFFLINE, else exit 2
 python -B $E/exp46_collect.py verify     # every file the results JSON names re-hashes
 

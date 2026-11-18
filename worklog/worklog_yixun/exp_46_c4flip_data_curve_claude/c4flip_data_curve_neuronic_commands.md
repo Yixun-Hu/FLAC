@@ -28,6 +28,11 @@ Every python invocation below runs with `-B` (Codex code r2 finding 2: exp_38's 
 generator, which imports exp_38's evaluator and registry from G, would otherwise write bytecode into exp_38's folder).
 
 ```bash
+# fail fast (Codex code r3 finding 6): run each step as a bash script under the line below (the L2-L4 ladder in one go,
+# in tmux): a failed command, check, job, comparison or dry-run stops everything after it -- nothing reaches the L4
+# push / X46 past a failure. Every Slurm step BLOCKS until its job ended (`sbatch --wait` returns the job's exit status;
+# a killed, timed-out or cancelled job returns 1). No `a && b` command lines (set -e does not stop inside a list).
+set -eo pipefail
 # variables for every step below
 PY=/n/fs/gatrdp/envs/flac/bin/python; E=worklog/worklog_yixun/exp_46_c4flip_data_curve_claude
 E38=worklog/worklog_yixun/exp_38_data_efficiency_claude
@@ -37,9 +42,10 @@ RUNS="exp46_C4Ff025_l40_2x32 exp46_C4Ff050_l40_2x32 exp46_C4Ff075_l40_2x32 exp46
 
 # L2a (pending Yixun D2), after the final code round: the f100 delta content manifest, ONCE, in a CPU Slurm job --
 #     145,494 files (72,747 waveforms + their metadata), read SEQUENTIALLY (no thread pool, no fan-out on /n/fs); the
-#     log records its wall time, which sizes f100's extra FULL hour below
-cd $M && test -z "$(git status --porcelain --untracked-files=no)"
-sbatch --partition=all --cpus-per-task=2 --mem=8G --time=08:00:00 --output=$M/$E/c4flip_data_curve_l2a_delta_build_%j.log --wrap "cd $M && $PY -B $E/exp46_content_manifest.py --build $E/exp46_f100_delta_manifest.txt.gz"
+#     log records its wall time, which sizes f100's extra FULL hour below. L2b starts only after a build that exited 0
+cd $M
+test -z "$(git status --porcelain --untracked-files=no)"
+sbatch --wait --partition=all --cpus-per-task=2 --mem=8G --time=08:00:00 --output=$M/$E/c4flip_data_curve_l2a_delta_build_%j.log --wrap "cd $M && $PY -B $E/exp46_content_manifest.py --build $E/exp46_f100_delta_manifest.txt.gz"
 # L2b: the pin commit -- F100_DELTA_SHA256 = the printed sha256(text) in exp46_registry.py, plus the manifest itself
 #      (both closure inputs); one commit "exp_46 L2: pin the f100 delta manifest <sha256(text)>", nothing else
 git add -f $E/exp46_f100_delta_manifest.txt.gz $E/exp46_registry.py
@@ -56,25 +62,37 @@ git -C $M worktree add --detach $P43 4a7e3b3a948388434bc102b8bd7e7aba94648d71
 for P in $P38 $P43; do ln -s "$(readlink -f $M/AcousticRooms)" $P/AcousticRooms; ln -s "$(readlink -f $M/weights/FLAC/VAE.safetensors)" $P/weights/FLAC/VAE.safetensors; done
 mkdir -p $L1
 SUITE="env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 TMPDIR=/tmp $PY -B -I -m pytest -q -p no:cacheprovider src/tests"
-sbatch --partition=all --cpus-per-task=8 --mem=32G --time=04:00:00 --output=$L1/merged_%j.log --wrap "cd $M && $SUITE --junitxml=$L1/merged.junit.xml"
-sbatch --partition=all --cpus-per-task=8 --mem=32G --time=04:00:00 --output=$L1/parent_3593f34c_%j.log --wrap "cd $P38 && $SUITE --junitxml=$L1/parent_3593f34c.junit.xml"
-sbatch --partition=all --cpus-per-task=8 --mem=32G --time=04:00:00 --output=$L1/parent_4a7e3b3a_%j.log --wrap "cd $P43 && $SUITE --junitxml=$L1/parent_4a7e3b3a.junit.xml"
-#    once the three jobs ended: exit 0 = the policy passes (E1-E5 and every new exp_45 / exp_46 node pass; a failure is
-#    allowed only as a parent's identical node / outcome / normalised signature -- the neuronic wandb failures of the
-#    exp_43 kit -- or one of the three tie-audit tests; only the registered environment skips)
+#    the three suites run concurrently; each job records pytest's own exit status in <name>.rc after the run (a suite
+#    with failing nodes exits 1 -- the policy below judges them). The sheet waits on each by its PID; a job that did
+#    not run to completion (killed / timed out / cancelled: sbatch --wait returns 1, no .rc) or a pytest rc above 1
+#    (an interrupted or broken session) stops it
+rm -f $L1/merged.rc $L1/parent_3593f34c.rc $L1/parent_4a7e3b3a.rc
+sbatch --wait --partition=all --cpus-per-task=8 --mem=32G --time=04:00:00 --output=$L1/merged_%j.log --wrap "cd $M && $SUITE --junitxml=$L1/merged.junit.xml; echo \$? > $L1/merged.rc" &
+J1=$!
+sbatch --wait --partition=all --cpus-per-task=8 --mem=32G --time=04:00:00 --output=$L1/parent_3593f34c_%j.log --wrap "cd $P38 && $SUITE --junitxml=$L1/parent_3593f34c.junit.xml; echo \$? > $L1/parent_3593f34c.rc" &
+J2=$!
+sbatch --wait --partition=all --cpus-per-task=8 --mem=32G --time=04:00:00 --output=$L1/parent_4a7e3b3a_%j.log --wrap "cd $P43 && $SUITE --junitxml=$L1/parent_4a7e3b3a.junit.xml; echo \$? > $L1/parent_4a7e3b3a.rc" &
+J3=$!
+wait $J1
+wait $J2
+wait $J3
+for n in merged parent_3593f34c parent_4a7e3b3a; do test -s $L1/$n.junit.xml; test "$(cat $L1/$n.rc)" -le 1; done
+#    exit 0 = the policy passes (E1-E5 and every new exp_45 / exp_46 node pass; a failure is allowed only as a parent's
+#    identical node / outcome / normalised signature -- the neuronic wandb failures of the exp_43 kit -- or one of the
+#    three tie-audit tests; only the registered environment skips); any other exit stops the sheet here
 $PY -B $E/exp46_regression_compare.py --merged $L1/merged.junit.xml --exp38 $L1/parent_3593f34c.junit.xml --exp43 $L1/parent_4a7e3b3a.junit.xml --merged-root $M --exp38-root $P38 --exp43-root $P43 --out $L1/regression_compare.json
 
 # L2c (pending Yixun D2): the union verification, recorded, BEFORE any f100 SMOKE -- exp_38's subset audit and f075
 #     content manifest (exp_38's tools, read-only, -B) and exp_46's f100 delta manifest, in ONE CPU Slurm job whose log
 #     is committed with the worklog entry recording PASS; then f100's static binding (full config, unrestricted policy,
-#     the audit's full_split entry)
-sbatch --partition=all --cpus-per-task=2 --mem=8G --time=08:00:00 --output=$M/$E/c4flip_data_curve_l2c_union_verify_%j.log --wrap "cd $M && $PY -B $E38/exp38_subset_audit.py --verify $E38/data_efficiency_subset_audit.json && $PY -B $E38/exp38_content_manifest.py --verify $E38/data_efficiency_ar_content_manifest.txt.gz && $PY -B $E/exp46_content_manifest.py --verify $E/exp46_f100_delta_manifest.txt.gz"
+#     the audit's full_split entry). --wait: the job's exit status decides; any failed verification stops the sheet
+sbatch --wait --partition=all --cpus-per-task=2 --mem=8G --time=08:00:00 --output=$M/$E/c4flip_data_curve_l2c_union_verify_%j.log --wrap "cd $M && $PY -B $E38/exp38_subset_audit.py --verify $E38/data_efficiency_subset_audit.json && $PY -B $E38/exp38_content_manifest.py --verify $E38/data_efficiency_ar_content_manifest.txt.gz && $PY -B $E/exp46_content_manifest.py --verify $E/exp46_f100_delta_manifest.txt.gz"
 $PY -B $E/exp46_registry.py check exp46_C4Ff100_l40_2x32 --platform neuronic
 
 # L3: the registered init-digest prediction (exp_38's values), one CPU Slurm job per run, no GPU; exit 0 only when the
-#     measurement equals the prediction (exit 1 = a disagreement: stop and tell Yixun)
+#     measurement equals the prediction (exit 1 = a disagreement: --wait returns it, the sheet stops; tell Yixun)
 for RUN in $RUNS; do
-  sbatch --partition=all --cpus-per-task=4 --mem=16G --time=01:00:00 --output=$M/$E/c4flip_data_curve_l3_init_digest_${RUN}_%j.log --wrap "cd $M && CUDA_VISIBLE_DEVICES= $PY -B $E/exp46_init_digest.py --run $RUN --json $E/c4flip_data_curve_l3_init_digest_$RUN.json"
+  sbatch --wait --partition=all --cpus-per-task=4 --mem=16G --time=01:00:00 --output=$M/$E/c4flip_data_curve_l3_init_digest_${RUN}_%j.log --wrap "cd $M && CUDA_VISIBLE_DEVICES= $PY -B $E/exp46_init_digest.py --run $RUN --json $E/c4flip_data_curve_l3_init_digest_$RUN.json"
 done
 
 # L4 (Codex code r2 finding 6): at the clean tip to be frozen, dry-run every launch path of the four runs -- the
@@ -82,8 +100,10 @@ done
 #     and FULL dry-runs (the sbatch argv, the owner record, walltime vs the partition's MaxTime; nothing is written or
 #     submitted) -- every one must pass; then freeze X46 on Yixun's go: push the branch, X46 = that commit. The A6000
 #     sheet then seals E0 at X46 and pushes the records commit Y46 ("exp_46 records: E0 PASS at $X46": the E0 receipt +
-#     sidecar and exactly the 24 E0-cell files; closure(Y46) == closure(X46), checked by test_exp46_provenance.py)
-cd $M && test -z "$(git status --porcelain --untracked-files=no)"
+#     sidecar and exactly the 24 E0-cell files; closure(Y46) == closure(X46), checked by test_exp46_provenance.py).
+#     A failed dry-run stops the sheet before the push (set -e)
+cd $M
+test -z "$(git status --porcelain --untracked-files=no)"
 $PY -B $E/exp46_registry.py dry-run --platform neuronic
 for RUN in $RUNS; do
   $PY -B $E/exp46_submit_neuronic.py submit --run $RUN --mode SMOKE --time 01:00:00 --dry-run
@@ -94,12 +114,13 @@ X46=$(git -C $M rev-parse HEAD)          # the frozen launch commit (the A6000 s
 
 Y46=<the pushed records commit Y46 (E0 PASS at X46)>
 # 0. a clean launch checkout at Y46 (once; never commit in it while jobs are queued or running)
-cd /n/fs/gatrdp/codespace/FLAC && git fetch origin exp-46-c4flip-data-curve
-git worktree add --detach /n/fs/gatrdp/codespace/exp-46-launch $Y46
+git -C /n/fs/gatrdp/codespace/FLAC fetch origin exp-46-c4flip-data-curve
+git -C /n/fs/gatrdp/codespace/FLAC worktree add --detach /n/fs/gatrdp/codespace/exp-46-launch $Y46
 cd /n/fs/gatrdp/codespace/exp-46-launch
 ln -s "$(readlink -f /n/fs/gatrdp/codespace/FLAC/AcousticRooms)" AcousticRooms
 ln -s "$(readlink -f /n/fs/gatrdp/codespace/FLAC/weights/FLAC/VAE.safetensors)" weights/FLAC/VAE.safetensors
-test "$(git rev-parse HEAD)" = "$Y46" && test -z "$(git status --porcelain --untracked-files=no)"
+test "$(git rev-parse HEAD)" = "$Y46"
+test -z "$(git status --porcelain --untracked-files=no)"
 $PY -B $E/exp46_registry.py closure            # must equal the closure the A6000 E0 receipt bound (closure(Y46) == closure(X46))
 $PY -B $E/exp46_registry.py e0-check --platform neuronic       # re-admits the 8 tracked E0 cells offline
 $PY -B $E/exp46_registry.py untracked --platform neuronic
@@ -146,16 +167,20 @@ $PY -B $E/exp46_submit_neuronic.py abandon   --run $RUN --mode FULL   # unsealed
 # 4. (L7) staged publication of each COMPLETE run to the NAS (from a machine that sees both; Codex code r2 finding 8):
 #    exp46_nas_publish.py stage creates $DST/$RUN.incoming EXCLUSIVELY before the copy (an existing staging or published
 #    entry, or a link, refuses); exp_46's OWN admission runs on the staged copy; publish moves it to $DST/$RUN through a
-#    no-replace rename (a final path created meanwhile refuses -- never replaced, never nested; the staging dir is kept)
+#    no-replace rename (renameat2 RENAME_NOREPLACE, never a fallback; a final path created meanwhile refuses -- never
+#    replaced, never nested; the staging dir is kept). One command per line (set -e): any refusal stops the run here.
+#    The exp_46 checkpoint root is provisioned first (Codex code r3 finding 7; idempotent: the A6000 sheet's step 0
+#    already made it; refused while the NAS is not mounted)
 SRC=/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/$RUN
 DST=/media/diskstation/yixunhu/FLAC/checkpoints/exp46_c4flip_data_curve
-python -B $E/exp46_nas_publish.py stage --dest-root $DST --run $RUN \
-  && rsync -a --partial --exclude .exp46_tools neuronic:$SRC/ $DST/$RUN.incoming/ \
-  && (cd $DST/$RUN.incoming && sha256sum -c CHECKPOINTS.sha256) \
-  && python -B $E/exp46_registry.py training-check $RUN --run-dir $DST/$RUN.incoming --platform neuronic \
-       --closure "$(python -B $E/exp46_registry.py closure | python -B -c 'import json,sys; print(json.load(sys.stdin)["closure_sha256"])')" \
-       --e0-sha "$(sha256sum $E/c4flip_data_curve_e0_receipt.json | cut -d' ' -f1)" \
-  && python -B $E/exp46_nas_publish.py publish --dest-root $DST --run $RUN
+python -B $E/exp46_nas_publish.py provision
+python -B $E/exp46_nas_publish.py stage --dest-root $DST --run $RUN
+rsync -a --partial --exclude .exp46_tools neuronic:$SRC/ $DST/$RUN.incoming/
+(cd $DST/$RUN.incoming && sha256sum -c CHECKPOINTS.sha256)
+python -B $E/exp46_registry.py training-check $RUN --run-dir $DST/$RUN.incoming --platform neuronic \
+     --closure "$(python -B $E/exp46_registry.py closure | python -B -c 'import json,sys; print(json.load(sys.stdin)["closure_sha256"])')" \
+     --e0-sha "$(sha256sum $E/c4flip_data_curve_e0_receipt.json | cut -d' ' -f1)"
+python -B $E/exp46_nas_publish.py publish --dest-root $DST --run $RUN
 #    training-check re-validates the loss record, the f100 delta verification record (f100) and every retained receipt
 
 # 5. (L8, neuronic part) -- after the last exp_46 job ended and the A6000 sheet pushed the results commit R46. Two roots
@@ -169,7 +194,8 @@ git -C $G fetch origin exp-46-c4flip-data-curve exp-38-data-efficiency     # obj
 git -C $G merge-base --is-ancestor $Y46 $R46                              # the results build on the launch records Y46
 git -C $G worktree add --detach $B $R46
 cd $B
-test "$(git rev-parse HEAD)" = "$R46" && test -z "$(git status --porcelain --untracked-files=no)"
+test "$(git rev-parse HEAD)" = "$R46"
+test -z "$(git status --porcelain --untracked-files=no)"
 # 5a. exp_38's results bundle FIRST (Codex code r2 finding 5): the materialiser in 5b only VERIFIES exp_38's static
 #     dependencies of the exp_46 rows in G -- its E0a decision + sidecar, its reference manifest + the 68 cells -- and
 #     never copies them. The verified import (the bundle descends from exp_38's pushed records commit e5a012fa;
