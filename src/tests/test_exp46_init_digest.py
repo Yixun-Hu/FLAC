@@ -135,3 +135,44 @@ def test_l3_exits_nonzero_on_any_disagreement_with_the_prediction(tmp_path, monk
     assert idg.prediction_problems(_measured(RUN_C4F, **{field: value}), RUN_C4F), case
     extra = _measured(RUN_C4F, extra_key=1)
     assert idg.prediction_problems(extra, RUN_C4F)                 # the measured schema is exact
+
+
+# ------------------------------------------------------------------ fix round 2, Codex code r2 finding 3: one path
+def test_the_json_destination_is_anchored_before_init_digest_changes_the_cwd(tmp_path, monkeypatch):
+    """init_digest() changes the cwd to the repo before it builds the model: --json is made absolute from the CALLER's
+    cwd first, and that one path is checked, re-checked just before the write and written -- a relative destination is
+    never re-resolved against the repo (the r2 probe: from src/, ``../out/x.json`` checked ``<repo>/out`` but wrote
+    ``<repo>/../out``, a protected root there)."""
+    tree = tmp_path / "repo"                     # the tree init_digest() chdirs into
+    (tree / "src").mkdir(parents=True)
+    (tree / "out").mkdir()
+    protected = tmp_path / "out"                 # what the same relative string names from the repo: protected
+    protected.mkdir()
+    monkeypatch.setattr(reg, "PROTECTED_ABSOLUTE", (str(protected),))
+
+    def measuring(run, repo=None, during=None):
+        os.chdir(str(tree))
+        if during:
+            during()
+        return _measured(run)
+    monkeypatch.setattr(idg, "init_digest", measuring)
+    monkeypatch.chdir(tree / "src")                                   # a non-root cwd
+    assert idg.main(["--run", RUN_C4F, "--json", "../out/init.json"]) == 0
+    assert os.listdir(protected) == []                                # nothing through the changed cwd
+    assert json.load(open(tree / "out" / "init.json"))["prediction"] == "PASS"      # the caller's path
+    monkeypatch.chdir(tree / "src")
+    monkeypatch.setattr(idg, "init_digest", lambda *a, **k: (_ for _ in ()).throw(AssertionError("model built")))
+    assert idg.main(["--run", RUN_C4F, "--json", "../../out/init.json"]) == 2       # `../` into the protected root
+    (tree / "out" / "theirs.json").write_text("theirs\n")
+    assert idg.main(["--run", RUN_C4F, "--json", "../out/theirs.json"]) == 2        # existing: refused up front
+    monkeypatch.chdir(tree / "src")                                   # created meanwhile: never overwritten
+    monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: measuring(
+        r, during=lambda: (tree / "out" / "race.json").write_text("theirs\n")))
+    assert idg.main(["--run", RUN_C4F, "--json", "../out/race.json"]) == 2
+    assert (tree / "out" / "race.json").read_text() == "theirs\n"
+    monkeypatch.chdir(tree / "src")                                   # a component aliased meanwhile: re-checked
+    (tree / "out").rename(tree / "out_moved")
+    monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: measuring(
+        r, during=lambda: (tree / "out").symlink_to(protected)))
+    assert idg.main(["--run", RUN_C4F, "--json", "../out/late.json"]) == 2
+    assert os.listdir(protected) == []

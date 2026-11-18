@@ -86,7 +86,11 @@ def main(argv=None):
     p.add_argument("--json")
     a = p.parse_args(argv)
     if a.json:              # the destination FIRST (Codex code r1 finding 2): resolved, isolation-checked, never clobbered
-        try:                # -- before the model is built
+        # -- before the model is built -- and ABSOLUTE, anchored to the caller's cwd: init_digest() changes the cwd to
+        # the repo, so a relative string would name another place at write time; this one path is checked, re-checked
+        # just before the write and written (Codex code r2 finding 3)
+        a.json = os.path.abspath(a.json)
+        try:
             reg.check_isolation(a.json, "the init-digest record")
         except reg.GateError as err:
             print(f"EXP46 INIT DIGEST REFUSED: {err}", file=sys.stderr)
@@ -101,7 +105,13 @@ def main(argv=None):
     print(text)
     print("INIT DIGEST PREDICTION " + ("PASS" if not problems else "FAIL: " + " | ".join(problems)))
     if a.json:
-        with open(a.json, "x") as fh:                     # exclusive: a file created meanwhile is never overwritten
+        try:                # the same absolute path, re-checked (a component aliased meanwhile refuses); exclusive and
+            reg.check_isolation(a.json, "the init-digest record")       # not following a final link: an entry
+            fd = os.open(a.json, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o664)   # created meanwhile
+        except (reg.GateError, OSError) as err:                                                 # is never replaced
+            print(f"EXP46 INIT DIGEST REFUSED: {err}", file=sys.stderr)
+            return 2
+        with os.fdopen(fd, "w") as fh:
             fh.write(text + "\n")
     return 0 if not problems else 1
 
