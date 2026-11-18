@@ -1,7 +1,11 @@
-"""exp_45 L1 — the two-parent regression comparison (exp46_regression_compare.py; plan_rf_data_curve.md r3 §3.2,
-Codex plan r2 finding 6): synthetic junit records of the merged tree and both parents, one rule per case.
+"""exp_46 L1 — the two-parent regression comparison (exp46_regression_compare.py; plan_c4flip_data_curve.md r3 §3.2,
+forked from exp_45's test of exp45_regression_compare.py at X45f, plan_rf_data_curve.md r3 §3.2, Codex plan r2
+finding 6): synthetic junit records of the merged tree and both parents, one rule per case -- plus exp_46's
+extension: the declared edited nodes E1-E5 must pass, every new exp_46 node (the generator contract included) must
+pass, the exp_46 copies of exp_45's environment skips keep the same reasons, and a parent node may go only as a
+registered replacement.
 
-Written by the exp_45 Coder (Claude Opus 5.5).
+Written by the exp_45 Coder (Claude Opus 5.5); exp_46 extension by the exp_46 Coder (Claude Opus 5.5).
 """
 import json
 import os
@@ -38,8 +42,10 @@ def _xml(path, cases):
     return str(path)
 
 
+DECLARED = sorted(rc.DECLARED_EDITED)
 BASE = {"src/tests/test_a.py::test_x": "passed", "src/tests/test_b.py::test_y[1-2]": "passed",
-        "src/tests/test_c.py::TestK::test_z": "passed", COMPAT[0]: "passed", COMPAT[1]: "passed"}
+        "src/tests/test_c.py::TestK::test_z": "passed", COMPAT[0]: "passed", COMPAT[1]: "passed",
+        **{n: "passed" for n in DECLARED}}
 
 
 ROOTS = ("/n/fs/gatrdp/codespace/exp-45-rf-data-curve", "/n/fs/gatrdp/codespace/_l1_parent_3593f34c",
@@ -60,7 +66,7 @@ def test_node_ids_follow_pytests_classname():
 
 def test_an_identical_merged_tree_passes(tmp_path):
     problems, report = _run(tmp_path, dict(BASE))
-    assert problems == [] and report["verdict"] == "PASS" and report["counts"]["merged"]["passed"] == 5
+    assert problems == [] and report["verdict"] == "PASS" and report["counts"]["merged"]["passed"] == 5 + len(DECLARED)
 
 
 def test_a_node_lost_from_either_parent_refuses(tmp_path):
@@ -139,10 +145,10 @@ def test_the_compat_edited_nodes_must_pass_even_if_a_parent_failed_them(tmp_path
 def test_every_new_exp45_node_must_pass(tmp_path):
     new = {"src/tests/test_exp45_registry.py::test_a[rf]": "passed", "src/tests/test_gen_model_comparison_exp45.py::test_b": "passed"}
     problems, report = _run(tmp_path, dict(BASE, **new))
-    assert problems == [] and report["new_exp45_skips"] == []
+    assert problems == [] and report["new_node_skips"] == []
     for outcome in ("failed", "error"):
         problems, _ = _run(tmp_path, dict(BASE, **dict(new, **{"src/tests/test_exp45_registry.py::test_a[rf]": outcome})))
-        assert len(problems) == 1 and "new exp_45 node" in problems[0]
+        assert len(problems) == 1 and "new exp_45 / exp_46 node" in problems[0]
     # Codex code r1 finding 9: an UNREGISTERED skip of a new node is a FAIL, whatever its reason
     problems, _ = _run(tmp_path, dict(BASE, **dict(new, **{"src/tests/test_exp45_receipts.py::test_c": "skipped"})))
     assert len(problems) == 1 and "test_c" in problems[0] and "skip" in problems[0]
@@ -154,7 +160,7 @@ def test_only_the_registered_environment_skips_of_new_nodes_pass(tmp_path):
     assert rc.ENV_SKIPS and all(rc.NEW_FILE.match(n) and isinstance(r, str) and r for n, r in rc.ENV_SKIPS)
     reg_skips = {n: ("skipped", r) for n, r in sorted(rc.ENV_SKIPS)}
     problems, report = _run(tmp_path, dict(BASE, **reg_skips))
-    assert problems == [] and report["new_exp45_skips"] == [{"node": n, "reason": r} for n, r in sorted(rc.ENV_SKIPS)]
+    assert problems == [] and report["new_node_skips"] == [{"node": n, "reason": r} for n, r in sorted(rc.ENV_SKIPS)]
     node, reason = sorted(rc.ENV_SKIPS)[0]
     problems, _ = _run(tmp_path, dict(BASE, **{node: ("skipped", reason + " (or not)")}))
     assert len(problems) == 1 and node in problems[0]
@@ -179,3 +185,69 @@ def test_the_cli_exit_codes(tmp_path, capsys):
     assert rc.main(["--merged", str(tmp_path / "broken.xml"), "--exp38", good[1], "--exp43", good[2]] + roots) == 2
     (tmp_path / "empty.xml").write_text("<testsuites/>")
     assert rc.main(["--merged", str(tmp_path / "empty.xml"), "--exp38", good[1], "--exp43", good[2]] + roots) == 2
+
+
+# ------------------------------------------------------------------ exp_46's extension (plan r3 §3.2 "exp46_regression_compare.py")
+def test_the_declared_edited_nodes_are_exactly_e1_to_e5_and_each_must_pass_and_be_present(tmp_path):
+    """plan r3 §3.1 E1-E5 (node ids kept): each declared edited node must PASS in the merged tree -- a failure, an
+    error or a skip refuses even if a parent failed it the same way -- and its absence refuses."""
+    assert DECLARED == sorted([
+        "src/tests/test_yaw_aug_flip.py::test_constructor_refuses_flip_with_offset_step",
+        *(f"src/tests/test_yaw_aug_flip_factory.py::test_true_flip_with_offset_step_is_refused[{s}]" for s in (32, 1, 4)),
+        "src/tests/test_exp43_kit.py::test_config_contract_through_the_real_factory",
+        "src/tests/test_exp45_merge_provenance.py::test_later_exp45_commits_touch_only_the_allowed_paths",
+        "src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically"])
+    assert rc.EDITED == rc.COMPAT_EDITED | rc.DECLARED_EDITED and rc.REPLACED == {}
+    problems, _ = _run(tmp_path, BASE)
+    assert problems == []
+    for node in DECLARED:
+        for outcome in ("failed", "error", "skipped"):
+            parent = dict(BASE, **{node: outcome if outcome != "skipped" else "passed"})
+            problems, _ = _run(tmp_path, dict(BASE, **{node: outcome}), p38=parent, p43=parent)
+            assert len(problems) == 1 and problems[0].startswith(f"{node}: must pass"), (node, outcome, problems)
+        gone = {k: v for k, v in BASE.items() if k != node}
+        problems, _ = _run(tmp_path, gone, p38=gone, p43=gone)
+        assert problems == [f"{node}: the declared-edited / replacement node is missing"], node
+
+
+def test_every_new_exp46_node_must_pass_the_generator_contract_included(tmp_path):
+    new = {"src/tests/test_exp46_registry.py::test_a[c4f]": "passed",
+           "src/tests/test_gen_model_comparison_exp46.py::test_b": "passed",
+           "src/tests/test_gen_model_comparison_exp45.py::test_dormant": "passed"}
+    problems, report = _run(tmp_path, dict(BASE, **new))
+    assert problems == [] and report["new_node_skips"] == []
+    for node in new:
+        for outcome in ("failed", "error"):
+            problems, _ = _run(tmp_path, dict(BASE, **dict(new, **{node: outcome})))
+            assert len(problems) == 1 and node in problems[0] and "new exp_45 / exp_46 node" in problems[0]
+        problems, _ = _run(tmp_path, dict(BASE, **dict(new, **{node: ("skipped", "NAS not mounted")})))
+        assert len(problems) == 1 and "not a registered environment skip" in problems[0], node
+    assert rc.NEW_FILE.match("src/tests/test_exp46_x.py::t") and rc.NEW_FILE.match("src/tests/test_exp45_x.py::t")
+    assert not rc.NEW_FILE.match("src/tests/test_exp47_x.py::t") and not rc.NEW_FILE.match("src/tests/test_exp4_x.py::t")
+    assert not rc.NEW_FILE.match("src/tests/test_gen_model_comparison_exp38.py::t")
+
+
+def test_the_exp46_environment_skips_are_exp45s_on_the_exp46_copies_with_unchanged_reasons():
+    """Codex plan r2 finding 4: ENV_SKIPS keeps every original exp_45 entry and gains, for each copied kit node that
+    skips on neuronic for the same reason, its exp_46 node id with the UNCHANGED reason -- nothing else."""
+    exp45 = {(n, r) for n, r in rc.ENV_SKIPS if n.startswith("src/tests/test_exp45_")}
+    exp46 = {(n, r) for n, r in rc.ENV_SKIPS if n.startswith("src/tests/test_exp46_")}
+    assert len(exp45) == 5 and len(exp46) == 4 and exp45 | exp46 == set(rc.ENV_SKIPS)
+    assert exp46 <= {(n.replace("test_exp45_", "test_exp46_", 1), r) for n, r in exp45}
+    assert {n for n, _ in exp45} - {n.replace("test_exp46_", "test_exp45_", 1) for n, _ in exp46} == {
+        "src/tests/test_exp45_registry.py::test_the_real_rf_100_percent_endpoint_satisfies_the_exact_schema"}
+
+
+def test_a_parent_node_may_go_only_as_a_registered_replacement_that_passes(tmp_path, monkeypatch):
+    old, new = "src/tests/test_a.py::test_x", "src/tests/test_a.py::test_x_replaced"
+    merged = {k: v for k, v in BASE.items() if k != old}
+    problems, _ = _run(tmp_path, merged)
+    assert problems == [f"{old}: present in 3593f34c, missing in the merged tree",
+                        f"{old}: present in 4a7e3b3a, missing in the merged tree"]
+    monkeypatch.setattr(rc, "REPLACED", {old: new})
+    problems, report = _run(tmp_path, dict(merged, **{new: "passed"}))
+    assert problems == [] and report["allowed_failures"] == [f"{old}: replaced by the registered {new}"] * 2
+    problems, _ = _run(tmp_path, dict(merged, **{new: "failed"}))
+    assert len(problems) == 1 and problems[0].startswith(f"{new}: must pass")
+    problems, _ = _run(tmp_path, merged)
+    assert f"{new}: the declared-edited / replacement node is missing" in problems and len(problems) == 3

@@ -7,14 +7,18 @@ Codex plan r2 finding 6 -- exp43_regression_baseline.py compare takes one baseli
 
 Inputs: the three junit-XML records of the SAME full-suite command run in a CPU Slurm job on the merged tree, on
 3593f34c and on 4a7e3b3a. The registered node policy, exactly:
-  1. a node present in a parent must be present in the merged tree (no silent loss);
+  1. a node present in a parent must be present in the merged tree (no silent loss) -- parent node ids are preserved,
+     or a replacement is registered in REPLACED (empty: exp_46's declared edits keep their node ids);
   2. a merged-tree failure / error is allowed only if (i) the same node failed in at least one parent with the same
      error signature, or (ii) it is one of the three named exp_25 tie-audit tests (they bind the bytes of
      dataset.py / AR_md.py, which exp_38's data side changes; brief §3.1);
-  3. the two compat-edited nodes (plan §3.1) and every new exp_45 node must pass -- a new exp_45 node may be skipped
-     only as one of the registered ENV_SKIPS (node, reason) pairs, reported; any other skip of a new node is a FAIL
-     (Codex code r1 finding 9; skip reasons are kept);
-  anything else refuses (exit 1). Exit 0 = the policy passes; 2 = an input is unreadable.
+  3. the two compat-edited nodes (exp_45 plan §3.1), exp_46's declared edited nodes (plan r3 §3.1 E1-E5) and every
+     new exp_45 / exp_46 node (both generator contracts included) must pass -- a new node may be skipped only as one
+     of the registered ENV_SKIPS (node, reason) pairs, reported; any other skip of a new node is a FAIL (exp_45 Codex
+     code r1 finding 9; skip reasons are kept);
+  anything else refuses (exit 1). Exit 0 = the policy passes; 2 = an input is unreadable. exp_46 (plan r3 §3.2): exp_45's
+  policy over the same three junits (the exp_46 tip, 3593f34c, 4a7e3b3a), extended by E1-E5, the exp_46 new-file
+  pattern and the exp_46 copies of exp_45's environment skips (same reasons, nothing else).
 A signature is (kind, exception line) with the three checkout roots (Codex code r1 finding 8: an inherited failure
 names the checkout it ran in), pytest tmp paths, hex addresses and object ids normalised; the failing operation and
 the error text stay part of it.
@@ -34,8 +38,17 @@ TIE_AUDIT = frozenset({
 COMPAT_EDITED = frozenset({
     "src/tests/test_exp40_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict",
     "src/tests/test_exp43_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict"})
-# the registered environment skips of new exp_45 nodes in the L1 environment (a neuronic CPU Slurm job; reasons exactly
-# as pytest records them, read from a junit capture 2026-11-14): every other skip of a new node is a FAIL (finding 9)
+# exp_46's declared test edits (plan r3 §3.1 E1-E5; node ids kept): each must PASS in the merged tree
+DECLARED_EDITED = frozenset({
+    "src/tests/test_yaw_aug_flip.py::test_constructor_refuses_flip_with_offset_step",                        # E1
+    *(f"src/tests/test_yaw_aug_flip_factory.py::test_true_flip_with_offset_step_is_refused[{s}]" for s in (32, 1, 4)),
+    "src/tests/test_exp43_kit.py::test_config_contract_through_the_real_factory",                            # E3
+    "src/tests/test_exp45_merge_provenance.py::test_later_exp45_commits_touch_only_the_allowed_paths",       # E4
+    "src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically"})  # E5
+EDITED = COMPAT_EDITED | DECLARED_EDITED
+REPLACED = {}          # {a parent node id: its registered replacement in the merged tree} -- none (E1-E5 keep ids)
+# the registered environment skips of new nodes in the L1 environment (a neuronic CPU Slurm job; reasons exactly as
+# pytest records them, read from a junit capture 2026-11-14): every other skip of a new node is a FAIL (finding 9)
 ENV_SKIPS = frozenset({
     ("src/tests/test_exp45_receipts.py::test_the_real_gpu0_smoke_evidence_passes_the_exact_gate[vanilla-de_yaw_f025]",
      "the GPU-0 smoke evidence lives in this checkout's outputs_FLAC only"),
@@ -44,9 +57,18 @@ ENV_SKIPS = frozenset({
     ("src/tests/test_exp45_receipts.py::test_a6000_links_need_the_registered_targets", "A6000 box only"),
     ("src/tests/test_exp45_receipts.py::test_mount_fstype_sees_the_nas_behind_autofs", "NAS not mounted"),
     ("src/tests/test_exp45_registry.py::test_the_real_rf_100_percent_endpoint_satisfies_the_exact_schema",
-     "NAS not mounted")})
+     "NAS not mounted"),
+    # exp_46 (plan r3 §3.2, Codex plan r2 finding 4): the exp_46 copies of the kit nodes above that skip on neuronic
+    # for the same reason -- the exp_46 node id with the UNCHANGED reason, nothing else (exp_45's RF-100 endpoint
+    # test has no exp_46 copy)
+    ("src/tests/test_exp46_receipts.py::test_the_real_gpu0_smoke_evidence_passes_the_exact_gate[vanilla-de_yaw_f025]",
+     "the GPU-0 smoke evidence lives in this checkout's outputs_FLAC only"),
+    ("src/tests/test_exp46_receipts.py::test_the_environment_snapshot_is_complete_on_this_box",
+     "A6000 box only (nvidia-smi, A6000s)"),
+    ("src/tests/test_exp46_receipts.py::test_a6000_links_need_the_registered_targets", "A6000 box only"),
+    ("src/tests/test_exp46_receipts.py::test_mount_fstype_sees_the_nas_behind_autofs", "NAS not mounted")})
 RANK = {"passed": 0, "skipped": 1, "failed": 2, "error": 3}
-NEW_FILE = re.compile(r"^src/tests/(test_exp45_[^/]+|test_gen_model_comparison_exp45)\.py::")
+NEW_FILE = re.compile(r"^src/tests/(test_exp4[56]_[^/]+|test_gen_model_comparison_exp4[56])\.py::")
 
 
 class CompareError(RuntimeError):
@@ -114,17 +136,23 @@ def load(path, roots=()):
 def compare(merged, exp38, exp43):
     """(problems, report) of the registered node policy."""
     problems, allowed, new_skips = [], [], []
+    must_pass = EDITED | set(REPLACED.values())
     for name, parent in (("3593f34c", exp38), ("4a7e3b3a", exp43)):
-        lost = sorted(set(parent) - set(merged))
-        problems += [f"{n}: present in {name}, missing in the merged tree" for n in lost]
+        for n in sorted(set(parent) - set(merged)):
+            if n in REPLACED and REPLACED[n] in merged:
+                allowed.append(f"{n}: replaced by the registered {REPLACED[n]}")
+            else:
+                problems.append(f"{n}: present in {name}, missing in the merged tree")
     for node, (outcome, sig) in sorted(merged.items()):
-        if node in COMPAT_EDITED or NEW_FILE.match(node):
-            if outcome in ("failed", "error") or (node in COMPAT_EDITED and outcome != "passed"):
-                problems.append(f"{node}: must pass (compat-edited / new exp_45 node), got {outcome} {sig or ''}")
+        if node in must_pass or NEW_FILE.match(node):
+            if outcome in ("failed", "error") or (node in must_pass and outcome != "passed"):
+                problems.append(f"{node}: must pass (an edited / replacement node or a new exp_45 / exp_46 node), got "
+                                f"{outcome} {sig or ''}")
             elif outcome == "skipped" and (node, sig) in ENV_SKIPS:
                 new_skips.append({"node": node, "reason": sig})
             elif outcome == "skipped":
-                problems.append(f"{node}: a new exp_45 node was skipped ({sig!r}), not a registered environment skip")
+                problems.append(f"{node}: a new exp_45 / exp_46 node was skipped ({sig!r}), not a registered "
+                                f"environment skip")
             continue
         if outcome not in ("failed", "error"):
             continue
@@ -139,8 +167,10 @@ def compare(merged, exp38, exp43):
             problems.append(f"{node}: {outcome} in the merged tree ({sig}); parents {seen}")
     for node in sorted(COMPAT_EDITED - set(merged)):
         problems.append(f"{node}: the compat-edited node is missing")
+    for node in sorted((DECLARED_EDITED | set(REPLACED.values())) - set(merged)):
+        problems.append(f"{node}: the declared-edited / replacement node is missing")
     report = {"verdict": "PASS" if not problems else "FAIL", "problems": problems, "allowed_failures": allowed,
-              "new_exp45_skips": new_skips,
+              "new_node_skips": new_skips,
               "counts": {name: {o: sum(1 for v in rec.values() if v[0] == o) for o in ("passed", "failed", "error", "skipped")}
                          for name, rec in (("merged", merged), ("3593f34c", exp38), ("4a7e3b3a", exp43))}}
     return problems, report

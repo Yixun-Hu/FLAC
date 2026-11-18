@@ -173,13 +173,13 @@ _register(["exp46_eval.py", "exp46_supervise.py"], [".exp38_card"], SHARED_LOCK)
 _register(["exp46_supervise.py"], [" is refused (the inherited SMOKE destination outputs_FLAC/exp38_smoke is never "
                                    "written); SMOKE runs on neuronic only"], REFUSAL)
 _register(["exp46_regression_compare.py"], [
-    "--exp38", "exp38", "new_exp45_skips",
+    "--exp38", "exp38",
     "src/tests/test_exp45_receipts.py::test_a6000_links_need_the_registered_targets",
     "src/tests/test_exp45_receipts.py::test_mount_fstype_sees_the_nas_behind_autofs",
     "src/tests/test_exp45_receipts.py::test_the_environment_snapshot_is_complete_on_this_box",
     "src/tests/test_exp45_receipts.py::test_the_real_gpu0_smoke_evidence_passes_the_exact_gate[vanilla-de_yaw_f025]",
     "src/tests/test_exp45_registry.py::test_the_real_rf_100_percent_endpoint_satisfies_the_exact_schema",
-    r"^src/tests/(test_exp45_[^/]+|test_gen_model_comparison_exp45)\.py::"], L1_PARENT)
+    "src/tests/test_exp45_merge_provenance.py::test_later_exp45_commits_touch_only_the_allowed_paths"], L1_PARENT)
 _register(["exp46_table.py"], [
     "/c4flip_data_curve_exp38_import.json", "--exp38-commit", "exp38_commit", "--exp38-commit must be a full 40-hex "
     "commit id", "exp38_import_sha256", "exp46_exp38_import_", "import-exp38", "CODE: import json, os, sys",
