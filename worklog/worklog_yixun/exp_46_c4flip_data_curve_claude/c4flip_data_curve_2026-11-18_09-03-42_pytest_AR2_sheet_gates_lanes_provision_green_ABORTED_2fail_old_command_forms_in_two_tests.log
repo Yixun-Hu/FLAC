@@ -1,0 +1,48 @@
+HEAD f71241e2695de4e5c64a72759b47c698327a3221 tracked-clean=no host neu301.neuronic.cs.princeton.edu start 2026-11-18T09:04:10-05:00
+cmd: pytest -q src/tests/test_exp46_command_sheets.py src/tests/test_exp46_provenance.py 
+.F.............F........................................                 [100%]
+=================================== FAILURES ===================================
+_ test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit[c4flip_data_curve_neuronic_commands.md] _
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit(name):
+        text = _text(name)
+        fences = [ln for ln in text.split("\n") if ln.startswith("```")]
+        assert len(fences) % 2 == 0 and fences, "unbalanced code fences"
+        blocks = re.findall(r"```bash\n(.*?)\n```", text, flags=re.S)
+        assert blocks and all("```" not in b for b in blocks)
+        joined = "\n".join(blocks)
+        for cmd in SHEETS[name]:
+>           assert cmd in joined, cmd
+E           AssertionError: git worktree add --detach /n/fs/gatrdp/codespace/exp-46-launch $Y46
+E           assert 'git worktree add --detach /n/fs/gatrdp/codespace/exp-46-launch $Y46' in '# fail fast (Codex code r3 finding 6): run each step as a bash script under the line below (the L2-L4 ladder in one g...$PY -B worklog/worklog_yixun/gen_model_comparison.py --repo-root $G --out $B/worklog/worklog_yixun/model_comparison.md'
+
+src/tests/test_exp46_command_sheets.py:103: AssertionError
+__ test_l4_dry_runs_every_launch_path_of_the_four_runs_before_the_x46_freeze ___
+
+    def test_l4_dry_runs_every_launch_path_of_the_four_runs_before_the_x46_freeze():
+        """Codex code r2 finding 6: L4's dry-runs are executable commands, not a comment -- the registry's four-run dry-run
+        and every run's SMOKE and FULL submitter dry-runs -- after L3 and before the push that freezes X46 (and before the
+        A6000 E0 / Y46)."""
+        cmds = _commands(_text(NEURONIC))
+        b = _blocks(NEURONIC)
+        l3 = max(i for i, c in enumerate(cmds) if "exp46_init_digest.py --run $RUN" in c)
+        push = cmds.index("git -C $M push origin exp-46-c4flip-data-curve")
+        assert cmds[push + 1].startswith("X46=$(git -C $M rev-parse HEAD)")
+        l4 = cmds[l3 + 2:push]                                                          # after the L3 loop
+>       assert cmds[l3 + 1] == "done" and l4[0] == 'cd $M && test -z "$(git status --porcelain --untracked-files=no)"'
+E       assert ('done' == 'done'
+E         
+E           done and 'cd $M' == 'cd $M && tes...ed-files=no)"'
+E         
+E         - cd $M && test -z "$(git status --porcelain --untracked-files=no)"
+E         + cd $M)
+
+src/tests/test_exp46_command_sheets.py:347: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_command_sheets.py::test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit[c4flip_data_curve_neuronic_commands.md]
+FAILED src/tests/test_exp46_command_sheets.py::test_l4_dry_runs_every_launch_path_of_the_four_runs_before_the_x46_freeze
+2 failed, 54 passed in 10.56s
+EXIT 1 end 2026-11-18T09:04:21-05:00

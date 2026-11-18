@@ -435,10 +435,10 @@ ran first against the previous sheets (AL1). No pytest, python or test code ran 
     `exp46_init_digest.py` `--json` absolute, validated twice, open_below "x"; `exp46_nas_publish.py` `stage` an
     exclusive os.mkdir after check_destination (audited) and `publish` renameat2 RENAME_NOREPLACE (ctypes) or the
     audited checked fallback rename.
-  - The 21 audited raw calls (the test's AUDITED table, with reasons): `_fsync_dir` os.open (a read-only directory
+  - The 21 audited raw calls [corrected in fix round 3, R3-4: 20 -- the NAS fallback rename is gone] (the test's AUDITED table, with reasons): `_fsync_dir` os.open (a read-only directory
     fd); `atomic_write_bytes` os.open / os.replace; `publish_no_clobber` mkstemp / link / unlink; `storage_gate` unlink;
     the five primitives' own os calls (`copyfile_below` goes through `open_below`); `move_loss_record` rmdir; `shutil_rmtree` rmtree; the table's two mkdtemp, two
-    rmtree and extractall; the NAS helper's mkdir and fallback rename. Outside Python: Slurm's `--output` into the
+    rmtree and extractall; the NAS helper's mkdir [and fallback rename -- removed in fix round 3]. Outside Python: Slurm's `--output` into the
     launch checkout's exp_46 folder; the training child writes into the validated run dir, the evaluator child into
     the validated farm folder; the sheets' `mkdir -p` / `cp` run inside the verified publication worktree and rsync
     into the exclusively created staging dir.
@@ -484,3 +484,84 @@ ran first against the previous sheets (AL1). No pytest, python or test code ran 
 - **Review cap (3 + 3) reached — no fourth round.** Per CLAUDE.md, every open finding (R3-1, R3-2, R3-4 … R3-7 and the
   PARTIAL items) is fixed by the Coder test-first, recorded as fixed without re-review, and verified by the coordinator.
   R3-3 joins D1 (now two frozen files: `test_exp45_sampler.py` E7 and `test_exp38_sampler.py` E8), waiting for Yixun.
+
+## 2026-11-18 08:21 → 09:15 EST — fix round 3 (FINAL, review cap reached): Codex code r3 findings R3-1, R3-2, R3-4 … R3-7 and the PARTIAL R2-1 / R2-8 / F2 / F10 (exp_46 Coder, Claude Opus 5.5)
+
+There is no fourth Codex round: **every fix below is "fixed without re-review (review cap)"**, test-first (each red,
+then green, in a CPU Slurm job via `pyt46.sh` with `JOBTMP=/tmp`; logs AN1 … AS1, three ABORTED greens re-run green
+after their cause was fixed), one finding per commit (ledger). R3-3 joined D1 (Yixun): `test_exp45_sampler.py` (E7)
+and `test_exp38_sampler.py` (E8) are untouched; their provenance rule, L1 registration and regression are PREPARED
+off-branch (below). The exp_38 / 40 / 43 / 45 folders, the yaw_*.py files and both sampler tests stay byte-identical to
+X45f; the declared edits stay E1–E5; no pytest / python ran on the login node; no dataset, NAS or GPU use.
+
+- **Change / Validation / Result (per finding), each fixed without re-review (review cap):**
+  - R3-1 HIGH, closing R2-1 / F2 (`9d304451`): `resolve_dotdot(path)` resolves a path as the kernel will -- each `..`
+    cancels its component only if that component is not a symlink; a `..` after a symlink refuses -- and
+    `check_destination` validates `resolve_dotdot(path)` / `resolve_dotdot(root)` and RETURNS that path, which every
+    primitive (open / makedirs / mkdir / rename source and destination / symlink / copy, the atomic writer's
+    destination and temp name, write_sealed, publish_no_clobber) passes to the syscall instead of the argument; the init
+    digest's `--json` and the NAS `--dest-root` use it too. Tests prove Codex's
+    `<tree>/AcousticRooms/../checkpoints/exp38_data_efficiency/report.json` is refused by all 12 writer primitives and
+    by the comparator's `--out`, the init digest's `--json`, the delta manifest's `--build` and the NAS root, with zero
+    writes in exp_38's stand-in namespace and in the decoy abspath names; a `..` over a real directory still works (AN1
+    red: the writers wrote into the protected root; AN2 ABORTED: refusing every `..` broke R2-3's relative destination;
+    AN3 green 738 passed).
+  - R3-2 (`8078440b`): `eval_snapshot` makes / reuses outputs_FLAC as a container (`makedirs_below(...,
+    container=True)`: not refused for CONTAINING foreign farms, still refused for lying in / aliasing a protected root);
+    a positive test runs the REAL `eval_snapshot(create=True)` in a tree whose outputs_FLAC holds exp_38's and exp_45's
+    farms -- the snapshot is made and re-verified, every foreign descendant still refuses, the farms are byte-unchanged
+    (AO1 red: the container refused; AO2 green 633 passed).
+  - R3-4, closing R2-8 (`72a2b98a`): **the NAS-path finding** -- read from the kit and sheets only, nothing on the NAS
+    touched: L7 runs on the A6000 box (the machine that sees both: rsync pulls from neuronic into
+    `/media/diskstation/yixunhu/FLAC/checkpoints/exp46_c4flip_data_curve`, the A6000 save root); the kit registers that
+    filesystem as cifs (`STORAGE_FS["a6000"]`), and the Linux CIFS client implements renameat2 RENAME_NOREPLACE
+    (`cifs_rename2` accepts exactly that flag; no-replace is its natural behaviour). So refusing when RENAME_NOREPLACE
+    is unsupported does not make publication impossible there: the fallback rename is REMOVED (no serialized protocol
+    needed); a libc without the wrapper (glibc < 2.28) gets the raw syscall (x86_64 316). Tests: an unsupported
+    renameat2 (EINVAL / ENOSYS / EOPNOTSUPP) with a competitor created immediately before the old fallback rename
+    refuses with no rename at all, the competitor untouched; the raw-syscall path publishes (AP1 red: the old fallback
+    replaced the competitor; AP2 green 365 passed). The mutation audit now has 20 audited raw calls (the round-2 entry
+    is corrected in place).
+  - R3-5 (`6180d8ef`): the A6000 lanes keep `K8=$!` / `K1=$!`, are waited on by PID (`wait $K8 || rc8=$?`,
+    `wait $K1 || rc1=$?`), both always reaped (the other lane's cells are independent), a failure of either stops the
+    sheet before collection, a trap stops both on an interrupt. Test: the sheet's own lines with failing stand-in lanes.
+  - R3-6, closing F10 (`6180d8ef`): `set -eo pipefail`; `sbatch --wait` for L2a, L2c and L3 (the job's status
+    decides); the three L1 suites concurrent, waited on by PID, each job recording pytest's rc (refused above 1 or with
+    no junit) before the comparison decides; every `a && b` command line split. Test: the sheet's L2a … L4 lines,
+    verbatim, run with stand-in sbatch / git / python -- a failure injected at any of 11 gates (the build, an L1 suite
+    killed, an L1 session broken, the comparison, the L2c audit or verification, the f100 check, an L3 disagreement, the
+    registry dry-run, a SMOKE or FULL dry-run) exits non-zero with NO push; with every gate passing (L1 failures at rc
+    1 left to the comparison) the lines run in order to the push.
+  - R3-7 (`f71241e2`, sheets `6180d8ef`): `exp46_nas_publish.py provision` creates exactly the exp_46 checkpoint root
+    and dump root -- each parent must be a real directory on the registered cifs NAS (missing / foreign mount refuses,
+    nothing created), each directory through `mkdir_below`, idempotent, both validated before either is created (AQ1
+    red; AQ2 green 406 passed); the A6000 step 0 runs it before E0 and every evaluation, the neuronic L7 before staging.
+    Sheet tests: AR1 red (the previous sheets ran past every injected failure to the push); AR2 ABORTED (two tests
+    named the old command forms); AR3 green 56 passed.
+- **The corrected mutation-site audit (R2-1 list of the 05:46 entry, updated):** every primitive now validates and
+  then writes `resolve_dotdot(path)`; new guarded sites: `provision` (mkdir_below of each exp_46 NAS root below its
+  mounted parent) and `eval_snapshot`'s container (makedirs_below container=True); removed: the NAS fallback rename
+  (20 audited raw calls; `test_every_mutating_call_of_the_kit_is_guarded_or_audited` enforces it).
+- **D1 / R3-3, PREPARED and NOT committed on `exp-46-c4flip-data-curve`:** on the local branch
+  `wip-exp46-d1-e7-e8` (one WIP commit on top of this round's final records commit; drop it with
+  `git branch -D wip-exp46-d1-e7-e8`): (1) `test_exp46_provenance.py`: `rank_restore(tag)` (E7's four lines verbatim;
+  E8 the same with its tag), `insertion_problems` (the whole X45f file plus exactly the four lines after the unique
+  anchor, the first body line of `test_both_launch_environments_give_the_same_rank_and_world`; nothing else), a test
+  over HEAD AND the tracked working tree plus X45f's mode (red until E7 + E8 land), and a unit test that it refuses
+  every other change (unchanged, the wrong tag, three lines, an extra line, an assertion change, a rename, the lines in
+  another test, a removed line); both files admitted in ALWAYS. (2) `exp46_regression_compare.py`: both nodes in
+  DECLARED_EDITED (E7, E8) -- must be present and passed, also when absent from both parents, no inherited-failure
+  exception -- with a test of exactly that. (3) `src/tests/exp46_rank_probe.py` (collected only when named): every
+  shared rank reference (lightning_fabric, pytorch_lightning, the banner's in src.training.diffusion) is one callable at
+  rank 0. (4) `test_exp46_d1_rank_isolation.py`: one session = the upstream sampler node, the probe, a real banner
+  assertion (`test_yaw_aug_training.py::test_banner_printed_once_at_fit_start`) -- red until E7 + E8 land; and the
+  same session on a COPY of the X45f file in tmp fails unpatched and passes with exactly the E7 lines (the teardown
+  regression fails without the edit). AS1 (run with the prepared files placed temporarily, then removed; the frozen
+  files never edited): exactly the 4 expected reds (the two exact-insertion checks and the two real-sampler sessions:
+  probe and banner fail after each upstream sampler), 42 passed -- the copy-based fix, the insertion check, the
+  registration rule.
+- **Beyond the findings (with reasons):** (1) the R3-1 commit carries the `contains=` / `container=` plumbing R3-2
+  then uses; (2) the neuronic sheet's L0 fetch / worktree add became `git -C <main>` forms (no `cd main && …` list),
+  registered as main-checkout forms; (3) the ledger corrects `6180d8ef`'s size (271 lines; its message says 238).
+- **Analysis:** every Codex code r3 finding except R3-3 (D1) is closed and tested; R2-1, R2-8, F2 and F10 are closed
+  with them. Open for the coordinator / Yixun: D1 (E7 + E8, prepared), D2 (campaign order).

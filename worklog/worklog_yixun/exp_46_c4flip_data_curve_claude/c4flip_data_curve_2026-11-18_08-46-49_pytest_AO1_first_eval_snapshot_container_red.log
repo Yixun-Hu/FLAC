@@ -1,0 +1,63 @@
+HEAD 9d304451541b92f21d27522b7d090f1df8145c05 tracked-clean=no host neu305.neuronic.cs.princeton.edu start 2026-11-18T08:47:08-05:00
+cmd: pytest -q src/tests/test_exp46_mutation_guards.py -k first_evaluation_snapshot 
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_the_first_evaluation_snapshot_is_made_through_the_real_guards_in_a_tree_holding_foreign_farms _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_first_evaluation_snap0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f15c7843460>
+
+    def test_the_first_evaluation_snapshot_is_made_through_the_real_guards_in_a_tree_holding_foreign_farms(tmp_path,
+                                                                                                          monkeypatch):
+        """A clean campaign tree's outputs_FLAC already holds exp_38's and exp_45's tracked farms. The guarded makedirs of
+        that container refused it for CONTAINING protected roots, so no first evaluation snapshot could ever be made. The
+        REAL eval_snapshot(create=True) -- its guards, snapshot_tools, verify_snapshot and closure check -- now admits the
+        container and makes the snapshot (only its inputs are small: one closure file, two links); every foreign
+        descendant still refuses through the same guards, and the foreign farm files are untouched."""
+        ev = _load("exp46_eval.py", "exp46_eval_first_snapshot")
+        tree = tmp_path / "exp-46-campaign"
+        for rel in (reg.EXP38_FARM, reg.EXP45_FARM):
+            (tree / rel).mkdir(parents=True)
+            (tree / rel / "cell.json").write_text("theirs\n")
+        (tree / "train.py").write_text("print('closure')\n")
+        (tree / "AcousticRooms").mkdir()
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        monkeypatch.setattr(ev, "SNAPSHOT_ROOT", str(tmp_path / "exp-46-snapshots"))
+        monkeypatch.setattr(ev, "EVAL_LINKS", ("AcousticRooms", "outputs_FLAC"))
+        monkeypatch.setattr(reg, "snapshot_files", lambda run, repo=None: ["train.py"])
+        probe = tmp_path / "probe"                                   # the closure such a snapshot has (the real digest)
+        probe.mkdir()
+        (probe / "train.py").write_text("print('closure')\n")
+        (probe / "SNAPSHOT.sha256").write_text(f"{reg.sha256_file(str(probe / 'train.py'))}  train.py\n")
+        closure = reg.closure_digest(str(probe))["closure_sha256"]
+        farms = lambda: {rel: [(p, (tree / rel / p).read_text()) for p in listing(tree / rel)]  # noqa: E731
+                         for rel in (reg.EXP38_FARM, reg.EXP45_FARM)}
+        before = farms()
+>       dest, sha = ev.eval_snapshot(closure, create=True)
+
+src/tests/test_exp46_mutation_guards.py:601: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:237: in eval_snapshot
+    reg.makedirs_below(_abs("outputs_FLAC"), _abs("outputs_FLAC"), "outputs_FLAC")    # (a link there is the tree's own)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:1157: in makedirs_below
+    os.makedirs(check_destination(path, root, what, allow, contains=not container), exist_ok=exist_ok)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yh4742/pytest-0/test_the_first_evaluation_snap0/exp-46-campaign/outputs_FLAC'
+root = '/tmp/pytest-of-yh4742/pytest-0/test_the_first_evaluation_snap0/exp-46-campaign/outputs_FLAC'
+what = 'outputs_FLAC', allow = (), contains = True
+
+    def check_destination(path, root, what, allow=(), contains=True):
+        """GateError on any destination_problems (before anything is written); otherwise the VALIDATED absolute path --
+        the one every primitive then passes to the syscall (Codex code r3 finding 1: never the original argument)."""
+        probs = destination_problems(path, root, what, allow, contains)
+        if probs:
+>           raise GateError("isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): " + "; ".join(probs)
+                            + ": refused, nothing written")
+E           exp46_registry.GateError: isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): outputs_FLAC /tmp/pytest-of-yh4742/pytest-0/test_the_first_evaluation_snap0/exp-46-campaign/outputs_FLAC (-> /tmp/pytest-of-yh4742/pytest-0/test_the_first_evaluation_snap0/exp-46-campaign/outputs_FLAC) aliases a protected exp_38 / exp_45 root /tmp/pytest-of-yh4742/pytest-0/test_the_first_evaluation_snap0/exp-46-campaign/outputs_FLAC/exp38_data_efficiency/eval; outputs_FLAC /tmp/pytest-of-yh4742/pytest-0/test_the_first_evaluation_snap0/exp-46-campaign/outputs_FLAC (-> /tmp/pytest-of-yh4742/pytest-0/test_the_first_evaluation_snap0/exp-46-campaign/outputs_FLAC) aliases a protected exp_38 / exp_45 root /tmp/pytest-of-yh4742/pytest-0/test_the_first_evaluation_snap0/exp-46-campaign/outputs_FLAC/exp38_smoke; outputs_FLAC /tmp/pytest-of-yh4742/pytest-0/test_the_first_evaluation_snap0/exp-46-campaign/outputs_FLAC (-> /tmp/pytest-of-yh4742/pytest-0/test_the_first_evaluation_snap0/exp-46-campaign/outputs_FLAC) aliases a protected exp_38 / exp_45 root /tmp/pytest-of-yh4742/pytest-0/test_the_first_evaluation_snap0/exp-46-campaign/outputs_FLAC/exp45_rf_data_curve/eval: refused, nothing written
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:1131: GateError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_first_evaluation_snapshot_is_made_through_the_real_guards_in_a_tree_holding_foreign_farms
+1 failed, 314 deselected in 4.01s
+EXIT 1 end 2026-11-18T08:47:13-05:00

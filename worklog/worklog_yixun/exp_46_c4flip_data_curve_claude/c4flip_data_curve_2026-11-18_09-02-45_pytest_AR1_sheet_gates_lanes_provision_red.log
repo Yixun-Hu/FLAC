@@ -1,0 +1,280 @@
+HEAD f71241e2695de4e5c64a72759b47c698327a3221 tracked-clean=no host neu308.neuronic.cs.princeton.edu start 2026-11-18T09:03:10-05:00
+cmd: pytest -q src/tests/test_exp46_command_sheets.py 
+..........F...F....FFFFFFFFFFF.FF                                        [100%]
+=================================== FAILURES ===================================
+_ test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout[c4flip_data_curve_neuronic_commands.md] _
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout(name):
+        """Both regenerations read their evidence from G and write the table into B (--out); every other command touching
+        the main checkout is a registered read-only / metadata / untracked-only form."""
+        cwd_main = False
+        for cmd in _commands(_text(name)):
+            if cmd.startswith("cd "):
+                cwd_main = cmd.split()[1] == MAIN
+            if MAIN in cmd or "$G" in cmd or "${G}" in cmd or cwd_main:
+>               assert any(re.fullmatch(f, cmd) for f in MAIN_FORMS), f"{name}: {cmd}"
+E               AssertionError: c4flip_data_curve_neuronic_commands.md: cd /n/fs/gatrdp/codespace/FLAC && git fetch origin exp-46-c4flip-data-curve
+E               assert False
+E                +  where False = any(<generator object test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout.<locals>.<genexpr> at 0x7f9d429fb060>)
+
+src/tests/test_exp46_command_sheets.py:262: AssertionError
+_ test_the_nas_publication_stages_exclusively_and_publishes_without_replacing __
+
+    def test_the_nas_publication_stages_exclusively_and_publishes_without_replacing():
+        """Codex code r2 finding 8: the staging directory is created exclusively by the tested helper BEFORE rsync, the
+        admission runs on the staged copy, and the final move is the helper's no-replace publication -- no plain
+        existence test, no ordinary mv (which nests the staging dir in a final path created meanwhile)."""
+        cmds = _commands(_text(NEURONIC))
+>       i = cmds.index("python -B $E/exp46_nas_publish.py stage --dest-root $DST --run $RUN")
+E       ValueError: 'python -B $E/exp46_nas_publish.py stage --dest-root $DST --run $RUN' is not in list
+
+src/tests/test_exp46_command_sheets.py:324: ValueError
+_ test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[a FULL submitter dry-run] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops0')
+case = 'a FULL submitter dry-run'
+
+    @pytest.mark.parametrize("case", sorted(LADDER_FAILURES))
+    def test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push(tmp_path, case):
+        """Codex code r3 finding 6: the sheet's own L2a ... L4 lines, executed with a single failure injected at one gate,
+        stop there -- the script exits non-zero and the push that freezes X46 never runs (Slurm steps block on the job's
+        status: sbatch --wait; L1 judges each suite's recorded rc; set -eo pipefail)."""
+        rc, calls, pushed = _ladder(tmp_path, **LADDER_FAILURES[case])
+>       assert rc != 0 and not pushed and " push " not in calls, (case, rc, calls[-500:])
+E       AssertionError: ('a FULL submitter dry-run', 0, '/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py submit --run exp46_C4Ff100_...p-46-c4flip-data-curve
+E         git -C /tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops0/stub/m rev-parse HEAD
+E         ')
+E       assert (0 != 0)
+
+src/tests/test_exp46_command_sheets.py:523: AssertionError
+_ test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[a SMOKE submitter dry-run] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops1')
+case = 'a SMOKE submitter dry-run'
+
+    @pytest.mark.parametrize("case", sorted(LADDER_FAILURES))
+    def test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push(tmp_path, case):
+        """Codex code r3 finding 6: the sheet's own L2a ... L4 lines, executed with a single failure injected at one gate,
+        stop there -- the script exits non-zero and the push that freezes X46 never runs (Slurm steps block on the job's
+        status: sbatch --wait; L1 judges each suite's recorded rc; set -eo pipefail)."""
+        rc, calls, pushed = _ladder(tmp_path, **LADDER_FAILURES[case])
+>       assert rc != 0 and not pushed and " push " not in calls, (case, rc, calls[-500:])
+E       AssertionError: ('a SMOKE submitter dry-run', 0, '/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py submit --run exp46_C4Ff100...p-46-c4flip-data-curve
+E         git -C /tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops1/stub/m rev-parse HEAD
+E         ')
+E       assert (0 != 0)
+
+src/tests/test_exp46_command_sheets.py:523: AssertionError
+_ test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[an L1 session broken (pytest rc 2)] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops2')
+case = 'an L1 session broken (pytest rc 2)'
+
+    @pytest.mark.parametrize("case", sorted(LADDER_FAILURES))
+    def test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push(tmp_path, case):
+        """Codex code r3 finding 6: the sheet's own L2a ... L4 lines, executed with a single failure injected at one gate,
+        stop there -- the script exits non-zero and the push that freezes X46 never runs (Slurm steps block on the job's
+        status: sbatch --wait; L1 judges each suite's recorded rc; set -eo pipefail)."""
+        rc, calls, pushed = _ladder(tmp_path, **LADDER_FAILURES[case])
+>       assert rc != 0 and not pushed and " push " not in calls, (case, rc, calls[-500:])
+E       AssertionError: ('an L1 session broken (pytest rc 2)', 0, '/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py submit --run exp4...p-46-c4flip-data-curve
+E         git -C /tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops2/stub/m rev-parse HEAD
+E         ')
+E       assert (0 != 0)
+
+src/tests/test_exp46_command_sheets.py:523: AssertionError
+_ test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[an L1 suite killed (no rc marker)] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops3')
+case = 'an L1 suite killed (no rc marker)'
+
+    @pytest.mark.parametrize("case", sorted(LADDER_FAILURES))
+    def test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push(tmp_path, case):
+        """Codex code r3 finding 6: the sheet's own L2a ... L4 lines, executed with a single failure injected at one gate,
+        stop there -- the script exits non-zero and the push that freezes X46 never runs (Slurm steps block on the job's
+        status: sbatch --wait; L1 judges each suite's recorded rc; set -eo pipefail)."""
+        rc, calls, pushed = _ladder(tmp_path, **LADDER_FAILURES[case])
+>       assert rc != 0 and not pushed and " push " not in calls, (case, rc, calls[-500:])
+E       AssertionError: ('an L1 suite killed (no rc marker)', 0, '/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py submit --run exp46...p-46-c4flip-data-curve
+E         git -C /tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops3/stub/m rev-parse HEAD
+E         ')
+E       assert (0 != 0)
+
+src/tests/test_exp46_command_sheets.py:523: AssertionError
+_ test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[an L3 disagreement] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops4')
+case = 'an L3 disagreement'
+
+    @pytest.mark.parametrize("case", sorted(LADDER_FAILURES))
+    def test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push(tmp_path, case):
+        """Codex code r3 finding 6: the sheet's own L2a ... L4 lines, executed with a single failure injected at one gate,
+        stop there -- the script exits non-zero and the push that freezes X46 never runs (Slurm steps block on the job's
+        status: sbatch --wait; L1 judges each suite's recorded rc; set -eo pipefail)."""
+        rc, calls, pushed = _ladder(tmp_path, **LADDER_FAILURES[case])
+>       assert rc != 0 and not pushed and " push " not in calls, (case, rc, calls[-500:])
+E       AssertionError: ('an L3 disagreement', 0, '/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py submit --run exp46_C4Ff100_l40_2x...p-46-c4flip-data-curve
+E         git -C /tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops4/stub/m rev-parse HEAD
+E         ')
+E       assert (0 != 0)
+
+src/tests/test_exp46_command_sheets.py:523: AssertionError
+_ test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[the L1 comparison] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops5')
+case = 'the L1 comparison'
+
+    @pytest.mark.parametrize("case", sorted(LADDER_FAILURES))
+    def test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push(tmp_path, case):
+        """Codex code r3 finding 6: the sheet's own L2a ... L4 lines, executed with a single failure injected at one gate,
+        stop there -- the script exits non-zero and the push that freezes X46 never runs (Slurm steps block on the job's
+        status: sbatch --wait; L1 judges each suite's recorded rc; set -eo pipefail)."""
+        rc, calls, pushed = _ladder(tmp_path, **LADDER_FAILURES[case])
+>       assert rc != 0 and not pushed and " push " not in calls, (case, rc, calls[-500:])
+E       AssertionError: ('the L1 comparison', 0, '/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py submit --run exp46_C4Ff100_l40_2x3...p-46-c4flip-data-curve
+E         git -C /tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops5/stub/m rev-parse HEAD
+E         ')
+E       assert (0 != 0)
+
+src/tests/test_exp46_command_sheets.py:523: AssertionError
+_ test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[the L2a delta build] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops6')
+case = 'the L2a delta build'
+
+    @pytest.mark.parametrize("case", sorted(LADDER_FAILURES))
+    def test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push(tmp_path, case):
+        """Codex code r3 finding 6: the sheet's own L2a ... L4 lines, executed with a single failure injected at one gate,
+        stop there -- the script exits non-zero and the push that freezes X46 never runs (Slurm steps block on the job's
+        status: sbatch --wait; L1 judges each suite's recorded rc; set -eo pipefail)."""
+        rc, calls, pushed = _ladder(tmp_path, **LADDER_FAILURES[case])
+>       assert rc != 0 and not pushed and " push " not in calls, (case, rc, calls[-500:])
+E       AssertionError: ('the L2a delta build', 0, '/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py submit --run exp46_C4Ff100_l40_2...p-46-c4flip-data-curve
+E         git -C /tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops6/stub/m rev-parse HEAD
+E         ')
+E       assert (0 != 0)
+
+src/tests/test_exp46_command_sheets.py:523: AssertionError
+_ test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[the L2c delta verification] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops7')
+case = 'the L2c delta verification'
+
+    @pytest.mark.parametrize("case", sorted(LADDER_FAILURES))
+    def test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push(tmp_path, case):
+        """Codex code r3 finding 6: the sheet's own L2a ... L4 lines, executed with a single failure injected at one gate,
+        stop there -- the script exits non-zero and the push that freezes X46 never runs (Slurm steps block on the job's
+        status: sbatch --wait; L1 judges each suite's recorded rc; set -eo pipefail)."""
+        rc, calls, pushed = _ladder(tmp_path, **LADDER_FAILURES[case])
+>       assert rc != 0 and not pushed and " push " not in calls, (case, rc, calls[-500:])
+E       AssertionError: ('the L2c delta verification', 0, '/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py submit --run exp46_C4Ff10...p-46-c4flip-data-curve
+E         git -C /tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops7/stub/m rev-parse HEAD
+E         ')
+E       assert (0 != 0)
+
+src/tests/test_exp46_command_sheets.py:523: AssertionError
+_ test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[the L2c exp_38 audit] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops8')
+case = 'the L2c exp_38 audit'
+
+    @pytest.mark.parametrize("case", sorted(LADDER_FAILURES))
+    def test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push(tmp_path, case):
+        """Codex code r3 finding 6: the sheet's own L2a ... L4 lines, executed with a single failure injected at one gate,
+        stop there -- the script exits non-zero and the push that freezes X46 never runs (Slurm steps block on the job's
+        status: sbatch --wait; L1 judges each suite's recorded rc; set -eo pipefail)."""
+        rc, calls, pushed = _ladder(tmp_path, **LADDER_FAILURES[case])
+>       assert rc != 0 and not pushed and " push " not in calls, (case, rc, calls[-500:])
+E       AssertionError: ('the L2c exp_38 audit', 0, '/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py submit --run exp46_C4Ff100_l40_...p-46-c4flip-data-curve
+E         git -C /tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops8/stub/m rev-parse HEAD
+E         ')
+E       assert (0 != 0)
+
+src/tests/test_exp46_command_sheets.py:523: AssertionError
+_ test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[the f100 static check] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops9')
+case = 'the f100 static check'
+
+    @pytest.mark.parametrize("case", sorted(LADDER_FAILURES))
+    def test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push(tmp_path, case):
+        """Codex code r3 finding 6: the sheet's own L2a ... L4 lines, executed with a single failure injected at one gate,
+        stop there -- the script exits non-zero and the push that freezes X46 never runs (Slurm steps block on the job's
+        status: sbatch --wait; L1 judges each suite's recorded rc; set -eo pipefail)."""
+        rc, calls, pushed = _ladder(tmp_path, **LADDER_FAILURES[case])
+>       assert rc != 0 and not pushed and " push " not in calls, (case, rc, calls[-500:])
+E       AssertionError: ('the f100 static check', 0, '/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py submit --run exp46_C4Ff100_l40...p-46-c4flip-data-curve
+E         git -C /tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops9/stub/m rev-parse HEAD
+E         ')
+E       assert (0 != 0)
+
+src/tests/test_exp46_command_sheets.py:523: AssertionError
+_ test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[the registry dry-run] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops10')
+case = 'the registry dry-run'
+
+    @pytest.mark.parametrize("case", sorted(LADDER_FAILURES))
+    def test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push(tmp_path, case):
+        """Codex code r3 finding 6: the sheet's own L2a ... L4 lines, executed with a single failure injected at one gate,
+        stop there -- the script exits non-zero and the push that freezes X46 never runs (Slurm steps block on the job's
+        status: sbatch --wait; L1 judges each suite's recorded rc; set -eo pipefail)."""
+        rc, calls, pushed = _ladder(tmp_path, **LADDER_FAILURES[case])
+>       assert rc != 0 and not pushed and " push " not in calls, (case, rc, calls[-500:])
+E       AssertionError: ('the registry dry-run', 0, 'xp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py submit --run exp46_C4Ff100_l40_2x...-46-c4flip-data-curve
+E         git -C /tmp/pytest-of-yh4742/pytest-0/test_the_neuronic_ladder_stops10/stub/m rev-parse HEAD
+E         ')
+E       assert (0 != 0)
+
+src/tests/test_exp46_command_sheets.py:523: AssertionError
+_ test_the_a6000_eval_lanes_are_waited_on_by_pid_and_either_failure_stops_the_sheet _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_a6000_eval_lanes_are_0')
+
+    def test_the_a6000_eval_lanes_are_waited_on_by_pid_and_either_failure_stops_the_sheet(tmp_path):
+        """Codex code r3 finding 5: the sheet's own lane lines, run with failing stand-in lanes (a shell function in place of
+        the evaluator): each lane is waited on by its PID, the remaining lane is always reaped (it finishes; its cells are
+        independent), and a failure of either lane stops the sheet before anything after it -- a bare `wait` would
+        have returned 0."""
+        import subprocess
+        b = _blocks(A6000)
+        start = b.index("python -B $E/exp46_eval.py run --gpu 0 --cells ${RUN}_K8_s42")
+>       end = b.index("\n", b.index("EXP46 EVAL LANES FAILED"))
+E       ValueError: substring not found
+
+src/tests/test_exp46_command_sheets.py:550: ValueError
+________ test_both_new_nas_roots_are_provisioned_before_their_first_use ________
+
+    def test_both_new_nas_roots_are_provisioned_before_their_first_use():
+        """Codex code r3 finding 7: the A6000 sheet provisions the exp_46 checkpoint and dump roots (the helper verifies the
+        NAS mount, creates only those two through the isolation guard, refuses a missing mount) in step 0, before E0 and
+        any evaluation; the neuronic L7 provisions (idempotently) before it stages into the checkpoint root."""
+        a6, ne = _commands(_text(A6000)), _commands(_text(NEURONIC))
+        prov = "python -B $E/exp46_nas_publish.py provision"
+>       assert a6.count(prov) == 1 and ne.count(prov) == 1
+E       AssertionError: assert (0 == 1)
+E        +  where 0 = <built-in method count of list object at 0x7f9d428e33c0>('python -B $E/exp46_nas_publish.py provision')
+E        +    where <built-in method count of list object at 0x7f9d428e33c0> = ['set -e', 'X46=<the frozen launch commit X46>', 'git -C ~/codespace/FLAC fetch origin exp-46-c4flip-data-curve', 'git...e/exp-46-campaign $X46', 'cd ~/codespace/exp-46-campaign || exit 1', 'source ~/miniconda3/etc/profile.d/conda.sh', ...].count
+
+src/tests/test_exp46_command_sheets.py:577: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_command_sheets.py::test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout[c4flip_data_curve_neuronic_commands.md]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_nas_publication_stages_exclusively_and_publishes_without_replacing
+FAILED src/tests/test_exp46_command_sheets.py::test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[a FULL submitter dry-run]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[a SMOKE submitter dry-run]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[an L1 session broken (pytest rc 2)]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[an L1 suite killed (no rc marker)]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[an L3 disagreement]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[the L1 comparison]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[the L2a delta build]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[the L2c delta verification]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[the L2c exp_38 audit]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[the f100 static check]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_neuronic_ladder_stops_at_every_failed_gate_before_the_x46_push[the registry dry-run]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_a6000_eval_lanes_are_waited_on_by_pid_and_either_failure_stops_the_sheet
+FAILED src/tests/test_exp46_command_sheets.py::test_both_new_nas_roots_are_provisioned_before_their_first_use
+15 failed, 18 passed in 5.60s
+EXIT 1 end 2026-11-18T09:03:16-05:00

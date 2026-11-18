@@ -1,0 +1,165 @@
+HEAD 72a2b98a4b0252a0bc773d7bcfe3ee39c33a5070 tracked-clean=no host neu308.neuronic.cs.princeton.edu start 2026-11-18T09:01:09-05:00
+cmd: pytest -q src/tests/test_exp46_nas_publish.py -k provision 
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+_________ test_provision_creates_exactly_the_two_exp46_namespaces_once _________
+
+nas_mount = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_creates_exactly0/diskstation/FLAC'), PosixPath('/tmp/pytest-...e'), PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_creates_exactly0/diskstation/FLAC/exp46_pred_waveforms'))
+
+    def test_provision_creates_exactly_the_two_exp46_namespaces_once(nas_mount):
+        """Both NEW exp_46 namespaces are created (real directories, nothing else on the NAS), a second run creates nothing
+        (idempotent), and stage then finds its dest root (the first campaign no longer stops at publication / dumps)."""
+        flac, ck, dump = nas_mount
+>       out = nas.provision()
+E       AttributeError: module 'exp46_nas_publish' has no attribute 'provision'
+
+src/tests/test_exp46_nas_publish.py:223: AttributeError
+__ test_provision_refuses_a_missing_or_foreign_mount_before_creating_anything __
+
+nas_mount = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_a_missi0/diskstation/FLAC'), PosixPath('/tmp/pytest-...e'), PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_a_missi0/diskstation/FLAC/exp46_pred_waveforms'))
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_a_missi0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8d95345990>
+
+    def test_provision_refuses_a_missing_or_foreign_mount_before_creating_anything(nas_mount, tmp_path, monkeypatch):
+        """A missing NAS parent (not mounted) or a parent on another filesystem (a local disk) refuses -- and neither root
+        is created, not even the one whose parent exists."""
+        flac, ck, dump = nas_mount
+        os.rmdir(flac / "checkpoints")
+        with pytest.raises(reg.GateError, match="not mounted"):
+>           nas.provision()
+E           AttributeError: module 'exp46_nas_publish' has no attribute 'provision'
+
+src/tests/test_exp46_nas_publish.py:238: AttributeError
+_ test_provision_refuses_anything_but_a_real_directory_at_either_root[a link] __
+
+nas_mount = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_anythin0/diskstation/FLAC'), PosixPath('/tmp/pytest-...e'), PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_anythin0/diskstation/FLAC/exp46_pred_waveforms'))
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_anythin0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8d95346b00>
+entry = 'a link'
+
+    @pytest.mark.parametrize("entry", ["a link", "a dangling link", "a file", "inside a protected root"])
+    def test_provision_refuses_anything_but_a_real_directory_at_either_root(nas_mount, tmp_path, monkeypatch, entry):
+        """A link (dangling or not) or a file at either root, or a root inside a protected one, refuses before EITHER root
+        is created (the protected root and the link's target untouched)."""
+        flac, ck, dump = nas_mount
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        if entry == "a link":
+            ck.symlink_to(elsewhere)
+        elif entry == "a dangling link":
+            dump.symlink_to(tmp_path / "absent")
+        elif entry == "a file":
+            dump.write_text("x")
+        else:
+            prot = flac / "checkpoints" / "exp38_data_efficiency"
+            prot.mkdir()
+            monkeypatch.setattr(reg, "PROTECTED_ABSOLUTE", (str(prot),))
+            monkeypatch.setitem(reg.PLATFORMS["a6000"], "save_root", str(prot / "exp46_c4flip_data_curve"))
+        before = _listing(tmp_path)
+        with pytest.raises(reg.GateError):
+>           nas.provision()
+E           AttributeError: module 'exp46_nas_publish' has no attribute 'provision'
+
+src/tests/test_exp46_nas_publish.py:268: AttributeError
+_ test_provision_refuses_anything_but_a_real_directory_at_either_root[a dangling link] _
+
+nas_mount = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_anythin1/diskstation/FLAC'), PosixPath('/tmp/pytest-...e'), PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_anythin1/diskstation/FLAC/exp46_pred_waveforms'))
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_anythin1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8d9539c940>
+entry = 'a dangling link'
+
+    @pytest.mark.parametrize("entry", ["a link", "a dangling link", "a file", "inside a protected root"])
+    def test_provision_refuses_anything_but_a_real_directory_at_either_root(nas_mount, tmp_path, monkeypatch, entry):
+        """A link (dangling or not) or a file at either root, or a root inside a protected one, refuses before EITHER root
+        is created (the protected root and the link's target untouched)."""
+        flac, ck, dump = nas_mount
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        if entry == "a link":
+            ck.symlink_to(elsewhere)
+        elif entry == "a dangling link":
+            dump.symlink_to(tmp_path / "absent")
+        elif entry == "a file":
+            dump.write_text("x")
+        else:
+            prot = flac / "checkpoints" / "exp38_data_efficiency"
+            prot.mkdir()
+            monkeypatch.setattr(reg, "PROTECTED_ABSOLUTE", (str(prot),))
+            monkeypatch.setitem(reg.PLATFORMS["a6000"], "save_root", str(prot / "exp46_c4flip_data_curve"))
+        before = _listing(tmp_path)
+        with pytest.raises(reg.GateError):
+>           nas.provision()
+E           AttributeError: module 'exp46_nas_publish' has no attribute 'provision'
+
+src/tests/test_exp46_nas_publish.py:268: AttributeError
+_ test_provision_refuses_anything_but_a_real_directory_at_either_root[a file] __
+
+nas_mount = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_anythin2/diskstation/FLAC'), PosixPath('/tmp/pytest-...e'), PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_anythin2/diskstation/FLAC/exp46_pred_waveforms'))
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_anythin2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8d953b6d10>
+entry = 'a file'
+
+    @pytest.mark.parametrize("entry", ["a link", "a dangling link", "a file", "inside a protected root"])
+    def test_provision_refuses_anything_but_a_real_directory_at_either_root(nas_mount, tmp_path, monkeypatch, entry):
+        """A link (dangling or not) or a file at either root, or a root inside a protected one, refuses before EITHER root
+        is created (the protected root and the link's target untouched)."""
+        flac, ck, dump = nas_mount
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        if entry == "a link":
+            ck.symlink_to(elsewhere)
+        elif entry == "a dangling link":
+            dump.symlink_to(tmp_path / "absent")
+        elif entry == "a file":
+            dump.write_text("x")
+        else:
+            prot = flac / "checkpoints" / "exp38_data_efficiency"
+            prot.mkdir()
+            monkeypatch.setattr(reg, "PROTECTED_ABSOLUTE", (str(prot),))
+            monkeypatch.setitem(reg.PLATFORMS["a6000"], "save_root", str(prot / "exp46_c4flip_data_curve"))
+        before = _listing(tmp_path)
+        with pytest.raises(reg.GateError):
+>           nas.provision()
+E           AttributeError: module 'exp46_nas_publish' has no attribute 'provision'
+
+src/tests/test_exp46_nas_publish.py:268: AttributeError
+_ test_provision_refuses_anything_but_a_real_directory_at_either_root[inside a protected root] _
+
+nas_mount = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_anythin3/diskstation/FLAC'), PosixPath('/tmp/pytest-...e'), PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_anythin3/diskstation/FLAC/exp46_pred_waveforms'))
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_provision_refuses_anythin3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8d953471f0>
+entry = 'inside a protected root'
+
+    @pytest.mark.parametrize("entry", ["a link", "a dangling link", "a file", "inside a protected root"])
+    def test_provision_refuses_anything_but_a_real_directory_at_either_root(nas_mount, tmp_path, monkeypatch, entry):
+        """A link (dangling or not) or a file at either root, or a root inside a protected one, refuses before EITHER root
+        is created (the protected root and the link's target untouched)."""
+        flac, ck, dump = nas_mount
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        if entry == "a link":
+            ck.symlink_to(elsewhere)
+        elif entry == "a dangling link":
+            dump.symlink_to(tmp_path / "absent")
+        elif entry == "a file":
+            dump.write_text("x")
+        else:
+            prot = flac / "checkpoints" / "exp38_data_efficiency"
+            prot.mkdir()
+            monkeypatch.setattr(reg, "PROTECTED_ABSOLUTE", (str(prot),))
+            monkeypatch.setitem(reg.PLATFORMS["a6000"], "save_root", str(prot / "exp46_c4flip_data_curve"))
+        before = _listing(tmp_path)
+        with pytest.raises(reg.GateError):
+>           nas.provision()
+E           AttributeError: module 'exp46_nas_publish' has no attribute 'provision'
+
+src/tests/test_exp46_nas_publish.py:268: AttributeError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_nas_publish.py::test_provision_creates_exactly_the_two_exp46_namespaces_once
+FAILED src/tests/test_exp46_nas_publish.py::test_provision_refuses_a_missing_or_foreign_mount_before_creating_anything
+FAILED src/tests/test_exp46_nas_publish.py::test_provision_refuses_anything_but_a_real_directory_at_either_root[a link]
+FAILED src/tests/test_exp46_nas_publish.py::test_provision_refuses_anything_but_a_real_directory_at_either_root[a dangling link]
+FAILED src/tests/test_exp46_nas_publish.py::test_provision_refuses_anything_but_a_real_directory_at_either_root[a file]
+FAILED src/tests/test_exp46_nas_publish.py::test_provision_refuses_anything_but_a_real_directory_at_either_root[inside a protected root]
+6 failed, 23 deselected in 4.01s
+EXIT 1 end 2026-11-18T09:01:14-05:00

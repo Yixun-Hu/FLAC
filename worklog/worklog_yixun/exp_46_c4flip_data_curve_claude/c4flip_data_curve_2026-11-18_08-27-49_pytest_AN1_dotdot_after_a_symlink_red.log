@@ -1,0 +1,82 @@
+HEAD c89718470e9e5953f2c2f3dcccd2b69177227d03 tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-18T08:28:05-05:00
+cmd: pytest -q src/tests/test_exp46_mutation_guards.py -k dotdot 
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_a_dotdot_after_a_symlink_never_reaches_a_protected_root_through_any_writer _
+
+dotdot = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_dotdot_after_a_symlink_0/exp-46-campaign'), PosixPath('/tmp/pytest-o...test-0/test_a_dotdot_after_a_symlink_0/exp-46-campaign/AcousticRooms/../checkpoints/exp38_data_efficiency/report.json')
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_dotdot_after_a_symlink_0')
+
+    def test_a_dotdot_after_a_symlink_never_reaches_a_protected_root_through_any_writer(dotdot, tmp_path):
+        """Every guarded primitive writes exactly the path it validated, and a '..' component is refused before validation:
+        through each actual writer, Codex's path reaches neither exp_38's namespace nor the decoy."""
+        tree, prot, decoy, bad = dotdot
+        for name in PRIMITIVES:
+>           with pytest.raises(reg.GateError, match=r"'\.\.'"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:537: Failed
+______ test_the_entry_points_refuse_a_dotdot_destination_before_any_write ______
+
+dotdot = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_entry_points_refuse_a0/exp-46-campaign'), PosixPath('/tmp/pytest-o...test-0/test_the_entry_points_refuse_a0/exp-46-campaign/AcousticRooms/../checkpoints/exp38_data_efficiency/report.json')
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_entry_points_refuse_a0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f775dfd4fd0>
+
+    def test_the_entry_points_refuse_a_dotdot_destination_before_any_write(dotdot, tmp_path, monkeypatch):
+        """Codex's example through the comparator's --out, the init digest's --json, the delta manifest's --build and the
+        NAS staging root: each refuses before reading its inputs, building a model or writing anything."""
+        tree, prot, decoy, bad = dotdot
+        rc = _load("exp46_regression_compare.py", "exp46_rc_dotdot")
+        junit = tmp_path / "junit.xml"
+        junit.write_text('<?xml version="1.0"?><testsuites><testsuite name="pytest"><testcase classname="src.tests.test_a" '
+                         'name="test_x" time="0.1"></testcase></testsuite></testsuites>')
+>       assert rc.main(["--merged", str(junit), "--exp38", str(junit), "--exp43", str(junit), "--merged-root", "/m",
+                        "--exp38-root", "/p", "--exp43-root", "/q", "--out", bad]) == 2
+E       AssertionError: assert 1 == 2
+E        +  where 1 = <function main at 0x7f775e07c550>(['--merged', '/tmp/pytest-of-yh4742/pytest-0/test_the_entry_points_refuse_a0/junit.xml', '--exp38', '/tmp/pytest-of-yh...oints_refuse_a0/junit.xml', '--exp43', '/tmp/pytest-of-yh4742/pytest-0/test_the_entry_points_refuse_a0/junit.xml', ...])
+E        +    where <function main at 0x7f775e07c550> = <module 'exp46_rc_dotdot' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_regression_compare.py'>.main
+
+src/tests/test_exp46_mutation_guards.py:553: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "allowed_failures": [],
+ "counts": {
+  "3593f34c": {
+   "error": 0,
+   "failed": 0,
+   "passed": 1,
+   "skipped": 0
+  },
+  "4a7e3b3a": {
+   "error": 0,
+   "failed": 0,
+   "passed": 1,
+   "skipped": 0
+  },
+  "merged": {
+   "error": 0,
+   "failed": 0,
+   "passed": 1,
+   "skipped": 0
+  }
+ },
+ "new_node_skips": [],
+ "problems": [
+  "src/tests/test_exp40_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict: the compat-edited node is missing",
+  "src/tests/test_exp43_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict: the compat-edited node is missing",
+  "src/tests/test_exp43_kit.py::test_config_contract_through_the_real_factory: the declared-edited / replacement node is missing",
+  "src/tests/test_exp45_merge_provenance.py::test_later_exp45_commits_touch_only_the_allowed_paths: the declared-edited / replacement node is missing",
+  "src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically: the declared-edited / replacement node is missing",
+  "src/tests/test_yaw_aug_flip.py::test_constructor_refuses_flip_with_offset_step: the declared-edited / replacement node is missing",
+  "src/tests/test_yaw_aug_flip_factory.py::test_true_flip_with_offset_step_is_refused[1]: the declared-edited / replacement node is missing",
+  "src/tests/test_yaw_aug_flip_factory.py::test_true_flip_with_offset_step_is_refused[32]: the declared-edited / replacement node is missing",
+  "src/tests/test_yaw_aug_flip_factory.py::test_true_flip_with_offset_step_is_refused[4]: the declared-edited / replacement node is missing"
+ ],
+ "verdict": "FAIL"
+}
+REGRESSION POLICY FAIL: 9 problem(s), 0 allowed failure(s)
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_mutation_guards.py::test_a_dotdot_after_a_symlink_never_reaches_a_protected_root_through_any_writer
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_entry_points_refuse_a_dotdot_destination_before_any_write
+2 failed, 312 deselected in 6.81s
+EXIT 1 end 2026-11-18T08:28:17-05:00

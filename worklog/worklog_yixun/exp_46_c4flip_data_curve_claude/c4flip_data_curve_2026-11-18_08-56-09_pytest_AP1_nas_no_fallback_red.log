@@ -1,0 +1,135 @@
+HEAD 8078440bc26ceab772e48dabc929ec33dc1d0a3a tracked-clean=no host neu308.neuronic.cs.princeton.edu start 2026-11-18T08:57:09-05:00
+cmd: pytest -q src/tests/test_exp46_nas_publish.py src/tests/test_exp46_mutation_guards.py -k publish\ or\ rename\ or\ syscall\ or\ unsupported\ or\ every_mutating_call 
+...................FFFF......................F                           [100%]
+=================================== FAILURES ===================================
+___________ test_the_raw_syscall_publishes_when_libc_has_no_wrapper ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_raw_syscall_publishes0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb9ad20b190>
+
+    def test_the_raw_syscall_publishes_when_libc_has_no_wrapper(tmp_path, monkeypatch):
+        """No wrapper (glibc < 2.28): the RAW renameat2 syscall moves the admitted staging dir -- the real kernel call;
+        the race test above runs the same path against a final created meanwhile (EEXIST, nothing replaced)."""
+        real = ctypes.CDLL(None, use_errno=True)
+        monkeypatch.setattr(nas.ctypes, "CDLL", lambda *a, **k: _OnlySyscall(real))
+        root = tmp_path / "nas"
+        root.mkdir()
+        _staged(root)
+>       assert nas.publish(str(root), RUN) == (str(root / RUN), "renameat2")
+E       AssertionError: assert ('/tmp/pytest...32', 'rename') == ('/tmp/pytest..., 'renameat2')
+E         
+E         At index 1 diff: 'rename' != 'renameat2'
+E         Use -v to get more diff
+
+src/tests/test_exp46_nas_publish.py:172: AssertionError
+_ test_an_unsupported_no_replace_rename_refuses_and_a_competitor_is_never_replaced[22] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_unsupported_no_replace0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb9ad20a710>
+err = 22
+
+    @pytest.mark.parametrize("err", [errno.EINVAL, errno.ENOSYS, errno.EOPNOTSUPP])
+    def test_an_unsupported_no_replace_rename_refuses_and_a_competitor_is_never_replaced(tmp_path, monkeypatch, err):
+        """Codex code r3 finding 4: the old fallback (a lexists check, then os.rename) let a competitor's empty directory,
+        created between the check and the rename, be replaced. renameat2 now reports ``err`` (no RENAME_NOREPLACE here) and
+        a competitor creates the final directory immediately before any rename could run: publish REFUSES, no rename
+        happens at all, the competitor's directory is untouched (empty) and the staging dir is kept."""
+        root = tmp_path / "nas"
+        root.mkdir()
+        incoming = _staged(root)
+        dst = root / RUN
+        renamed, real_rename = [], os.rename
+    
+        def competitor_then_rename(src, dst_):
+            renamed.append((src, dst_))
+            os.mkdir(dst_)                    # another publisher's empty dir, immediately before the fallback rename
+            return real_rename(src, dst_)
+        monkeypatch.setattr(nas.os, "rename", competitor_then_rename)
+        monkeypatch.setattr(nas.ctypes, "CDLL", lambda *a, **k: _Unsupported(err))
+>       with pytest.raises(reg.GateError, match="RENAME_NOREPLACE unsupported"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_nas_publish.py:194: Failed
+_ test_an_unsupported_no_replace_rename_refuses_and_a_competitor_is_never_replaced[38] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_unsupported_no_replace1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb9ad20b100>
+err = 38
+
+    @pytest.mark.parametrize("err", [errno.EINVAL, errno.ENOSYS, errno.EOPNOTSUPP])
+    def test_an_unsupported_no_replace_rename_refuses_and_a_competitor_is_never_replaced(tmp_path, monkeypatch, err):
+        """Codex code r3 finding 4: the old fallback (a lexists check, then os.rename) let a competitor's empty directory,
+        created between the check and the rename, be replaced. renameat2 now reports ``err`` (no RENAME_NOREPLACE here) and
+        a competitor creates the final directory immediately before any rename could run: publish REFUSES, no rename
+        happens at all, the competitor's directory is untouched (empty) and the staging dir is kept."""
+        root = tmp_path / "nas"
+        root.mkdir()
+        incoming = _staged(root)
+        dst = root / RUN
+        renamed, real_rename = [], os.rename
+    
+        def competitor_then_rename(src, dst_):
+            renamed.append((src, dst_))
+            os.mkdir(dst_)                    # another publisher's empty dir, immediately before the fallback rename
+            return real_rename(src, dst_)
+        monkeypatch.setattr(nas.os, "rename", competitor_then_rename)
+        monkeypatch.setattr(nas.ctypes, "CDLL", lambda *a, **k: _Unsupported(err))
+>       with pytest.raises(reg.GateError, match="RENAME_NOREPLACE unsupported"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_nas_publish.py:194: Failed
+_ test_an_unsupported_no_replace_rename_refuses_and_a_competitor_is_never_replaced[95] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_unsupported_no_replace2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb9ad283460>
+err = 95
+
+    @pytest.mark.parametrize("err", [errno.EINVAL, errno.ENOSYS, errno.EOPNOTSUPP])
+    def test_an_unsupported_no_replace_rename_refuses_and_a_competitor_is_never_replaced(tmp_path, monkeypatch, err):
+        """Codex code r3 finding 4: the old fallback (a lexists check, then os.rename) let a competitor's empty directory,
+        created between the check and the rename, be replaced. renameat2 now reports ``err`` (no RENAME_NOREPLACE here) and
+        a competitor creates the final directory immediately before any rename could run: publish REFUSES, no rename
+        happens at all, the competitor's directory is untouched (empty) and the staging dir is kept."""
+        root = tmp_path / "nas"
+        root.mkdir()
+        incoming = _staged(root)
+        dst = root / RUN
+        renamed, real_rename = [], os.rename
+    
+        def competitor_then_rename(src, dst_):
+            renamed.append((src, dst_))
+            os.mkdir(dst_)                    # another publisher's empty dir, immediately before the fallback rename
+            return real_rename(src, dst_)
+        monkeypatch.setattr(nas.os, "rename", competitor_then_rename)
+        monkeypatch.setattr(nas.ctypes, "CDLL", lambda *a, **k: _Unsupported(err))
+>       with pytest.raises(reg.GateError, match="RENAME_NOREPLACE unsupported"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_nas_publish.py:194: Failed
+__________ test_every_mutating_call_of_the_kit_is_guarded_or_audited ___________
+
+    def test_every_mutating_call_of_the_kit_is_guarded_or_audited():
+        """Codex code r2 finding 1: the kit's mutating paths have no unguarded open() / mkdir / rename / symlink / copy.
+        Every write-mode open is open_below; every atomic / sealed / no-clobber write names its checked root; the only raw
+        mutation calls left are the AUDITED ones (the primitives' own implementations and mutations that cannot leave a
+        checked place) -- a new raw call, or a stale audit entry, fails here."""
+        raw, opens, rootless = mutation_calls()
+        assert opens == [], opens
+        assert rootless == [], rootless
+>       assert sorted(raw - set(AUDITED)) == [] and sorted(set(AUDITED) - raw) == [], (sorted(raw - set(AUDITED)),
+                                                                                      sorted(set(AUDITED) - raw))
+E       AssertionError: ([('exp46_nas_publish.py', '_rename_noreplace', 'os.rename')], [])
+E       assert ([('exp46_nas_... 'os.rename')] == []
+E         
+E         Left contains one more item: ('exp46_nas_publish.py', '_rename_noreplace', 'os.rename')
+E         Use -v to get more diff)
+
+src/tests/test_exp46_mutation_guards.py:506: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_nas_publish.py::test_the_raw_syscall_publishes_when_libc_has_no_wrapper
+FAILED src/tests/test_exp46_nas_publish.py::test_an_unsupported_no_replace_rename_refuses_and_a_competitor_is_never_replaced[22]
+FAILED src/tests/test_exp46_nas_publish.py::test_an_unsupported_no_replace_rename_refuses_and_a_competitor_is_never_replaced[38]
+FAILED src/tests/test_exp46_nas_publish.py::test_an_unsupported_no_replace_rename_refuses_and_a_competitor_is_never_replaced[95]
+FAILED src/tests/test_exp46_mutation_guards.py::test_every_mutating_call_of_the_kit_is_guarded_or_audited
+5 failed, 41 passed, 292 deselected in 4.61s
+EXIT 1 end 2026-11-18T08:57:15-05:00
