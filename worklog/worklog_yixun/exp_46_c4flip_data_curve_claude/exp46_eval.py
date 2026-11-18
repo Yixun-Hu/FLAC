@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""exp_45 evaluation driver for THIS 2×A6000 box (forked from exp_38's exp38_eval.py;
-plan_rf_data_curve.md r3 §3.2; exp_38: plan_data_efficiency.md r2 §9, §10 B8).
+"""exp_46 evaluation driver for THIS 2×A6000 box (forked from exp_45's exp45_eval.py at X45f, from exp_38's;
+plan_c4flip_data_curve.md r3 §3.2; exp_38: plan_data_efficiency.md r2 §9, §10 B8).
 
-    exp45_eval.py plan                            the 8 E0, 30 RF result and 10 RF-100 bridge cells, full argv
+    exp46_eval.py plan                            the 8 E0, 30 RF result and 10 RF-100 bridge cells, full argv
     exp38_eval.py env-receipt --write | --check   the campaign environment receipt (registry)
     exp38_eval.py prepare <run>                   admit a run's final checkpoint + create its farm link
     exp38_eval.py prepare-e0                      verify + link the four E0 reference checkpoints
@@ -10,8 +10,8 @@ plan_rf_data_curve.md r3 §3.2; exp_38: plan_data_efficiency.md r2 §9, §10 B8)
     exp38_eval.py e0                              E0 verdict -> the sealed data_efficiency_e0_receipt.json
     exp38_eval.py e0-check                        validate the sealed E0 receipt against this tree
     exp38_eval.py validate [--offline] <name>...  admission check of finished cells
-    exp45_eval.py prepare-bridge                  verify + link the RF-100 checkpoint (RF100_BRIDGE)
-    exp45_eval.py bridge --bundle <dir>           compare the 10 bridge cells with exp_43's reference bundle
+    exp46_eval.py prepare-bridge                  verify + link the RF-100 checkpoint (RF100_BRIDGE)
+    exp46_eval.py bridge --bundle <dir>           compare the 10 bridge cells with exp_43's reference bundle
 
 Every cell runs ``eval_FLAC.py`` through the reviewed exp_35 no-flash launcher (SDPA, the backend of
 every reference cell) with the reference cells' exact argv shape (incl. ``--num-workers 4``).
@@ -35,11 +35,11 @@ import time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
-import exp45_registry as reg  # noqa: E402
+import exp46_registry as reg  # noqa: E402
 
 EXP = reg.EXP_DIR
-FARM = "outputs_FLAC/exp45_rf_data_curve/eval"
-DUMP_ROOT = "/media/diskstation/yixunhu/FLAC/exp45_pred_waveforms"
+FARM = "outputs_FLAC/exp46_c4flip_data_curve/eval"
+DUMP_ROOT = "/media/diskstation/yixunhu/FLAC/exp46_pred_waveforms"
 NAS_CKPT_ROOT = "/media/diskstation/yixunhu/FLAC/checkpoints"
 # exp_38's card-lock names, deliberately: trees 38 and 45 serialize on the same physical A6000s (plan r3 §3.2)
 LOCKDIR = "/home/yixunhu/codespace"          # .exp38_card<i>.lock, shared with exp_38's tree
@@ -68,7 +68,7 @@ INPUT_HASH = {
     (8, 45): "ef2c937139f8ec09e4034cccf3751ce15a9ba1761bbc7a5f6ec748bb6753063e",
     (8, 46): "163f89a4b84a8071f1fa8091883cc9ab2c9bff97fccdb37b5196bbb8c1490b17",
 }
-# exp_45 (plan r3 §3.2; Codex plan r1 finding 13): the fixed-mode ASSIGNMENT hashes of the unseen split per
+# exp_46 (plan r3 §3.2; Codex plan r1 finding 13): the fixed-mode ASSIGNMENT hashes of the unseen split per
 # (K, seed) -- (i, target_id, d_i), a data property (GPU- and model-independent; eval_FLAC.build_stream_record).
 # Source (2026-11-14): the exp_38 preliminary L40 stream sidecars on neuronic,
 # /n/fs/gatrdp/codespace/_sessions/exp40_c16_runner/prelim_eval/de_yaw_f025/*_K{8,1}_s4{2..6}*.stream.json
@@ -158,7 +158,7 @@ def e0_cells():
 # here with a run cell's argv. exp_43's admission record and its ten reference cells are NOT constants: they are a
 # runtime input (the bridge reference bundle, a directory + its manifest) whose file hashes the sealed bridge result
 # records.
-BRIDGE_RUN = "exp45_RF100bridge"
+BRIDGE_RUN = "exp46_RF100bridge"
 RF100_BRIDGE = {
     "checkpoint": f"{NAS_CKPT_ROOT}/exp43_std_aug/exp43_RF_a6000_2x32/epoch=8-step=40000.ckpt",
     "sha256": "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6",
@@ -536,7 +536,7 @@ def expected_ckpt(cell, campaign, offline=False):
 
 
 def bridge_checkpoint():
-    """(sha256, bytes, None) of the bridge checkpoint: the registered descriptor (no exp_45 training receipt)."""
+    """(sha256, bytes, None) of the bridge checkpoint: the registered descriptor (no exp_46 training receipt)."""
     return RF100_BRIDGE["sha256"], RF100_BRIDGE["bytes"], None
 
 
@@ -871,7 +871,7 @@ def run_owned(cmd, cwd, env, log, lock_fds=(), grace=60):
     fds passed down and held by a detached holder until no process of that group remains (a killed
     driver cannot release the card under a running evaluator), and on ANY exception in this process
     the group is terminated (bounded) and reaped before the exception propagates."""
-    import exp45_supervise as sv
+    import exp46_supervise as sv
     child = sv.OwnedChild(cmd, cwd, env, log, pass_fds=lock_fds)
     try:
         sv.start_lock_holder(child.pgid, lock_fds)
@@ -901,7 +901,7 @@ def run_one(cell, gpu, campaign, lock_fds=()):
     uuid, name = gpu_row(gpu)
     ts = time.strftime("%Y-%m-%d_%H-%M-%S")
     started = time.strftime("%Y-%m-%dT%H:%M:%S%z")
-    log = _abs(f"{EVAL_LOG_DIR}/rf_data_curve_{ts}_{cell['name']}.log")
+    log = _abs(f"{EVAL_LOG_DIR}/c4flip_data_curve_{ts}_{cell['name']}.log")
     os.makedirs(os.path.dirname(log), exist_ok=True)
     argv = eval_argv(cell)
     with open(log, "w") as fh:
@@ -1058,7 +1058,7 @@ def _prepare_bridge(path, torch, io):
 
 
 BRIDGE_MANIFEST = "BRIDGE_MANIFEST.sha256"
-BRIDGE_RESULT = f"{EXP}/rf_data_curve_bridge.json"
+BRIDGE_RESULT = f"{EXP}/c4flip_data_curve_bridge.json"
 BRIDGE_KEYS = frozenset({"schema", "descriptor", "descriptor_sha256", "bundle", "bundle_manifest_sha256",
                          "bundle_files", "admission_record", "campaign", "cells", "verdict", "written_at"})
 
@@ -1067,7 +1067,7 @@ def exp43_kit():
     """exp_43's own kit, loaded from the tree's read-only exp_43 folder (reg.EXP43_KIT, in the closure): its
     admission_reasons is THE validator of an exp_43 admission record."""
     import importlib.util
-    spec = importlib.util.spec_from_file_location("exp43_kit_for_exp45", _abs(reg.EXP43_KIT))
+    spec = importlib.util.spec_from_file_location("exp43_kit_for_exp46", _abs(reg.EXP43_KIT))
     if spec is None or spec.loader is None:
         raise EvalError(f"cannot load {reg.EXP43_KIT}")
     mod = importlib.util.module_from_spec(spec)
@@ -1090,7 +1090,7 @@ def bridge_admission(data, rel):
     (once) from the bundle; exp_43's validator reads a private copy of them (Codex code r2 finding 4)."""
     import shutil
     import tempfile
-    tmp = tempfile.mkdtemp(prefix="exp45_bridge_admission_")
+    tmp = tempfile.mkdtemp(prefix="exp46_bridge_admission_")
     try:
         path = os.path.join(tmp, os.path.basename(rel))
         with open(path, "wb") as fh:
@@ -1227,7 +1227,7 @@ def compare_bridge_cell(ours, our_stream, ref, ref_stream, K):
 
 
 def cmd_bridge(bundle):
-    """Compare the ten admitted bridge cells with exp_43's reference bundle and seal rf_data_curve_bridge.json:
+    """Compare the ten admitted bridge cells with exp_43's reference bundle and seal c4flip_data_curve_bridge.json:
     an integrity failure (bundle hash / set, pin, count, an unadmitted cell) refuses; a numeric difference is reported
     per cell as an "evaluator discrepancy" until explained (plan r3 §3.2, N5)."""
     campaign = validate_e0_receipt()
@@ -1281,7 +1281,7 @@ def cmd_bridge(bundle):
 
 
 def validate_bridge_result(campaign, path=None):
-    """The sealed rf_data_curve_bridge.json as its consumer (the collector) admits it (Codex code r1 finding 4):
+    """The sealed c4flip_data_curve_bridge.json as its consumer (the collector) admits it (Codex code r1 finding 4):
     sealed with exactly BRIDGE_KEYS; the registered descriptor and its sha; THIS campaign; exactly the ten bridge cells,
     each bound to its exp_43 reference cell, to its CURRENT metrics bytes and to the bundle's reference hash; the
     admission binding = the bundle's admission record and the descriptor's checkpoint; every verdict following from
@@ -1342,11 +1342,11 @@ def validate_bridge_result(campaign, path=None):
 
 
 def bridge_gate(campaign=None):
-    """THE publication gate of the exp_45 RF rows (Codex code r3 finding 1), shared by every writer that renders them --
-    the collector (exp45_collect.rf_rows), the comparison table (exp45_table.build) and the shared generator
-    (gen_model_comparison.exp45_bridge_lines, through the kit at its root): the ten RF-100 bridge cells through the
+    """THE publication gate of the exp_46 RF rows (Codex code r3 finding 1), shared by every writer that renders them --
+    the collector (exp46_collect.rf_rows), the comparison table (exp46_table.build) and the shared generator
+    (gen_model_comparison.exp46_bridge_lines, through the kit at its root): the ten RF-100 bridge cells through the
     OFFLINE cell admission under ``campaign`` (default: the E0 receipt's, offline) and the sealed
-    rf_data_curve_bridge.json through validate_bridge_result against the CURRENT bridge artifacts. Returns
+    c4flip_data_curve_bridge.json through validate_bridge_result against the CURRENT bridge artifacts. Returns
     (summary, files): the summary -- the comparison's path and sha256, its verdict, the descriptor and admission-record
     shas and each discrepant cell's differences -- is what the writer prints (bridge_lines) and records; files = the
     result + its sidecar. Raises EvalError when the comparison is absent, unreadable or stale: no writer renders an RF
@@ -1367,7 +1367,7 @@ def bridge_gate(campaign=None):
 
 
 def bridge_lines(summary):
-    """The Markdown every exp_45 writer prints for bridge_gate's summary: the comparison (file, sha256) and its verdict
+    """The Markdown every exp_46 writer prints for bridge_gate's summary: the comparison (file, sha256) and its verdict
     -- an evaluator discrepancy with each discrepant cell's differences, reported until explained, never as equality."""
     out = [f"**RF-100 bridge comparison** (`{os.path.basename(summary['result'])}`, sha256 `{summary['sha256'][:12]}`): "
            + ("equal on all ten cells." if summary["verdict"] == "equal" else

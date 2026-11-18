@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================================
-# exp45_train.sbatch — ONE monolithic exp_45 job on neuronic (forked from exp_38's exp38_train.sbatch;
-# plan_rf_data_curve.md r3 §3.2; exp_38: plan_data_efficiency.md r2 §10 B7;
+# exp46_train.sbatch — ONE monolithic exp_46 job on neuronic (forked from exp_45's exp45_train.sbatch at X45f, from exp_38's;
+# plan_c4flip_data_curve.md r3 §3.2; exp_38: plan_data_efficiency.md r2 §10 B7;
 # sensitivity platform, D2). Submit ONLY through exp38_submit_neuronic.py, which derives the Slurm
 # resources, owns (run, mode) with a stable intent record, names the job with its intent token and
 # exports:
@@ -24,7 +24,7 @@ set -uo pipefail
 main() {
   local REPO; REPO="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "not inside the FLAC checkout" >&2; exit 3; }
   cd "$REPO" || exit 3
-  local EXP="worklog/worklog_yixun/exp_45_rf_data_curve_claude"
+  local EXP="worklog/worklog_yixun/exp_46_c4flip_data_curve_claude"
   local DRY="${EXP38_SBATCH_DRYRUN:-0}"
   die() { echo "EXP38 JOB REFUSED: $1" >&2; exit "${2:-2}"; }
   if [ "$DRY" = 1 ] && [ -n "${SLURM_JOB_ID:-}" ]; then die "EXP38_SBATCH_DRYRUN is a test hook, never under a real allocation"; fi
@@ -32,7 +32,7 @@ main() {
 
   local RUN="${RUN:-}" MODE="${MODE:-}" EXPECT_SHA="${EXPECT_SHA:-}" TOKEN="${EXP38_TOKEN:-}"
   local ATTN_BACKEND="${ATTN_BACKEND:-flash}" ALLOW="${ALLOW_NONMATCHED_RUNG:-0}" SD="${SAVE_DIR:-}"
-  [[ "$RUN" =~ ^exp45_RFf(025|050|075)_l40_2x32$ ]] || die "RUN '${RUN}' is not a registered exp_45 run id"
+  [[ "$RUN" =~ ^exp46_RFf(025|050|075)_l40_2x32$ ]] || die "RUN '${RUN}' is not a registered exp_46 run id"
   case "$MODE" in SMOKE|FULL) ;; *) die "MODE must be SMOKE|FULL";; esac
   [[ "$TOKEN" =~ ^[0-9a-f]{32}$ ]] || die "EXP38_TOKEN must be the submission's 32-hex intent token"
   case "$ATTN_BACKEND" in flash|sdpa) ;; *) die "ATTN_BACKEND must be flash|sdpa" ;; esac
@@ -58,9 +58,9 @@ main() {
   # bytecode, so a launch checkout never acquires __pycache__ files there
   if [ "$DRY" = 1 ]; then
     [ -n "${EXP38_DRY_SAVE_ROOT:-}" ] && ARGS+=(--dry-save-root "$EXP38_DRY_SAVE_ROOT")
-    exec "$PY" -B "$REPO/$EXP/exp45_supervise.py" --mode DRY_RUN "${ARGS[@]}"
+    exec "$PY" -B "$REPO/$EXP/exp46_supervise.py" --mode DRY_RUN "${ARGS[@]}"
   fi
-  exec "$PY" -B "$REPO/$EXP/exp45_supervise.py" --mode "$MODE" "${ARGS[@]}" --expect-sha "$EXPECT_SHA" \
+  exec "$PY" -B "$REPO/$EXP/exp46_supervise.py" --mode "$MODE" "${ARGS[@]}" --expect-sha "$EXPECT_SHA" \
     --token "$TOKEN" --save-dir "$SD"
 }
 

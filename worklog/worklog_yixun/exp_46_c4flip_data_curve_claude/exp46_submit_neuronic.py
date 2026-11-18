@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""exp_45 neuronic submitter (forked from exp_38's exp38_submit_neuronic.py; plan_rf_data_curve.md r3 §3.2) —
+"""exp_46 neuronic submitter (forked from exp_45's exp45_submit_neuronic.py at X45f, from exp_38's; plan_c4flip_data_curve.md r3 §3.2) —
 one monolithic job per (run, mode), exactly once (exp_38 plan r2 §10 B7;
 Codex code r1 HIGH 6).
 
 Run on the neuronic login node from the exp-38 checkout (HEAD pushed, tracked tree clean):
 
-    exp38_submit_neuronic.py submit    --run exp45_RFf025_l40_2x32 --mode SMOKE --time 01:00:00 [--dry-run]
-    exp38_submit_neuronic.py submit    --run exp45_RFf025_l40_2x32 --mode FULL  --time 3-00:00:00 [--dry-run]
-    exp38_submit_neuronic.py reconcile --run exp45_RFf025_l40_2x32 --mode FULL      # after an interrupted submit
-    exp38_submit_neuronic.py abandon   --run exp45_RFf025_l40_2x32 --mode FULL      # only once the job is proven gone
-    exp45_submit_neuronic.py release   --run exp45_RFf025_l40_2x32                  # a SEALED run's stranded hold
+    exp38_submit_neuronic.py submit    --run exp46_RFf025_l40_2x32 --mode SMOKE --time 01:00:00 [--dry-run]
+    exp38_submit_neuronic.py submit    --run exp46_RFf025_l40_2x32 --mode FULL  --time 3-00:00:00 [--dry-run]
+    exp38_submit_neuronic.py reconcile --run exp46_RFf025_l40_2x32 --mode FULL      # after an interrupted submit
+    exp38_submit_neuronic.py abandon   --run exp46_RFf025_l40_2x32 --mode FULL      # only once the job is proven gone
+    exp46_submit_neuronic.py release   --run exp46_RFf025_l40_2x32                  # a SEALED run's stranded hold
 
-Ownership: ONE stable owner record per (run, mode), ``<save root>/.exp45_owners/<run>__<MODE>/``,
+Ownership: ONE stable owner record per (run, mode), ``<save root>/.exp46_owners/<run>__<MODE>/``,
 created atomically (``mkdir``) with ``intent.json`` (state "submitting") BEFORE ``sbatch``; the job id
 is added after ``sbatch`` (state "submitted"). The owner record is separate from the attempt payload:
 the job itself writes ``attempt_<jobid>.json`` there (exactly one attempt per owner; ``--no-requeue``),
@@ -19,11 +19,11 @@ after exact-comparing its token / run / mode / HEAD / backend / flash version / 
 / job name / job id with the intent. SMOKE and FULL have fixed run dirs (``<run>_smoke`` / ``<run>``),
 so a second SMOKE is refused exactly like a second FULL. ``reconcile`` resolves an interrupted
 submission only when exactly one job carries the token (zero or several: refuse, exit 2);
-``abandon`` (all token jobs terminal) moves the owner record to ``.exp45_owners/abandoned/`` and the
+``abandon`` (all token jobs terminal) moves the owner record to ``.exp46_owners/abandoned/`` and the
 run dir to ``<dir>.abandoned_<ts>`` -- an abandoned record is never found again.
 
 Crash recovery (Codex code r1 finding 7): submit() holds the (run, mode) submission lock
-``<save root>/.exp45_submit_<run>__<MODE>.lock`` from its reservation to the 'submitted' intent, and reconcile /
+``<save root>/.exp46_submit_<run>__<MODE>.lock`` from its reservation to the 'submitted' intent, and reconcile /
 abandon take the same lock, so a submission in flight is never mistaken for a crash. abandon then recovers from the
 PERSISTED state alone: a reservation (or an owner dir) with no intent.json -- the submit died before its intent,
 so no sbatch was ever issued: released only when no job carries the reservation's token -- or a reservation whose
@@ -44,16 +44,16 @@ import uuid
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
-import exp45_registry as reg  # noqa: E402
+import exp46_registry as reg  # noqa: E402
 
 TERMINAL = {"COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL", "PREEMPTED",
             "BOOT_FAIL", "DEADLINE", "REVOKED"}
 LIVE = {"PENDING", "RUNNING", "CONFIGURING", "COMPLETING", "SUSPENDED", "REQUEUED", "RESIZING", "STOPPED",
         "SIGNALING", "STAGE_OUT", "REQUEUE_HOLD", "REQUEUE_FED", "SPECIAL_EXIT"}
-SUBLOG = f"{reg.EXP_DIR}/exp45_neuronic_submissions.log"
-OWNERS = ".exp45_owners"
-BRANCH = "exp-45-rf-data-curve"            # the launch branch on origin (plan F15, N6)
-PARTITION = "all"                           # exp45_train.sbatch's #SBATCH --partition
+SUBLOG = f"{reg.EXP_DIR}/exp46_neuronic_submissions.log"
+OWNERS = ".exp46_owners"
+BRANCH = "exp-46-c4flip-data-curve"            # the launch branch on origin (plan F15, N6)
+PARTITION = "all"                           # exp46_train.sbatch's #SBATCH --partition
 ATTEMPT_CLAIM = "attempt.claim"
 # Codex code r2 finding 7: a killed submitter does not stop its sbatch child, so a 'submitting' intent with no job id
 # may still turn into a job; abandon keeps the hold for this long after the intent was written
@@ -94,14 +94,14 @@ INTENT_KEYS = frozenset({"schema", "token", "run", "mode", "head", "time", "back
 
 def submit_lock_path(run, mode, root=None):
     reg.parse_run_id(run)
-    return os.path.join(save_root(root), f".exp45_submit_{run}__{mode}.lock")
+    return os.path.join(save_root(root), f".exp46_submit_{run}__{mode}.lock")
 
 
 @contextlib.contextmanager
 def submit_lock(run, mode, root=None):
     """The (run, mode) submission lock (finding 7), never waited for: a holder means a submission is in flight (a
     dead submitter's lock is released by the kernel)."""
-    reg.check_isolation(save_root(root), "the exp_45 save root")   # before the lock file (Codex code r2 finding 6)
+    reg.check_isolation(save_root(root), "the exp_46 save root")   # before the lock file (Codex code r2 finding 6)
     fh = open(submit_lock_path(run, mode, root), "a")
     try:
         try:
@@ -114,7 +114,7 @@ def submit_lock(run, mode, root=None):
 
 
 def job_name(run, mode, token):
-    return f"exp45-{run}-{mode.lower()}-{token[:8]}"
+    return f"exp46-{run}-{mode.lower()}-{token[:8]}"
 
 
 def sbatch_argv(run, mode, token, head, time_limit, backend, flash_version, sd, allow_nonmatched):
@@ -122,12 +122,12 @@ def sbatch_argv(run, mode, token, head, time_limit, backend, flash_version, sd, 
     exports = {"RUN": run, "MODE": mode, "EXPECT_SHA": head, "EXP38_TOKEN": token, "ATTN_BACKEND": backend,
                "EXPECT_FLASH_VERSION": flash_version or "", "ALLOW_NONMATCHED_RUNG": "1" if allow_nonmatched else "0",
                "SAVE_DIR": sd}
-    return ["sbatch", "--parsable", f"--job-name={job_name(run, mode, token)}", f"--comment=exp45:{token}",
+    return ["sbatch", "--parsable", f"--job-name={job_name(run, mode, token)}", f"--comment=exp46:{token}",
             f"--gres=gpu:l40:{r['ngpu']}", f"--cpus-per-task={r['cpus']}", f"--mem={r['mem']}",
             f"--time={time_limit}", "--no-requeue", f"--chdir={reg.REPO}",
             f"--output={reg.REPO}/{reg.EXP_DIR}/slurm_train_%x_%j.out",
             "--export=ALL," + ",".join(f"{k}={v}" for k, v in exports.items()),
-            f"{reg.REPO}/{reg.EXP_DIR}/exp45_train.sbatch"]
+            f"{reg.REPO}/{reg.EXP_DIR}/exp46_train.sbatch"]
 
 
 def _write_intent(path, rec):
@@ -191,9 +191,9 @@ def submit(run, mode, time_limit, backend, flash_version, allow_nonmatched, dry,
     if mode not in ("SMOKE", "FULL"):
         raise SubmitError("mode must be SMOKE or FULL")
     if backend != reg.TRAINING_BACKEND:                   # plan r3 F2 / L5 (Codex code r2 finding 12)
-        raise SubmitError(f"exp_45 trains with backend {reg.TRAINING_BACKEND} only (plan r3 F2, L5): --backend "
+        raise SubmitError(f"exp_46 trains with backend {reg.TRAINING_BACKEND} only (plan r3 F2, L5): --backend "
                           f"{backend} is refused")
-    reg.check_isolation(save_root(root), "the exp_45 save root")     # before ANY mutation (Codex code r2 finding 6)
+    reg.check_isolation(save_root(root), "the exp_46 save root")     # before ANY mutation (Codex code r2 finding 6)
     want_s = slurm_seconds(time_limit)
     if want_s is None:
         raise SubmitError(f"--time {time_limit!r} is not a Slurm time (e.g. 24:00:00 or 3-00:00:00)")
@@ -503,7 +503,7 @@ def release(run, root=None, runner=subprocess.run):
         if intent["state"] != "submitted" or intent["job_id"] not in jobs:
             raise SubmitError(f"recorded job {intent['job_id']} is not visible to the scheduler: refuse to guess")
         out = reg.release_storage(run, intent["token"], save_root(root),
-                                  reason="released after the run was sealed (exp45_submit_neuronic.py release; run dir kept)")
+                                  reason="released after the run was sealed (exp46_submit_neuronic.py release; run dir kept)")
         return {"run": run, "released": out is not None, "jobs": jobs}
 
 
@@ -535,7 +535,7 @@ def main(argv=None):
             out = abandon(a.run, a.mode)
         print(json.dumps(out, indent=1))
     except (SubmitError, reg.GateError, subprocess.CalledProcessError, OSError, ValueError) as err:
-        print(f"EXP45 SUBMIT REFUSED: {err}", file=sys.stderr)
+        print(f"EXP46 SUBMIT REFUSED: {err}", file=sys.stderr)
         return 2
     return 0
 

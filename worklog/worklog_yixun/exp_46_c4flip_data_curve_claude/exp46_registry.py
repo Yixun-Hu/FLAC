@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""exp_45 rf_data_curve — the single source of truth for every training run.
+"""exp_46 c4flip_data_curve — the single source of truth for every training run.
 
-Forked from exp_38's exp38_registry.py (exp_45 commit A, a byte copy); every later change is a delta of
-plan_rf_data_curve.md r3 §3.2. exp_38's tools and artifacts are reused READ-ONLY at their own paths
+Forked from exp_45's exp45_registry.py at X45f = 1e37ead2 (exp_46 commit A, a byte copy; exp_45 forked it from
+exp_38's exp38_registry.py); every later change is a delta of
+plan_c4flip_data_curve.md r3 §3.2. exp_38's tools and artifacts are reused READ-ONLY at their own paths
 (``EXP38_DIR``): its registry (imported by its two tools), the subset audit + content manifest, the 68
 reference cells and the sealed E0a decision.
 
 Every launch path (the neuronic sbatch + submitter, the eval driver) asks THIS module for the run's
 config, dataset config, argv, expected checkpoint names and gates. Exactly three runs exist: exp_43's RF
 arm (full-circle roll + mirror flip p = 1/2) at exp_38's 25 / 50 / 75 % subsets on neuronic 2 x L40 x 32
-(plan_rf_data_curve.md r3 §2, §3.2; exp_38: plan_data_efficiency.md §6-§7, §10 item 4).
+(plan_c4flip_data_curve.md r3 §2, §3.2; exp_38: plan_data_efficiency.md §6-§7, §10 item 4).
 
-Pure functions on top; a small CLI at the bottom (``python exp45_registry.py -h``). torch is
+Pure functions on top; a small CLI at the bottom (``python exp46_registry.py -h``). torch is
 imported lazily (only ``audit-ckpt`` and the chunk-plan probe need it), so ``dry-run`` and
 ``check`` run in a plain interpreter.
 
@@ -42,7 +43,7 @@ def _repo_root(start):
 
 
 REPO = _repo_root(HERE)
-EXP_DIR = "worklog/worklog_yixun/exp_45_rf_data_curve_claude"
+EXP_DIR = "worklog/worklog_yixun/exp_46_c4flip_data_curve_claude"
 # exp_38's folder (plan r3 §3.2): bound paths of the reused tools / artifacts keep naming it
 EXP38_DIR = "worklog/worklog_yixun/exp_38_data_efficiency_claude"
 REF_DIR = f"{EXP38_DIR}/ref_cells"                       # the ONE reference directory (Codex plan r2 finding 1)
@@ -62,7 +63,7 @@ VIT_REPO_DIR = "models--facebook--dinov3-vits16-pretrain-lvd1689m"
 VIT_REV = "114c1379950215c8b35dfcd4e90a5c251dde0d32"
 VIT_FILES = {"config.json": "9481247be9f95a134a5599402b4bfc838eecdf9a7fffbf4debd1c70ec213898b",
              "model.safetensors": "4610ad75edef83e75afdebf162d148dc628045ea6cbb83d67d4708c709c4f91d"}
-YAW_BANNER = "yaw_aug ENABLED img_w=512 seed=42"            # exp_15's YAW line: never in an exp_45 log
+YAW_BANNER = "yaw_aug ENABLED img_w=512 seed=42"            # exp_15's YAW line: never in an exp_46 log
 # exp_43's RF line: printed ONCE, by rank 0 (diffusion.py _print_yaw_aug_banner is rank_zero_only; plan F1)
 RF_BANNER = "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"
 FLASH_MISSING = "flash_attn not installed"
@@ -108,21 +109,21 @@ E0_CONFIGS = {
 RUNGS = {"2x32": {"ngpu": 2, "micro": 32, "default": True}}
 PLATFORMS = {
     "a6000": {"rungs": ("2x32",), "launcher": "python",
-              "save_root": "/media/diskstation/yixunhu/FLAC/checkpoints/exp45_rf_data_curve"},
+              "save_root": "/media/diskstation/yixunhu/FLAC/checkpoints/exp46_c4flip_data_curve"},
     "neuronic": {"rungs": ("2x32",), "launcher": "torchrun",
-                 "save_root": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve"},
+                 "save_root": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve"},
 }
 OPTIONAL_RUNS = ()
 
 
 # seed-42 initial wrapper state (exp38_init_digest.py on the CPU == the in-process evidence of the
-# GPU-0 smokes, 2026-11-07; identical for YAW, B-F and P1 -- their .model sections are equal). exp_45's
+# GPU-0 smokes, 2026-11-07; identical for YAW, B-F and P1 -- their .model sections are equal). exp_46's
 # REGISTERED PREDICTION for RF is the same value (plan r3 §3.2: the flip adds no state tensor and no RNG draw at
-# construction); verified fail-closed by exp45_init_digest.py (L3) and the SMOKE evidence
+# construction); verified fail-closed by exp46_init_digest.py (L3) and the SMOKE evidence
 INIT_STATE_SHA256 = "378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95"
 INIT_SOBOL_SHA256 = "2b099850ab9d888b168c8ca18dd693819a41814b682c5df0fa5ca9be7bc58798"
 FLASH_VERSION = "2.7.4.post1"
-CAMPAIGN_ROOT = {"a6000": "/home/yixunhu/codespace/exp-45-campaign"}   # tree 45 (plan r3 §4)
+CAMPAIGN_ROOT = {"a6000": "/home/yixunhu/codespace/exp-46-campaign"}   # tree 45 (plan r3 §4)
 # exact untracked symlinks a campaign tree may carry on this box (content is pinned separately)
 SYMLINK_ALLOWLIST = {"a6000": {"AcousticRooms": "/media/diskstation/yixunhu/FLAC/AcousticRooms",
                                "weights/AGREE": "/home/yixunhu/codespace/FLAC/weights/AGREE",
@@ -157,7 +158,7 @@ def canonical(obj):
 def run_id(arm, tag, rung="2x32"):
     if arm not in ARMS or tag not in FRACS or rung not in RUNGS:
         raise GateError(f"unknown run ({arm!r}, {tag!r}, {rung!r})")
-    return f"exp45_{arm.upper()}f{tag}_l40_{rung}"
+    return f"exp46_{arm.upper()}f{tag}_l40_{rung}"
 
 
 def required_runs(rung="2x32"):
@@ -170,20 +171,20 @@ def all_runs(rung="2x32"):
 
 # the launchable matrix: exactly the three RF runs (plan r3 §2, §3.2) -- no P1 bridge, no 8x8, no _r suffix
 REGISTERED_RUNS = frozenset(required_runs("2x32"))
-# D1 (Yixun, 2026-11-14): exp_45 trains on neuronic 2 x L40 x 32 (exp_38's D2). FULL refuses elsewhere.
+# D1 (Yixun, 2026-11-14): exp_46 trains on neuronic 2 x L40 x 32 (exp_38's D2). FULL refuses elsewhere.
 TRAINING_PLATFORM = "neuronic"
 
 
 def campaign_runs():
     """The runs the campaign must train and evaluate: the three RF runs."""
     return required_runs("2x32")
-_RUN_RE = re.compile(r"^exp45_RFf(025|050|075)_l40_2x32$")
+_RUN_RE = re.compile(r"^exp46_RFf(025|050|075)_l40_2x32$")
 
 
 def parse_run_id(run):
     m = _RUN_RE.match(run if isinstance(run, str) else "")
     if not m or run not in REGISTERED_RUNS:
-        raise GateError(f"not a registered exp_45 run id: {run!r}")
+        raise GateError(f"not a registered exp_46 run id: {run!r}")
     return "rf", m.group(1), "2x32"
 
 
@@ -632,14 +633,14 @@ def argv_projection(argv):
     return [a for i, a in enumerate(argv) if a not in drop_value and not (i and argv[i - 1] in drop_value)]
 
 
-WORLD_SIZE_REFUSAL = ("exp_45 registers 2 x 32 only (plan r3 §5 L5: every SMOKE and FULL runs on 2 x L40, "
+WORLD_SIZE_REFUSAL = ("exp_46 registers 2 x 32 only (plan r3 §5 L5: every SMOKE and FULL runs on 2 x L40, "
                       "RUNGS = 2x32): a {n}-rank {what} is refused")
 
 
 def build_smoke_argv(run, steps, smoke_dir, ddp=False, platform="a6000"):
     """Storage-light smoke at the real per-rank micro-batch. ``ddp=True``: the production topology of the rung, exactly
     the FULL argv but for the step budget, cadence, names and save dir. ``ddp=False`` (exp_38's one-rank preliminary
-    smoke) is refused: exp_45 has no single-rank path (Codex code r1 finding 11)."""
+    smoke) is refused: exp_46 has no single-rank path (Codex code r1 finding 11)."""
     arm, tag, rung = parse_run_id(run)
     if not ddp:
         raise GateError(WORLD_SIZE_REFUSAL.format(n=1, what="SMOKE argv"))
@@ -745,7 +746,7 @@ def parse_losses(text):
 
 
 def log_gate(text, run, phase, backend, ngpu, n_items=None, max_steps=MAX_STEPS, min_losses=1):
-    """Return a list of problems (empty = PASS) for the start or end phase of a training log. Every exp_45 launch
+    """Return a list of problems (empty = PASS) for the start or end phase of a training log. Every exp_46 launch
     path is 2 x 32, so a log of any other world size is refused outright (Codex code r1 finding 11): the loader
     length below is the two-rank one by construction."""
     arm, tag, _ = parse_run_id(run)
@@ -901,8 +902,8 @@ def mount_fstype(path):
 
 # ---------------------------------------------------------------- isolation from exp_38's roots (Codex code r2 finding 6)
 # exp_38's protected roots -- exp_38's OWN values (exp38_registry.PLATFORMS[*]["save_root"], exp38_eval.DUMP_ROOT and
-# FARM; pinned against those files by test_exp45_isolation.py): its two save roots, its dump root and, in every tree
-# involved, its farm and its worklog folder (EXP38_DIR). Every exp_45 output namespace is checked as a realpath
+# FARM; pinned against those files by test_exp46_isolation.py): its two save roots, its dump root and, in every tree
+# involved, its farm and its worklog folder (EXP38_DIR). Every exp_46 output namespace is checked as a realpath
 # against them before ANY mutation (a probe, a lock, the ledger, an owner record, a directory).
 EXP38_SAVE_ROOTS = ("/media/diskstation/yixunhu/FLAC/checkpoints/exp38_data_efficiency",
                     "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency")
@@ -1018,8 +1019,8 @@ def storage_gate(platform, path, need_bytes, tag="exp38"):
 # its credit only if it is the same file, unchanged, in both scans (same st_dev, st_ino and st_ctime_ns): a file that
 # appeared, disappeared, shrank, was replaced (even into a reused inode) or is still being written earns nothing.
 # A regular file with more than one hard link refuses outright (its allocation would be credited once per name).
-STORAGE_LEDGER = ".exp45_storage.json"
-STORAGE_LOCK = ".exp45_storage.lock"
+STORAGE_LEDGER = ".exp46_storage.json"
+STORAGE_LOCK = ".exp46_storage.lock"
 STORAGE_FLOOR_BYTES = TRAIN_FREE_GIB * 2**30
 CKPT_BYTES = 724_000_000             # >= one 40k checkpoint of this architecture (723,922,667-723,927,531 B measured)
 RUN_RESERVE_BYTES = len(cadence_steps()) * CKPT_BYTES + 2 * 2**30      # 16 checkpoints + 2 GiB logs / snapshot
@@ -1173,8 +1174,8 @@ def release_storage(run, token, root, reason="released"):
 
 
 # ---------------------------------------------------------------- the plan r3 §8 disclosures (ONE source)
-# printed under every exp_45 table -- exp45_collect.py's results Markdown, exp45_table.py's comparison table and the
-# shared generator's exp_45 block (Codex code r1 finding 15): brief §9 items 1-7 + plan r3 §8 items 8-11, written
+# printed under every exp_46 table -- exp46_collect.py's results Markdown, exp46_table.py's comparison table and the
+# shared generator's exp_46 block (Codex code r1 finding 15): brief §9 items 1-7 + plan r3 §8 items 8-11, written
 # here only, so the three cannot drift apart
 DISCLOSURES = (
     "1. One training seed and one subset draw per point; the SD is evaluation randomness only (eval seeds 42-46): no "
@@ -1203,14 +1204,14 @@ def disclosures(table):
 
 
 def disclosure_block(table):
-    return ["## Disclosures (plan_rf_data_curve.md r3 §8)", ""] + list(disclosures(table))
+    return ["## Disclosures (plan_c4flip_data_curve.md r3 §8)", ""] + list(disclosures(table))
 
 
 # ---------------------------------------------------------------- campaign closure + immutable snapshot
 # AGREE/: the metric code imports `AGREE.AGREE` -- every reference cell ran with the repo root (so the
 # repo copy, not the site-packages one) first on sys.path; the snapshots keep that
 CLOSURE_ROOTS = ("train.py", "defaults.ini", "eval_FLAC.py", "pyproject.toml", "src", "overlays", "data/AR", "AGREE")
-CLOSURE_EXP_PREFIXES = ("exp45_",)
+CLOSURE_EXP_PREFIXES = ("exp46_",)
 
 
 def ref_set():
@@ -1494,14 +1495,14 @@ ENV_PREFIXES = ("NCCL_", "TORCH", "PYTORCH_", "CUBLAS", "CUDNN", "PL_", "LIGHTNI
 
 # the ONLY untracked (not ignored) entries a campaign tree may hold besides TREE_LINKS: the records the
 # kit itself writes into its own folder (Codex code r2 HIGH 10)
-UNTRACKED_RECORDS = re.compile(r"^" + re.escape(EXP_DIR) + r"/(rf_data_curve_[^/]+\.(json|sha256|log|out|md|txt\.gz)"
-                               r"|at_launch_[^/]+\.json|eval_logs/rf_data_curve_[^/]+\.log|slurm_train_[^/]+\.out"
-                               r"|exp45_neuronic_submissions\.log|\.collect\.lock|\.rf_data_curve_env_receipt\.lock)$")
+UNTRACKED_RECORDS = re.compile(r"^" + re.escape(EXP_DIR) + r"/(c4flip_data_curve_[^/]+\.(json|sha256|log|out|md|txt\.gz)"
+                               r"|at_launch_[^/]+\.json|eval_logs/c4flip_data_curve_[^/]+\.log|slurm_train_[^/]+\.out"
+                               r"|exp46_neuronic_submissions\.log|\.collect\.lock|\.c4flip_data_curve_env_receipt\.lock)$")
 IMPORTABLE = (".py", ".pyc", ".pyo", ".so", ".pyd", ".pth", ".egg-link", ".egg-info", ".dist-info")
 # the kit's own temporary names while the environment receipt is published (atomic_write_bytes' ".<name>.tmp.<pid>"):
 # tolerated ONLY while another live process holds the receipt lock (Codex code r2 finding 11); stale otherwise -- unless
 # the name vanished before it was inspected under that lock (a publication that completed meanwhile, r3 finding 2)
-ENV_RECEIPT_TMP = re.compile(r"^" + re.escape(EXP_DIR) + r"/\.rf_data_curve_env_receipt_neuronic\.json(\.sha256)?"
+ENV_RECEIPT_TMP = re.compile(r"^" + re.escape(EXP_DIR) + r"/\.c4flip_data_curve_env_receipt_neuronic\.json(\.sha256)?"
                              r"\.tmp\.[0-9]+$")
 
 
@@ -1743,7 +1744,7 @@ def env_snapshot(platform):
 
 
 def env_receipt_rel(platform):
-    return f"{EXP_DIR}/rf_data_curve_env_receipt_{platform}.json"
+    return f"{EXP_DIR}/c4flip_data_curve_env_receipt_{platform}.json"
 
 
 def env_receipt(platform, write=False, repo=None):
@@ -1766,7 +1767,7 @@ def env_receipt(platform, write=False, repo=None):
     return {"env_receipt": path, "sha256": digest}
 
 
-ENV_RECEIPT_LOCK = f"{EXP_DIR}/.rf_data_curve_env_receipt.lock"
+ENV_RECEIPT_LOCK = f"{EXP_DIR}/.c4flip_data_curve_env_receipt.lock"
 
 
 def ensure_env_receipt(platform, repo=None):
@@ -1787,17 +1788,17 @@ def env_receipt_sha(platform, repo=None):
 
 
 # ---------------------------------------------------------------- E0 (the validator lives with its writer)
-E0_RECEIPT = f"{EXP_DIR}/rf_data_curve_e0_receipt.json"
+E0_RECEIPT = f"{EXP_DIR}/c4flip_data_curve_e0_receipt.json"
 
 
 def check_e0_receipt(platform, repo=None):
-    """The E0 receipt must be a complete PASS at THIS closure (exp45_eval.validate_e0_receipt; the
+    """The E0 receipt must be a complete PASS at THIS closure (exp46_eval.validate_e0_receipt; the
     environment-receipt binding applies on the A6000 box, where E0 ran)."""
     if HERE not in sys.path:
         sys.path.insert(0, HERE)
-    import exp45_eval
+    import exp46_eval
     # on neuronic the eight E0 cells are copied beside the receipt and re-admitted OFFLINE (Codex code r3 HIGH 5)
-    return exp45_eval.validate_e0_receipt(repo=repo, platform=platform, readmit=True)
+    return exp46_eval.validate_e0_receipt(repo=repo, platform=platform, readmit=True)
 
 
 # ---------------------------------------------------------------- SMOKE_DDP receipt (Codex code r1 BLOCKING 1)
@@ -1847,7 +1848,7 @@ SMOKE_KEYS = frozenset({"schema", "mode", "run", "platform", "backend", "head", 
 
 
 def smoke_receipt_rel(run, platform, ts):
-    return f"{EXP_DIR}/rf_data_curve_smoke_{run}_{platform}_{ts}.json"
+    return f"{EXP_DIR}/c4flip_data_curve_smoke_{run}_{platform}_{ts}.json"
 
 
 def gpu_identity(platform, ngpu, rows=None):
@@ -1967,7 +1968,7 @@ def smoke_receipt_problems(rec, run, platform, backend, head, gpus=None, repo=No
     return p
 
 
-# Codex code r2 finding 12: plan r3 F2 / L5 register backend flash for exp_45 training (exp_38's seven neuronic FULL
+# Codex code r2 finding 12: plan r3 F2 / L5 register backend flash for exp_46 training (exp_38's seven neuronic FULL
 # launch records at e5a012fa all say backend flash); SMOKE / FULL launches and their receipts' admission refuse any
 # other training backend (the evaluator's no-flash overlay is evaluation, untouched)
 TRAINING_BACKEND = "flash"
@@ -1977,9 +1978,9 @@ def check_smoke_receipt(run, platform, backend, head, gpus=None, repo=None):
     """The newest sealed SMOKE_DDP receipt for (run, platform) must pass every field check; an
     older PASS cannot stand in for a newer FAIL (the newest receipt decides). Flash only (r2 finding 12)."""
     if backend != TRAINING_BACKEND:
-        raise GateError(f"exp_45 trains with backend {TRAINING_BACKEND} only (plan r3 F2, L5): a {backend!r} SMOKE "
+        raise GateError(f"exp_46 trains with backend {TRAINING_BACKEND} only (plan r3 F2, L5): a {backend!r} SMOKE "
                         "cannot authorise a FULL")
-    paths = sorted(glob.glob(_abs(f"{EXP_DIR}/rf_data_curve_smoke_{run}_{platform}_*.json", repo)))
+    paths = sorted(glob.glob(_abs(f"{EXP_DIR}/c4flip_data_curve_smoke_{run}_{platform}_*.json", repo)))
     if not paths:
         raise GateError(f"no SMOKE_DDP receipt for {run} on {platform}")
     rec, digest = read_sealed(paths[-1], SMOKE_KEYS)
@@ -2178,7 +2179,7 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
     sha256 and byte count. Returns (receipt, receipt sha256)."""
     if HERE not in sys.path:
         sys.path.insert(0, HERE)
-    import exp45_eval
+    import exp46_eval
     arm, tag, rung = parse_run_id(run)
     ngpu = RUNGS[rung]["ngpu"]
     src = receipt_dir or rd
@@ -2187,7 +2188,7 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
     p = []
     plat, backend = rec["platform"], rec["backend"]
     if plat not in PLATFORMS or (platform is not None and plat != platform) or backend != TRAINING_BACKEND:
-        raise GateError(f"{run} training receipt: platform {plat!r} / backend {backend!r} (exp_45 trains with backend "
+        raise GateError(f"{run} training receipt: platform {plat!r} / backend {backend!r} (exp_46 trains with backend "
                         f"{TRAINING_BACKEND} only, plan r3 F2 / L5)")
     want = {"schema": 1, "run": run, "rc": 0, "log_gate": "PASS", "evidence_gate": "PASS", "final_ckpt": final,
             "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung))),
@@ -2225,14 +2226,14 @@ def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes
             p.append("the retained loss record != the training receipt's sha256 / rows")
         if not os.path.isfile(os.path.join(rdir, LOSS_RECORD_HPARAMS)):
             p.append(f"the retained {LOSS_RECORD_HPARAMS} is missing")
-        e0c, d_e0 = read_sealed(os.path.join(rdir, names["e0"]), exp45_eval.E0_KEYS)
+        e0c, d_e0 = read_sealed(os.path.join(rdir, names["e0"]), exp46_eval.E0_KEYS)
         envc, d_env = read_sealed(os.path.join(rdir, names["env"]), ENV_RECEIPT_KEYS)
         smk, d_smk = read_sealed(os.path.join(rdir, names["smoke"]), SMOKE_KEYS)
         if (d_e0, d_env, d_smk) != (rec["e0_receipt_sha256"], rec["env_receipt_sha256"], rec["smoke_receipt_sha256"]):
             p.append("a retained receipt copy != the sha the training receipt bound")
         if e0c["verdict"] != "PASS" or e0c["closure_sha256"] != rec["closure_sha256"]:
             p.append("the retained E0 receipt is not a PASS at the run's closure")
-        p += [f"retained E0: {x}" for x in exp45_eval.e0_static_problems(e0c)]
+        p += [f"retained E0: {x}" for x in exp46_eval.e0_static_problems(e0c)]
         if envc["platform"] != plat:
             p.append("the retained environment receipt is another platform's")
         if not (isinstance(envc["packages"], dict) and envc["packages_sha256"] ==

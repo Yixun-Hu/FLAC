@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""exp_45 (forked from exp_38's exp38_init_digest.py) — the registered seed-42 initial-state digest of an arm
-(exp_38 plan r2 §10 B3; exp_45 plan r3 §3.2: names / registry only).
+"""exp_46 (forked from exp_45's exp45_init_digest.py at X45f, from exp_38's) — the registered seed-42 initial-state digest of an arm
+(exp_38 plan r2 §10 B3; exp_46 plan r3 §3.2: names / registry only).
 
 Builds the training wrapper on the CPU in train.py's exact order (float32 matmul precision,
 ``pl.seed_everything(42, workers=True)`` -> dataloader construction -> ``create_model_from_config``
@@ -8,9 +8,9 @@ Builds the training wrapper on the CPU in train.py's exact order (float32 matmul
 ``src.training.run_evidence.state_dict_digest`` of the wrapper plus the Sobol and RNG digests.
 The in-process evidence of every training rank must report the same state digest (the start
 gate); YAW, B-F and P1 share it because their ``.model`` sections are canonically identical -- and RF, the
-registered exp_45 prediction (plan r3 §3.2), verified at L3.
+registered exp_46 prediction (plan r3 §3.2), verified at L3.
 
-    python exp45_init_digest.py --run exp45_RFf025_l40_2x32 [--json out.json]
+    python exp46_init_digest.py --run exp46_RFf025_l40_2x32 [--json out.json]
 
 Written by the exp_38 Coder (Claude Opus 5.5).
 """
@@ -21,7 +21,7 @@ import sys
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
-import exp45_registry as reg  # noqa: E402
+import exp46_registry as reg  # noqa: E402
 
 
 def init_digest(run, repo=None):

@@ -1,14 +1,14 @@
-"""exp_45 — isolation from exp_38's roots (Codex code r2 finding 6).
+"""exp_46 — isolation from exp_38's roots (Codex code r2 finding 6).
 
 exp_38's protected roots are its two save roots (A6000 NAS, neuronic), its dump root, and -- in every tree involved --
 its farm and its worklog folder, all compared as realpaths. Before ANY mutation (probe, lock, ledger, owner record,
-directory), an exp_45 output namespace -- a save root, the dump root, the farm -- that equals, contains or lies
-inside a protected root refuses, so an alias (a symlink, a bind of the same directory) can never route exp_45's
+directory), an exp_46 output namespace -- a save root, the dump root, the farm -- that equals, contains or lies
+inside a protected root refuses, so an alias (a symlink, a bind of the same directory) can never route exp_46's
 writes into exp_38's. A materialisation destination may not equal or lie inside a protected root, writes no file
-through an aliased directory, and exp45_collect.py writes nothing into exp_38's namespaces (exp_38's reference files
+through an aliased directory, and exp46_collect.py writes nothing into exp_38's namespaces (exp_38's reference files
 must already be in the destination, byte-identical).
 
-Written by the exp_45 Coder (Claude Opus 5.5).
+Written by the exp_46 Coder (Claude Opus 5.5).
 """
 import hashlib
 import importlib.util
@@ -19,11 +19,11 @@ import sys
 import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_45_rf_data_curve_claude")
+EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_46_c4flip_data_curve_claude")
 sys.path.insert(0, EXP)
-import exp45_registry as reg  # noqa: E402
+import exp46_registry as reg  # noqa: E402
 
-RUN = "exp45_RFf025_l40_2x32"
+RUN = "exp46_RFf025_l40_2x32"
 
 
 def _load(path, name):
@@ -62,14 +62,14 @@ def _listing(d):
 
 def test_equal_contained_and_containing_aliases_are_refused(tmp_path, protected):
     save38, _ = protected
-    alias = tmp_path / "exp45_alias"
+    alias = tmp_path / "exp46_alias"
     alias.symlink_to(save38)
-    for path in (alias, alias / "exp45_RFf025_l40_2x32", tmp_path, save38):   # equal (via the link), inside, contains
+    for path in (alias, alias / "exp46_RFf025_l40_2x32", tmp_path, save38):   # equal (via the link), inside, contains
         assert reg.isolation_problems(str(path), "x", trees=[str(tmp_path / "tree")]), path
-    assert reg.isolation_problems(str(tmp_path / "exp45_sibling"), "x", trees=[str(tmp_path / "tree")]) == []
+    assert reg.isolation_problems(str(tmp_path / "exp46_sibling"), "x", trees=[str(tmp_path / "tree")]) == []
     assert reg.isolation_problems(str(tmp_path), "x", trees=[str(tmp_path / "tree")], contains=False) == []
     with pytest.raises(reg.GateError, match="exp_38"):
-        reg.check_isolation(str(alias), "the exp_45 save root", trees=[str(tmp_path / "tree")])
+        reg.check_isolation(str(alias), "the exp_46 save root", trees=[str(tmp_path / "tree")])
 
 
 def test_the_storage_probe_and_the_ledger_refuse_an_aliased_root_before_writing(tmp_path, protected):
@@ -85,7 +85,7 @@ def test_the_storage_probe_and_the_ledger_refuse_an_aliased_root_before_writing(
 
 def test_the_submitter_refuses_an_aliased_save_root_before_any_lock_or_owner(tmp_path, protected, monkeypatch):
     import types
-    sub = _load(os.path.join(EXP, "exp45_submit_neuronic.py"), "exp45_submit_isolation")
+    sub = _load(os.path.join(EXP, "exp46_submit_neuronic.py"), "exp46_submit_isolation")
     save38, _ = protected
     alias = tmp_path / "alias"
     alias.symlink_to(save38)
@@ -107,7 +107,7 @@ def test_the_submitter_refuses_an_aliased_save_root_before_any_lock_or_owner(tmp
 
 
 def test_the_supervisor_refuses_an_aliased_save_root_before_any_claim_or_directory(tmp_path, protected, monkeypatch):
-    sv = _load(os.path.join(EXP, "exp45_supervise.py"), "exp45_supervise_isolation")
+    sv = _load(os.path.join(EXP, "exp46_supervise.py"), "exp46_supervise_isolation")
     save38, _ = protected
     alias = tmp_path / "alias"
     alias.symlink_to(save38)
@@ -123,23 +123,23 @@ def test_the_supervisor_refuses_an_aliased_save_root_before_any_claim_or_directo
 
 
 def test_the_evaluator_refuses_an_aliased_dump_root_or_farm(tmp_path, protected, monkeypatch):
-    ev = _load(os.path.join(EXP, "exp45_eval.py"), "exp45_eval_isolation")
+    ev = _load(os.path.join(EXP, "exp46_eval.py"), "exp46_eval_isolation")
     _, dump38 = protected
     alias = tmp_path / "dump_alias"
     alias.symlink_to(dump38)
     monkeypatch.setattr(ev, "DUMP_ROOT", str(alias))
     with pytest.raises(reg.GateError, match="exp_38"):
         ev.campaign_gates()
-    monkeypatch.setattr(ev, "DUMP_ROOT", str(tmp_path / "exp45_dumps"))
+    monkeypatch.setattr(ev, "DUMP_ROOT", str(tmp_path / "exp46_dumps"))
     monkeypatch.setattr(ev, "FARM", os.path.join(REPO, reg.EXP38_FARM, "nested"))   # inside exp_38's farm in this tree
     with pytest.raises(reg.GateError, match="exp_38"):
         ev.campaign_gates()
 
 
 def _publication(root, col):
-    """A published exp_45 results bundle in ``root`` (JSON + Markdown + one evidence file + generator_static())."""
+    """A published exp_46 results bundle in ``root`` (JSON + Markdown + one evidence file + generator_static())."""
     (root / reg.EXP_DIR).mkdir(parents=True)
-    ev_rel = "outputs_FLAC/exp45_rf_data_curve/eval/E0a/x_metrics.json"
+    ev_rel = "outputs_FLAC/exp46_c4flip_data_curve/eval/E0a/x_metrics.json"
     for rel, data in [(ev_rel, b"e0 cell")] + [(rel, b"static " + rel.encode()) for rel in col.generator_static()]:
         os.makedirs(root / os.path.dirname(rel), exist_ok=True)
         (root / rel).write_bytes(data)
@@ -150,7 +150,7 @@ def _publication(root, col):
 
 
 def test_materialise_writes_nothing_into_exp38s_namespaces_or_through_an_alias(tmp_path, protected):
-    import exp45_collect as col
+    import exp46_collect as col
     src = tmp_path / "published"
     _publication(src, col)
     exp38_owned = [r for r in col.generator_static() if r.startswith(reg.EXP38_DIR + "/")]
@@ -171,9 +171,9 @@ def test_materialise_writes_nothing_into_exp38s_namespaces_or_through_an_alias(t
     inside.mkdir()
     with pytest.raises(col.ev.EvalError, match="exp_38"):
         col.materialise(str(inside), root=str(src))
-    dest2 = tmp_path / "generator_root_2"                              # an aliased exp_45 directory inside dest
+    dest2 = tmp_path / "generator_root_2"                              # an aliased exp_46 directory inside dest
     (dest2 / "outputs_FLAC").mkdir(parents=True)
-    (dest2 / "outputs_FLAC" / "exp45_rf_data_curve").symlink_to(protected[0])
+    (dest2 / "outputs_FLAC" / "exp46_c4flip_data_curve").symlink_to(protected[0])
     for rel in exp38_owned:
         os.makedirs(dest2 / os.path.dirname(rel), exist_ok=True)
         (dest2 / rel).write_bytes((src / rel).read_bytes())
@@ -183,10 +183,10 @@ def test_materialise_writes_nothing_into_exp38s_namespaces_or_through_an_alias(t
 
 
 def test_the_exp38_import_materialiser_refuses_a_protected_or_aliased_destination(tmp_path, protected):
-    """exp45_table.materialise copies exp_38's OWN verified files to their registered relative paths in the
+    """exp46_table.materialise copies exp_38's OWN verified files to their registered relative paths in the
     generator root (plan r3 §3.2): the root itself may not equal or lie inside a protected root (an exp_38 save /
     dump root, or any tree's exp_38 farm / worklog folder), and no file is written through an aliased directory."""
-    import exp45_table as tbl
+    import exp46_table as tbl
     src = tmp_path / "bundle"
     rel = "outputs_FLAC/exp38_data_efficiency/eval/de_yaw_f025/x.json"
     os.makedirs(src / os.path.dirname(rel))

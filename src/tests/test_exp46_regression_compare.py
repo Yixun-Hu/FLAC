@@ -1,4 +1,4 @@
-"""exp_45 L1 — the two-parent regression comparison (exp45_regression_compare.py; plan_rf_data_curve.md r3 §3.2,
+"""exp_45 L1 — the two-parent regression comparison (exp46_regression_compare.py; plan_rf_data_curve.md r3 §3.2,
 Codex plan r2 finding 6): synthetic junit records of the merged tree and both parents, one rule per case.
 
 Written by the exp_45 Coder (Claude Opus 5.5).
@@ -10,8 +10,8 @@ import sys
 import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.join(REPO, "worklog", "worklog_yixun", "exp_45_rf_data_curve_claude"))
-import exp45_regression_compare as rc  # noqa: E402
+sys.path.insert(0, os.path.join(REPO, "worklog", "worklog_yixun", "exp_46_c4flip_data_curve_claude"))
+import exp46_regression_compare as rc  # noqa: E402
 
 TIE = sorted(rc.TIE_AUDIT)
 COMPAT = sorted(rc.COMPAT_EDITED)

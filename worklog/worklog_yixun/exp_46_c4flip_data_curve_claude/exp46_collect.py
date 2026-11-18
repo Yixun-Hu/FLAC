@@ -1,35 +1,35 @@
 #!/usr/bin/env python3
-"""exp_45 collector (forked from exp_38's exp38_collect.py; plan_rf_data_curve.md r3 §3.2): the 30 RF result cells,
-the 10 RF-100 bridge cells and the E0 receipt -> rf_data_curve_results.{json,md}.
+"""exp_46 collector (forked from exp_45's exp45_collect.py at X45f, from exp_38's; plan_c4flip_data_curve.md r3 §3.2): the 30 RF result cells,
+the 10 RF-100 bridge cells and the E0 receipt -> c4flip_data_curve_results.{json,md}.
 
 rf_rows() replaces exp_38's reference_rows() / EXP14_ROWS / P1-bridge path (Codex plan r2 finding 3): every cell
-goes through exp45_eval's OFFLINE admission (validate_cell(..., offline=True): exact metrics / by-scene /
+goes through exp46_eval's OFFLINE admission (validate_cell(..., offline=True): exact metrics / by-scene /
 receipt schemas, protocol, the run's TRAINING_COMPLETE copy in the farm -- or, for a bridge cell, the
 RF100_BRIDGE descriptor --, the stream's input AND assignment hashes, the dump-manifest copy) under the sealed
 E0 receipt (validate_e0_receipt(offline=True)), so the results re-derive from the tracked evidence alone; NAS
 payloads (checkpoints, waveforms) are attested by the hashes the receipts carry, never opened. Any missing or
 unadmitted cell refuses: nothing publishes partially. The RF-100 bridge rows publish only with the sealed bridge
-comparison rf_data_curve_bridge.json of THIS campaign and these ten cells (exp45_eval.bridge_gate, the publication
-gate every exp_45 writer shares; Codex code r1 finding 4, r3 finding 1); its verdict -- equal, or an evaluator
+comparison c4flip_data_curve_bridge.json of THIS campaign and these ten cells (exp46_eval.bridge_gate, the publication
+gate every exp_46 writer shares; Codex code r1 finding 4, r3 finding 1); its verdict -- equal, or an evaluator
 discrepancy per cell -- is carried into the rows' source, the Markdown and the JSON manifest, never turned into an
 equality. Publication (exp_38 Codex code r1 HIGH 10): Markdown first,
 the JSON LAST (the commit point; the Markdown carries the JSON's sha256), each temp -> fsync -> rename, under the
 collector lock; the JSON carries {path: sha256} of every file the admission consumed.
 
-    python exp45_collect.py                                   # collect + publish (the default)
-    python exp45_collect.py verify [--root DIR]               # sha256-verify a published results bundle in DIR
-    python exp45_collect.py materialise --dest DIR            # byte-copy the verified publication into DIR
+    python exp46_collect.py                                   # collect + publish (the default)
+    python exp46_collect.py verify [--root DIR]               # sha256-verify a published results bundle in DIR
+    python exp46_collect.py materialise --dest DIR            # byte-copy the verified publication into DIR
 
 ``verify`` / ``materialise`` (Codex code r1 finding 12): the results JSON names every file its admission consumed
 with its sha256 and the Markdown names the JSON's sha256, so a checkout of the results commit, a publication
 worktree or the neuronic generator root is verified by re-hashing exactly those files. ``materialise`` copies them,
-plus what exp45_eval's offline admission reads besides the evidence (generator_static: the exp_45 kit's
-exp45_eval.py / exp45_registry.py, the RF + E0 configs, exp_38's E0a decision and reference cells), byte for byte to
+plus what exp46_eval's offline admission reads besides the evidence (generator_static: the exp_46 kit's
+exp46_eval.py / exp46_registry.py, the RF + E0 configs, exp_38's E0a decision and reference cells), byte for byte to
 the same relative paths under DIR -- an existing file must already be identical, every copy is re-hashed -- and then
 verifies DIR. Run from the tree holding the publication (tree 45 -> the publication worktree on the A6000 box; the
 build checkout of the results commit -> the generator root on neuronic).
 
-Written by the exp_38 Coder (Claude Opus 5.5); exp_45 deltas by the exp_45 Coder (Claude Opus 5.5).
+Written by the exp_38 Coder (Claude Opus 5.5); exp_46 deltas by the exp_46 Coder (Claude Opus 5.5).
 """
 import argparse
 import fcntl
@@ -41,11 +41,11 @@ import sys
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
-import exp45_eval as ev  # noqa: E402
-import exp45_registry as reg  # noqa: E402
+import exp46_eval as ev  # noqa: E402
+import exp46_registry as reg  # noqa: E402
 
-OUT_JSON = f"{reg.EXP_DIR}/rf_data_curve_results.json"
-OUT_MD = f"{reg.EXP_DIR}/rf_data_curve_results.md"
+OUT_JSON = f"{reg.EXP_DIR}/c4flip_data_curve_results.json"
+OUT_MD = f"{reg.EXP_DIR}/c4flip_data_curve_results.md"
 LOCK = f"{reg.EXP_DIR}/.collect.lock"
 SHOW = ("EDT", "C50", "T60", "FD", "RIR_to_GT_RIR_R@1")
 FRAC_LABEL = {"025": "25 %", "050": "50 %", "075": "75 %", "100": "100 %"}
@@ -73,7 +73,7 @@ def cell_files(cell):
 
 
 def farm_files(run):
-    """The farm copies of a run's training records that the offline admission re-opens (exp45_eval.prepare)."""
+    """The farm copies of a run's training records that the offline admission re-opens (exp46_eval.prepare)."""
     farm = os.path.dirname(ev._abs(ev.run_cells(run)[0]["ckpt_link"]))
     cm = json.load(open(os.path.join(farm, reg.COMMIT_MARKER)))
     out = [os.path.join(farm, f) for f in ("CHECKPOINTS.sha256", reg.TRAINING_RECEIPT, reg.TRAINING_RECEIPT + ".sha256",
@@ -84,7 +84,7 @@ def farm_files(run):
 
 
 def rf_rows(campaign):
-    """(rows, manifest runs, bridge) of the three RF runs and the RF-100 bridge, every cell through exp45_eval's OFFLINE
+    """(rows, manifest runs, bridge) of the three RF runs and the RF-100 bridge, every cell through exp46_eval's OFFLINE
     admission under ``campaign`` and the bridge rows through the sealed bridge comparison; refuses (EvalError) if any
     cell is missing or not admitted, or the comparison is absent / not this campaign's (plan r3 §3.2, finding 4)."""
     blocks = [(run, "rf", reg.parse_run_id(run)[1], ev.run_cells(run)) for run in reg.campaign_runs()]
@@ -106,12 +106,12 @@ def rf_rows(campaign):
                 problems.append(f"{run}: trained on {platform}, not {reg.TRAINING_PLATFORM}")
                 continue
             files += farm_files(run)
-            source = f"exp_45 {run}, trained on {platform} (eval pin {campaign['head'][:12]})"
+            source = f"exp_46 {run}, trained on {platform} (eval pin {campaign['head'][:12]})"
         else:
             verdict = ("equal on all ten cells" if bridge["verdict"] == "equal" else
                        f"EVALUATOR DISCREPANCY in {len(bridge['discrepancies'])} of 10 cells (an evaluator discrepancy "
                        "until explained, never an equality)")
-            source = (f"exp_43's RF 100 % checkpoint {ev.RF100_BRIDGE['sha256'][:12]} re-evaluated at the exp_45 pin "
+            source = (f"exp_43's RF 100 % checkpoint {ev.RF100_BRIDGE['sha256'][:12]} re-evaluated at the exp_46 pin "
                       f"{campaign['head'][:12]} (RF100_BRIDGE); bridge comparison: {verdict}")
         for K in (8, 1):
             recs = {c["seed"]: json.load(open(ev._abs(c["metrics"])))["metrics"] for c in cells if c["K"] == K}
@@ -132,7 +132,7 @@ MODELS = {"rf": "Roll + Flip (RF)", "rf_bridge": "Roll + Flip (RF), exp_43's 100
 
 
 def render(rows, pending, bridge=None):
-    out = ["# exp_45 rf_data_curve — results (generated by exp45_collect.py; never hand-edited)", "",
+    out = ["# exp_46 c4flip_data_curve — results (generated by exp46_collect.py; never hand-edited)", "",
            "Full unseen split (6,337 items / 17 rooms), split-level item-weighted, mean ± sample SD over eval "
            "seeds 42–46, 40k-step EMA endpoints, one training seed (42) per run. EDT ms, C50 dB, T60 %, FD, R@1 %.", ""]
     for K in (8, 1):
@@ -177,16 +177,16 @@ def collect():
 
 
 def generator_static():
-    """What exp45_eval's OFFLINE admission reads in another root besides the published evidence (the files a
-    generator root must hold for the shared table's exp_45 rows): the exp_45 kit's exp45_eval.py + exp45_registry.py,
+    """What exp46_eval's OFFLINE admission reads in another root besides the published evidence (the files a
+    generator root must hold for the shared table's exp_46 rows): the exp_46 kit's exp46_eval.py + exp46_registry.py,
     the RF and E0 model configs, exp_38's E0a decision + sidecar and its reference manifest + cells."""
-    return (f"{reg.EXP_DIR}/exp45_eval.py", f"{reg.EXP_DIR}/exp45_registry.py", reg.ARMS["rf"]["config"],
+    return (f"{reg.EXP_DIR}/exp46_eval.py", f"{reg.EXP_DIR}/exp46_registry.py", reg.ARMS["rf"]["config"],
             *(v["config"] for v in reg.E0_CONFIGS.values()), reg.E0A_DECISION, reg.E0A_DECISION + ".sha256",
             reg.REF_MANIFEST, *(f"{reg.REF_DIR}/{r}" for r in reg.ref_set()))
 
 
 def verify(root=None):
-    """sha256-verify the published exp_45 results in ``root`` (finding 12): the Markdown names the JSON's sha256 and
+    """sha256-verify the published exp_46 results in ``root`` (finding 12): the Markdown names the JSON's sha256 and
     every file of the JSON's manifest (the E0 artifacts, every run's cells and farm records, the bridge comparison)
     re-hashes to its recorded value. Returns {relative path: sha256} of every verified file, the JSON and Markdown
     included; raises EvalError."""
@@ -199,7 +199,7 @@ def verify(root=None):
         for files in man["runs"].values():
             want.update(files)
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as err:
-        raise ev.EvalError(f"no published exp_45 results in {root}: {err}")
+        raise ev.EvalError(f"no published exp_46 results in {root}: {err}")
     jsha = hashlib.sha256(jtext).hexdigest()
     if f"results JSON sha256: `{jsha}`" not in md:
         raise ev.EvalError(f"{OUT_MD} in {root} does not name its results JSON's sha256 {jsha[:12]}")
@@ -225,14 +225,14 @@ def materialise(dest, root=None):
     files = verify(root)
     files.update({rel: reg.sha256_file(os.path.join(root, rel)) for rel in generator_static()})
     # every file is checked BEFORE any write (r2 finding 6): exp_38's own files (its reference cells, its E0a decision)
-    # are verify-only -- exp_45 never writes into exp_38's namespaces -- and nothing is written through an alias
+    # are verify-only -- exp_46 never writes into exp_38's namespaces -- and nothing is written through an alias
     exp38_owned = {rel for rel in files if rel.startswith((reg.EXP38_DIR + "/", reg.EXP38_FARM + "/"))}
     for rel in sorted(files):
         target = os.path.join(dest, rel)
         if rel in exp38_owned:
             if os.path.islink(target) or not os.path.isfile(target) or reg.sha256_file(target) != files[rel]:
                 raise ev.EvalError(f"{target}: exp_38's read-only file is not in the destination at identical bytes; "
-                                   "exp_45 never writes into exp_38's namespaces (it reaches a generator root only "
+                                   "exp_46 never writes into exp_38's namespaces (it reaches a generator root only "
                                    "through exp_38's own publication, import-exp38 --generator-root)")
             continue
         problem = reg.alias_problem(dest, rel)
@@ -282,7 +282,7 @@ def main(argv=None):
             return 0
         rows, pending, manifest = collect()
     except (ev.EvalError, reg.GateError, OSError, ValueError, KeyError) as err:
-        print(f"EXP45 COLLECT REFUSED: {err}", file=sys.stderr)
+        print(f"EXP46 COLLECT REFUSED: {err}", file=sys.stderr)
         return 2
     sha = publish(rows, pending, manifest)
     print(f"published {OUT_MD} / {OUT_JSON} (json sha256 {sha[:12]})")

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""exp_45 table: RF / YAW-Aug / OrbitRIR x {25, 50, 75} % x K {8, 1} (plan_rf_data_curve.md r3 §3.2, §8).
+"""exp_46 table: RF / YAW-Aug / OrbitRIR x {25, 50, 75} % x K {8, 1} (plan_c4flip_data_curve.md r3 §3.2, §8).
 
-    exp45_table.py import-exp38 --commit <sha> [--generator-root <dir>]
-    exp45_table.py build --exp38-commit <sha>
+    exp46_table.py import-exp38 --commit <sha> [--generator-root <dir>]
+    exp46_table.py build --exp38-commit <sha>
 
 ``import-exp38`` (Codex plan r2 finding 5, r3 findings 1 and 4): the exp_38 results bundle -- a commit on
 exp-38-data-efficiency, descending from 3593f34c, that force-adds the complete local dependency set of exp_38's
@@ -13,26 +13,26 @@ and exp38_eval.validate_cell(..., offline=True) for the 60 YAW-Aug / OrbitRIR fr
 file it opens (an audit hook). Aggregation is pure code here: exp38_collect.collect() is NOT used (no offline mode;
 it opens NAS payloads). Every file the adapter opens must be exp_38 code or one of EXP38_IMPORT_FILES; every one of
 EXP38_IMPORT_FILES is re-hashed locally into the record; NAS checkpoint and waveform payloads are retained
-attestations (the hashes the receipts carry), never opened. The result is the sealed rf_data_curve_exp38_import.json
+attestations (the hashes the receipts carry), never opened. The result is the sealed c4flip_data_curve_exp38_import.json
 (commit sha, every admitted file's sha256, the derived rows). With ``--generator-root`` the verified files are then
 copied byte for byte (hash re-checked after the copy) to their exact relative paths there, for the shared generator's
 twelve exp_38 rows; a differing existing file refuses. The exp_38 commit is a RUNTIME input (recorded), never a
 constant here: this file is closure code, frozen at the launch commit X.
 
-``build``: RF from exp_45's admitted cells (exp45_eval's offline admission, re-derived and compared with the sealed
+``build``: RF from exp_46's admitted cells (exp46_eval's offline admission, re-derived and compared with the sealed
 collector JSON); YAW-Aug / OrbitRIR ONLY from the sealed import record of the given exp_38 commit (its sidecar, its
 commit, its rows re-derived from its per-cell values) -- and the record is bound back to that commit (Codex code r1
 finding 6): the bundle is re-extracted at the commit (git archive, read-only) and every recorded file hash, every
 cell's metrics, the checkpoint / dump-manifest attestations and the E0 campaign are re-verified against those blobs.
-The RF rows render only through THE publication gate every exp_45 writer shares (exp45_eval.bridge_gate, Codex code
+The RF rows render only through THE publication gate every exp_46 writer shares (exp46_eval.bridge_gate, Codex code
 r3 finding 1): the sealed RF-100 bridge comparison, admitted against the current bridge artifacts, whose verdict and
 discrepancies the table prints and its evidence records. Refuses a missing (method x fraction x K) cell, a value that
 differs from its source, an import record whose hash or commit does not match, an absent / unreadable / stale bridge
 comparison. Never reads exp_38's preliminary files (plan F9) and never re-runs exp_38's closure checks against the
-exp_45 tree (Codex plan r1 finding 8).
-Writes rf_data_curve_table.md (+ the sealed rf_data_curve_table_evidence.json) and prints the §8 disclosures.
+exp_46 tree (Codex plan r1 finding 8).
+Writes c4flip_data_curve_table.md (+ the sealed c4flip_data_curve_table_evidence.json) and prints the §8 disclosures.
 
-Written by the exp_45 Coder (Claude Opus 5.5).
+Written by the exp_46 Coder (Claude Opus 5.5).
 """
 import argparse
 import hashlib
@@ -47,8 +47,8 @@ import time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
-import exp45_eval as ev  # noqa: E402
-import exp45_registry as reg  # noqa: E402
+import exp46_eval as ev  # noqa: E402
+import exp46_registry as reg  # noqa: E402
 
 EXP38_BASE = "3593f34cad4e6e4415a572e93d16ee83465f8ae8"     # the merged exp_38 tip: the bundle must descend from it
 EXP38_RUNS = tuple(f"de_{a}_f{t}" for a in ("yaw", "bf") for t in ("025", "050", "075"))
@@ -57,16 +57,16 @@ EXP38_FARM = "outputs_FLAC/exp38_data_efficiency/eval"
 EXP38_SOURCE_PATHS = (reg.EXP38_DIR, EXP38_FARM, "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json",
                       "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json",
                       "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json")
-IMPORT_RECORD = f"{reg.EXP_DIR}/rf_data_curve_exp38_import.json"
+IMPORT_RECORD = f"{reg.EXP_DIR}/c4flip_data_curve_exp38_import.json"
 IMPORT_KEYS = frozenset({"schema", "commit", "base", "campaign", "files", "code", "opened", "attestations", "cells",
                          "rows", "written_at"})
-TABLE_MD = f"{reg.EXP_DIR}/rf_data_curve_table.md"
-TABLE_EVIDENCE = f"{reg.EXP_DIR}/rf_data_curve_table_evidence.json"
-METHODS = {"rf": "Roll + Flip (RF), exp_45", "yaw": "YAW-Aug, exp_38", "bf": "OrbitRIR (B-F), exp_38"}
+TABLE_MD = f"{reg.EXP_DIR}/c4flip_data_curve_table.md"
+TABLE_EVIDENCE = f"{reg.EXP_DIR}/c4flip_data_curve_table_evidence.json"
+METHODS = {"rf": "Roll + Flip (RF), exp_46", "yaw": "YAW-Aug, exp_38", "bf": "OrbitRIR (B-F), exp_38"}
 FRACS = ("025", "050", "075")
 HEADLINE = (("EDT", "EDT (ms) ↓", 3), ("C50", "C50 (dB) ↓", 4), ("T60", "T60 (%) ↓", 3),
             ("RIR_to_GT_RIR_R@1", "R@1 ↑", 3), ("RIR_to_GT_RIR_R@5", "R@5 ↑", 3), ("RIR_to_GT_RIR_R@10", "R@10 ↑", 3))
-DISCLOSURES = reg.disclosures("table")          # the ONE source: exp45_registry.DISCLOSURES (finding 15)
+DISCLOSURES = reg.disclosures("table")          # the ONE source: exp46_registry.DISCLOSURES (finding 15)
 
 
 class TableError(RuntimeError):
@@ -173,7 +173,7 @@ for run in json.loads(sys.argv[3]):
         cells[c["name"]] = {"run": run, "K": c["K"], "seed": c["seed"], "problems": probs,
                             "metrics": rec.get("metrics"), "metrics_rel": os.path.relpath(ev._abs(c["metrics"]), root),
                             "ckpt_sha256": receipt.get("ckpt_sha256"), "dump_manifest_sha256": receipt.get("dump_manifest_sha256")}
-print("EXP45_ADAPTER " + json.dumps({"campaign": {k: campaign[k] for k in ("head", "closure_sha256", "sha256")},
+print("EXP46_ADAPTER " + json.dumps({"campaign": {k: campaign[k] for k in ("head", "closure_sha256", "sha256")},
                                      "cells": cells, "opened": sorted(opened)}))
 '''
 
@@ -202,7 +202,7 @@ def extract_bundle(commit, dest, repo=None):
             if not (m.isfile() or m.isdir()) or m.name.startswith("/") or ".." in m.name.split("/"):
                 raise TableError(f"bundle entry {m.name!r} is not a plain file")
         tar.extractall(dest)
-    open(os.path.join(dest, ".git"), "w").write("exp45 import extraction marker\n")
+    open(os.path.join(dest, ".git"), "w").write("exp46 import extraction marker\n")
     return sha
 
 
@@ -232,7 +232,7 @@ def import_exp38(commit, generator_root=None, repo=None, python=None):
     out_path = os.path.join(repo, IMPORT_RECORD)
     if os.path.exists(out_path):
         raise TableError(f"{IMPORT_RECORD} exists (an import is sealed once; archive it first)")
-    tmp = tempfile.mkdtemp(prefix="exp45_exp38_import_")
+    tmp = tempfile.mkdtemp(prefix="exp46_exp38_import_")
     try:
         sha = extract_bundle(commit, tmp, repo)
         try:
@@ -248,10 +248,10 @@ def import_exp38(commit, generator_root=None, repo=None, python=None):
         res = subprocess.run([python or sys.executable, "-I", "-B", "-c", ADAPTER, tmp, reg.EXP38_DIR,
                               json.dumps(list(EXP38_RUNS))], cwd=tmp, env=env, capture_output=True, text=True,
                              timeout=3600)
-        line = [ln for ln in res.stdout.split("\n") if ln.startswith("EXP45_ADAPTER ")]
+        line = [ln for ln in res.stdout.split("\n") if ln.startswith("EXP46_ADAPTER ")]
         if res.returncode or len(line) != 1:
             raise TableError(f"exp_38's offline admission refused (rc {res.returncode}): {res.stderr.strip()[-600:]}")
-        got = json.loads(line[0][len("EXP45_ADAPTER "):])
+        got = json.loads(line[0][len("EXP46_ADAPTER "):])
         bad = {n: v["problems"] for n, v in got["cells"].items() if v["problems"]}
         if bad or sorted(got["cells"]) != sorted(exp38_cell_stems()):
             raise TableError(f"exp_38 cells not admitted offline: {dict(list(bad.items())[:3])}")
@@ -321,7 +321,7 @@ def materialise(src_root, hashes, generator_root):
 
 # ---------------------------------------------------------------- build
 def rf_rows(campaign):
-    """exp_45's RF rows {"rf|<tag>|<K>": {metric: [mean, sd, n]}} through exp45_eval's offline admission."""
+    """exp_46's RF rows {"rf|<tag>|<K>": {metric: [mean, sd, n]}} through exp46_eval's offline admission."""
     rows = {}
     for run in reg.campaign_runs():
         cells = ev.run_cells(run)
@@ -344,7 +344,7 @@ def verify_record_at_commit(rec, repo=None):
     record's file set must be EXP38_IMPORT_FILES of that tree, every recorded sha256 must re-hash, every cell's
     (run, K, seed, metrics) must be its metrics file's, its checkpoint / dump-manifest attestations its receipt's,
     and the campaign the E0 receipt's. Raises TableError."""
-    tmp = tempfile.mkdtemp(prefix="exp45_table_build_")
+    tmp = tempfile.mkdtemp(prefix="exp46_table_build_")
     try:
         commit = extract_bundle(rec["commit"], tmp, repo)
         try:
@@ -398,7 +398,7 @@ def build(exp38_commit, repo=None):
         bridge, _ = ev.bridge_gate(campaign)
     except ev.EvalError as err:
         raise TableError(f"the RF rows do not publish: {err}") from err
-    results = os.path.join(repo, f"{reg.EXP_DIR}/rf_data_curve_results.json")
+    results = os.path.join(repo, f"{reg.EXP_DIR}/c4flip_data_curve_results.json")
     published = {f"{r['model']}|{r['fraction']}|{r['K']}": {m: [s["mean"], s["sd"], s["n"]] for m, s in r["stats"].items()}
                  for r in json.load(open(results))["rows"] if r["model"] == "rf"}
     for key, st in rows.items():
@@ -410,7 +410,7 @@ def build(exp38_commit, repo=None):
         raise TableError(f"table cells missing: {sorted(want - set(rows))}")
     md = render(rows, rec, rec_sha, campaign, bridge)
     evidence = {"schema": 1, "exp38_commit": exp38_commit, "exp38_import_sha256": rec_sha,
-                "exp45_campaign": {k: campaign[k] for k in ("head", "closure_sha256", "sha256")},
+                "exp46_campaign": {k: campaign[k] for k in ("head", "closure_sha256", "sha256")},
                 "rf_results_sha256": reg.sha256_file(results), "bridge": bridge, "rows": rows,
                 "written_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     for p in (TABLE_EVIDENCE, TABLE_EVIDENCE + ".sha256"):
@@ -422,9 +422,9 @@ def build(exp38_commit, repo=None):
 
 
 def render(rows, rec, rec_sha, campaign, bridge):
-    out = ["# exp_45 rf_data_curve — RF vs YAW-Aug vs OrbitRIR at 25 / 50 / 75 % (generated by exp45_table.py)", "",
+    out = ["# exp_46 c4flip_data_curve — RF vs YAW-Aug vs OrbitRIR at 25 / 50 / 75 % (generated by exp46_table.py)", "",
            f"θ = 0, 1 Euler step, cfg 1.0, EMA 40k endpoints, item-weighted over the 6,337 unseen items, mean ± sample SD "
-           f"over eval seeds 42–46. RF: exp_45 pin {campaign['head'][:12]}; YAW-Aug / OrbitRIR: exp_38 results commit "
+           f"over eval seeds 42–46. RF: exp_46 pin {campaign['head'][:12]}; YAW-Aug / OrbitRIR: exp_38 results commit "
            f"{rec['commit'][:12]} (import record sha256 {rec_sha[:12]}).", ""]
     for K in (8, 1):
         out += [f"## K = {K}" + (" (headline)" if K == 8 else ""), "",
@@ -451,7 +451,7 @@ def main(argv=None):
         else:
             print(build(a.exp38_commit))
     except (TableError, ev.EvalError, reg.GateError, OSError, ValueError, KeyError) as err:
-        print(f"EXP45 TABLE REFUSED: {err}", file=sys.stderr)
+        print(f"EXP46 TABLE REFUSED: {err}", file=sys.stderr)
         return 2
     return 0
 

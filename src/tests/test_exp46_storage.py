@@ -1,5 +1,5 @@
-"""exp_45 — the shared storage reservation (exp45_registry.reserve_storage / recheck_storage / release_storage;
-plan_rf_data_curve.md r3 §3.2, Codex plan r2 finding 7, r3 finding 2).
+"""exp_46 — the shared storage reservation (exp46_registry.reserve_storage / recheck_storage / release_storage;
+plan_c4flip_data_curve.md r3 §3.2, Codex plan r2 finding 7, r3 finding 2).
 
 One flock'd ledger per save root. The submitter reserves a FULL candidate's full need (16 checkpoints + 2 GiB) before
 sbatch and before any owner intent, refusing unless free - sum(outstanding of the existing reservations) - need >= the
@@ -8,7 +8,7 @@ free - sum(outstanding of all reservations, its own included) >= floor (no extra
 outstanding = reserved - bytes already written. Release only on seal (supervisor) or abandon (submitter); a crash keeps
 the hold. A fake filesystem (free bytes from a file, sparse run-dir files) -- no real space is used.
 
-Written by the exp_45 Coder (Claude Opus 5.5).
+Written by the exp_46 Coder (Claude Opus 5.5).
 """
 import json
 import multiprocessing as mp
@@ -18,9 +18,9 @@ import sys
 import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_45_rf_data_curve_claude")
+EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_46_c4flip_data_curve_claude")
 sys.path.insert(0, EXP)
-import exp45_registry as reg  # noqa: E402
+import exp46_registry as reg  # noqa: E402
 
 GIB = 2 ** 30
 RUNS = reg.required_runs()
@@ -281,7 +281,7 @@ def test_a_hard_linked_file_under_a_reserved_run_dir_refuses(tmp_path, monkeypat
 
 
 # ------------------------------------------------------------------ crash recovery of the submitter (Codex code r1 finding 7)
-import exp45_submit_neuronic as sub  # noqa: E402
+import exp46_submit_neuronic as sub  # noqa: E402
 
 RUN = RUNS[0]
 
@@ -450,7 +450,7 @@ def test_recovery_never_runs_while_a_submission_holds_its_lock(subm, monkeypatch
 
 def test_a_submitting_intent_without_a_job_id_keeps_its_hold_while_an_sbatch_may_be_in_flight(subm, monkeypatch, tmp_path):
     """Codex code r2 finding 7: a killed submitter does not stop its sbatch child, so an intent still 'submitting'
-    with no recorded job id may yet produce a job. abandon keeps the hold and refuses -- naming the exp45- job to look
+    with no recorded job id may yet produce a job. abandon keeps the hold and refuses -- naming the exp46- job to look
     for with squeue / sacct -- while the intent is younger than the grace; after it, with the submitter's lock free
     and the scheduler showing NO job of that exact name, the hold is released (a job that appears later refuses at its
     own start: its owner record is gone)."""

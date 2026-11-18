@@ -1,4 +1,4 @@
-"""Shared synthetic fixtures for the exp_45 tests (forked from exp38_fixtures.py; not a test module): first-step evidence, train /
+"""Shared synthetic fixtures for the exp_46 tests (forked from exp38_fixtures.py; not a test module): first-step evidence, train /
 smoke logs, a sealed E0 receipt whose eight cells really exist (re-admissible, equal to their
 references), a sealed TRAINING_COMPLETE receipt with its checkpoint manifest, retained receipt
 copies, retained log and evidence, and complete evaluation cells (metrics, stream, receipt, log,
@@ -29,7 +29,7 @@ PINNED_SINGLE = {
 LOSS_HEADER = ["step", "train/std_data", "train/loss", "train/mse_loss", "epoch", "train/lr"]
 # the REAL per-item stream preimages of the unseen split at theta = 0 (Codex code r1 finding 3): exp_40's tracked C16
 # farm sidecars carry the complete 6,337-item input / assignment tuples and offsets, and their input / assignment
-# hashes equal exp45_eval's INPUT_HASH / ASSIGNMENT_HASH pins for every (K, seed) (data properties, read 2026-11-14)
+# hashes equal exp46_eval's INPUT_HASH / ASSIGNMENT_HASH pins for every (K, seed) (data properties, read 2026-11-14)
 _HERE_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PREIMAGE_SIDECAR = os.path.join(_HERE_REPO, "outputs_FLAC", "exp40_yaw_aug_c16", "farm", "C16",
                                 "epoch=8-step=40000_metrics_1_1.0_exp40_C16_T_S40000_K{K}_s{seed}.stream.json")
@@ -162,7 +162,7 @@ def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint b
         e0_name = os.path.basename(e0_path)
         e0_digest = reg.read_sealed(os.path.join(rdir, e0_name), ev.E0_KEYS)[1]
     else:
-        e0_name = "rf_data_curve_e0_receipt.json"
+        e0_name = "c4flip_data_curve_e0_receipt.json"
         e0rec = synthetic_e0(ev, closure)
         for p_ in (os.path.join(rdir, e0_name), os.path.join(rdir, e0_name) + ".sha256"):
             if os.path.exists(p_):
@@ -170,13 +170,13 @@ def make_training_receipt(ev, run, rd, closure, final_bytes=b"final checkpoint b
         e0_digest = reg.write_sealed(os.path.join(rdir, e0_name), e0rec)
     if e0_sha is not None and e0_sha != e0_digest:
         raise AssertionError("fixture: the retained E0 copy must be the campaign's E0 receipt (pass e0_path)")
-    env_name = f"rf_data_curve_env_receipt_{platform}.json"
+    env_name = f"c4flip_data_curve_env_receipt_{platform}.json"
     pk = {"flash-attn": reg.FLASH_VERSION, "torch": "2.7.0"}
     _, env_digest = sealed(reg, os.path.join(rdir, env_name), reg.ENV_RECEIPT_KEYS, platform=platform, packages=pk,
                            packages_sha256=hashlib.sha256(reg.canonical(dict(sorted(pk.items()))).encode()).hexdigest(),
                            flags={"optimize": 0, "no_user_site": 1, "ignore_environment": 0, "isolated": 0})
     argv = reg.build_train_argv(run, platform, allow_nonmatched=rung != "2x32")
-    smoke_name = f"rf_data_curve_smoke_{run}_{platform}_2026-11-08_04-00-00.json"
+    smoke_name = f"c4flip_data_curve_smoke_{run}_{platform}_2026-11-08_04-00-00.json"
     gpus = (sorted([u, "NVIDIA RTX A6000"] for u in reg.A6000_UUIDS) if platform == "a6000"
             else [[f"GPU-{i}", "NVIDIA L40"] for i in range(ngpu)])
     smoke_log = os.path.join(rdir, "smoke_log.log")
@@ -405,14 +405,14 @@ def make_cell(ev, cell, campaign, ckpt, log_dir, dump=True, metrics=None, by_sce
                "metrics_sha256": msha, "stream_sha256": ssha, "dump_manifest_sha256": man_sha,
                "ckpt_sha256": ckpt[0], "ckpt_bytes": ckpt[1], "training_receipt_sha256": ckpt[2],
                "started_at": "2026-11-09T05:00:00-0500", "finished_at": "2026-11-09T05:30:00-0500"}
-    if cell.get("bridge"):                                       # exp_45: an RF-100 bridge cell's receipt
+    if cell.get("bridge"):                                       # exp_46: an RF-100 bridge cell's receipt
         receipt.update(checkpoint_source="exp43_external", bridge_descriptor_sha256=ev.BRIDGE_DESCRIPTOR_SHA256)
     json.dump(receipt, open(ev._abs(cell["receipt"]), "w"))
     return cell
 
 
 def bridge_bundle(ev, dest, kit, mutate=None, admission=None):
-    """exp_43's reference bundle for ``ev``'s ten EXISTING RF-100 bridge cells, as exp45_eval.cmd_bridge reads it:
+    """exp_43's reference bundle for ``ev``'s ten EXISTING RF-100 bridge cells, as exp46_eval.cmd_bridge reads it:
     references = our metrics with exp_43's metadata (not compared) + exp_43's own pristine stream, the admission
     record = exp_43's exact admission of the RF100_BRIDGE checkpoint (``kit``: exp_43's kit) unless ``admission`` is
     given, and the BRIDGE_MANIFEST over all of it; ``mutate(cell, metrics, stream)`` may edit a reference first."""
@@ -454,7 +454,7 @@ def rebind_cell(ev, cell):
 BRIDGE_BREAKS = ("absent comparison", "unreadable comparison", "missing bridge artifact", "changed bridge artifact")
 
 
-def break_bridge(ev, what, name="exp45_RF100bridge_K8_s44"):
+def break_bridge(ev, what, name="exp46_RF100bridge_K8_s44"):
     """Take the sealed RF-100 bridge comparison away from the CURRENT bridge artifacts (Codex code r3 finding 1):
     remove it, make it unreadable (its sidecar no longer matches), remove one compared bridge stream, or change that
     stream after the seal with the cell's receipt / dump-manifest links re-bound, so that the cell alone still admits

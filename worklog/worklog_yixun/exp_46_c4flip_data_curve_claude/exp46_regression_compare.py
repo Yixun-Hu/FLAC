@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""exp_45 L1 regression comparison: the merged tree against BOTH parents (plan_rf_data_curve.md r3 §3.2, §5 L1;
+"""exp_46 L1 regression comparison: the merged tree against BOTH parents (plan_c4flip_data_curve.md r3 §3.2, §5 L1;
 Codex plan r2 finding 6 -- exp43_regression_baseline.py compare takes one baseline and cannot express this).
 
-    exp45_regression_compare.py --merged merged.xml --exp38 parent_3593f34c.xml --exp43 parent_4a7e3b3a.xml \
+    exp46_regression_compare.py --merged merged.xml --exp38 parent_3593f34c.xml --exp43 parent_4a7e3b3a.xml \
         --merged-root <merged checkout> --exp38-root <3593f34c checkout> --exp43-root <4a7e3b3a checkout> [--out r.json]
 
 Inputs: the three junit-XML records of the SAME full-suite command run in a CPU Slurm job on the merged tree, on
@@ -19,7 +19,7 @@ A signature is (kind, exception line) with the three checkout roots (Codex code 
 names the checkout it ran in), pytest tmp paths, hex addresses and object ids normalised; the failing operation and
 the error text stay part of it.
 
-Written by the exp_45 Coder (Claude Opus 5.5).
+Written by the exp_46 Coder (Claude Opus 5.5).
 """
 import argparse
 import json
@@ -159,7 +159,7 @@ def main(argv=None):
     try:
         problems, report = compare(load(a.merged, roots), load(a.exp38, roots), load(a.exp43, roots))
     except CompareError as err:
-        print(f"EXP45 REGRESSION COMPARE: unreadable input: {err}", file=sys.stderr)
+        print(f"EXP46 REGRESSION COMPARE: unreadable input: {err}", file=sys.stderr)
         return 2
     text = json.dumps(report, indent=1, sort_keys=True)
     if a.out:

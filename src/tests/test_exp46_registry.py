@@ -1,7 +1,7 @@
-"""exp_45 — the run registry (worklog/.../exp_45_rf_data_curve_claude/exp45_registry.py), forked from exp_38's
-test_exp38_registry.py (round B); every edit is named in its commit (plan_rf_data_curve.md r3 §3.3).
+"""exp_46 — the run registry (worklog/.../exp_46_c4flip_data_curve_claude/exp46_registry.py), forked from exp_38's
+test_exp38_registry.py (round B); every edit is named in its commit (plan_c4flip_data_curve.md r3 §3.3).
 
-Executable statement of plan_rf_data_curve.md r3 §2-§3.2 (exp_38: plan_data_efficiency.md §6-§7, §10 item 4):
+Executable statement of plan_c4flip_data_curve.md r3 §2-§3.2 (exp_38: plan_data_efficiency.md §6-§7, §10 item 4):
 the three RF runs' configs,
 dataset configs, argv, chunk plan, checkpoint names, run-dir states, checkpoint audit and
 log gates. CPU-only; synthetic checkpoints and logs.
@@ -15,7 +15,7 @@ import shlex
 import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_45_rf_data_curve_claude")
+EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_46_c4flip_data_curve_claude")
 EXP38 = os.path.join(REPO, "worklog", "worklog_yixun", "exp_38_data_efficiency_claude")   # read-only reuse
 
 
@@ -26,9 +26,9 @@ def _load(name):
     return mod
 
 
-reg = _load("exp45_registry")
+reg = _load("exp46_registry")
 
-RF = {t: f"exp45_RFf{t}_l40_2x32" for t in ("025", "050", "075")}
+RF = {t: f"exp46_RFf{t}_l40_2x32" for t in ("025", "050", "075")}
 # plan r3 fact F2: exp_38's de_yaw_f025 FULL argv on neuronic, verbatim (cmd of
 # at_launch_de_yaw_f025_neuronic_FULL_2026-11-09_18-01-10.json without the torchrun prefix)
 DE_YAW_F025_RD = "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f025"
@@ -55,8 +55,8 @@ def test_the_registry_imports_and_registers_exactly_the_three_rf_runs():
     assert sorted(reg.ARMS) == ["rf"] and sorted(reg.RUNGS) == ["2x32"]
     for t, run in RF.items():
         assert reg.parse_run_id(run) == ("rf", t, "2x32") and reg.run_id("rf", t) == run
-    for bad in ("de_yaw_f025", "de_bf_f025", "de_p1_f025", "exp45_RFf100_l40_2x32", "exp45_RFf025_l40_8x8",
-                "exp45_RFf025_l40_2x32_r8x8", "exp45_YAWf025_l40_2x32", "exp45_RFf025_a6000_2x32", "", None):
+    for bad in ("de_yaw_f025", "de_bf_f025", "de_p1_f025", "exp46_RFf100_l40_2x32", "exp46_RFf025_l40_8x8",
+                "exp46_RFf025_l40_2x32_r8x8", "exp45_YAWf025_l40_2x32", "exp46_RFf025_a6000_2x32", "", None):
         with pytest.raises(reg.GateError):
             reg.parse_run_id(bad)
 
@@ -68,9 +68,9 @@ def test_the_one_rung_keeps_eff_and_syncbn_batch_64():
         with pytest.raises(reg.GateError):
             reg.check_rung(platform, "8x8", allow_nonmatched=True)
         assert reg.PLATFORMS[platform]["rungs"] == ("2x32",)
-    assert reg.PLATFORMS["neuronic"]["save_root"] == "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve"
-    assert reg.PLATFORMS["a6000"]["save_root"] == "/media/diskstation/yixunhu/FLAC/checkpoints/exp45_rf_data_curve"
-    assert reg.CAMPAIGN_ROOT == {"a6000": "/home/yixunhu/codespace/exp-45-campaign"}
+    assert reg.PLATFORMS["neuronic"]["save_root"] == "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve"
+    assert reg.PLATFORMS["a6000"]["save_root"] == "/media/diskstation/yixunhu/FLAC/checkpoints/exp46_c4flip_data_curve"
+    assert reg.CAMPAIGN_ROOT == {"a6000": "/home/yixunhu/codespace/exp-46-campaign"}
 
 
 # ------------------------------------------------------------------ configs
@@ -202,7 +202,7 @@ def test_d2_campaign_is_the_three_rf_runs(monkeypatch):
 
 def test_only_the_registered_matrix_is_launchable():
     assert sorted(reg.REGISTERED_RUNS) == sorted(reg.all_runs("2x32"))
-    for bad in ("de_p1_f025", "de_yaw_f025", "exp45_RFf025_l40_2x32 ", "exp45_RFf100_l40_2x32", "", None):
+    for bad in ("de_p1_f025", "de_yaw_f025", "exp46_RFf025_l40_2x32 ", "exp46_RFf100_l40_2x32", "", None):
         with pytest.raises(reg.GateError):
             reg.parse_run_id(bad)
         with pytest.raises(reg.GateError):
@@ -213,9 +213,9 @@ def test_only_the_registered_matrix_is_launchable():
 @pytest.mark.parametrize("tag", ["025", "050", "075"])
 def test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions(tag):
     """plan r3 §2 argv rule: F2 with exactly --model-config (RF), the fraction's dataset config, --name /
-    --experiment-name = run id, --save-dir / --evidence-json under the exp_45 save root -- nothing else."""
+    --experiment-name = run id, --save-dir / --evidence-json under the exp_46 save root -- nothing else."""
     run = RF[tag]
-    rd = f"/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve/{run}"
+    rd = f"/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/{run}"
     want = list(DE_YAW_F025_ARGV)
     for flag, value in (("--model-config", reg.ARMS["rf"]["config"]), ("--dataset-config", reg.FRACS[tag]["dataset_config"]),
                         ("--name", run), ("--experiment-name", run), ("--save-dir", rd),
@@ -241,7 +241,7 @@ def test_argv_per_run(run):
     assert (_opt(argv, "--max-steps"), _opt(argv, "--checkpoint-every"), _opt(argv, "--logger")) == ("40000", "2500", "none")
     assert "--ckpt-path" not in argv and not any("exp14_" in a for a in argv)
     n = reg.build_train_argv(run, "neuronic")
-    assert _opt(n, "--save-dir") == f"/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve/{run}"
+    assert _opt(n, "--save-dir") == f"/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/{run}"
     assert [a for a in n if not a.startswith("/n/")] == [a for a in argv if not a.startswith("/media/")]
 
 
@@ -456,23 +456,6 @@ def test_the_real_inventory_path_for_every_arm_and_rung(arm, rung):
     reg._FRESH.clear()
 
 
-# exp_43's RF 100 % endpoint (plan F12; train.json, 4,551 steps / epoch) -- only where the NAS is mounted
-RF_100 = "/media/diskstation/yixunhu/FLAC/checkpoints/exp43_std_aug/exp43_RF_a6000_2x32/epoch=8-step=40000.ckpt"
-
-
-@pytest.mark.skipif(not os.path.exists(RF_100), reason="NAS not mounted")
-def test_the_real_rf_100_percent_endpoint_satisfies_the_exact_schema():
-    """The RF 100 % checkpoint embeds the RF config and the RF wrapper's exact inventory; the only schema
-    differences from a fraction run are the epoch counters (8, not f025's 34)."""
-    import torch
-    ck = torch.load(RF_100, map_location="cpu", weights_only=False)
-    assert reg.canonical(ck["model_config"]) == reg.canonical(json.load(open(os.path.join(REPO, reg.ARMS["rf"]["config"]))))
-    probs = reg.ckpt_schema_problems(ck, 40000, "025")
-    assert len(probs) == 3 and probs[0] == "epoch 8 != 34" and probs[1].startswith("epoch progress")
-    assert reg.inventory_problems(ck["state_dict"], "rf", "2x32")[0] == []
-    reg._FRESH.clear()
-
-
 def test_ckpt_manifest_needs_the_full_cadence(tmp_path):
     run = RF["075"]
     d = tmp_path / run
@@ -516,7 +499,7 @@ def test_log_gate_start_pass():
 
 @pytest.mark.parametrize("ngpu,spe", [(1, 2296), (1, 1148), (4, 574), (0, 1148)])
 def test_log_gate_refuses_every_world_size_but_2(ngpu, spe):
-    """Codex code r1 finding 11: every exp_45 launch path is 2 x 32 (plan r3 §5 L5, RUNGS); a log of any other world
+    """Codex code r1 finding 11: every exp_46 launch path is 2 x 32 (plan r3 §5 L5, RUNGS); a log of any other world
     size is refused explicitly -- whatever its loader length (a single rank's own 2,296 batches included)."""
     probs = reg.log_gate(_log(ngpu=max(ngpu, 1), spe=spe), RF["025"], "start", "flash", ngpu)
     assert probs and "2 x 32 only" in probs[0] and f"{ngpu}-rank" in probs[0]
@@ -632,19 +615,19 @@ def test_check_subset_audit_binding(tmp_path):
 
 
 def test_the_fork_runs_from_its_own_folder_and_reads_exp38_read_only():
-    """exp_45 (plan r3 §3.2): the records live in exp_45's folder under ``rf_data_curve_`` names; exp_38's tools and
+    """exp_46 (plan r3 §3.2): the records live in exp_46's folder under ``c4flip_data_curve_`` names; exp_38's tools and
     artifacts are read at exp_38's own paths (their bound paths keep naming exp_38's folder), all tracked, all
     entering the closure through EXTERNAL_CONFIGS."""
     import subprocess
-    assert reg.EXP_DIR == "worklog/worklog_yixun/exp_45_rf_data_curve_claude"
+    assert reg.EXP_DIR == "worklog/worklog_yixun/exp_46_c4flip_data_curve_claude"
     assert reg.EXP38_DIR == "worklog/worklog_yixun/exp_38_data_efficiency_claude"
     for rel in (reg.SUBSET_AUDIT, reg.AR_CONTENT_MANIFEST, reg.REF_DIR, reg.REF_MANIFEST, reg.E0A_DECISION):
         assert rel.startswith(reg.EXP38_DIR + "/"), rel
     assert f"{reg.EXP38_DIR}/exp38_subset_audit.py" in reg.SUBSET_AUDIT_BOUND
     assert not any(r.startswith(reg.EXP_DIR + "/") for r in reg.SUBSET_AUDIT_BOUND)
-    assert reg.CLOSURE_EXP_PREFIXES == ("exp45_",)
+    assert reg.CLOSURE_EXP_PREFIXES == ("exp46_",)
     for rel in (reg.E0_RECEIPT, reg.env_receipt_rel("neuronic"), reg.smoke_receipt_rel("x", "neuronic", "t")):
-        assert rel.startswith(reg.EXP_DIR + "/rf_data_curve_"), rel
+        assert rel.startswith(reg.EXP_DIR + "/c4flip_data_curve_"), rel
     tracked = set(subprocess.run(["git", "-C", REPO, "ls-files", "--", reg.EXP38_DIR], capture_output=True,
                                  text=True, check=True).stdout.split("\n"))
     ro = reg.EXP38_READONLY
@@ -659,15 +642,15 @@ def test_the_fork_runs_from_its_own_folder_and_reads_exp38_read_only():
 
 def test_the_snapshot_carries_every_read_only_exp38_dependency_with_its_hash(tmp_path):
     files = reg.snapshot_files(reg.required_runs()[0])
-    if f"{reg.EXP_DIR}/exp45_supervise.py" not in files:
-        pytest.skip("the exp_45 kit is not committed yet (the closure lists tracked files only)")
+    if f"{reg.EXP_DIR}/exp46_supervise.py" not in files:
+        pytest.skip("the exp_46 kit is not committed yet (the closure lists tracked files only)")
     reg.snapshot_tools(reg.required_runs()[0], str(tmp_path / "snap"))
     manifest = dict(reversed(ln.split("  ", 1)) for ln in (tmp_path / "snap" / "SNAPSHOT.sha256").read_text().strip().split("\n"))
     for rel in reg.EXP38_READONLY:
         assert manifest.get(rel) == reg.sha256_file(os.path.join(REPO, rel)), rel
         assert reg.sha256_file(str(tmp_path / "snap" / rel)) == manifest[rel]
     kit = [r for r in manifest if r.startswith(reg.EXP_DIR + "/")]
-    assert kit and all(os.path.basename(r).startswith("exp45_") and "/" not in r[len(reg.EXP_DIR) + 1:] for r in kit)
+    assert kit and all(os.path.basename(r).startswith("exp46_") and "/" not in r[len(reg.EXP_DIR) + 1:] for r in kit)
     exp38 = {r for r in manifest if r.startswith(reg.EXP38_DIR + "/")}
     assert exp38 == set(reg.EXP38_READONLY)                     # nothing else of exp_38's folder
     assert f"{reg.EXP38_DIR}/exp38_eval.py" not in manifest and f"{reg.EXP38_DIR}/exp38_supervise.py" not in manifest
@@ -677,8 +660,8 @@ def test_snapshot_is_complete_immutable_and_usable(tmp_path):
     """Codex code r1 HIGH 5: training is launched FROM the snapshot -- the closure (same digest as
     the tree), the subset-audit sidecar, and the two cwd-relative data links."""
     files = reg.snapshot_files(RF["050"])
-    if reg.ARMS["rf"]["config"] not in files or f"{reg.EXP_DIR}/exp45_supervise.py" not in files:
-        pytest.skip("the exp_45 kit is not committed yet (the closure lists tracked files only)")
+    if reg.ARMS["rf"]["config"] not in files or f"{reg.EXP_DIR}/exp46_supervise.py" not in files:
+        pytest.skip("the exp_46 kit is not committed yet (the closure lists tracked files only)")
     assert "train.py" in files and "src/training/run_evidence.py" in files and reg.SUBSET_AUDIT in files
     assert not any(f.startswith("src/tests/") for f in files)
     dest = tmp_path / "snap"

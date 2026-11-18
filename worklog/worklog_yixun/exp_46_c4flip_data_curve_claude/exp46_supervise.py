@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""exp_45 training supervisor (forked from exp_38's exp38_supervise.py; plan_rf_data_curve.md r3 §3.2) —
+"""exp_46 training supervisor (forked from exp_45's exp45_supervise.py at X45f, from exp_38's; plan_c4flip_data_curve.md r3 §3.2) —
 the one process that owns a training launch on either platform
 (plan_data_efficiency.md r2 §10 B6 / B7; Codex code r1 HIGH 4, 5, 7).
 
-Called by exp45_train.sbatch (neuronic; exp_38's A6000 launcher is not forked) after it
+Called by exp46_train.sbatch (neuronic; exp_38's A6000 launcher is not forked) after it
 sanitised the environment; it runs every gate, holds the locks, launches train.py FROM an immutable
 closure snapshot, owns the child's process group, gates the first step, and publishes the run's
 sealed receipt only after every end audit passes:
@@ -38,7 +38,7 @@ import time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
-import exp45_registry as reg  # noqa: E402
+import exp46_registry as reg  # noqa: E402
 # exp_38's read-only tools (exp38_subset_audit, exp38_content_manifest) are imported from exp_38's folder
 sys.path.insert(1, os.path.join(reg.REPO, reg.EXP38_DIR))
 
@@ -495,10 +495,10 @@ def mode_dry_run(a, platform):
 
 
 def mode_smoke_single(a):
-    """exp_38's a6000 one-rank preliminary smoke is NOT an exp_45 launch path (Codex code r1 finding 11): plan r3 §5 L5
+    """exp_38's a6000 one-rank preliminary smoke is NOT an exp_46 launch path (Codex code r1 finding 11): plan r3 §5 L5
     runs every SMOKE on 2 x L40 at 2 x 32, so this mode refuses before any gate, card lock or directory."""
     raise Refused("the single-rank SMOKE: " + reg.WORLD_SIZE_REFUSAL.format(n=1, what="SMOKE") +
-                  "; use the production-topology SMOKE (neuronic MODE=SMOKE through exp45_submit_neuronic.py)")
+                  "; use the production-topology SMOKE (neuronic MODE=SMOKE through exp46_submit_neuronic.py)")
 
 
 def mode_campaign(a, platform):
@@ -510,7 +510,7 @@ def mode_campaign(a, platform):
     ngpu = reg.RUNGS[rung]["ngpu"]
     full = a.mode == "FULL"
     if full and platform != reg.TRAINING_PLATFORM:
-        raise Refused(f"D1/D2: every exp_45 training runs on {reg.TRAINING_PLATFORM}; FULL refuses on {platform}")
+        raise Refused(f"D1/D2: every exp_46 training runs on {reg.TRAINING_PLATFORM}; FULL refuses on {platform}")
     head, env_sha, closure = campaign_gates(a, platform)
     e0 = smoke = owner = None
     if platform == "neuronic":
@@ -521,7 +521,7 @@ def mode_campaign(a, platform):
             fv = ""
         if a.backend == "flash" and (not a.expect_flash_version or fv != a.expect_flash_version):
             raise Refused(f"flash-attn {fv or 'absent'} != EXPECT_FLASH_VERSION {a.expect_flash_version or 'unset'}")
-        import exp45_submit_neuronic as sub
+        import exp46_submit_neuronic as sub
         owner = sub.claim_attempt(a.run, a.mode, a.token, head, a.backend, a.save_dir, a.expect_flash_version,
                                   a.allow_nonmatched_rung)
         _ATTEMPT["path"] = owner                 # main() finishes it on any later exit
@@ -590,7 +590,7 @@ def mode_campaign(a, platform):
             else reg.build_smoke_argv(a.run, reg.SMOKE_STEPS_DDP, rd, True, platform))
     cmd = launch_cmd(platform, ngpu, argv)
     label = a.mode if platform == "a6000" or full else "SMOKE"
-    log = reg._abs(f"{reg.EXP_DIR}/rf_data_curve_{ts}_{a.run}_{platform}_{label}_train.log")
+    log = reg._abs(f"{reg.EXP_DIR}/c4flip_data_curve_{ts}_{a.run}_{platform}_{label}_train.log")
     rec_paths = [reg._abs(f"{reg.EXP_DIR}/at_launch_{a.run}_{platform}_{label}_{ts}.json"),
                  os.path.join(rd, f"at_launch_{a.run}_{platform}_{label}_{ts}.json")]
     rec = Record(rec_paths, run=a.run, mode=a.mode, platform=platform, backend=a.backend, ts=ts,
@@ -722,12 +722,12 @@ def parse(argv=None):
     if not 1 <= a.smoke_steps <= 99:
         p.error("--smoke-steps must be 1..99")
     if a.mode != "DRY_RUN" and a.backend != reg.TRAINING_BACKEND:      # Codex code r2 finding 12
-        p.error(f"exp_45 trains with backend {reg.TRAINING_BACKEND} only (plan r3 F2, L5): --backend {a.backend} "
+        p.error(f"exp_46 trains with backend {reg.TRAINING_BACKEND} only (plan r3 F2, L5): --backend {a.backend} "
                 "is refused for SMOKE / SMOKE_DDP / FULL")
     if a.platform == "neuronic" and a.mode == "SMOKE_DDP":
         p.error("neuronic's production-topology smoke is MODE=SMOKE")
     if a.platform == "neuronic" and a.mode in ("SMOKE", "FULL") and not (a.token and re.fullmatch(r"[0-9a-f]{32}", a.token) and a.save_dir):
-        p.error("a neuronic job needs its 32-hex --token and --save-dir (exp45_submit_neuronic.py sets them)")
+        p.error("a neuronic job needs its 32-hex --token and --save-dir (exp46_submit_neuronic.py sets them)")
     return a
 
 
@@ -740,7 +740,7 @@ def main(argv=None):
         return code
     finally:
         if _ATTEMPT["path"] and not _ATTEMPT["done"]:
-            import exp45_submit_neuronic as sub
+            import exp46_submit_neuronic as sub
             sub.finish_attempt(_ATTEMPT["path"], code)
 
 
