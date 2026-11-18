@@ -102,7 +102,7 @@ def submit_lock(run, mode, root=None):
     """The (run, mode) submission lock (finding 7), never waited for: a holder means a submission is in flight (a
     dead submitter's lock is released by the kernel)."""
     reg.check_isolation(save_root(root), "the exp_46 save root")   # before the lock file (Codex code r2 finding 6)
-    fh = open(submit_lock_path(run, mode, root), "a")
+    fh = reg.open_below(submit_lock_path(run, mode, root), "a", save_root(root), "the submit lock")
     try:
         try:
             fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -131,12 +131,16 @@ def sbatch_argv(run, mode, token, head, time_limit, backend, flash_version, sd, 
 
 
 def _write_intent(path, rec):
+    """An owner-record file (<save root>/.exp46_owners/<run>__<mode>/<file>), replaced atomically below its save root
+    (Codex code r2 finding 1): the temp name (intent.json.tmp is the recovery's partial-intent marker) and the record
+    are both validated, and neither is ever written through a link."""
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(path))))
     tmp = path + ".tmp"
-    with open(tmp, "w") as fh:
+    with reg.open_below(tmp, "w", root, "an owner record (its temp file)") as fh:
         json.dump(rec, fh, indent=1, sort_keys=True)
         fh.flush()
         os.fsync(fh.fileno())
-    os.replace(tmp, path)
+    reg.rename_below(tmp, path, root, "an owner record")
 
 
 def _git(*args):
@@ -214,7 +218,11 @@ def submit(run, mode, time_limit, backend, flash_version, allow_nonmatched, dry,
     if dry:
         return {"dry_run": True, "run_dir": sd, "owner": od, "argv": argv, "partition_max_time": max_time}
     reg.check_run_dir(sd, run, 0)
-    os.makedirs(save_root(root), exist_ok=True)
+    for p, r, what in ((submit_lock_path(run, mode, root), save_root(root), "the submit lock"),
+                       (os.path.join(od, "intent.json.tmp"), save_root(root), "the owner intent"),
+                       (os.path.join(reg.REPO, SUBLOG), os.path.dirname(os.path.join(reg.REPO, SUBLOG)), "the submission log")):
+        reg.check_destination(p, r, what)     # every destination before any write (Codex code r2 finding 1)
+    reg.makedirs_below(save_root(root), save_root(root), "the exp_46 save root")
     with submit_lock(run, mode, root):      # held from the reservation to the 'submitted' intent (finding 7)
         return _submit_locked(run, mode, time_limit, backend, flash_version, allow_nonmatched, root, runner, head,
                               token, sd, argv, od, max_time)
@@ -225,9 +233,9 @@ def _submit_locked(run, mode, time_limit, backend, flash_version, allow_nonmatch
     reservation = None
     if mode == "FULL":           # the shared storage reservation, before sbatch and before any owner intent
         reservation = reg.reserve_storage(run, token, sd, save_root(root))
-    os.makedirs(os.path.dirname(od), exist_ok=True)
+    reg.makedirs_below(os.path.dirname(od), save_root(root), "the owners folder")
     try:
-        os.mkdir(od)
+        reg.mkdir_below(od, save_root(root), "the owner record")
     except FileExistsError:
         if reservation is not None:
             reg.release_storage(run, token, save_root(root), reason="submission refused: the owner record exists")
@@ -246,7 +254,8 @@ def _submit_locked(run, mode, time_limit, backend, flash_version, allow_nonmatch
         raise SubmitError(f"sbatch returned {out.stdout!r}; run reconcile")
     intent.update(state="submitted", job_id=jid)
     _write_intent(os.path.join(od, "intent.json"), intent)
-    with open(os.path.join(reg.REPO, SUBLOG), "a") as fh:
+    sublog = os.path.join(reg.REPO, SUBLOG)
+    with reg.open_below(sublog, "a", os.path.dirname(sublog), "the submission log") as fh:
         fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S%z')} {run} {mode} job {jid} token {token} head {head}: {' '.join(argv)}\n")
     return {"run_dir": sd, "owner": od, "job_id": jid, "token": token, "storage": reservation}
 
@@ -281,16 +290,15 @@ def claim_attempt(run, mode, token, head, backend, sd, flash_version, allow_nonm
     if bad:
         raise reg.GateError(f"this job does not own {run} {mode}: {bad}")
     try:                              # ONE fixed owner-scoped claim, atomic (Codex code r2 HIGH 2)
-        os.mkdir(os.path.join(od, ATTEMPT_CLAIM))
+        reg.mkdir_below(os.path.join(od, ATTEMPT_CLAIM), save_root(root), "the attempt claim")
     except FileExistsError:
         raise reg.GateError(f"{od} already has an attempt (exactly once: abandon to retry)")
-    with open(os.path.join(od, ATTEMPT_CLAIM, "job"), "w") as fh:
+    with reg.open_below(os.path.join(od, ATTEMPT_CLAIM, "job"), "w", save_root(root), "the attempt claim") as fh:
         fh.write(f"{jid} {os.uname().nodename}\n")
     path = os.path.join(od, f"attempt_{jid}.json")
     rec = {"job_id": jid, "host": os.uname().nodename, "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
            "state": "running"}
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o664)
-    with os.fdopen(fd, "w") as fh:
+    with reg.open_below(path, "x", save_root(root), "the attempt record") as fh:      # exclusive, never a link
         json.dump(rec, fh, indent=1, sort_keys=True)
         fh.flush()
         os.fsync(fh.fileno())
@@ -388,8 +396,9 @@ def _partial_token(od):
 
 def _archive_owner(od, tag):
     dest = os.path.join(os.path.dirname(od), "abandoned", f"{os.path.basename(od)}.{time.strftime('%Y%m%dT%H%M%S')}.{tag}")
-    os.makedirs(os.path.dirname(dest), exist_ok=True)
-    os.rename(od, dest)
+    oroot = os.path.dirname(os.path.dirname(os.path.abspath(od)))       # the save root (Codex code r2 finding 1)
+    reg.makedirs_below(os.path.dirname(dest), oroot, "the abandoned-owners folder")
+    reg.rename_below(od, dest, oroot, "an archived owner record")
     return dest
 
 
@@ -464,13 +473,16 @@ def _abandon_locked(run, mode, root, runner):
         raise SubmitError(f"recorded job {intent['job_id']} is not visible to the scheduler: refuse to guess")
     stamp = time.strftime("%Y%m%dT%H%M%S")
     dest_owner = os.path.join(os.path.dirname(od), "abandoned", f"{os.path.basename(od)}.{stamp}")
-    os.makedirs(os.path.dirname(dest_owner), exist_ok=True)
     sd = intent["save_dir"]
+    for p, what in ((sd, "the run dir"), (f"{sd}.abandoned_{stamp}", "the abandoned run dir"), (od, "the owner record"),
+                    (dest_owner, "the archived owner record")):     # every destination first (Codex code r2 finding 1)
+        reg.check_destination(p, save_root(root), what)
+    reg.makedirs_below(os.path.dirname(dest_owner), save_root(root), "the abandoned-owners folder")
     moved = None
     if os.path.lexists(sd):
         moved = f"{sd}.abandoned_{stamp}"
-        os.rename(sd, moved)
-    os.rename(od, dest_owner)
+        reg.rename_below(sd, moved, save_root(root), "the abandoned run dir")
+    reg.rename_below(od, dest_owner, save_root(root), "an archived owner record")
     released = reg.release_storage(run, intent["token"], save_root(root), reason="abandoned") \
         if mode == "FULL" else None                                     # terminal
     return {"abandoned": od, "owner_moved_to": dest_owner, "run_dir_moved_to": moved, "jobs": jobs,

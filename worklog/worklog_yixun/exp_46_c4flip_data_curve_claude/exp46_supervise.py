@@ -113,8 +113,8 @@ def proc_start_time(pid):
 class OwnedChild:
     """A child in its own session whose group we may signal only while we own it."""
 
-    def __init__(self, cmd, cwd, env, log_path, pass_fds=()):
-        self.log = open(log_path, "ab")
+    def __init__(self, cmd, cwd, env, log_path, pass_fds=(), log_root=None):
+        self.log = reg.open_below(log_path, "ab", log_root or os.path.dirname(os.path.abspath(log_path)), "the child log")
         self.p = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=self.log,
                                   stderr=subprocess.STDOUT, start_new_session=True, pass_fds=tuple(pass_fds))
         self.pid = self.p.pid
@@ -212,8 +212,9 @@ class Record:
     (``strict=True``), else OSError propagates; the other copies are best-effort, and a failed
     non-terminal update of the authoritative copy is reported, not fatal, while a trainer runs."""
 
-    def __init__(self, paths, **fields):
+    def __init__(self, paths, roots=None, **fields):
         self.paths, self.data, self.sealed = list(paths), dict(fields), False
+        self.roots = list(roots) if roots else None      # each copy's checked root (Codex code r2 finding 1)
         self.flush(strict=True)
 
     def seal(self):
@@ -233,7 +234,7 @@ class Record:
         text = (json.dumps(self.data, indent=1, sort_keys=True, default=str) + "\n").encode()
         for i, p in enumerate(self.paths):
             try:
-                reg.atomic_write_bytes(p, text)
+                reg.atomic_write_bytes(p, text, root=self.roots[i] if self.roots else None)
             except OSError as err:
                 if i == 0 and strict:
                     raise
@@ -385,7 +386,8 @@ def lock_cards(cards, lockdir):
     fds = []
     for c in cards:
         path = os.path.join(lockdir, f".exp38_card{c}.lock")
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o664)
+        with reg.open_below(path, "a", lockdir, "the card lock") as fh:   # the destination validated, never a link
+            fd = os.dup(fh.fileno())                                      # (one open file description: one flock)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
@@ -447,12 +449,15 @@ def move_loss_record(rd):
         raise reg.GateError(f"{v0}: the logger files must be regular files")
     out = reg.check_loss_record(moves[reg.LOSS_RECORD])
     rdir = os.path.join(rd, reg.RECEIPTS_DIR)
-    os.makedirs(rdir, exist_ok=True)
+    reg.makedirs_below(rdir, reg.run_root(rd), "the receipts folder")
+    for name, src in moves.items():                # every destination first (Codex code r2 finding 1)
+        reg.check_destination(src, reg.run_root(rd), "a logger file")
+        reg.check_destination(os.path.join(rdir, name), reg.run_root(rd), "the loss record")
     for name in moves:
         if os.path.lexists(os.path.join(rdir, name)):
             raise reg.GateError(f"{rdir}/{name} exists")
     for name, src in moves.items():
-        os.rename(src, os.path.join(rdir, name))
+        reg.rename_below(src, os.path.join(rdir, name), reg.run_root(rd), "the loss record")
     os.rmdir(v0)
     os.rmdir(ll)
     reg._fsync_dir(rdir)
@@ -469,8 +474,8 @@ def f100_delta_reverification(rd, rec):
     vrec = cm46.verify_record(reg._abs(reg.F100_DELTA_MANIFEST), "AcousticRooms", reg.REPO,
                               want_sha=reg.F100_DELTA_SHA256, check=check_signals)
     path = os.path.join(rd, reg.RECEIPTS_DIR, reg.F100_VERIFICATION)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    reg.write_sealed(path, vrec)
+    reg.makedirs_below(os.path.dirname(path), reg.run_root(rd), "the receipts folder")
+    reg.write_sealed(path, vrec, root=reg.run_root(rd))
     rec.update(f100_delta_verification={"verdict": vrec["verdict"], "record": path, "sha256": reg.sha256_file(path)})
     if vrec["verdict"] != "PASS":
         raise reg.GateError("f100 delta content verification FAILED: " + "; ".join(vrec["problems"][:3]))
@@ -603,12 +608,12 @@ def mode_campaign(a, platform):
     else:                            # unreachable (refused first above): no A6000 SMOKE destination exists in exp_46
         raise Refused(f"exp_46 has no A6000 training path: no {a.mode} run dir on {platform}")
     reg.check_run_dir(rd, a.run, 0)
-    os.makedirs(rd, exist_ok=True)
+    reg.makedirs_below(rd, reg.run_root(rd), "the run dir")      # below the checked save root (Codex code r2 finding 1)
     try:
-        os.mkdir(os.path.join(rd, ".exp46_lock"))
+        reg.mkdir_below(os.path.join(rd, ".exp46_lock"), reg.run_root(rd), "the run lock")
     except FileExistsError:
         raise Refused(f"run lock {rd}/.exp46_lock exists (a live or crashed run: archive it first)")
-    reg.atomic_write_bytes(os.path.join(rd, ".exp46_lock", "holder"), json.dumps(
+    reg.atomic_write_bytes(os.path.join(rd, ".exp46_lock", "holder"), root=reg.run_root(rd), data=json.dumps(
         {"pid": os.getpid(), "host": os.uname().nodename, "ts": ts, "head": head,
          "job": os.environ.get("SLURM_JOB_ID")}).encode())
     retained = None
@@ -620,7 +625,8 @@ def mode_campaign(a, platform):
     snap = (os.path.join(SNAPSHOT_ROOT["a6000"], f"{a.run}_{a.mode}_{ts}") if platform == "a6000"
             else os.path.join(rd, ".exp46_tools"))
     reg.check_isolation(snap, "the training snapshot")          # before its directory (plan r3 §3.2 "Isolation")
-    os.makedirs(os.path.dirname(snap), exist_ok=True)
+    reg.makedirs_below(os.path.dirname(snap), SNAPSHOT_ROOT["a6000"] if platform == "a6000" else reg.run_root(rd),
+                       "the snapshot folder")
     snapshot = reg.snapshot_tools(a.run, snap, reg.REPO)
     if reg.closure_digest(snap)["closure_sha256"] != closure:
         raise Refused("the snapshot's closure differs from the campaign tree's", EXIT_ENV)
@@ -633,7 +639,8 @@ def mode_campaign(a, platform):
     log = reg._abs(f"{reg.EXP_DIR}/c4flip_data_curve_{ts}_{a.run}_{platform}_{label}_train.log")
     rec_paths = [reg._abs(f"{reg.EXP_DIR}/at_launch_{a.run}_{platform}_{label}_{ts}.json"),
                  os.path.join(rd, f"at_launch_{a.run}_{platform}_{label}_{ts}.json")]
-    rec = Record(rec_paths, run=a.run, mode=a.mode, platform=platform, backend=a.backend, ts=ts,
+    rec = Record(rec_paths, roots=[reg._abs(reg.EXP_DIR), reg.run_root(rd)],
+                 run=a.run, mode=a.mode, platform=platform, backend=a.backend, ts=ts,
                  launched_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"), host=os.uname().nodename, head=head,
                  closure_sha256=closure, env_receipt_sha256=env_sha, python=exe, pins=pins, describe=
                  {k: v for k, v in d.items() if k != "argv"}, e0=e0, smoke=smoke, owner=owner, gpus=gpus,
@@ -647,7 +654,7 @@ def mode_campaign(a, platform):
     owned = {}
 
     def launch_and_audit():
-        child = owned["child"] = OwnedChild(cmd, snap, env, log, pass_fds=fds)
+        child = owned["child"] = OwnedChild(cmd, snap, env, log, pass_fds=fds, log_root=reg._abs(reg.EXP_DIR))
         holder = start_lock_holder(child.pgid, fds)
         rec.update(pid=child.pid, pgid=child.pgid, start_time=child.start, status="running",
                    lock_holder_pid=holder.pid if holder else None)
@@ -711,7 +718,8 @@ def mode_campaign(a, platform):
             # lock stays, no record seal, no commit marker; past this line the run commits and a later signal only
             # waits in _PENDING (the job then ends with the run sealed)
             check_signals()
-        os.rename(os.path.join(rd, ".exp46_lock"), os.path.join(rd, f".exp46_lock.released_{ts}"))
+        reg.rename_below(os.path.join(rd, ".exp46_lock"), os.path.join(rd, f".exp46_lock.released_{ts}"), reg.run_root(rd),
+                         "the released run lock")
         if full:
             tr_sha = reg.sha256_file(os.path.join(rd, reg.TRAINING_RECEIPT))
             rec.update(strict=True, status=verdict, training_receipt_sha256=tr_sha,

@@ -253,3 +253,110 @@ def test_a_run_dir_aliased_into_a_protected_root_refuses_the_registrys_run_dir_w
     with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
         reg.write_commit_marker(rd, RUN, "7" * 64, str(record))
     assert listing(prot) == before
+
+
+# ------------------------------------------------------------------ the submitter's entry points: aliased children
+def _load(name, alias):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(alias, os.path.join(EXP, name))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _runner(calls):
+    import types
+
+    def runner(argv, capture_output=True, text=True):
+        calls.append(argv)
+        out = "PartitionName=all MaxTime=7-00:00:00" if argv[0] == "scontrol" else ""
+        return types.SimpleNamespace(returncode=0, stdout=out, stderr="")
+    return runner
+
+
+SUBMIT_CHILDREN = {"the owners folder": ".exp46_owners", "the submit lock": f".exp46_submit_{RUN}__FULL.lock"}
+
+
+@pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+@pytest.mark.parametrize("kind", KINDS)
+def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                   monkeypatch, kind, child):
+    """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+    symlinked submit lock created its absent target there). Every destination of the submission is validated before
+    the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+    prot = protected_root(kind, protected_all, tmp_path)
+    before = listing(prot)
+    root = tmp_path / "exp46_save_root"
+    root.mkdir()
+    (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+    monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+    sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+    monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+    calls = []
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        sub.submit(RUN, "FULL", "3-00:00:00", "flash", reg.FLASH_VERSION, False, False, root=str(root),
+                   runner=_runner(calls))
+    assert listing(prot) == before and not [c for c in calls if c[0] == "sbatch"]
+    assert reg.storage_reservation(RUN, str(root)) is None                # no stranded reservation
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+    """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+    validated before the first rename (nothing moves, nothing is released)."""
+    import json
+    prot = protected_root(kind, protected_all, tmp_path)
+    before = listing(prot)
+    sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+    root = tmp_path / "exp46_save_root"
+    od = root / sub.OWNERS / f"{RUN}__SMOKE"
+    od.mkdir(parents=True)
+    token = "b" * 32
+    intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+              "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+              "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+              "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+              "partition_max_time": "7-00:00:00"}
+    (od / "intent.json").write_text(json.dumps(intent))
+    (root / sub.OWNERS / "abandoned").symlink_to(prot)
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        sub.abandon(RUN, "SMOKE", root=str(root), runner=_runner([]))
+    assert listing(prot) == before and (od / "intent.json").is_file()
+
+
+# ------------------------------------------------------------------ the supervisor's and the evaluator's entry points
+@pytest.mark.parametrize("kind", KINDS)
+def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+    prot = protected_root(kind, protected_all, tmp_path)
+    before = listing(prot)
+    sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        sv.lock_cards([0], str(locks))
+    (locks / "child.log").symlink_to(prot / "absent.log")
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        sv.OwnedChild([sys.executable, "-c", "pass"], str(tmp_path), dict(os.environ), str(locks / "child.log"))
+    aliased = tmp_path / "aliased_dir"
+    aliased.symlink_to(prot)
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        sv.Record([str(aliased / "at_launch.json")], x=1)
+    assert listing(prot) == before
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+    import exp46_fixtures as fx
+    prot = protected_root(kind, protected_all, tmp_path)
+    before = listing(prot)
+    sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+    rd = tmp_path / "exp46_save_root" / RUN
+    v0 = rd / reg.LOGGER_DIR / "version_0"
+    v0.mkdir(parents=True)
+    (v0 / "hparams.yaml").write_text("{}\n")
+    (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+    (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        sv.move_loss_record(str(rd))
+    assert listing(prot) == before and (v0 / "metrics.csv").is_file()
