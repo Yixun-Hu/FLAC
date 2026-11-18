@@ -1229,6 +1229,12 @@ def disclosure_block(table):
 # repo copy, not the site-packages one) first on sys.path; the snapshots keep that
 CLOSURE_ROOTS = ("train.py", "defaults.ini", "eval_FLAC.py", "pyproject.toml", "src", "overlays", "data/AR", "AGREE")
 CLOSURE_EXP_PREFIXES = ("exp46_",)
+# exp_46's own runtime inputs inside EXP_DIR, admitted by EXACT path in addition to the exp46_ prefix rule (plan r3 §3.2
+# "Closure", Codex plan r1 finding 1, r2 finding 3): _in_closure checks folder membership before EXTERNAL_CONFIGS, so a
+# file of EXP_DIR enters the closure only through this list or the prefix. The f100 delta content manifest is built at
+# L2 (it is listed by git only once committed); the C4F config is ARMS["c4f"]["config"].
+F100_DELTA_MANIFEST = f"{EXP_DIR}/exp46_f100_delta_manifest.txt.gz"
+CLOSURE_EXPLICIT = (f"{EXP_DIR}/exp46_FLAC_AR_YAWAUG_C4FLIP.json", F100_DELTA_MANIFEST)
 
 
 def ref_set():
@@ -1263,13 +1269,16 @@ def closure_files(repo=None):
     if os.path.isfile(os.path.join(repo, "SNAPSHOT.sha256")):
         rels = [ln.split("  ", 1)[1] for ln in open(os.path.join(repo, "SNAPSHOT.sha256")).read().strip().split("\n")]
         return sorted(r for r in rels if _in_closure(r))
-    out = _git_out(repo, "ls-files", "-z", "--", *CLOSURE_ROOTS, EXP_DIR, *EXTERNAL_CONFIGS).decode().split("\0")
+    out = _git_out(repo, "ls-files", "-z", "--", *CLOSURE_ROOTS, EXP_DIR, *EXTERNAL_CONFIGS, *CLOSURE_EXPLICIT
+                   ).decode().split("\0")
     return sorted({r for r in out if r and _in_closure(r)})
 
 
 def _in_closure(rel):
     if rel.startswith("src/tests/"):
         return False
+    if rel in CLOSURE_EXPLICIT:                        # exact-path admission first (plan r3 §3.2 "Closure")
+        return True
     if rel.startswith(EXP_DIR + "/"):
         return os.path.basename(rel).startswith(CLOSURE_EXP_PREFIXES) and "/" not in rel[len(EXP_DIR) + 1:]
     return rel in EXTERNAL_CONFIGS or any(rel == r or rel.startswith(r + "/") for r in CLOSURE_ROOTS)
