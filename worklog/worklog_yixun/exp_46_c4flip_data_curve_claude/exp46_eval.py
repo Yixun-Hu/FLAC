@@ -234,7 +234,10 @@ def eval_snapshot(closure, create=False):
         # a realpath BEFORE any directory is created
         reg.check_isolation(SNAPSHOT_ROOT, "the evaluation snapshot root")
         reg.check_isolation(dest, "the evaluation snapshot")
-        reg.makedirs_below(_abs("outputs_FLAC"), _abs("outputs_FLAC"), "outputs_FLAC")    # (a link there is the tree's own)
+        # Codex code r3 finding 2: outputs_FLAC is a CONTAINER -- a clean campaign tree already holds exp_38's / exp_45's
+        # tracked farms in it: admitted for containing them (never for lying in or aliasing a protected root), while
+        # every write below it is checked on its own (a foreign descendant still refuses)
+        reg.makedirs_below(_abs("outputs_FLAC"), _abs("outputs_FLAC"), "the outputs_FLAC container", container=True)
         reg.makedirs_below(SNAPSHOT_ROOT, SNAPSHOT_ROOT, "the evaluation snapshot root")
         reg.snapshot_tools("eval", dest, reg.REPO, links=EVAL_LINKS)
     v = reg.verify_snapshot(dest)

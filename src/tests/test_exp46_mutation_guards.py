@@ -569,3 +569,46 @@ def test_the_entry_points_refuse_a_dotdot_destination_before_any_write(dotdot, t
     with pytest.raises(reg.GateError, match=r"'\.\.'"):
         nas.stage(os.path.dirname(bad), RUN)
     assert listing(prot) == [] and listing(decoy) == []
+
+
+# ------------------------------------------------------------------ fix round 3, Codex code r3 finding 2: the container
+def test_the_first_evaluation_snapshot_is_made_through_the_real_guards_in_a_tree_holding_foreign_farms(tmp_path,
+                                                                                                      monkeypatch):
+    """A clean campaign tree's outputs_FLAC already holds exp_38's and exp_45's tracked farms. The guarded makedirs of
+    that container refused it for CONTAINING protected roots, so no first evaluation snapshot could ever be made. The
+    REAL eval_snapshot(create=True) -- its guards, snapshot_tools, verify_snapshot and closure check -- now admits the
+    container and makes the snapshot (only its inputs are small: one closure file, two links); every foreign
+    descendant still refuses through the same guards, and the foreign farm files are untouched."""
+    ev = _load("exp46_eval.py", "exp46_eval_first_snapshot")
+    tree = tmp_path / "exp-46-campaign"
+    for rel in (reg.EXP38_FARM, reg.EXP45_FARM):
+        (tree / rel).mkdir(parents=True)
+        (tree / rel / "cell.json").write_text("theirs\n")
+    (tree / "train.py").write_text("print('closure')\n")
+    (tree / "AcousticRooms").mkdir()
+    monkeypatch.setattr(reg, "REPO", str(tree))
+    monkeypatch.setattr(ev, "SNAPSHOT_ROOT", str(tmp_path / "exp-46-snapshots"))
+    monkeypatch.setattr(ev, "EVAL_LINKS", ("AcousticRooms", "outputs_FLAC"))
+    monkeypatch.setattr(reg, "snapshot_files", lambda run, repo=None: ["train.py"])
+    probe = tmp_path / "probe"                                   # the closure such a snapshot has (the real digest)
+    probe.mkdir()
+    (probe / "train.py").write_text("print('closure')\n")
+    (probe / "SNAPSHOT.sha256").write_text(f"{reg.sha256_file(str(probe / 'train.py'))}  train.py\n")
+    closure = reg.closure_digest(str(probe))["closure_sha256"]
+    farms = lambda: {rel: [(p, (tree / rel / p).read_text()) for p in listing(tree / rel)]  # noqa: E731
+                     for rel in (reg.EXP38_FARM, reg.EXP45_FARM)}
+    before = farms()
+    dest, sha = ev.eval_snapshot(closure, create=True)
+    assert dest == ev.eval_snapshot_dir(closure) and os.path.islink(os.path.join(dest, "outputs_FLAC"))
+    assert os.path.realpath(os.path.join(dest, "outputs_FLAC")) == os.path.realpath(tree / "outputs_FLAC")
+    assert ev.eval_snapshot(closure) == (dest, sha)                  # the second call verifies, never recreates
+    for rel in (reg.EXP38_FARM, reg.EXP45_FARM):                    # the container is admitted, its foreign
+        with pytest.raises(reg.GateError, match="exp_38 / exp_45"):  # descendants are not
+            reg.makedirs_below(str(tree / rel / "x"), str(tree / "outputs_FLAC"), "a farm dir", container=True)
+        with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+            reg.atomic_write_bytes(str(tree / rel / "x.json"), b"x", root=str(tree / "outputs_FLAC"))
+    assert farms() == before
+    linked = tmp_path / "linked_container"                           # a container aliasing a protected root: refused
+    linked.symlink_to(tree / reg.EXP38_FARM)
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        reg.makedirs_below(str(linked), str(linked), "a container", container=True)
