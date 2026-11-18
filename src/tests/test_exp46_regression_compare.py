@@ -251,3 +251,25 @@ def test_a_parent_node_may_go_only_as_a_registered_replacement_that_passes(tmp_p
     assert len(problems) == 1 and problems[0].startswith(f"{new}: must pass")
     problems, _ = _run(tmp_path, merged)
     assert f"{new}: the declared-edited / replacement node is missing" in problems and len(problems) == 3
+
+
+def test_the_wandb_environment_failures_are_inherited_only_as_the_parents_exact_node_outcome_and_signature(tmp_path):
+    """Fix round 1 (Codex code r1 open item 1): on neuronic the flac env's wandb 0.26.1 makes exp_43's kit nodes fail
+    in EVERY tree. L1 accepts such a failure as inherited only when a parent junit shows the same node with the same
+    outcome and the same normalised signature (checkout roots normalised) -- and L1 carries no L0 deselection forward:
+    a node absent from the merged junit (deselected) while a parent ran it refuses."""
+    node = "src/tests/test_exp43_kit.py::test_admission_validator_accepts_the_exact_record_and_rehashes"
+    msg = "exp43_kit.Refused: the history extractor exited 2: REFUSED: wandb 0.26.1 != the pinned 0.15.4 ({root}/x.py)"
+    merged = dict(BASE, **{node: ("error", msg.format(root=ROOTS[0]))})
+    same = dict(BASE, **{node: ("error", msg.format(root=ROOTS[2]))})               # the exp_43 parent, its own root
+    problems, report = _run(tmp_path, merged, p43=same)
+    assert problems == [] and report["allowed_failures"] == [
+        f"{node}: inherited from 4a7e3b3a (error: {msg.format(root='<checkout>')})"]
+    for parent in (dict(BASE, **{node: "passed"}), dict(BASE, **{node: ("failed", msg.format(root=ROOTS[2]))}),
+                   dict(BASE, **{node: ("error", msg.format(root=ROOTS[2]).replace("0.26.1", "0.27.0"))}),
+                   dict(BASE, **{node: ("skipped", "wandb absent")})):
+        problems, _ = _run(tmp_path, merged, p43=parent)
+        assert len(problems) == 1 and problems[0].startswith(f"{node}: error in the merged tree"), parent[node]
+    deselected = {k: v for k, v in BASE.items() if k != node}                       # L0's deselection, carried over
+    problems, _ = _run(tmp_path, deselected, p43=same)
+    assert problems == [f"{node}: present in 4a7e3b3a, missing in the merged tree"]
