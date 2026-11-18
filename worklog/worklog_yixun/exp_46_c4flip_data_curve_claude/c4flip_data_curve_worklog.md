@@ -333,3 +333,125 @@ registry without `closure_digest_at` (F9), the sheets held aside (F10).
 - **Dispositions:** all nine go to the Coder's fix round 2 (one batch for Codex code r3, the last round). F6 waits for
   Yixun's D1; if he answers during the round it joins this batch, otherwise it is fixed after r3 without re-review
   (review cap) and recorded.
+
+## 2026-11-18 05:46 → 07:20 EST — fix round 2: Codex code r2 findings F2 / R2-3, F8 / R2-4, R2-1 … R2-9 (exp_46 Coder, Claude Opus 5.5)
+
+Every finding fixed test-first, each red / green in a CPU Slurm job (`pyt46.sh`, `JOBTMP=/tmp`); commits, sizes and
+logs in the ledger (24 logs, AD1 … AM2; five ABORTED greens, each re-run green after its cause was fixed). F6 / item
+13 is still on hold (Yixun's D1; `test_exp45_sampler.py` untouched). The exp_38 / 40 / 43 / 45 folders, the yaw_*.py
+files and `test_exp45_sampler.py` are byte-identical to X45f (checked: `git diff X45f HEAD` empty for them); the
+declared edits stay E1–E5 (the generator untouched); this round's 21 changed files lie in `EXPREL46` and
+`src/tests/test_exp46_*` only. Temporary stand-ins used only for red runs (restored before the next job): the
+committed registry / table (AF1), the kit as it stood at `bf11bc65` with the NAS helper kept (AM1); the new sheet test
+ran first against the previous sheets (AL1). No pytest, python or test code ran on the login node.
+
+- **Change / Validation / Result (per finding):**
+  - R2-3 / F2 (`688daea8`): `exp46_init_digest.main` makes `--json` absolute from the caller's cwd before anything else;
+    that one path is isolation- and lexists-checked before the model is built, re-validated just before the write and
+    written exclusively, never through a link (exit 2 otherwise). Test: a non-root cwd, `../out/x.json`, `../../` into a
+    protected root (refused before the model), an existing entry, one created during the measurement, a component
+    swapped for a link (AD1 red: the record landed in the protected stand-in; AD2 green).
+  - R2-4 / F8 (`bf11bc65`): `render()` calls `source_problems`: the import record must be the sealed one its digest
+    names (its canonical text re-hashes to it) and its rows its own per-cell aggregate; C4F rows are re-derived through
+    `c4f_rows` of the campaign of exp_46's own E0 receipt (a different campaign refuses); any differing value, finite or
+    not, refuses with its row named (AE1 red: 9 x DID NOT RAISE; AE2 green).
+  - R2-1 HIGH (`78bd15cf`, `26908fee`, `29057aba`, `b7c8a0e9`, `b3027add`): `exp46_registry.check_destination(path, root,
+    what)` validates the ACTUAL destination below its checked root -- lexically below it, the root isolated, no existing
+    component from the root down a symlink (`alias_problem`, a dangling link included), the resolved path isolated --
+    and every kit mutation goes through a guarded primitive naming its root (the list below). Codex's two probes (a
+    `.exp46_storage.lock` symlink to an absent file in a protected root; a symlinked `.exp46_owners`) refuse with zero
+    writes. The protected-root matrix now covers child components: every primitive x 14 protected roots x a leaf /
+    parent / deep alias x an absent / existing target, and the entry points (ledger lock / ledger / temp name, the
+    environment-receipt lock, a run dir aliased, the owners folder and submit lock, the abandoned-owners folder, the
+    card locks, the child log, a launch-record folder, the receipts folder, a farm run folder, the publication lock,
+    the delta manifest's temp name, the L1 report). An AST audit (`test_every_mutating_call_of_the_kit_is_guarded_or_audited`)
+    fails on any write-mode `open()`, any root-less atomic / sealed / no-clobber write and any raw mutation call outside
+    its 21 audited entries (AF1 / AG1 / AH1 / AM1 red; AF3, AG3, AH3, AI2, AM2 green).
+  - R2-2 HIGH (`e80a88f8`): every python invocation of both sheets has `-B` (both regenerations, exp_46's tools, the
+    inline helpers; the L1 suite `-B -I`). Tests: every interpreter call of both sheets is parsed and must carry `-B`;
+    the generator's exp_38 path (`validate_exp38_cell` → `_load_exp38_eval`, importing exp_38's evaluator and registry)
+    runs as its own process on a copied tree, no other validator first, with the flags parsed from the sheet's two
+    regeneration commands: no `__pycache__` under exp_38's folder -- and with the flags removed it appears (live check).
+  - R2-5 (`e80a88f8`): L8 runs the kit's verified exp_38 import into G first (every file hashed into the sealed
+    record, copied identical-or-absent, re-hashed), then checks exactly the static dependencies the materialiser only
+    verifies -- the E0a decision + sidecar and the reference manifest (cmp against B's tracked copies) and its 68 cells
+    (`sha256sum -c` in G) -- before `materialise`; recovery stated (stop; never copy exp_38's files by hand; tell Yixun).
+    The test derives the file set from `generator_static()` and the import's source.
+  - R2-6 (`e80a88f8`): L4 is executable: at the clean tip, `exp46_registry.py dry-run --platform neuronic` and, per
+    run, the SMOKE and FULL submitter dry-runs, then `git push` (X46 = that commit); the test checks the commands, that
+    they submit nothing, and their position (after L3, before the push, before Y46).
+  - R2-7 (`e80a88f8`): the A6000 sheet creates `~/codespace/exp-46-publish` (`worktree add -b exp-46-c4flip-data-curve
+    … $X46`), verifies HEAD, branch, upstream and a clean tree before the first copy, runs under `set -e` with every
+    `cd … || exit 1` and no `&&` lists (which `set -e` does not stop); a cwd-tracking test proves every `git add` /
+    `git commit` runs in the publication worktree, never in tree 46.
+  - R2-8 (`d909632b`, sheet `e80a88f8`): new helper `exp46_nas_publish.py`: `stage` creates `<run>.incoming` exclusively
+    before rsync (an existing staging / published entry or a link refuses; the root must be a real isolated
+    directory, never created); `publish` re-validates the sealed staging dir and moves it through renameat2
+    RENAME_NOREPLACE, else a fresh lexists check + a directory rename (never nests, never replaces a file / link /
+    non-empty dir); a final path present or created meanwhile refuses, staging kept. Tests in temporary directories
+    only (AK1 red, AK3 green); the sheet chain is stage → rsync → sha256sum → training-check → publish.
+  - R2-9 (`0f1b9933`, sheet `e80a88f8`): `abandon` refuses a run dir holding `TRAINING_COMMITTED.json` before any
+    query or move and names `release --run`; the sheet's recovery first tells SEALED from UNSEALED, keeps a sealed run
+    (`release --run` frees only the stranded hold) and abandons only unsealed attempts (AJ1 red, AJ2 green).
+- **The mutation-site audit (R2-1): every open / mkdir / rename / symlink / copy / remove of the kit and its guard.**
+  Guard = a primitive that runs `check_destination` first (`open_below` "a" / "w" / "x" with O_NOFOLLOW,
+  `makedirs_below`, `mkdir_below`, `rename_below` (source and destination), `symlink_below`, `copyfile_below`) or an
+  atomic writer with its `root` (`atomic_write_bytes` / `write_sealed` / `publish_no_clobber`: destination and temp name
+  validated; temp O_EXCL | O_NOFOLLOW / mkstemp). `run_root(rd)` = the save root of a run dir.
+  - `exp46_registry.py`: `write_ckpt_manifest` CHECKPOINTS.sha256 (atomic, run_root); `storage_gate` the write probe
+    (open_below "x", the storage root; its unlink audited); `_Ledger` the ledger and its lock validated at construction,
+    the lock open_below "a", the ledger atomic (save root); `snapshot_tools` every directory, copy (exp_38's registered
+    read-only closure files with allow=(EXP38_DIR,)), link and both SNAPSHOT manifests (root = the snapshot dir);
+    `_stale_env_receipt_temps` the receipt-lock probe and `ensure_env_receipt` the receipt lock (open_below "a", the
+    tree's exp_46 folder); `env_receipt` and `write_smoke_receipt` (write_sealed, the exp_46 folder); `retain_receipts`
+    receipts/ (makedirs_below, exist_ok=False) and its copies; `write_commit_marker`; `write_training_receipt` the
+    retained train log, SNAPSHOT copies and TRAINING_COMPLETE.json (all run_root).
+  - `exp46_submit_neuronic.py` (root = the save root): `submit` validates the submit lock, the owner record's temp
+    intent (covering the owners folder and owner dir) and the submission log before the first write, then the save
+    root (makedirs_below); `submit_lock` open_below "a"; `_submit_locked` owners folder + owner record (mkdir_below),
+    the submission log (open_below "a", its own folder); `_write_intent` intent.json.tmp (open_below "w") + rename_below;
+    `claim_attempt` attempt.claim (mkdir_below), its job file ("w"), attempt_<jid>.json ("x"); `_archive_owner` and
+    `_abandon_locked` (every destination validated first; makedirs_below + rename_below; a sealed run refused).
+  - `exp46_supervise.py`: `OwnedChild` the child log (open_below "ab", the exp_46 folder); `Record.flush` both launch
+    records (atomic: the exp_46 folder / run_root); `lock_cards` the card locks (open_below "a" + dup, the lock dir);
+    `move_loss_record` receipts/ + both renames (all validated first), the two emptied logger folders' rmdir (audited);
+    `f100_delta_reverification` receipts/ + the sealed record; `mode_campaign` the run dir, `.exp46_lock`, its holder,
+    the snapshot folder (A6000 snapshot root or run_root) and the lock release rename.
+  - `exp46_eval.py`: `eval_snapshot` outputs_FLAC and the snapshot root (each its own root); `_link` farm folder +
+    link, `_copy_once` every offline copy, `prepare` farm sub-folders, `claim_cell` folder / claim / holder, `run_one`
+    the cell receipt (root = the farm) and the eval log + folder (root = the eval-log folder); `shutil_rmtree` the claim
+    release (check_destination, then rmtree, which refuses links -- audited); `cmd_run` the card lock (open_below "a");
+    `cmd_e0` the E0 receipt (exp_46 folder). The evaluator child's dump dir is refused if it exists (unchanged).
+  - `exp46_collect.py`: `publish` the publication lock and both result files (the repo's exp_46 folder);
+    `materialise` every directory and file (makedirs_below / publish_no_clobber, root = the destination; exp_38's
+    files only verified).
+  - `exp46_table.py`: `extract_bundle` the .git marker (open_below, the private extraction dir) and `tar.extractall`
+    (audited: every member a plain relative file / dir, no `..`); `import_exp38` / `verify_record_at_commit` mkdtemp
+    after an isolation check of the system temp dir, rmtree of that private dir (audited); the import record,
+    TABLE_MD and the table evidence (exp_46 folder); `materialise` (the generator root, allow = exp_38's worklog /
+    farm: the registered r2-6 exception).
+  - `exp46_content_manifest.py` `build`: the output and exp_38's writer's temp name validated (root = the output's
+    folder) before the split is read; `exp46_regression_compare.py` `--out` validated, written through open_below "w";
+    `exp46_init_digest.py` `--json` absolute, validated twice, open_below "x"; `exp46_nas_publish.py` `stage` an
+    exclusive os.mkdir after check_destination (audited) and `publish` renameat2 RENAME_NOREPLACE (ctypes) or the
+    audited checked fallback rename.
+  - The 21 audited raw calls (the test's AUDITED table, with reasons): `_fsync_dir` os.open (a read-only directory
+    fd); `atomic_write_bytes` os.open / os.replace; `publish_no_clobber` mkstemp / link / unlink; `storage_gate` unlink;
+    the six primitives' own os calls; `move_loss_record` rmdir; `shutil_rmtree` rmtree; the table's two mkdtemp, two
+    rmtree and extractall; the NAS helper's mkdir and fallback rename. Outside Python: Slurm's `--output` into the
+    launch checkout's exp_46 folder; the training child writes into the validated run dir, the evaluator child into
+    the validated farm folder; the sheets' `mkdir -p` / `cp` run inside the verified publication worktree and rsync
+    into the exclusively created staging dir.
+- **Beyond the findings (each with its reason):** (1) three existing exp_46 test doubles (the concurrent-SMOKE
+  `write_sealed` wrapper, the publish-order spy, and the storage tests' tmp submission log) needed the new `root`
+  keyword passed through / the log's own folder as its root -- signature fallout, no behaviour change; (2) `write_sealed`
+  validates its destination before its exists check (so a link is refused as an alias, not as "exists"); (3) the
+  A6000 sheet splits `e0 && e0-check` and `source … && conda activate` into single commands, because `set -e` does not
+  stop inside an `&&` list (an E0 FAIL would otherwise have flowed into the Y46 copy); (4) `exp46_nas_publish.py` is a
+  new kit file (in the closure by its exp46_ prefix; added to the paths test's KIT); (5) `d909632b` is 250 lines and
+  its message does not flag it (no amend); `78bd15cf` (308) and `e80a88f8` (434) are flagged in theirs.
+- **Analysis:** no finding needed a plan change. R2-1's guard is stricter than the finding asked (it refuses ANY
+  symlinked component below a checked root, not only one into a protected root); every exp_46 namespace the kit
+  writes is created by the kit itself, so no legitimate path is a link below its root (a tree's own `outputs_FLAC`
+  link and every save / snapshot root stay above or at their roots). Open for the coordinator: F6 / item 13 (Yixun's
+  D1) and the campaign order (D2), both unchanged.

@@ -1,0 +1,2570 @@
+HEAD 26908fee76d37f9992bce9989f62ba757359c36a tracked-clean=no host neu306.neuronic.cs.princeton.edu start 2026-11-18T06:39:48-05:00
+cmd: pytest -q src/tests/test_exp46_mutation_guards.py -k submitter_refuses\ or\ abandon_refuses\ or\ card_locks\ or\ loss_record_move\ or\ farm_directory\ or\ publication_lock 
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF [ 73%]
+FFFFFFFFFFFFFFFFFFFFFFFFFF                                               [100%]
+=================================== FAILURES ===================================
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 NAS save root-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_0')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_0/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_0/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d8e8880>
+kind = 'exp38 NAS save root', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 NAS save root-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_1')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_1/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_1/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d947b80>
+kind = 'exp38 NAS save root', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 neuronic save root-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_2')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_2/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_2/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d8eb340>
+kind = 'exp38 neuronic save root', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 neuronic save root-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_3')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_3/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_3/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d944be0>
+kind = 'exp38 neuronic save root', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 dump root-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_4')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_4/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_4/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d9661a0>
+kind = 'exp38 dump root', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 dump root-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_5')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_5/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_5/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d946b60>
+kind = 'exp38 dump root', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 snapshots-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_6')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_6/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_6/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d964190>
+kind = 'exp38 snapshots', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 snapshots-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_7')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_7/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_7/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d93be80>
+kind = 'exp38 snapshots', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 NAS save root-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_8')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_8/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_8/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d9674c0>
+kind = 'exp45 NAS save root', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 NAS save root-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_9')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_9/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_9/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d9450f0>
+kind = 'exp45 NAS save root', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 neuronic save root-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_10')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_10/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_10/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d965780>
+kind = 'exp45 neuronic save root', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 neuronic save root-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_11')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_11/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_11/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d9432b0>
+kind = 'exp45 neuronic save root', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 dump root-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_12')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_12/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_12/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d967d00>
+kind = 'exp45 dump root', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 dump root-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_13')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_13/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_13/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d967730>
+kind = 'exp45 dump root', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 campaign-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_14')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_14/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_14/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d93bb80>
+kind = 'exp45 campaign', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 campaign-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_15')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_15/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_15/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d941330>
+kind = 'exp45 campaign', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 publish-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_16')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_16/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_16/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d939360>
+kind = 'exp45 publish', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 publish-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_17')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_17/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_17/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d93ad40>
+kind = 'exp45 publish', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 farm-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_18')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_18/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_18/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d946b00>
+kind = 'exp38 farm', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 farm-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_19')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_19/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_19/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d7cee90>
+kind = 'exp38 farm', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 worklog-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_20')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_20/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_20/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d9459c0>
+kind = 'exp38 worklog', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 worklog-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_21')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_21/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_21/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d8ebf10>
+kind = 'exp38 worklog', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 SMOKE folder-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_22')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_22/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_22/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d8e8970>
+kind = 'exp38 SMOKE folder', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 SMOKE folder-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_23')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_23/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_23/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d84c9a0>
+kind = 'exp38 SMOKE folder', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 farm-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_24')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_24/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_24/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d9411b0>
+kind = 'exp45 farm', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 farm-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_25')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_25/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_25/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d940550>
+kind = 'exp45 farm', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 worklog-the owners folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_26')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_26/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_26/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d9a31c0>
+kind = 'exp45 worklog', child = 'the owners folder'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 worklog-the submit lock] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_27')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_27/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_submitter_refuses_an_27/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d9a24d0>
+kind = 'exp45 worklog', child = 'the submit lock'
+
+    @pytest.mark.parametrize("child", sorted(SUBMIT_CHILDREN))
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch(tmp_path, protected_all,
+                                                                                       monkeypatch, kind, child):
+        """Codex code r2 finding 1: a symlinked .exp46_owners routed the owner record into another namespace (and a
+        symlinked submit lock created its absent target there). Every destination of the submission is validated before
+        the first write: no reservation is taken, no sbatch issued, the protected root untouched."""
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        root = tmp_path / "exp46_save_root"
+        root.mkdir()
+        (root / SUBMIT_CHILDREN[child]).symlink_to(prot if child == "the owners folder" else prot / "absent.lock")
+        monkeypatch.setattr(reg, "free_bytes", lambda path: 10 ** 15)     # room enough: only the alias may refuse
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards")
+        monkeypatch.setattr(sub, "preflight", lambda *a: "a" * 40)
+        calls = []
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exp_38 / exp_45'
+E         Actual message: "sbatch returned ''; run reconcile"
+
+src/tests/test_exp46_mutation_guards.py:296: AssertionError
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 NAS save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase0')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase0/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase0/protected_exp38_snapshots'), ...}
+kind = 'exp38 NAS save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 neuronic save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase1')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase1/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase1/protected_exp38_snapshots'), ...}
+kind = 'exp38 neuronic save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 dump root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase2')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase2/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase2/protected_exp38_snapshots'), ...}
+kind = 'exp38 dump root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 snapshots] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase3')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase3/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase3/protected_exp38_snapshots'), ...}
+kind = 'exp38 snapshots'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 NAS save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase4')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase4/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase4/protected_exp38_snapshots'), ...}
+kind = 'exp45 NAS save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 neuronic save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase5')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase5/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase5/protected_exp38_snapshots'), ...}
+kind = 'exp45 neuronic save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 dump root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase6')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase6/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase6/protected_exp38_snapshots'), ...}
+kind = 'exp45 dump root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 campaign] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase7')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase7/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase7/protected_exp38_snapshots'), ...}
+kind = 'exp45 campaign'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 publish] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase8')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase8/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase8/protected_exp38_snapshots'), ...}
+kind = 'exp45 publish'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 farm] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase9')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase9/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase9/protected_exp38_snapshots'), ...}
+kind = 'exp38 farm'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 worklog] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase10')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase10/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase10/protected_exp38_snapshots'), ...}
+kind = 'exp38 worklog'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 SMOKE folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase11')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase11/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase11/protected_exp38_snapshots'), ...}
+kind = 'exp38 SMOKE folder'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 farm] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase12')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase12/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase12/protected_exp38_snapshots'), ...}
+kind = 'exp45 farm'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 worklog] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase13')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase13/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_an_aliase13/protected_exp38_snapshots'), ...}
+kind = 'exp45 worklog'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_abandon_refuses_an_aliased_archive_folder_before_moving_anything(tmp_path, protected_all, kind):
+        """An aliased .exp46_owners/abandoned would receive the moved owner record: every destination of the abandon is
+        validated before the first rename (nothing moves, nothing is released)."""
+        import json
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sub = _load("exp46_submit_neuronic.py", "exp46_submit_guards_abandon")
+        root = tmp_path / "exp46_save_root"
+        od = root / sub.OWNERS / f"{RUN}__SMOKE"
+        od.mkdir(parents=True)
+        token = "b" * 32
+        intent = {"schema": 1, "token": token, "run": RUN, "mode": "SMOKE", "head": "a" * 40, "time": "01:00:00",
+                  "backend": "flash", "flash_version": reg.FLASH_VERSION, "allow_nonmatched": False,
+                  "save_dir": sub.run_dir(RUN, "SMOKE", str(root)), "job_name": sub.job_name(RUN, "SMOKE", token),
+                  "state": "submitting", "ts": "2020-01-01T00:00:00", "job_id": None, "reconciled": False,
+                  "partition_max_time": "7-00:00:00"}
+        (od / "intent.json").write_text(json.dumps(intent))
+        (root / sub.OWNERS / "abandoned").symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:322: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 NAS save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch0')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch0/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch0/protected_exp38_snapshots'), ...}
+kind = 'exp38 NAS save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 neuronic save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch1')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch1/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch1/protected_exp38_snapshots'), ...}
+kind = 'exp38 neuronic save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 dump root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch2')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch2/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch2/protected_exp38_snapshots'), ...}
+kind = 'exp38 dump root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 snapshots] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch3')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch3/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch3/protected_exp38_snapshots'), ...}
+kind = 'exp38 snapshots'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 NAS save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch4')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch4/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch4/protected_exp38_snapshots'), ...}
+kind = 'exp45 NAS save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 neuronic save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch5')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch5/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch5/protected_exp38_snapshots'), ...}
+kind = 'exp45 neuronic save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 dump root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch6')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch6/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch6/protected_exp38_snapshots'), ...}
+kind = 'exp45 dump root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 campaign] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch7')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch7/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch7/protected_exp38_snapshots'), ...}
+kind = 'exp45 campaign'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 publish] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch8')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch8/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch8/protected_exp38_snapshots'), ...}
+kind = 'exp45 publish'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 farm] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch9')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch9/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch9/protected_exp38_snapshots'), ...}
+kind = 'exp38 farm'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 worklog] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch10')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch10/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch10/protected_exp38_snapshots'), ...}
+kind = 'exp38 worklog'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 SMOKE folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch11')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch11/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch11/protected_exp38_snapshots'), ...}
+kind = 'exp38 SMOKE folder'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 farm] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch12')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch12/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch12/protected_exp38_snapshots'), ...}
+kind = 'exp45 farm'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 worklog] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch13')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch13/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_card_locks_and_the_ch13/protected_exp38_snapshots'), ...}
+kind = 'exp45 worklog'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write(tmp_path, protected_all, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards")
+        locks = tmp_path / "locks"
+        locks.mkdir()
+        (locks / ".exp38_card0.lock").symlink_to(prot / "absent.lock")
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:336: Failed
+_ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 NAS save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu0')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu0/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu0/protected_exp38_snapshots'), ...}
+kind = 'exp38 NAS save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+_ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 neuronic save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu1')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu1/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu1/protected_exp38_snapshots'), ...}
+kind = 'exp38 neuronic save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+_ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 dump root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu2')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu2/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu2/protected_exp38_snapshots'), ...}
+kind = 'exp38 dump root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+_ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 snapshots] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu3')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu3/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu3/protected_exp38_snapshots'), ...}
+kind = 'exp38 snapshots'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+_ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 NAS save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu4')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu4/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu4/protected_exp38_snapshots'), ...}
+kind = 'exp45 NAS save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+_ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 neuronic save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu5')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu5/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu5/protected_exp38_snapshots'), ...}
+kind = 'exp45 neuronic save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+_ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 dump root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu6')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu6/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu6/protected_exp38_snapshots'), ...}
+kind = 'exp45 dump root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+_ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 campaign] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu7')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu7/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu7/protected_exp38_snapshots'), ...}
+kind = 'exp45 campaign'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+_ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 publish] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu8')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu8/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu8/protected_exp38_snapshots'), ...}
+kind = 'exp45 publish'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+___ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 farm] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu9')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu9/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu9/protected_exp38_snapshots'), ...}
+kind = 'exp38 farm'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+_ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 worklog] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu10')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu10/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu10/protected_exp38_snapshots'), ...}
+kind = 'exp38 worklog'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+_ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 SMOKE folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu11')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu11/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu11/protected_exp38_snapshots'), ...}
+kind = 'exp38 SMOKE folder'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+___ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 farm] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu12')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu12/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu12/protected_exp38_snapshots'), ...}
+kind = 'exp45 farm'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+_ test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 worklog] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu13')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu13/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_loss_record_move_refu13/protected_exp38_snapshots'), ...}
+kind = 'exp45 worklog'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, protected_all, kind):
+        import exp46_fixtures as fx
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        sv = _load("exp46_supervise.py", "exp46_supervise_guards_loss")
+        rd = tmp_path / "exp46_save_root" / RUN
+        v0 = rd / reg.LOGGER_DIR / "version_0"
+        v0.mkdir(parents=True)
+        (v0 / "hparams.yaml").write_text("{}\n")
+        (v0 / "metrics.csv").write_bytes(fx.loss_csv(reg))
+        (rd / reg.RECEIPTS_DIR).symlink_to(prot)
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:360: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 NAS save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_0')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_0/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_0/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d4e1f00>
+kind = 'exp38 NAS save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 neuronic save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_1')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_1/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_1/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d945ae0>
+kind = 'exp38 neuronic save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 dump root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_2')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_2/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_2/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d4e22f0>
+kind = 'exp38 dump root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 snapshots] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_3')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_3/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_3/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d944a00>
+kind = 'exp38 snapshots'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 NAS save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_4')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_4/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_4/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d4bd210>
+kind = 'exp45 NAS save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 neuronic save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_5')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_5/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_5/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d650ac0>
+kind = 'exp45 neuronic save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 dump root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_6')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_6/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_6/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d4bd300>
+kind = 'exp45 dump root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 campaign] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_7')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_7/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_7/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d650760>
+kind = 'exp45 campaign'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 publish] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_8')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_8/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_8/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d4bd480>
+kind = 'exp45 publish'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 farm] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_9')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_9/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_9/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d4f5b10>
+kind = 'exp38 farm'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 worklog] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_10')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_10/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_10/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d4bca90>
+kind = 'exp38 worklog'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 SMOKE folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_11')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_11/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_11/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d4f6770>
+kind = 'exp38 SMOKE folder'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 farm] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_12')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_12/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_12/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d5f4ac0>
+kind = 'exp45 farm'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 worklog] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_13')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_13/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_evaluator_refuses_an_13/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d84dab0>
+kind = 'exp45 worklog'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                        monkeypatch, kind):
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        ev = _load("exp46_eval.py", "exp46_eval_guards")
+        tree = tmp_path / "tree"
+        (tree / ev.FARM).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tree))
+        cell = ev.run_cells(RUN)[0]
+        (tree / ev.FARM / RUN).symlink_to(prot)
+        src = tmp_path / "x.json"
+        src.write_text("{}")
+        for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+                   lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+>           with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E           Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:380: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 NAS save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_0')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_0/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_0/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d9a0640>
+kind = 'exp38 NAS save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 neuronic save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_1')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_1/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_1/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d5d42b0>
+kind = 'exp38 neuronic save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 dump root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_2')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_2/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_2/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d743670>
+kind = 'exp38 dump root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 snapshots] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_3')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_3/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_3/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d7cfaf0>
+kind = 'exp38 snapshots'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 NAS save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_4')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_4/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_4/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d7bcd60>
+kind = 'exp45 NAS save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 neuronic save root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_5')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_5/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_5/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d7cdb70>
+kind = 'exp45 neuronic save root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 dump root] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_6')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_6/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_6/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d7be8c0>
+kind = 'exp45 dump root'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 campaign] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_7')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_7/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_7/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d7ced10>
+kind = 'exp45 campaign'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 publish] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_8')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_8/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_8/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d7cc550>
+kind = 'exp45 publish'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 farm] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_9')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_9/protected_exp38_NAS_...snapshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_9/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d941840>
+kind = 'exp38 farm'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 worklog] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_10')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_10/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_10/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d965900>
+kind = 'exp38 worklog'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 SMOKE folder] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_11')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_11/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_11/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d5f7490>
+kind = 'exp38 SMOKE folder'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 farm] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_12')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_12/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_12/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d942620>
+kind = 'exp45 farm'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+_ test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 worklog] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_13')
+protected_all = {'exp38 NAS save root': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_13/protected_exp38_NAS...napshots': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_publication_lock_and_13/protected_exp38_snapshots'), ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f250d5f7a90>
+kind = 'exp45 worklog'
+
+    @pytest.mark.parametrize("kind", KINDS)
+    def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                      kind):
+        """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+        import exp46_collect as col
+        prot = protected_root(kind, protected_all, tmp_path)
+        before = listing(prot)
+        tree = tmp_path / "tree"
+        (tree / reg.EXP_DIR).mkdir(parents=True)
+        (tree / col.LOCK).symlink_to(prot / "absent.lock")
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+>       with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+E       Failed: DID NOT RAISE GateError
+
+src/tests/test_exp46_mutation_guards.py:397: Failed
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 NAS save root-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 NAS save root-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 neuronic save root-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 neuronic save root-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 dump root-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 dump root-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 snapshots-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 snapshots-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 NAS save root-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 NAS save root-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 neuronic save root-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 neuronic save root-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 dump root-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 dump root-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 campaign-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 campaign-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 publish-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 publish-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 farm-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 farm-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 worklog-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 worklog-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 SMOKE folder-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp38 SMOKE folder-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 farm-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 farm-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 worklog-the owners folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_submitter_refuses_an_aliased_child_before_any_write_reservation_or_sbatch[exp45 worklog-the submit lock]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 NAS save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 neuronic save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 dump root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 snapshots]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 NAS save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 neuronic save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 dump root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 campaign]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 publish]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 farm]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 worklog]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp38 SMOKE folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 farm]
+FAILED src/tests/test_exp46_mutation_guards.py::test_abandon_refuses_an_aliased_archive_folder_before_moving_anything[exp45 worklog]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 NAS save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 neuronic save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 dump root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 snapshots]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 NAS save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 neuronic save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 dump root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 campaign]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 publish]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 farm]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 worklog]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp38 SMOKE folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 farm]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_card_locks_and_the_child_log_refuse_an_alias_before_any_write[exp45 worklog]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 NAS save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 neuronic save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 dump root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 snapshots]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 NAS save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 neuronic save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 dump root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 campaign]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 publish]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 farm]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 worklog]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp38 SMOKE folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 farm]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_loss_record_move_refuses_an_aliased_receipts_folder[exp45 worklog]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 NAS save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 neuronic save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 dump root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 snapshots]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 NAS save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 neuronic save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 dump root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 campaign]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 publish]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 farm]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 worklog]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp38 SMOKE folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 farm]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy[exp45 worklog]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 NAS save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 neuronic save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 dump root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 snapshots]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 NAS save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 neuronic save root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 dump root]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 campaign]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 publish]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 farm]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 worklog]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp38 SMOKE folder]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 farm]
+FAILED src/tests/test_exp46_mutation_guards.py::test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write[exp45 worklog]
+98 failed, 213 deselected in 5.89s
+EXIT 1 end 2026-11-18T06:39:55-05:00

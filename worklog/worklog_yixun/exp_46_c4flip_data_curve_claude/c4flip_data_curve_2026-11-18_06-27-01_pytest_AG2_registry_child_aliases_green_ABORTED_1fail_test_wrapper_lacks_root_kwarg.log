@@ -1,0 +1,126 @@
+HEAD 78bd15cffa4e3dbe9f0c750fb6a12fe1ab32ad79 tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-18T06:27:46-05:00
+cmd: pytest -q src/tests/test_exp46_mutation_guards.py src/tests/test_exp46_registry.py src/tests/test_exp46_storage.py src/tests/test_exp46_receipts.py src/tests/test_exp46_supervise.py src/tests/test_exp46_eval.py src/tests/test_exp46_isolation.py src/tests/test_exp46_f100_delta.py src/tests/test_exp46_closure.py 
+........................................................................ [  8%]
+........................................................................ [ 16%]
+........................................................................ [ 24%]
+........................................................................ [ 32%]
+...............................................................s........ [ 40%]
+........................................................................ [ 48%]
+........................................................................ [ 56%]
+.......................................s.....s.s........................ [ 64%]
+..............................................F......................... [ 72%]
+........................................................................ [ 80%]
+........................................................................ [ 88%]
+........................................................................ [ 96%]
+...............................                                          [100%]
+=================================== FAILURES ===================================
+__ test_three_concurrent_first_smokes_create_exactly_one_environment_receipt ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_three_concurrent_first_sm0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f437fc549d0>
+
+    def test_three_concurrent_first_smokes_create_exactly_one_environment_receipt(tmp_path, monkeypatch):
+        """Codex code r1 finding 14: the neuronic sheet submits the three SMOKEs together, so up to three jobs may find no
+        environment receipt at once. Its creation is serialised under an exclusive lock: exactly one job writes the sealed
+        receipt, the others re-check it under the same lock -- all three pass with the one receipt's sha256 and the
+        receipt is written ONCE (the snapshot takes 0.5 s, so every job has seen "no receipt" before the first write;
+        unserialised, identical snapshots would be published two or three times over each other)."""
+        import multiprocessing as mp
+        reg = sv.reg
+        (tmp_path / reg.EXP_DIR).mkdir(parents=True)
+        monkeypatch.setattr(reg, "REPO", str(tmp_path))
+        monkeypatch.setattr(sv, "git", lambda *args, repo=None: "f" * 40 if args[0] == "rev-parse" else "")
+        monkeypatch.setattr(reg, "check_untracked", lambda platform, repo=None: [])
+        monkeypatch.setattr(reg, "env_problems", lambda: [])
+        monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": "c" * 64})
+        snap = {k: k for k in reg.ENV_RECEIPT_KEYS}
+        snap.update(schema=1, platform="neuronic", packages={"torch": "2.1.0"})
+    
+        def slow_snapshot(platform):
+            time.sleep(0.5)
+            return json.loads(json.dumps(snap))
+        monkeypatch.setattr(reg, "env_snapshot", slow_snapshot)
+        writes, real_write = tmp_path / "receipt_writes.log", reg.write_sealed
+    
+        def counted_write(path, rec):                      # one O_APPEND line per write of the receipt, fork-safe
+            if path == reg._abs(reg.env_receipt_rel("neuronic")):
+                fd = os.open(str(writes), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+                os.write(fd, f"{os.getpid()}\n".encode())
+                os.close(fd)
+            return real_write(path, rec)
+        monkeypatch.setattr(reg, "write_sealed", counted_write)
+        ctx = mp.get_context("fork")
+        barrier, q = ctx.Barrier(3), ctx.Queue()
+    
+        def first_smoke(i):
+            a = sv.parse(["--platform", "neuronic", "--mode", "SMOKE", "--run", reg.required_runs()[i], "--expect-sha",
+                          "f" * 40, "--token", str(i) * 32, "--save-dir", "/x"])
+            barrier.wait()
+            try:
+                q.put((i, "ok", sv.campaign_gates(a, "neuronic")[1]))
+            except BaseException as err:                       # noqa: BLE001 -- reported to the parent
+                q.put((i, "error", repr(err)))
+        procs = [ctx.Process(target=first_smoke, args=(i,)) for i in range(3)]
+        for p in procs:
+            p.start()
+        got = sorted(q.get(timeout=120) for _ in procs)
+        for p in procs:
+            p.join(timeout=60)
+>       assert len(writes.read_text().split()) == 1, writes.read_text()       # created exactly once
+
+src/tests/test_exp46_supervise.py:888: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../envs/flac/lib/python3.10/pathlib.py:1134: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_three_concurrent_first_sm0/receipt_writes.log')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return self._accessor.open(self, mode, buffering, encoding, errors,
+                                   newline)
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yh4742/pytest-0/test_three_concurrent_first_sm0/receipt_writes.log'
+
+../../envs/flac/lib/python3.10/pathlib.py:1119: FileNotFoundError
+=============================== warnings summary ===============================
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    from pkg_resources import packaging
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_supervise.py::test_three_concurrent_first_smokes_create_exactly_one_environment_receipt
+1 failed, 890 passed, 4 skipped, 7 warnings in 489.42s (0:08:09)
+EXIT 1 end 2026-11-18T06:35:58-05:00

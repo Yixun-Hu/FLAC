@@ -1,0 +1,203 @@
+HEAD 688daea8f83db066dd9781a50ac881cd94d8f629 tracked-clean=no host neu306.neuronic.cs.princeton.edu start 2026-11-18T05:55:40-05:00
+cmd: pytest -q src/tests/test_exp46_table.py 
+......................FFFFFFFFF                                          [100%]
+=================================== FAILURES ===================================
+_ test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[a C4F mean] _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '5310f42ac62521eed24142c3ec989dc36d513afb', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+case = 'a C4F mean'
+
+    @pytest.mark.parametrize("case", sorted(FINITE_MUTATIONS))
+    def test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source(built, case):
+        """render() -- the rendering boundary -- re-derives every row from its admitted source (C4F: exp_46's offline-
+        admitted cells; YAW-Aug / OrbitRIR: the sealed import record's own per-cell values) and refuses any supplied value
+        that differs, finite or not (the r2 probe: source T60 mean 1.0 rendered as 999.0)."""
+        import re
+        rows, rec, rec_sha, campaign = _render_inputs(built)
+        assert tbl.render(rows, rec, rec_sha, campaign)                  # the admitted values themselves render
+        key, metric, i, value = FINITE_MUTATIONS[case]
+        assert rows[key][metric][i] != value
+        bad = json.loads(json.dumps(rows))
+        bad[key][metric][i] = value
+>       with pytest.raises(tbl.TableError, match=re.escape(key)):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp46_table.py:496: Failed
+_ test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[a C4F sd] _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '5310f42ac62521eed24142c3ec989dc36d513afb', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+case = 'a C4F sd'
+
+    @pytest.mark.parametrize("case", sorted(FINITE_MUTATIONS))
+    def test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source(built, case):
+        """render() -- the rendering boundary -- re-derives every row from its admitted source (C4F: exp_46's offline-
+        admitted cells; YAW-Aug / OrbitRIR: the sealed import record's own per-cell values) and refuses any supplied value
+        that differs, finite or not (the r2 probe: source T60 mean 1.0 rendered as 999.0)."""
+        import re
+        rows, rec, rec_sha, campaign = _render_inputs(built)
+        assert tbl.render(rows, rec, rec_sha, campaign)                  # the admitted values themselves render
+        key, metric, i, value = FINITE_MUTATIONS[case]
+        assert rows[key][metric][i] != value
+        bad = json.loads(json.dumps(rows))
+        bad[key][metric][i] = value
+>       with pytest.raises(tbl.TableError, match=re.escape(key)):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp46_table.py:496: Failed
+_ test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[a C4F seed count] _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '5310f42ac62521eed24142c3ec989dc36d513afb', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+case = 'a C4F seed count'
+
+    @pytest.mark.parametrize("case", sorted(FINITE_MUTATIONS))
+    def test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source(built, case):
+        """render() -- the rendering boundary -- re-derives every row from its admitted source (C4F: exp_46's offline-
+        admitted cells; YAW-Aug / OrbitRIR: the sealed import record's own per-cell values) and refuses any supplied value
+        that differs, finite or not (the r2 probe: source T60 mean 1.0 rendered as 999.0)."""
+        import re
+        rows, rec, rec_sha, campaign = _render_inputs(built)
+        assert tbl.render(rows, rec, rec_sha, campaign)                  # the admitted values themselves render
+        key, metric, i, value = FINITE_MUTATIONS[case]
+        assert rows[key][metric][i] != value
+        bad = json.loads(json.dumps(rows))
+        bad[key][metric][i] = value
+>       with pytest.raises(tbl.TableError, match=re.escape(key)):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp46_table.py:496: Failed
+_ test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[a C4F unprinted metric] _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '5310f42ac62521eed24142c3ec989dc36d513afb', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+case = 'a C4F unprinted metric'
+
+    @pytest.mark.parametrize("case", sorted(FINITE_MUTATIONS))
+    def test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source(built, case):
+        """render() -- the rendering boundary -- re-derives every row from its admitted source (C4F: exp_46's offline-
+        admitted cells; YAW-Aug / OrbitRIR: the sealed import record's own per-cell values) and refuses any supplied value
+        that differs, finite or not (the r2 probe: source T60 mean 1.0 rendered as 999.0)."""
+        import re
+        rows, rec, rec_sha, campaign = _render_inputs(built)
+        assert tbl.render(rows, rec, rec_sha, campaign)                  # the admitted values themselves render
+        key, metric, i, value = FINITE_MUTATIONS[case]
+        assert rows[key][metric][i] != value
+        bad = json.loads(json.dumps(rows))
+        bad[key][metric][i] = value
+>       with pytest.raises(tbl.TableError, match=re.escape(key)):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp46_table.py:496: Failed
+_ test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[a YAW-Aug mean] _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '5310f42ac62521eed24142c3ec989dc36d513afb', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+case = 'a YAW-Aug mean'
+
+    @pytest.mark.parametrize("case", sorted(FINITE_MUTATIONS))
+    def test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source(built, case):
+        """render() -- the rendering boundary -- re-derives every row from its admitted source (C4F: exp_46's offline-
+        admitted cells; YAW-Aug / OrbitRIR: the sealed import record's own per-cell values) and refuses any supplied value
+        that differs, finite or not (the r2 probe: source T60 mean 1.0 rendered as 999.0)."""
+        import re
+        rows, rec, rec_sha, campaign = _render_inputs(built)
+        assert tbl.render(rows, rec, rec_sha, campaign)                  # the admitted values themselves render
+        key, metric, i, value = FINITE_MUTATIONS[case]
+        assert rows[key][metric][i] != value
+        bad = json.loads(json.dumps(rows))
+        bad[key][metric][i] = value
+>       with pytest.raises(tbl.TableError, match=re.escape(key)):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp46_table.py:496: Failed
+_ test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[a YAW-Aug sd] _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '5310f42ac62521eed24142c3ec989dc36d513afb', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+case = 'a YAW-Aug sd'
+
+    @pytest.mark.parametrize("case", sorted(FINITE_MUTATIONS))
+    def test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source(built, case):
+        """render() -- the rendering boundary -- re-derives every row from its admitted source (C4F: exp_46's offline-
+        admitted cells; YAW-Aug / OrbitRIR: the sealed import record's own per-cell values) and refuses any supplied value
+        that differs, finite or not (the r2 probe: source T60 mean 1.0 rendered as 999.0)."""
+        import re
+        rows, rec, rec_sha, campaign = _render_inputs(built)
+        assert tbl.render(rows, rec, rec_sha, campaign)                  # the admitted values themselves render
+        key, metric, i, value = FINITE_MUTATIONS[case]
+        assert rows[key][metric][i] != value
+        bad = json.loads(json.dumps(rows))
+        bad[key][metric][i] = value
+>       with pytest.raises(tbl.TableError, match=re.escape(key)):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp46_table.py:496: Failed
+_ test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[an OrbitRIR R@1 mean] _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '5310f42ac62521eed24142c3ec989dc36d513afb', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+case = 'an OrbitRIR R@1 mean'
+
+    @pytest.mark.parametrize("case", sorted(FINITE_MUTATIONS))
+    def test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source(built, case):
+        """render() -- the rendering boundary -- re-derives every row from its admitted source (C4F: exp_46's offline-
+        admitted cells; YAW-Aug / OrbitRIR: the sealed import record's own per-cell values) and refuses any supplied value
+        that differs, finite or not (the r2 probe: source T60 mean 1.0 rendered as 999.0)."""
+        import re
+        rows, rec, rec_sha, campaign = _render_inputs(built)
+        assert tbl.render(rows, rec, rec_sha, campaign)                  # the admitted values themselves render
+        key, metric, i, value = FINITE_MUTATIONS[case]
+        assert rows[key][metric][i] != value
+        bad = json.loads(json.dumps(rows))
+        bad[key][metric][i] = value
+>       with pytest.raises(tbl.TableError, match=re.escape(key)):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp46_table.py:496: Failed
+_ test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[an OrbitRIR seed count] _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '5310f42ac62521eed24142c3ec989dc36d513afb', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+case = 'an OrbitRIR seed count'
+
+    @pytest.mark.parametrize("case", sorted(FINITE_MUTATIONS))
+    def test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source(built, case):
+        """render() -- the rendering boundary -- re-derives every row from its admitted source (C4F: exp_46's offline-
+        admitted cells; YAW-Aug / OrbitRIR: the sealed import record's own per-cell values) and refuses any supplied value
+        that differs, finite or not (the r2 probe: source T60 mean 1.0 rendered as 999.0)."""
+        import re
+        rows, rec, rec_sha, campaign = _render_inputs(built)
+        assert tbl.render(rows, rec, rec_sha, campaign)                  # the admitted values themselves render
+        key, metric, i, value = FINITE_MUTATIONS[case]
+        assert rows[key][metric][i] != value
+        bad = json.loads(json.dumps(rows))
+        bad[key][metric][i] = value
+>       with pytest.raises(tbl.TableError, match=re.escape(key)):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp46_table.py:496: Failed
+_ test_the_renderer_refuses_an_import_record_or_campaign_other_than_the_sealed_ones _
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '5310f42ac62521eed24142c3ec989dc36d513afb', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+
+    def test_the_renderer_refuses_an_import_record_or_campaign_other_than_the_sealed_ones(built):
+        """The exp_38 source is the sealed record its digest names (a record edited consistently -- cells, rows and the
+        supplied rows together -- refuses), and the C4F source is the campaign of exp_46's own E0 receipt."""
+        rows, rec, rec_sha, campaign = _render_inputs(built)
+        rec2, rows2 = json.loads(json.dumps(rec)), json.loads(json.dumps(rows))
+        for v in rec2["cells"].values():
+            if v["run"] == "de_yaw_f025" and v["K"] == 8:
+                v["metrics"]["T60"] = 999.0
+        rec2["rows"] = tbl.exp38_rows(rec2["cells"])
+        rows2["yaw|025|8"] = rec2["rows"]["yaw|025|8"]
+        assert rows2["yaw|025|8"]["T60"][0] == 999.0
+>       with pytest.raises(tbl.TableError, match="import record"):
+E       Failed: DID NOT RAISE TableError
+
+src/tests/test_exp46_table.py:511: Failed
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_table.py::test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[a C4F mean]
+FAILED src/tests/test_exp46_table.py::test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[a C4F sd]
+FAILED src/tests/test_exp46_table.py::test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[a C4F seed count]
+FAILED src/tests/test_exp46_table.py::test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[a C4F unprinted metric]
+FAILED src/tests/test_exp46_table.py::test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[a YAW-Aug mean]
+FAILED src/tests/test_exp46_table.py::test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[a YAW-Aug sd]
+FAILED src/tests/test_exp46_table.py::test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[an OrbitRIR R@1 mean]
+FAILED src/tests/test_exp46_table.py::test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source[an OrbitRIR seed count]
+FAILED src/tests/test_exp46_table.py::test_the_renderer_refuses_an_import_record_or_campaign_other_than_the_sealed_ones
+9 failed, 22 passed in 45.85s
+EXIT 1 end 2026-11-18T05:56:27-05:00

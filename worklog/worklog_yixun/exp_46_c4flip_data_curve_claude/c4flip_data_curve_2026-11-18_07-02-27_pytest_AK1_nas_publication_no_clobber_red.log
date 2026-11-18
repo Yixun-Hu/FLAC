@@ -1,0 +1,18 @@
+HEAD b7c8a0e9470e273dabb09688869af435b174830d tracked-clean=no host neu306.neuronic.cs.princeton.edu start 2026-11-18T07:02:51-05:00
+cmd: pytest -q src/tests/test_exp46_nas_publish.py 
+
+==================================== ERRORS ====================================
+_____________ ERROR collecting src/tests/test_exp46_nas_publish.py _____________
+ImportError while importing test module '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/src/tests/test_exp46_nas_publish.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../envs/flac/lib/python3.10/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+src/tests/test_exp46_nas_publish.py:19: in <module>
+    import exp46_nas_publish as nas  # noqa: E402
+E   ModuleNotFoundError: No module named 'exp46_nas_publish'
+=========================== short test summary info ============================
+ERROR src/tests/test_exp46_nas_publish.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.22s
+EXIT 2 end 2026-11-18T07:02:52-05:00

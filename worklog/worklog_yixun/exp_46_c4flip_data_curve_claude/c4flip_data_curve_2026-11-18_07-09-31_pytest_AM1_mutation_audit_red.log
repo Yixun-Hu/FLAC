@@ -1,0 +1,24 @@
+HEAD e80a88f8558fa30b3c44005934c6e39796bafae0 tracked-clean=no host neu306.neuronic.cs.princeton.edu start 2026-11-18T07:09:52-05:00
+cmd: pytest -q src/tests/test_exp46_mutation_guards.py -k every_mutating_call 
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_every_mutating_call_of_the_kit_is_guarded_or_audited ___________
+
+    def test_every_mutating_call_of_the_kit_is_guarded_or_audited():
+        """Codex code r2 finding 1: the kit's mutating paths have no unguarded open() / mkdir / rename / symlink / copy.
+        Every write-mode open is open_below; every atomic / sealed / no-clobber write names its checked root; the only raw
+        mutation calls left are the AUDITED ones (the primitives' own implementations and mutations that cannot leave a
+        checked place) -- a new raw call, or a stale audit entry, fails here."""
+        raw, opens, rootless = mutation_calls()
+>       assert opens == [], opens
+E       AssertionError: [('exp46_registry.py', 'atomic_write_bytes', "open(tmp, 'wb')"), ('exp46_registry.py', 'storage_gate', "open(probe, 'x..._LOCK, repo), 'a')"), ('exp46_submit_neuronic.py', 'submit_lock', "open(submit_lock_path(run, mode, root), 'a')"), ...]
+E       assert [('exp46_regi..., 'a')"), ...] == []
+E         
+E         Left contains 16 more items, first extra item: ('exp46_registry.py', 'atomic_write_bytes', "open(tmp, 'wb')")
+E         Use -v to get more diff
+
+src/tests/test_exp46_mutation_guards.py:506: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_mutation_guards.py::test_every_mutating_call_of_the_kit_is_guarded_or_audited
+1 failed, 311 deselected in 4.13s
+EXIT 1 end 2026-11-18T07:09:58-05:00

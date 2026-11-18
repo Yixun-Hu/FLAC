@@ -1,0 +1,74 @@
+HEAD 0f1b9933ce252f2425ad274c67d87a0c9f19e035 tracked-clean=no host neu302.neuronic.cs.princeton.edu start 2026-11-18T07:04:52-05:00
+cmd: pytest -q src/tests/test_exp46_nas_publish.py src/tests/test_exp46_paths.py src/tests/test_exp46_closure.py src/tests/test_exp46_provenance.py src/tests/test_exp46_isolation.py 
+..............FF........................................................ [ 67%]
+...................................                                      [100%]
+=================================== FAILURES ===================================
+_ test_publish_refuses_a_final_path_created_meanwhile_never_replacing_or_nesting[a link-renameat2] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_publish_refuses_a_final_p6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1c171cab00>
+final = 'a link', noreplace = True
+
+    @pytest.mark.parametrize("noreplace", [True, False], ids=["renameat2", "rename fallback"])
+    @pytest.mark.parametrize("final", ["a published run", "an empty directory", "a file", "a link"])
+    def test_publish_refuses_a_final_path_created_meanwhile_never_replacing_or_nesting(tmp_path, monkeypatch, final,
+                                                                                    noreplace):
+        root = tmp_path / "nas"
+        root.mkdir()
+        incoming = _staged(root)
+        dst = root / RUN
+        if final == "a published run":
+            dst.mkdir()
+            (dst / "theirs").write_text("theirs")
+        elif final == "an empty directory":
+            dst.mkdir()
+        elif final == "a file":
+            dst.write_text("theirs")
+        else:
+            dst.symlink_to(tmp_path / "absent")
+        if not noreplace:                                   # a libc / filesystem without renameat2
+            monkeypatch.setattr(nas.ctypes, "CDLL", lambda *a, **k: object())
+        before = _listing(root)
+>       with pytest.raises(reg.GateError, match="never replaced or nested"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'never replaced or nested'
+E         Actual message: 'isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): the NAS publication /tmp/pytest-of-yh4742/pytest-0/test_publish_refuses_a_final_p6/nas/exp46_C4Ff100_l40_2x32: an alias (exp46_C4Ff100_l40_2x32 -> /tmp/pytest-of-yh4742/pytest-0/test_publish_refuses_a_final_p6/absent): refused, nothing written'
+
+src/tests/test_exp46_nas_publish.py:104: AssertionError
+_ test_publish_refuses_a_final_path_created_meanwhile_never_replacing_or_nesting[a link-rename fallback] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_publish_refuses_a_final_p7')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1c16fa3b20>
+final = 'a link', noreplace = False
+
+    @pytest.mark.parametrize("noreplace", [True, False], ids=["renameat2", "rename fallback"])
+    @pytest.mark.parametrize("final", ["a published run", "an empty directory", "a file", "a link"])
+    def test_publish_refuses_a_final_path_created_meanwhile_never_replacing_or_nesting(tmp_path, monkeypatch, final,
+                                                                                    noreplace):
+        root = tmp_path / "nas"
+        root.mkdir()
+        incoming = _staged(root)
+        dst = root / RUN
+        if final == "a published run":
+            dst.mkdir()
+            (dst / "theirs").write_text("theirs")
+        elif final == "an empty directory":
+            dst.mkdir()
+        elif final == "a file":
+            dst.write_text("theirs")
+        else:
+            dst.symlink_to(tmp_path / "absent")
+        if not noreplace:                                   # a libc / filesystem without renameat2
+            monkeypatch.setattr(nas.ctypes, "CDLL", lambda *a, **k: object())
+        before = _listing(root)
+>       with pytest.raises(reg.GateError, match="never replaced or nested"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'never replaced or nested'
+E         Actual message: 'isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): the NAS publication /tmp/pytest-of-yh4742/pytest-0/test_publish_refuses_a_final_p7/nas/exp46_C4Ff100_l40_2x32: an alias (exp46_C4Ff100_l40_2x32 -> /tmp/pytest-of-yh4742/pytest-0/test_publish_refuses_a_final_p7/absent): refused, nothing written'
+
+src/tests/test_exp46_nas_publish.py:104: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_nas_publish.py::test_publish_refuses_a_final_path_created_meanwhile_never_replacing_or_nesting[a link-renameat2]
+FAILED src/tests/test_exp46_nas_publish.py::test_publish_refuses_a_final_path_created_meanwhile_never_replacing_or_nesting[a link-rename fallback]
+2 failed, 105 passed in 11.77s
+EXIT 1 end 2026-11-18T07:05:05-05:00

@@ -1,0 +1,6 @@
+HEAD 4b5efd90cc6044da123ab94d8b525ad4f4faff42 tracked-clean=no host neu306.neuronic.cs.princeton.edu start 2026-11-18T05:53:40-05:00
+cmd: pytest -q src/tests/test_exp46_init_digest.py src/tests/test_exp46_isolation.py 
+........................................................................ [ 93%]
+.....                                                                    [100%]
+77 passed in 6.46s
+EXIT 0 end 2026-11-18T05:53:47-05:00

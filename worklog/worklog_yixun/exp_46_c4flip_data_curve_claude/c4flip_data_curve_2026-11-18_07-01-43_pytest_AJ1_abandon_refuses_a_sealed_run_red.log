@@ -1,0 +1,26 @@
+HEAD b7c8a0e9470e273dabb09688869af435b174830d tracked-clean=no host neu302.neuronic.cs.princeton.edu start 2026-11-18T07:01:51-05:00
+cmd: pytest -q src/tests/test_exp46_launchers.py -k sealed_run_and_release\ or\ unsealed_cancelled 
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+____ test_abandon_refuses_a_sealed_run_and_release_frees_its_stranded_hold _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_abandon_refuses_a_sealed_0')
+no_preflight = None
+
+    def test_abandon_refuses_a_sealed_run_and_release_frees_its_stranded_hold(tmp_path, no_preflight):
+        """A FULL job cancelled after its commit marker (before its reservation was released) is a valid SEALED run:
+        abandon refuses it -- nothing moved, nothing released, exit 2 at the CLI -- and names `release --run`, which frees
+        only the stranded hold (the run dir and the owner record untouched)."""
+        run = "exp46_C4Ff025_l40_2x32"
+        _submit(tmp_path)
+        rd, od, intent = _sealed_full(tmp_path)
+        cancelled = FakeScheduler(sacct=f"4242|{intent['job_name']}|CANCELLED\n")
+        before = _tree_state(rd, od)
+>       with pytest.raises(sub.SubmitError, match=rf"SEALED.*release --run {run}"):
+E       Failed: DID NOT RAISE SubmitError
+
+src/tests/test_exp46_launchers.py:484: Failed
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_launchers.py::test_abandon_refuses_a_sealed_run_and_release_frees_its_stranded_hold
+1 failed, 1 passed, 43 deselected in 3.89s
+EXIT 1 end 2026-11-18T07:01:56-05:00

@@ -1,0 +1,78 @@
+HEAD 29057aba1d40209edad7270a9ee861c738403f3b tracked-clean=no host neu306.neuronic.cs.princeton.edu start 2026-11-18T06:49:50-05:00
+cmd: pytest -q src/tests/test_exp46_mutation_guards.py src/tests/test_exp46_eval.py src/tests/test_exp46_table.py src/tests/test_exp46_isolation.py src/tests/test_exp46_init_digest.py src/tests/test_exp46_regression_compare.py src/tests/test_exp46_f100_delta.py src/tests/test_exp46_provenance.py src/tests/test_gen_model_comparison_exp46.py src/tests/test_exp46_paths.py 
+........................................................................ [ 10%]
+........................................................................ [ 20%]
+........................................................................ [ 31%]
+........................................................................ [ 41%]
+........................................................................ [ 52%]
+........................................................................ [ 62%]
+............................F........................................... [ 73%]
+........................................................................ [ 83%]
+........................................................................ [ 94%]
+........................................                                 [100%]
+=================================== FAILURES ===================================
+_________________ test_publish_order_markdown_first_json_last __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_publish_order_markdown_fi0')
+e0 = ({'head': 'ffffffffffffffffffffffffffffffffffffffff', 'closure_sha256': 'f0c7c2b98c8fa6abf6c14536b3fca2eda2c43768aa570...e_E0b_K1_s42': {'reference': 'E0/E0b_K1_s42.json', 'equal': True, 'difference': None, 'problems': [], ...}, ...}, ...})
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6e0cabd7e0>
+
+    def test_publish_order_markdown_first_json_last(tmp_path, e0, monkeypatch):
+        exp = tmp_path / col.reg.EXP_DIR
+        exp.mkdir(parents=True)
+        rows = _rows()
+        sha = col.publish(rows, [], {"m": 1}, repo=str(tmp_path))
+        j = (tmp_path / col.OUT_JSON).read_bytes()
+        assert hashlib.sha256(j).hexdigest() == sha and sha in (tmp_path / col.OUT_MD).read_text()
+        assert json.loads(j)["manifest"] == {"m": 1} and len(json.loads(j)["rows"]) == 2 * len(ev.reg.campaign_runs())
+        assert not [p for p in exp.iterdir() if ".tmp" in p.name]
+        order, real = [], col.reg.atomic_write_bytes
+    
+        def spy(path, data):
+            order.append(os.path.basename(path))
+            if path.endswith(".json"):
+                raise OSError("crash before the commit point")
+            real(path, data)
+        monkeypatch.setattr(col.reg, "atomic_write_bytes", spy)
+        with pytest.raises(OSError):
+>           col.publish(rows, ["x"], {"m": 2}, repo=str(tmp_path))
+
+src/tests/test_exp46_eval.py:602: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rows = {('c4f', '025', 8): {'stats': {'T60': (1.0, 0.1, 5), 'Invalid T60': (1.0, 0.1, 5), 'C50': (1.0, 0.1, 5), 'EDT': (1.0, ...0': (1.0, 0.1, 5), 'Invalid T60': (1.0, 0.1, 5), 'C50': (1.0, 0.1, 5), 'EDT': (1.0, 0.1, 5), ...}, 'source': 'x'}, ...}
+pending = ['x'], manifest = {'m': 2}
+repo = '/tmp/pytest-of-yh4742/pytest-0/test_publish_order_markdown_fi0'
+
+    def publish(rows, pending, manifest, repo=None):
+        repo = repo or reg.REPO
+        payload = {"rows": [{"model": k[0], "fraction": k[1], "K": k[2], "source": v["source"],
+                             "stats": {m: {"mean": s[0], "sd": s[1], "n": s[2]} for m, s in v["stats"].items()}}
+                            for k, v in sorted(rows.items())], "pending": pending, "manifest": manifest}
+        jtext = (json.dumps(payload, indent=1, sort_keys=True) + "\n").encode()
+        mtext = (render(rows, pending) +
+                 f"\nresults JSON sha256: `{hashlib.sha256(jtext).hexdigest()}`\n").encode()
+        lock = reg.open_below(os.path.join(repo, LOCK), "a", os.path.join(repo, reg.EXP_DIR), "the publication lock")
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+>           reg.atomic_write_bytes(os.path.join(repo, OUT_MD), mtext, root=os.path.join(repo, reg.EXP_DIR))     # first
+E           TypeError: test_publish_order_markdown_first_json_last.<locals>.spy() got an unexpected keyword argument 'root'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_collect.py:143: TypeError
+=============================== warnings summary ===============================
+src/tests/test_exp46_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp46_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_eval.py::test_publish_order_markdown_first_json_last
+1 failed, 687 passed, 3 warnings in 358.92s (0:05:58)
+EXIT 1 end 2026-11-18T06:55:50-05:00

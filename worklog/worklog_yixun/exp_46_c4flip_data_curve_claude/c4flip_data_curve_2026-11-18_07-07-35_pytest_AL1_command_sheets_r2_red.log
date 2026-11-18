@@ -1,0 +1,285 @@
+HEAD d909632beb99f76f447ddae8d6231ecca9b7169a tracked-clean=yes host neu306.neuronic.cs.princeton.edu start 2026-11-18T07:07:52-05:00
+cmd: pytest -q src/tests/test_exp46_command_sheets.py 
+FFFF...FF.FFFFFFFFF                                                      [100%]
+=================================== FAILURES ===================================
+_ test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit[c4flip_data_curve_command.md] _
+
+name = 'c4flip_data_curve_command.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit(name):
+        text = _text(name)
+        fences = [ln for ln in text.split("\n") if ln.startswith("```")]
+        assert len(fences) % 2 == 0 and fences, "unbalanced code fences"
+        blocks = re.findall(r"```bash\n(.*?)\n```", text, flags=re.S)
+        assert blocks and all("```" not in b for b in blocks)
+        joined = "\n".join(blocks)
+        for cmd in SHEETS[name]:
+>           assert cmd in joined, cmd
+E           AssertionError: python -B $E/exp46_eval.py env-receipt --write
+E           assert 'python -B $E/exp46_eval.py env-receipt --write' in '# 0. tree 46 at X46 (once, after L4): the links, the environment receipt, E0 (L4b; before any SMOKE)\nX46=<the frozen...ly\ngit commit -m "exp_46 results publication: 40 C4F cells"     # -> R46; pushed on Yixun\'s go; then neuronic step 5'
+
+src/tests/test_exp46_command_sheets.py:103: AssertionError
+_ test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit[c4flip_data_curve_neuronic_commands.md] _
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit(name):
+        text = _text(name)
+        fences = [ln for ln in text.split("\n") if ln.startswith("```")]
+        assert len(fences) % 2 == 0 and fences, "unbalanced code fences"
+        blocks = re.findall(r"```bash\n(.*?)\n```", text, flags=re.S)
+        assert blocks and all("```" not in b for b in blocks)
+        joined = "\n".join(blocks)
+        for cmd in SHEETS[name]:
+>           assert cmd in joined, cmd
+E           AssertionError: $PY -B $E/exp46_content_manifest.py --build $E/exp46_f100_delta_manifest.txt.gz
+E           assert '$PY -B $E/exp46_content_manifest.py --build $E/exp46_f100_delta_manifest.txt.gz' in '# variables for every step below\nPY=/n/fs/gatrdp/envs/flac/bin/python; E=worklog/worklog_yixun/exp_46_c4flip_data_cu...8\n$PY worklog/worklog_yixun/gen_model_comparison.py --repo-root $G --out $B/worklog/worklog_yixun/model_comparison.md'
+
+src/tests/test_exp46_command_sheets.py:103: AssertionError
+__ test_the_campaign_order_is_the_recommended_one_and_marked_pending_yixun_d2 __
+
+    def test_the_campaign_order_is_the_recommended_one_and_marked_pending_yixun_d2():
+        """The coordinator's recommendation (Codex code r1 open item 10), still Yixun's decision D2: final code round -> L2
+        delta build -> pin commit -> definitive L1 -> L2 union verification before any f100 SMOKE -> L3 -> L4 freeze X46."""
+        text, b = _text(NEURONIC), _blocks(NEURONIC)
+        assert "pending Yixun D2" in text and b.count("pending Yixun D2") >= 2 and "Yixun's D1" in text
+        order = ["$PY -B $E/exp46_content_manifest.py --build $E/exp46_f100_delta_manifest.txt.gz",
+                 'git commit -m "exp_46 L2: pin the f100 delta manifest',
+                 "--junitxml=$L1/merged.junit.xml", "$PY -B $E/exp46_regression_compare.py --merged",
+                 "$PY -B $E/exp46_content_manifest.py --verify $E/exp46_f100_delta_manifest.txt.gz",
+                 "$PY -B $E/exp46_init_digest.py --run $RUN", "$PY -B $E/exp46_registry.py dry-run --platform neuronic",
+                 "git -C $M push origin exp-46-c4flip-data-curve", "Y46=<", "--mode SMOKE --time 01:00:00\n",
+                 "--mode FULL --time <computed>\n"]
+>       pos = [b.index(c) for c in order]
+
+src/tests/test_exp46_command_sheets.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <list_iterator object at 0x7ff7f4c7bd00>
+
+>   pos = [b.index(c) for c in order]
+E   ValueError: substring not found
+
+src/tests/test_exp46_command_sheets.py:125: ValueError
+__ test_the_l1_comparison_runs_every_node_with_no_deselection_and_is_complete __
+
+    def test_the_l1_comparison_runs_every_node_with_no_deselection_and_is_complete():
+        """L1 (Codex code r1 open item 1): the SAME full CPU suite (src/tests, every node -- no --deselect, no -k / -m
+        selection: L0's deselections are NOT carried forward) on the exp_46 tip and on both parents' worktrees at exp_38's
+        tip and exp_43's pin, then exp46_regression_compare.py with the three junit inputs and all three checkout roots."""
+        b = _blocks(NEURONIC)
+        assert re.search(r"git -C \$M worktree add --detach \$P38 3593f34cad4e6e4415a572e93d16ee83465f8ae8", b)
+        assert re.search(r"git -C \$M worktree add --detach \$P43 4a7e3b3a948388434bc102b8bd7e7aba94648d71", b)
+        suite = re.search(r'^SUITE="([^"]+)"', b, flags=re.M).group(1)
+>       assert suite.endswith("-m pytest -q -p no:cacheprovider src/tests") and " -B -I " in suite
+E       AssertionError: assert (True and ' -B -I ' in 'env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 TMPDIR=/tmp $PY -I -m pytest -q -p no:cacheprovider src/tests')
+E        +  where True = <built-in method endswith of str object at 0x7ff7f4d59b00>('-m pytest -q -p no:cacheprovider src/tests')
+E        +    where <built-in method endswith of str object at 0x7ff7f4d59b00> = 'env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 TMPDIR=/tmp $PY -I -m pytest -q -p no:cacheprovider src/tests'.endswith
+
+src/tests/test_exp46_command_sheets.py:143: AssertionError
+_________ test_the_y46_commit_is_exactly_the_registered_e0_publication _________
+
+    def test_the_y46_commit_is_exactly_the_registered_e0_publication():
+        """The A6000 sheet's Y46 commit is the provenance test's E0 rule: its exact subject (a full 40-hex X46) and exactly
+        the E0 receipt + sidecar inside the exp_46 folder and the four E0 gates' farm folders."""
+        b = _blocks(A6000)
+        subj = re.search(r'git commit -m "(exp_46 records: E0 PASS at \$X46)"', b).group(1)
+        assert re.fullmatch(r"exp_46 records: E0 PASS at [0-9a-f]{40}", subj.replace("$X46", "0123456789abcdef" * 2 + "01234567"))
+        adds = [c for c in _commands(_text(A6000)) if c.startswith("git add -f")]
+        assert adds[0] == ("git add -f $E/c4flip_data_curve_e0_receipt.json{,.sha256} "
+                           "outputs_FLAC/exp46_c4flip_data_curve/eval/E0{a,b,c,d}")
+        assert reg.E0_RECEIPT == f"{reg.EXP_DIR}/c4flip_data_curve_e0_receipt.json"
+>       assert b.index('git commit -m "exp_46 records: E0 PASS at $X46"') < b.index("python -B $E/exp46_eval.py prepare $RUN")
+E       ValueError: substring not found
+
+src/tests/test_exp46_command_sheets.py:211: ValueError
+______ test_every_python_invocation_of_both_sheets_runs_without_bytecode _______
+
+    def test_every_python_invocation_of_both_sheets_runs_without_bytecode():
+        """Codex code r1 finding 1, r2 finding 2: EVERY python invocation of both sheets carries -B -- exp_38's read-only
+        tools, the shared generator (both regenerations: it imports exp_38's evaluator and registry from G), exp_46's own
+        tools and the inline helpers alike -- and the L1 suite runs isolated (-B -I)."""
+        calls = []
+        for name in SHEETS:
+            for cmd in _commands(_text(name)):
+                for m in PY_CALL.finditer(cmd):
+                    calls.append((name, m.group(1), m.group(2).split(), cmd))
+        assert len([c for c in calls if c[0] == NEURONIC]) >= 25 and len([c for c in calls if c[0] == A6000]) >= 10
+>       assert [(n, cmd[:120]) for n, _, flags, cmd in calls if "-B" not in flags] == []
+E       AssertionError: assert [('c4flip_dat...-check'), ...] == []
+E         
+E         Left contains 40 more items, first extra item: ('c4flip_data_curve_command.md', 'python $E/exp46_registry.py untracked --platform a6000')
+E         Use -v to get more diff
+
+src/tests/test_exp46_command_sheets.py:227: AssertionError
+_ test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout[c4flip_data_curve_neuronic_commands.md] _
+
+name = 'c4flip_data_curve_neuronic_commands.md'
+
+    @pytest.mark.parametrize("name", sorted(SHEETS))
+    def test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout(name):
+        """Both regenerations read their evidence from G and write the table into B (--out); every other command touching
+        the main checkout is a registered read-only / metadata / untracked-only form."""
+        cwd_main = False
+        for cmd in _commands(_text(name)):
+            if cmd.startswith("cd "):
+                cwd_main = cmd.split()[1] == MAIN
+            if MAIN in cmd or "$G" in cmd or "${G}" in cmd or cwd_main:
+>               assert any(re.fullmatch(f, cmd) for f in MAIN_FORMS), f"{name}: {cmd}"
+E               AssertionError: c4flip_data_curve_neuronic_commands.md: $PY $E/exp46_collect.py materialise --dest $G
+E               assert False
+E                +  where False = any(<generator object test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout.<locals>.<genexpr> at 0x7ff8e90e3060>)
+
+src/tests/test_exp46_command_sheets.py:262: AssertionError
+__ test_l8_makes_the_published_evidence_available_and_verified_before_any_use __
+
+    def test_l8_makes_the_published_evidence_available_and_verified_before_any_use():
+        b = _blocks(NEURONIC)
+        l8 = b[b.index("G=/n/fs/gatrdp/codespace/FLAC"):]
+        order = ["git -C $G fetch origin exp-46-c4flip-data-curve exp-38-data-efficiency",
+                 "git -C $G merge-base --is-ancestor $Y46 $R46", "git -C $G worktree add --detach $B $R46",
+                 "git -C $G merge-base --is-ancestor e5a012fa62705627104bcd9892643edab07aa1e7 $B38",
+                 "$PY -B $E/exp46_table.py import-exp38 --commit $B38 --generator-root $G",
+                 "do cmp $B/$f $G/$f || exit 1; done", "(cd $G/$E38/ref_cells && sha256sum -c --quiet REF_MANIFEST.sha256)",
+                 "$PY -B $E/exp46_collect.py verify  ", "$PY -B $E/exp46_collect.py materialise --dest $G",
+                 "$PY -B $E/exp46_collect.py verify --root $G", "$PY -B worklog/worklog_yixun/gen_model_comparison.py --repo-root $G",
+                 "$PY -B $E/exp46_table.py build --exp38-commit $B38"]
+>       pos = [l8.index(c) for c in order]
+
+src/tests/test_exp46_command_sheets.py:278: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <list_iterator object at 0x7ff8e9c58af0>
+
+>   pos = [l8.index(c) for c in order]
+E   ValueError: substring not found
+
+src/tests/test_exp46_command_sheets.py:278: ValueError
+_ test_exp38s_static_dependencies_reach_g_verified_before_the_materialisation __
+
+    def test_exp38s_static_dependencies_reach_g_verified_before_the_materialisation():
+        """Codex code r2 finding 5: collect.materialise only VERIFIES exp_38's static dependencies of the exp_46 rows in G
+        (generator_static's exp_38-owned files: the E0a decision + sidecar, the reference manifest + its 68 cells) and
+        never copies them. The kit's verified path brings them in first -- the exp_38 import (every file sha256-hashed into
+        the sealed record, copied identical-or-absent, re-hashed) -- then the sheet checks exactly those files against B's
+        tracked copies before materialising, with a stated recovery (stop; never copy exp_38's files by hand)."""
+        import exp46_collect as col
+        import exp46_table as tbl
+        import inspect
+        text, b, cmds = _text(NEURONIC), _blocks(NEURONIC), _commands(_text(NEURONIC))
+        owned = sorted(r for r in col.generator_static() if r.startswith(reg.EXP38_DIR + "/"))
+        assert owned == sorted([reg.E0A_DECISION, reg.E0A_DECISION + ".sha256", reg.REF_MANIFEST]
+                               + [f"{reg.REF_DIR}/{r}" for r in reg.ref_set()])
+        src = inspect.getsource(tbl.exp38_import_files)                  # the verified import copies exactly these
+        for needle in ("ref_cells/REF_MANIFEST.sha256", "reg.ref_set()", "data_efficiency_e0a_decision.json"):
+            assert needle in src, needle
+>       cmp = [c for c in cmds if c.startswith("for f in ") and "do cmp $B/$f $G/$f || exit 1" in c][0]
+E       IndexError: list index out of range
+
+src/tests/test_exp46_command_sheets.py:301: IndexError
+______________ test_c3_recovery_and_the_nas_admission_are_stated _______________
+
+    def test_c3_recovery_and_the_nas_admission_are_stated():
+        text, b = _text(NEURONIC), _blocks(NEURONIC)
+        assert "C3 (whole-campaign" in text and "read exp_45's reservation" in text and "Recovery:" in text
+        assert "--exclude .exp46_tools" in b and "sha256sum -c CHECKPOINTS.sha256" in b and "exp46_registry.py training-check" in b
+>       assert b.index("training-check") < b.index("exp46_nas_publish.py publish --dest-root $DST --run $RUN")
+E       ValueError: substring not found
+
+src/tests/test_exp46_command_sheets.py:316: ValueError
+_ test_the_nas_publication_stages_exclusively_and_publishes_without_replacing __
+
+    def test_the_nas_publication_stages_exclusively_and_publishes_without_replacing():
+        """Codex code r2 finding 8: the staging directory is created exclusively by the tested helper BEFORE rsync, the
+        admission runs on the staged copy, and the final move is the helper's no-replace publication -- no plain
+        existence test, no ordinary mv (which nests the staging dir in a final path created meanwhile)."""
+        cmds = [c for c in _commands(_text(NEURONIC)) if "rsync " in c]
+        assert len(cmds) == 1
+        chain = [s.strip() for s in cmds[0].split(" && ")]
+>       assert chain[0] == "python -B $E/exp46_nas_publish.py stage --dest-root $DST --run $RUN"
+E       AssertionError: assert 'test ! -e $DST/$RUN' == 'python -B $E...ST --run $RUN'
+E         
+E         - python -B $E/exp46_nas_publish.py stage --dest-root $DST --run $RUN
+E         + test ! -e $DST/$RUN
+
+src/tests/test_exp46_command_sheets.py:326: AssertionError
+__ test_l4_dry_runs_every_launch_path_of_the_four_runs_before_the_x46_freeze ___
+
+    def test_l4_dry_runs_every_launch_path_of_the_four_runs_before_the_x46_freeze():
+        """Codex code r2 finding 6: L4's dry-runs are executable commands, not a comment -- the registry's four-run dry-run
+        and every run's SMOKE and FULL submitter dry-runs -- after L3 and before the push that freezes X46 (and before the
+        A6000 E0 / Y46)."""
+        cmds = _commands(_text(NEURONIC))
+        b = _blocks(NEURONIC)
+        l3 = max(i for i, c in enumerate(cmds) if "exp46_init_digest.py --run $RUN" in c)
+>       push = cmds.index("git -C $M push origin exp-46-c4flip-data-curve")
+E       ValueError: 'git -C $M push origin exp-46-c4flip-data-curve' is not in list
+
+src/tests/test_exp46_command_sheets.py:344: ValueError
+____ test_recovery_keeps_a_sealed_run_and_abandons_only_an_unsealed_attempt ____
+
+    def test_recovery_keeps_a_sealed_run_and_abandons_only_an_unsealed_attempt():
+        """Codex code r2 finding 9: the recovery tells a SEALED run (its commit marker) from an unsealed attempt; a sealed
+        run is kept and only its stranded storage hold is freed with `release --run`; abandon is for unsealed attempts only
+        (and refuses a sealed run itself)."""
+        cmds = _commands(_text(NEURONIC))
+        b = _blocks(NEURONIC)
+>       check = next(i for i, c in enumerate(cmds) if "TRAINING_COMMITTED.json" in c and "SEALED" in c)
+E       StopIteration
+
+src/tests/test_exp46_command_sheets.py:365: StopIteration
+_ test_the_a6000_publication_worktree_is_created_at_x46_and_is_the_only_place_that_commits _
+
+    def test_the_a6000_publication_worktree_is_created_at_x46_and_is_the_only_place_that_commits():
+        """Codex code r2 finding 7: the A6000 sheet creates ~/codespace/exp-46-publish itself, as the launch branch at X46,
+        verifies its HEAD, branch, upstream and a clean tree before anything is copied in, runs fail-fast (set -e; every cd
+        `|| exit 1`), and stages / commits ONLY there -- never in tree 46 (the campaign checkout)."""
+        cmds = _commands(_text(A6000))
+        pub, camp = "~/codespace/exp-46-publish", "~/codespace/exp-46-campaign"
+>       add = cmds.index(f"git -C ~/codespace/FLAC worktree add -b exp-46-c4flip-data-curve {pub} $X46")
+E       ValueError: 'git -C ~/codespace/FLAC worktree add -b exp-46-c4flip-data-curve ~/codespace/exp-46-publish $X46' is not in list
+
+src/tests/test_exp46_command_sheets.py:380: ValueError
+_________ test_the_regeneration_writes_no_bytecode_into_exp38s_folder __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_regeneration_writes_n0')
+
+    def test_the_regeneration_writes_no_bytecode_into_exp38s_folder(tmp_path):
+        """Codex code r2 finding 2 (HIGH): the shared generator's exp_38 path (validate_exp38_cell -> its exp_38 loader)
+        imports exp_38's evaluator and registry from the generator root. Run as its own process on a copied tree -- no
+        other validator first -- with the interpreter flags of the sheet's regeneration commands, it writes no bytecode
+        into exp_38's folder; the same call without -B does (the check is live, not vacuous)."""
+        import shutil
+        import subprocess
+        flags = {tuple(m.group(2).split()) for c in _commands(_text(NEURONIC)) if "gen_model_comparison.py" in c
+                 for m in [PY_CALL.search(c)]}
+>       assert flags == {("-B",)}
+E       AssertionError: assert {()} == {('-B',)}
+E         
+E         Extra items in the left set:
+E         ()
+E         Extra items in the right set:
+E         ('-B',)
+E         Use -v to get more diff
+
+src/tests/test_exp46_command_sheets.py:410: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_command_sheets.py::test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit[c4flip_data_curve_command.md]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_sheet_is_well_formed_current_and_names_only_exp46s_kit[c4flip_data_curve_neuronic_commands.md]
+FAILED src/tests/test_exp46_command_sheets.py::test_the_campaign_order_is_the_recommended_one_and_marked_pending_yixun_d2
+FAILED src/tests/test_exp46_command_sheets.py::test_the_l1_comparison_runs_every_node_with_no_deselection_and_is_complete
+FAILED src/tests/test_exp46_command_sheets.py::test_the_y46_commit_is_exactly_the_registered_e0_publication
+FAILED src/tests/test_exp46_command_sheets.py::test_every_python_invocation_of_both_sheets_runs_without_bytecode
+FAILED src/tests/test_exp46_command_sheets.py::test_no_sheet_command_can_write_a_tracked_path_of_the_main_checkout[c4flip_data_curve_neuronic_commands.md]
+FAILED src/tests/test_exp46_command_sheets.py::test_l8_makes_the_published_evidence_available_and_verified_before_any_use
+FAILED src/tests/test_exp46_command_sheets.py::test_exp38s_static_dependencies_reach_g_verified_before_the_materialisation
+FAILED src/tests/test_exp46_command_sheets.py::test_c3_recovery_and_the_nas_admission_are_stated
+FAILED src/tests/test_exp46_command_sheets.py::test_the_nas_publication_stages_exclusively_and_publishes_without_replacing
+FAILED src/tests/test_exp46_command_sheets.py::test_l4_dry_runs_every_launch_path_of_the_four_runs_before_the_x46_freeze
+FAILED src/tests/test_exp46_command_sheets.py::test_recovery_keeps_a_sealed_run_and_abandons_only_an_unsealed_attempt
+FAILED src/tests/test_exp46_command_sheets.py::test_the_a6000_publication_worktree_is_created_at_x46_and_is_the_only_place_that_commits
+FAILED src/tests/test_exp46_command_sheets.py::test_the_regeneration_writes_no_bytecode_into_exp38s_folder
+15 failed, 4 passed in 3.94s
+EXIT 1 end 2026-11-18T07:07:57-05:00

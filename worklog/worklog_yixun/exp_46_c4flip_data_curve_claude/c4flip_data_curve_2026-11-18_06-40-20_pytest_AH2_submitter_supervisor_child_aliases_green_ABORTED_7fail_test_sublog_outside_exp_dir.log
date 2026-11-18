@@ -1,0 +1,305 @@
+HEAD 26908fee76d37f9992bce9989f62ba757359c36a tracked-clean=no host neu319.neuronic.cs.princeton.edu start 2026-11-18T06:40:48-05:00
+cmd: pytest -q src/tests/test_exp46_mutation_guards.py src/tests/test_exp46_launchers.py src/tests/test_exp46_supervise.py src/tests/test_exp46_isolation.py src/tests/test_exp46_storage.py src/tests/test_exp46_paths.py src/tests/test_exp46_receipts.py -k not\ farm_directory\ and\ not\ publication_lock 
+........................................................................ [ 10%]
+........................................................................ [ 20%]
+........................................................................ [ 30%]
+........................................................................ [ 40%]
+........................................................................ [ 50%]
+........................................................................ [ 60%]
+..................................FFFFFFF..............................s [ 70%]
+........................................................................ [ 81%]
+........................................................................ [ 91%]
+...............................................s.....s.s......           [100%]
+=================================== FAILURES ===================================
+_ test_a_submit_killed_before_its_intent_is_recovered_by_abandon[after the reservation] _
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it0/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7e8e0851b0>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it0')
+window = 'after the reservation'
+
+    @pytest.mark.parametrize("window", ["after the reservation", "after the owner dir", "after the intent's temp file"])
+    def test_a_submit_killed_before_its_intent_is_recovered_by_abandon(subm, monkeypatch, tmp_path, window):
+        """Window 1 (finding 7): the reservation (and maybe an empty owner dir) persist, no intent.json. sbatch is issued
+        only after intent.json exists, so abandon may release the hold only once the scheduler shows NO job of the
+        reservation's token; until then the run stays blocked. reconcile names the state and points to abandon."""
+        root = subm
+        monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+>       token = _crash_submit(root, monkeypatch, window)
+
+src/tests/test_exp46_storage.py:380: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_storage.py:365: in _crash_submit
+    _submit(root, mode)
+src/tests/test_exp46_storage.py:338: in _submit
+    return sub.submit(RUN, mode, "3-00:00:00", "flash", reg.FLASH_VERSION, False, False, root=str(root),
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py:224: in submit
+    reg.check_destination(p, r, what)     # every destination before any write (Codex code r2 finding 1)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it0/submissions.log'
+root = '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude'
+what = 'the submission log', allow = ()
+
+    def check_destination(path, root, what, allow=()):
+        """GateError on any destination_problems (before anything is written); the absolute path otherwise."""
+        probs = destination_problems(path, root, what, allow)
+        if probs:
+>           raise GateError("isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): " + "; ".join(probs)
+                            + ": refused, nothing written")
+E           exp46_registry.GateError: isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): the submission log /tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it0/submissions.log lies outside its checked root /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude: refused, nothing written
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:1102: GateError
+_ test_a_submit_killed_before_its_intent_is_recovered_by_abandon[after the owner dir] _
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it1/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7e6ef2b100>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it1')
+window = 'after the owner dir'
+
+    @pytest.mark.parametrize("window", ["after the reservation", "after the owner dir", "after the intent's temp file"])
+    def test_a_submit_killed_before_its_intent_is_recovered_by_abandon(subm, monkeypatch, tmp_path, window):
+        """Window 1 (finding 7): the reservation (and maybe an empty owner dir) persist, no intent.json. sbatch is issued
+        only after intent.json exists, so abandon may release the hold only once the scheduler shows NO job of the
+        reservation's token; until then the run stays blocked. reconcile names the state and points to abandon."""
+        root = subm
+        monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+>       token = _crash_submit(root, monkeypatch, window)
+
+src/tests/test_exp46_storage.py:380: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_storage.py:365: in _crash_submit
+    _submit(root, mode)
+src/tests/test_exp46_storage.py:338: in _submit
+    return sub.submit(RUN, mode, "3-00:00:00", "flash", reg.FLASH_VERSION, False, False, root=str(root),
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py:224: in submit
+    reg.check_destination(p, r, what)     # every destination before any write (Codex code r2 finding 1)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it1/submissions.log'
+root = '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude'
+what = 'the submission log', allow = ()
+
+    def check_destination(path, root, what, allow=()):
+        """GateError on any destination_problems (before anything is written); the absolute path otherwise."""
+        probs = destination_problems(path, root, what, allow)
+        if probs:
+>           raise GateError("isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): " + "; ".join(probs)
+                            + ": refused, nothing written")
+E           exp46_registry.GateError: isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): the submission log /tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it1/submissions.log lies outside its checked root /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude: refused, nothing written
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:1102: GateError
+_ test_a_submit_killed_before_its_intent_is_recovered_by_abandon[after the intent's temp file] _
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it2/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7e6ede9f00>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it2')
+window = "after the intent's temp file"
+
+    @pytest.mark.parametrize("window", ["after the reservation", "after the owner dir", "after the intent's temp file"])
+    def test_a_submit_killed_before_its_intent_is_recovered_by_abandon(subm, monkeypatch, tmp_path, window):
+        """Window 1 (finding 7): the reservation (and maybe an empty owner dir) persist, no intent.json. sbatch is issued
+        only after intent.json exists, so abandon may release the hold only once the scheduler shows NO job of the
+        reservation's token; until then the run stays blocked. reconcile names the state and points to abandon."""
+        root = subm
+        monkeypatch.setattr(sub, "SUBLOG", str(tmp_path / "submissions.log"))
+>       token = _crash_submit(root, monkeypatch, window)
+
+src/tests/test_exp46_storage.py:380: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_storage.py:365: in _crash_submit
+    _submit(root, mode)
+src/tests/test_exp46_storage.py:338: in _submit
+    return sub.submit(RUN, mode, "3-00:00:00", "flash", reg.FLASH_VERSION, False, False, root=str(root),
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py:224: in submit
+    reg.check_destination(p, r, what)     # every destination before any write (Codex code r2 finding 1)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it2/submissions.log'
+root = '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude'
+what = 'the submission log', allow = ()
+
+    def check_destination(path, root, what, allow=()):
+        """GateError on any destination_problems (before anything is written); the absolute path otherwise."""
+        probs = destination_problems(path, root, what, allow)
+        if probs:
+>           raise GateError("isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): " + "; ".join(probs)
+                            + ": refused, nothing written")
+E           exp46_registry.GateError: isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): the submission log /tmp/pytest-of-yh4742/pytest-0/test_a_submit_killed_before_it2/submissions.log lies outside its checked root /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude: refused, nothing written
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:1102: GateError
+_____ test_a_smoke_submit_killed_before_its_intent_is_recovered_by_abandon _____
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_smoke_submit_killed_bef0/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7e8e086920>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_smoke_submit_killed_bef0')
+
+    def test_a_smoke_submit_killed_before_its_intent_is_recovered_by_abandon(subm, monkeypatch, tmp_path):
+        """Window 1 without a reservation (a SMOKE): an owner dir with no intent; abandon archives it."""
+        root = subm
+>       _crash_submit(root, monkeypatch, "after the intent's temp file", mode="SMOKE")
+
+src/tests/test_exp46_storage.py:407: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_storage.py:365: in _crash_submit
+    _submit(root, mode)
+src/tests/test_exp46_storage.py:338: in _submit
+    return sub.submit(RUN, mode, "3-00:00:00", "flash", reg.FLASH_VERSION, False, False, root=str(root),
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py:224: in submit
+    reg.check_destination(p, r, what)     # every destination before any write (Codex code r2 finding 1)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yh4742/pytest-0/test_a_smoke_submit_killed_bef0/submissions.log'
+root = '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude'
+what = 'the submission log', allow = ()
+
+    def check_destination(path, root, what, allow=()):
+        """GateError on any destination_problems (before anything is written); the absolute path otherwise."""
+        probs = destination_problems(path, root, what, allow)
+        if probs:
+>           raise GateError("isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): " + "; ".join(probs)
+                            + ": refused, nothing written")
+E           exp46_registry.GateError: isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): the submission log /tmp/pytest-of-yh4742/pytest-0/test_a_smoke_submit_killed_bef0/submissions.log lies outside its checked root /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude: refused, nothing written
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:1102: GateError
+________ test_an_abandon_killed_after_archiving_the_owner_is_recovered _________
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_abandon_killed_after_a0/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7e6ee4e9b0>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_abandon_killed_after_a0')
+
+    def test_an_abandon_killed_after_archiving_the_owner_is_recovered(subm, monkeypatch, tmp_path):
+        """Window 2 (finding 7): abandon archived the owner record, then died before releasing the reservation. The next
+        abandon finds the archived record of the reservation's token and releases the hold -- only once every job of the
+        token is terminal (the hold is never freed before that)."""
+        root = subm
+>       out = _submit(root)
+
+src/tests/test_exp46_storage.py:424: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_storage.py:338: in _submit
+    return sub.submit(RUN, mode, "3-00:00:00", "flash", reg.FLASH_VERSION, False, False, root=str(root),
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py:224: in submit
+    reg.check_destination(p, r, what)     # every destination before any write (Codex code r2 finding 1)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yh4742/pytest-0/test_an_abandon_killed_after_a0/submissions.log'
+root = '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude'
+what = 'the submission log', allow = ()
+
+    def check_destination(path, root, what, allow=()):
+        """GateError on any destination_problems (before anything is written); the absolute path otherwise."""
+        probs = destination_problems(path, root, what, allow)
+        if probs:
+>           raise GateError("isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): " + "; ".join(probs)
+                            + ": refused, nothing written")
+E           exp46_registry.GateError: isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): the submission log /tmp/pytest-of-yh4742/pytest-0/test_an_abandon_killed_after_a0/submissions.log lies outside its checked root /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude: refused, nothing written
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:1102: GateError
+__________ test_recovery_never_runs_while_a_submission_holds_its_lock __________
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_recovery_never_runs_while0/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7e6ed6a020>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_recovery_never_runs_while0')
+
+    def test_recovery_never_runs_while_a_submission_holds_its_lock(subm, monkeypatch, tmp_path):
+        """The (run, mode) submission lock: submit() holds it from the reservation to the 'submitted' intent, so a
+        concurrent reconcile / abandon refuses instead of mistaking a submission in flight for a crash."""
+        import fcntl
+        root = subm
+        path = sub.submit_lock_path(RUN, "FULL", str(root))
+        fh = open(path, "a")
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            for fn in (sub.abandon, sub.reconcile):
+                with pytest.raises(sub.SubmitError, match="in progress"):
+                    fn(RUN, "FULL", root=str(root), runner=Sched())
+            with pytest.raises(sub.SubmitError, match="in progress"):
+>               _submit(root)
+
+src/tests/test_exp46_storage.py:455: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_storage.py:338: in _submit
+    return sub.submit(RUN, mode, "3-00:00:00", "flash", reg.FLASH_VERSION, False, False, root=str(root),
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py:224: in submit
+    reg.check_destination(p, r, what)     # every destination before any write (Codex code r2 finding 1)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yh4742/pytest-0/test_recovery_never_runs_while0/submissions.log'
+root = '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude'
+what = 'the submission log', allow = ()
+
+    def check_destination(path, root, what, allow=()):
+        """GateError on any destination_problems (before anything is written); the absolute path otherwise."""
+        probs = destination_problems(path, root, what, allow)
+        if probs:
+>           raise GateError("isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): " + "; ".join(probs)
+                            + ": refused, nothing written")
+E           exp46_registry.GateError: isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): the submission log /tmp/pytest-of-yh4742/pytest-0/test_recovery_never_runs_while0/submissions.log lies outside its checked root /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude: refused, nothing written
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:1102: GateError
+_ test_a_submitting_intent_without_a_job_id_keeps_its_hold_while_an_sbatch_may_be_in_flight _
+
+subm = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submitting_intent_witho0/save_root')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7e8ddd3190>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_submitting_intent_witho0')
+
+    def test_a_submitting_intent_without_a_job_id_keeps_its_hold_while_an_sbatch_may_be_in_flight(subm, monkeypatch, tmp_path):
+        """Codex code r2 finding 7: a killed submitter does not stop its sbatch child, so an intent still 'submitting'
+        with no recorded job id may yet produce a job. abandon keeps the hold and refuses -- naming the exp46- job to look
+        for with squeue / sacct -- while the intent is younger than the grace; after it, with the submitter's lock free
+        and the scheduler showing NO job of that exact name, the hold is released (a job that appears later refuses at its
+        own start: its owner record is gone)."""
+        root = subm
+    
+        def sbatch_then_die(argv, capture_output=True, text=True):
+            if os.path.basename(argv[0]) == "sbatch":
+                raise Crash()                                     # the submitter dies while its sbatch child runs
+            return Sched()(argv, capture_output=capture_output, text=text)
+        with pytest.raises(Crash):
+>           _submit(root, runner=sbatch_then_die)
+
+src/tests/test_exp46_storage.py:475: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_storage.py:338: in _submit
+    return sub.submit(RUN, mode, "3-00:00:00", "flash", reg.FLASH_VERSION, False, False, root=str(root),
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py:224: in submit
+    reg.check_destination(p, r, what)     # every destination before any write (Codex code r2 finding 1)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yh4742/pytest-0/test_a_submitting_intent_witho0/submissions.log'
+root = '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude'
+what = 'the submission log', allow = ()
+
+    def check_destination(path, root, what, allow=()):
+        """GateError on any destination_problems (before anything is written); the absolute path otherwise."""
+        probs = destination_problems(path, root, what, allow)
+        if probs:
+>           raise GateError("isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): " + "; ".join(probs)
+                            + ": refused, nothing written")
+E           exp46_registry.GateError: isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): the submission log /tmp/pytest-of-yh4742/pytest-0/test_a_submitting_intent_witho0/submissions.log lies outside its checked root /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude: refused, nothing written
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:1102: GateError
+=============================== warnings summary ===============================
+src/tests/test_exp46_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp46_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_storage.py::test_a_submit_killed_before_its_intent_is_recovered_by_abandon[after the reservation]
+FAILED src/tests/test_exp46_storage.py::test_a_submit_killed_before_its_intent_is_recovered_by_abandon[after the owner dir]
+FAILED src/tests/test_exp46_storage.py::test_a_submit_killed_before_its_intent_is_recovered_by_abandon[after the intent's temp file]
+FAILED src/tests/test_exp46_storage.py::test_a_smoke_submit_killed_before_its_intent_is_recovered_by_abandon
+FAILED src/tests/test_exp46_storage.py::test_an_abandon_killed_after_archiving_the_owner_is_recovered
+FAILED src/tests/test_exp46_storage.py::test_recovery_never_runs_while_a_submission_holds_its_lock
+FAILED src/tests/test_exp46_storage.py::test_a_submitting_intent_without_a_job_id_keeps_its_hold_while_an_sbatch_may_be_in_flight
+7 failed, 699 passed, 4 skipped, 28 deselected, 3 warnings in 379.20s (0:06:19)
+EXIT 1 end 2026-11-18T06:47:10-05:00
