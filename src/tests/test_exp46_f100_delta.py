@@ -263,10 +263,18 @@ def _fake_record(verdict="PASS"):
     return fx.f100_verification_record(reg, verdict=verdict, problems=[] if verdict == "PASS" else ["1 group(s) differ"])
 
 
-@pytest.mark.parametrize("outcome", ["pass", "fail", "exception", "cancelled"])
+@pytest.mark.parametrize("outcome", ["pass", "fail", "exception", "cancelled", "pending with a pass",
+                                     "pending after the receipt"])
 def test_the_f100_full_branch_reverifies_the_delta_before_sealing(tmp_path, monkeypatch, outcome):
+    """The f100 FULL re-verifies the delta after the child and before its training receipt: a PASS seals with the
+    record bound; a FAIL, an exception or a stop (the signal check runs between files) leaves the run unsealed. Fix
+    round 1 (Codex code r1 finding 3): a TERM that is only PENDING when the verification returns PASS (it arrived during
+    the last read or the grouping), or that arrives while the training receipt is written, leaves the run unsealed
+    too -- the signal is checked after the verification and again at the commit boundary (before the run lock is
+    released, the record sealed and the commit marker written)."""
     monkeypatch.setattr(reg, "F100_DELTA_SHA256", "a" * 64)
     order = []
+    TS.sv._PENDING.clear()
 
     def fake_verify(manifest, dataset_root="AcousticRooms", repo=None, want_sha=None, check=None):
         order.append(("verify", os.path.exists(os.path.join(str(tmp_path / "nas" / F100), reg.TRAINING_RECEIPT))))
@@ -279,8 +287,26 @@ def test_the_f100_full_branch_reverifies_the_delta_before_sealing(tmp_path, monk
                 check()
             finally:
                 TS.sv._PENDING.clear()
-        return _fake_record("PASS" if outcome == "pass" else "FAIL")
+        if outcome == "pending with a pass":
+            TS.sv._PENDING.append(15)              # a SIGTERM during the last read: only recorded, the result is PASS
+        return _fake_record("FAIL" if outcome == "fail" else "PASS")
     monkeypatch.setattr(cm46, "verify_record", fake_verify)
+    if outcome.startswith("pending"):
+        hook = (lambda: TS.sv._PENDING.append(15)) if outcome == "pending after the receipt" else None
+        try:
+            with pytest.raises(TS.sv.Stopped):
+                TS._campaign(tmp_path, monkeypatch, run=F100, after_receipt=hook)
+        finally:
+            TS.sv._PENDING.clear()
+        rd = tmp_path / "nas" / F100
+        vpath = os.path.join(str(rd), reg.RECEIPTS_DIR, reg.F100_VERIFICATION)
+        assert order == [("verify", False)] and os.path.exists(vpath)            # the verification itself is sealed
+        assert TS.DELTA_KW == ([] if outcome == "pending with a pass" else [vpath])
+        assert os.path.exists(os.path.join(str(rd), reg.TRAINING_RECEIPT)) is (outcome == "pending after the receipt")
+        assert not os.path.exists(os.path.join(str(rd), reg.COMMIT_MARKER))      # never committed
+        assert os.path.isdir(os.path.join(str(rd), ".exp46_lock"))                # the crash marker stays
+        assert not [n for n in os.listdir(str(rd)) if n.startswith(".exp46_lock.released")]
+        return
     if outcome == "pass":
         code, rec, rd, calls = TS._campaign(tmp_path, monkeypatch, run=F100)
         assert code == 0 and rec["status"] == "COMPLETE" and order == [("verify", False)]

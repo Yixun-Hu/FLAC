@@ -682,6 +682,9 @@ def mode_campaign(a, platform):
                 if cprobs:
                     raise reg.GateError("AR content changed during the run: " + "; ".join(cprobs))
                 delta = f100_delta_reverification(rd, rec) if tag == reg.FULL_TAG else None
+                # Codex code r1 finding 3: the verifier checks signals BEFORE each file; a TERM / INT / HUP that arrived
+                # during the last read, the grouping or the audits above is only pending here -- no receipt under it
+                check_signals()
                 out = reg.write_training_receipt(a.run, platform, a.backend, head, rd, log, rc, snapshot["snapshot_sha256"],
                                                  e0["sha256"], smoke, gpus, rec.data["launched_at"], env_sha,
                                                  retained, reg.AR_CONTENT_SHA256, repo=snap, tree=reg.REPO,
@@ -698,6 +701,12 @@ def mode_campaign(a, platform):
             rec.update(strict=True, status=f"end audit failed: {err}", finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
             print(f"EXP46 {a.run} {a.mode} END AUDIT FAILED: {err}", flush=True)
             return EXIT_END
+        if full:
+            # THE COMMIT BOUNDARY of a FULL (Codex code r1 finding 3): the last signal check. A signal pending up to here
+            # (one that arrived while the training receipt was written included) leaves the run UNSEALED -- the run
+            # lock stays, no record seal, no commit marker; past this line the run commits and a later signal only
+            # waits in _PENDING (the job then ends with the run sealed)
+            check_signals()
         os.rename(os.path.join(rd, ".exp46_lock"), os.path.join(rd, f".exp46_lock.released_{ts}"))
         if full:
             tr_sha = reg.sha256_file(os.path.join(rd, reg.TRAINING_RECEIPT))

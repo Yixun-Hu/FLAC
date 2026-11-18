@@ -390,7 +390,9 @@ DELTA_KW = []                          # the delta_verification each fake traini
 
 
 def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_head="f" * 40, content_after_ok=True,
-              logger=None, reserve=True, run="exp46_C4Ff025_l40_2x32"):
+              logger=None, reserve=True, run="exp46_C4Ff025_l40_2x32", after_receipt=None):
+    """mode_campaign end to end with every gate and the child faked. ``after_receipt``: called right after the fake
+    training receipt is written (fix round 1: a signal that arrives between the receipt and the commit marker)."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import test_exp46_receipts as tr
     import exp46_fixtures as fx
@@ -465,6 +467,8 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
         assert content_calls == [reg.AR_CONTENT_SHA256] * 2 and retained_calls == [["e0", "env", "smoke"]]
         open(os.path.join(args[4], reg.TRAINING_RECEIPT), "w").write("{}")
         calls.append(args)
+        if after_receipt is not None:
+            after_receipt()
         if not audit_ok:
             raise reg.GateError("end gates: synthetic failure")
         return {"final_ckpt_sha256": "9" * 64}
