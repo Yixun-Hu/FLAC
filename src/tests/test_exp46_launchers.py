@@ -469,3 +469,33 @@ def test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools(tmp_path):
     execs = [ln for ln in lines if ln.strip().startswith("exec ")]
     assert len(execs) == 2 and all('exec "$PY" -B ' in ln for ln in execs), execs
 
+
+
+# ------------------------------------------------------------------ fix round 2, Codex code r2 finding 9: sealed runs
+def test_abandon_refuses_a_sealed_run_and_release_frees_its_stranded_hold(tmp_path, no_preflight):
+    """A FULL job cancelled after its commit marker (before its reservation was released) is a valid SEALED run:
+    abandon refuses it -- nothing moved, nothing released, exit 2 at the CLI -- and names `release --run`, which frees
+    only the stranded hold (the run dir and the owner record untouched)."""
+    run = "exp46_C4Ff025_l40_2x32"
+    _submit(tmp_path)
+    rd, od, intent = _sealed_full(tmp_path)
+    cancelled = FakeScheduler(sacct=f"4242|{intent['job_name']}|CANCELLED\n")
+    before = _tree_state(rd, od)
+    with pytest.raises(sub.SubmitError, match=rf"SEALED.*release --run {run}"):
+        sub.abandon(run, "FULL", root=str(tmp_path), runner=cancelled)
+    assert _tree_state(rd, od) == before and sorted(os.listdir(tmp_path / sub.OWNERS)) == [f"{run}__FULL"]
+    assert not [p for p in os.listdir(tmp_path) if ".abandoned_" in p]
+    assert list(json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"]) == [run]
+    assert sub.release(run, root=str(tmp_path), runner=cancelled)["released"]
+    assert _tree_state(rd, od) == before and json.load(open(tmp_path / reg.STORAGE_LEDGER))["reservations"] == {}
+
+
+def test_an_unsealed_cancelled_attempt_is_still_abandoned(tmp_path, no_preflight):
+    run = "exp46_C4Ff025_l40_2x32"
+    _submit(tmp_path)
+    od, intent = sub.find_intent(run, "FULL", root=str(tmp_path))
+    (tmp_path / run).mkdir()                                     # a partial run dir: no commit marker
+    (tmp_path / run / reg.TRAINING_RECEIPT).write_text("{}")
+    got = sub.abandon(run, "FULL", root=str(tmp_path),
+                      runner=FakeScheduler(sacct=f"4242|{intent['job_name']}|CANCELLED\n"))
+    assert got["run_dir_moved_to"] and got["storage_released"] and not os.path.lexists(tmp_path / run)

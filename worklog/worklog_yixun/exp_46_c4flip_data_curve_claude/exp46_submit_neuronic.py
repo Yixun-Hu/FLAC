@@ -8,7 +8,7 @@ Run on the neuronic login node from the exp-46 checkout (HEAD pushed, tracked tr
     exp46_submit_neuronic.py submit    --run exp46_C4Ff025_l40_2x32 --mode SMOKE --time 01:00:00 [--dry-run]
     exp46_submit_neuronic.py submit    --run exp46_C4Ff025_l40_2x32 --mode FULL  --time 3-00:00:00 [--dry-run]
     exp46_submit_neuronic.py reconcile --run exp46_C4Ff025_l40_2x32 --mode FULL      # after an interrupted submit
-    exp46_submit_neuronic.py abandon   --run exp46_C4Ff025_l40_2x32 --mode FULL      # only once the job is proven gone
+    exp46_submit_neuronic.py abandon   --run exp46_C4Ff025_l40_2x32 --mode FULL      # an UNSEALED attempt, job gone
     exp46_submit_neuronic.py release   --run exp46_C4Ff025_l40_2x32                  # a SEALED run's stranded hold
 
 Ownership: ONE stable owner record per (run, mode), ``<save root>/.exp46_owners/<run>__<MODE>/``,
@@ -20,7 +20,8 @@ after exact-comparing its token / run / mode / HEAD / backend / flash version / 
 so a second SMOKE is refused exactly like a second FULL. ``reconcile`` resolves an interrupted
 submission only when exactly one job carries the token (zero or several: refuse, exit 2);
 ``abandon`` (all token jobs terminal) moves the owner record to ``.exp46_owners/abandoned/`` and the
-run dir to ``<dir>.abandoned_<ts>`` -- an abandoned record is never found again.
+run dir to ``<dir>.abandoned_<ts>`` -- an abandoned record is never found again. A SEALED run (its run dir holds
+TRAINING_COMMITTED.json) is never abandoned (Codex code r2 finding 9): abandon refuses it and names ``release``.
 
 Crash recovery (Codex code r1 finding 7): submit() holds the (run, mode) submission lock
 ``<save root>/.exp46_submit_<run>__<MODE>.lock`` from its reservation to the 'submitted' intent, and reconcile /
@@ -457,6 +458,11 @@ def abandon(run, mode, root=None, runner=subprocess.run):
 
 def _abandon_locked(run, mode, root, runner):
     od, intent = find_intent(run, mode, root)
+    marker = os.path.join(intent["save_dir"], reg.COMMIT_MARKER)
+    if os.path.lexists(marker):        # Codex code r2 finding 9: a SEALED run is a completed result, never abandoned
+        raise SubmitError(f"{run} {mode} is SEALED ({marker} exists): abandon never moves a completed run aside or "
+                          f"frees it for retraining -- keep it; free its stranded storage hold with "
+                          f"`exp46_submit_neuronic.py release --run {run}`")
     if intent["state"] == "submitting" and intent["job_id"] is None:
         age = time.time() - time.mktime(time.strptime(intent["ts"], "%Y-%m-%dT%H:%M:%S"))
         if age < SUBMIT_GRACE_S:                      # an sbatch of this submission may still be in flight (finding 7)
