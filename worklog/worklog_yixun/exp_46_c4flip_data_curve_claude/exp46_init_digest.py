@@ -89,8 +89,8 @@ def main(argv=None):
         # -- before the model is built -- and ABSOLUTE, anchored to the caller's cwd: init_digest() changes the cwd to
         # the repo, so a relative string would name another place at write time; this one path is checked, re-checked
         # just before the write and written (Codex code r2 finding 3)
-        a.json = os.path.abspath(a.json)
-        try:
+        try:                 # as the kernel will address it (Codex code r3 finding 1: a '..' after a symlink refuses)
+            a.json = reg.resolve_dotdot(a.json)
             reg.check_isolation(a.json, "the init-digest record")
         except reg.GateError as err:
             print(f"EXP46 INIT DIGEST REFUSED: {err}", file=sys.stderr)

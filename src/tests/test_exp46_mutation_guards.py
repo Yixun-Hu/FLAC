@@ -507,3 +507,65 @@ def test_every_mutating_call_of_the_kit_is_guarded_or_audited():
     assert rootless == [], rootless
     assert sorted(raw - set(AUDITED)) == [] and sorted(set(AUDITED) - raw) == [], (sorted(raw - set(AUDITED)),
                                                                                   sorted(set(AUDITED) - raw))
+
+
+# ------------------------------------------------------------------ fix round 3, Codex code r3 finding 1: '..' after a link
+@pytest.fixture
+def dotdot(tmp_path, monkeypatch):
+    """The A6000 campaign tree's required AcousticRooms link into the NAS. '<tree>/AcousticRooms/../checkpoints/
+    exp38_data_efficiency/report.json' is '<tree>/checkpoints/...' to abspath (which collapses '..' lexically) but exp_38's
+    NAS checkpoint namespace to the kernel (which resolves the link first, then '..'). A decoy folder sits where abspath
+    points, so a writer that checks one place and writes the other is visible either way."""
+    nas = tmp_path / "diskstation" / "FLAC"
+    (nas / "AcousticRooms").mkdir(parents=True)
+    prot = nas / "checkpoints" / "exp38_data_efficiency"
+    prot.mkdir(parents=True)
+    monkeypatch.setattr(reg, "PROTECTED_ABSOLUTE", (str(prot),))
+    tree = tmp_path / "exp-46-campaign"
+    tree.mkdir()
+    (tree / "AcousticRooms").symlink_to(nas / "AcousticRooms")
+    decoy = tree / "checkpoints" / "exp38_data_efficiency"
+    decoy.mkdir(parents=True)
+    return tree, prot, decoy, str(tree / "AcousticRooms" / ".." / "checkpoints" / "exp38_data_efficiency" / "report.json")
+
+
+def test_a_dotdot_after_a_symlink_never_reaches_a_protected_root_through_any_writer(dotdot, tmp_path):
+    """Every guarded primitive writes exactly the path it validated (check_destination's return value), resolved as the
+    kernel will (resolve_dotdot): a '..' that would cancel a symlink refuses. Through each actual writer, Codex's path
+    reaches neither exp_38's namespace nor the decoy; a '..' over a REAL directory still resolves (kernel = abspath)."""
+    tree, prot, decoy, bad = dotdot
+    for name in PRIMITIVES:
+        with pytest.raises(reg.GateError, match=r"'\.\.'"):
+            _primitives(bad, tree, tmp_path)[name]()
+        assert listing(prot) == [] and listing(decoy) == [], name
+    with pytest.raises(reg.GateError, match=r"'\.\.'"):                  # a '..' after a link in the ROOT refuses too
+        reg.atomic_write_bytes(str(decoy / "x.json"), b"x", root=str(tree / "AcousticRooms" / ".." / "checkpoints"))
+    assert listing(prot) == [] and listing(decoy) == []
+    (tree / "real").mkdir()                                               # '..' over a real directory: the kernel's
+    ok = str(tree / "real" / ".." / "ok.json")                            # place, which is abspath's
+    assert reg.resolve_dotdot(ok) == str(tree / "ok.json")
+    reg.atomic_write_bytes(ok, b"ok", root=str(tree))
+    assert (tree / "ok.json").read_bytes() == b"ok" and listing(prot) == []
+
+
+def test_the_entry_points_refuse_a_dotdot_destination_before_any_write(dotdot, tmp_path, monkeypatch):
+    """Codex's example through the comparator's --out, the init digest's --json, the delta manifest's --build and the
+    NAS staging root: each refuses before reading its inputs, building a model or writing anything."""
+    tree, prot, decoy, bad = dotdot
+    rc = _load("exp46_regression_compare.py", "exp46_rc_dotdot")
+    junit = tmp_path / "junit.xml"
+    junit.write_text('<?xml version="1.0"?><testsuites><testsuite name="pytest"><testcase classname="src.tests.test_a" '
+                     'name="test_x" time="0.1"></testcase></testsuite></testsuites>')
+    assert rc.main(["--merged", str(junit), "--exp38", str(junit), "--exp43", str(junit), "--merged-root", "/m",
+                    "--exp38-root", "/p", "--exp43-root", "/q", "--out", bad]) == 2
+    idg = _load("exp46_init_digest.py", "exp46_idg_dotdot")
+    monkeypatch.setattr(idg, "init_digest", lambda *a, **k: (_ for _ in ()).throw(AssertionError("model built")))
+    assert idg.main(["--run", RUN, "--json", bad]) == 2
+    cm46 = _load("exp46_content_manifest.py", "exp46_cm_dotdot")
+    monkeypatch.setattr(cm46, "delta_files", lambda repo=None: (_ for _ in ()).throw(AssertionError("split read")))
+    with pytest.raises(reg.GateError, match=r"'\.\.'"):
+        cm46.build(bad)
+    nas = _load("exp46_nas_publish.py", "exp46_nas_dotdot")
+    with pytest.raises(reg.GateError, match=r"'\.\.'"):
+        nas.stage(os.path.dirname(bad), RUN)
+    assert listing(prot) == [] and listing(decoy) == []

@@ -34,7 +34,7 @@ AT_FDCWD = -100
 
 def _paths(dest_root, run):
     reg.parse_run_id(run)
-    root = os.path.abspath(dest_root)
+    root = reg.resolve_dotdot(dest_root)       # as the kernel will address it (Codex code r3 finding 1)
     if os.path.islink(root) or not os.path.isdir(root):
         raise reg.GateError(f"dest root {root} is not a real directory (it is never created here)")
     reg.check_isolation(root, "the NAS publication root")

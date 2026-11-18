@@ -932,31 +932,33 @@ def atomic_write_bytes(path, data, root=None, allow=()):
     """temp file -> fsync -> os.replace -> directory fsync, below the checked ``root`` (Codex code r2 finding 1: the
     destination AND the temp name pass check_destination first; the kit's production callers name their root, the
     default is the destination's own directory). The temp file is created exclusively, never through a link
-    (O_EXCL | O_NOFOLLOW); os.replace then moves that entry itself."""
-    d = os.path.dirname(os.path.abspath(path))
-    tmp = os.path.join(d, f".{os.path.basename(path)}.tmp.{os.getpid()}")
-    for p in (path, tmp):
-        check_destination(p, d if root is None else root, f"the write of {os.path.basename(path)}", allow)
+    (O_EXCL | O_NOFOLLOW); os.replace then moves that entry itself. Codex code r3 finding 1: every syscall uses the
+    VALIDATED absolute path (check_destination's return value), never the argument."""
+    what = f"the write of {os.path.basename(os.fspath(path))}"
+    p = check_destination(path, os.path.dirname(os.path.abspath(path)) if root is None else root, what, allow)
+    d = os.path.dirname(p)
+    tmp = check_destination(os.path.join(d, f".{os.path.basename(p)}.tmp.{os.getpid()}"), d if root is None else root,
+                            what, allow)
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o666)
     with os.fdopen(fd, "wb") as fh:
         fh.write(data)
         fh.flush()
         os.fsync(fh.fileno())
-    os.replace(tmp, path)
+    os.replace(tmp, p)
     _fsync_dir(d)
 
 
 def write_sealed(path, rec, root=None, allow=()):
     """A JSON receipt + its ``.sha256`` sidecar; refuses an existing receipt. The sidecar is written
     first, the JSON last (the JSON is the commit point: a sidecar alone is never admitted). Both below ``root``
-    (atomic_write_bytes)."""
-    check_destination(path, os.path.dirname(os.path.abspath(path)) if root is None else root, "a sealed receipt", allow)
-    if os.path.exists(path):
-        raise GateError(f"{path} exists (receipts are written once)")
+    (atomic_write_bytes), at the validated path."""
+    p = check_destination(path, os.path.dirname(os.path.abspath(path)) if root is None else root, "a sealed receipt",
+                          allow)
+    if os.path.exists(p):
+        raise GateError(f"{p} exists (receipts are written once)")
     text = (json.dumps(rec, indent=1, sort_keys=True) + "\n").encode()
-    atomic_write_bytes(path + ".sha256", f"{hashlib.sha256(text).hexdigest()}  {os.path.basename(path)}\n".encode(),
-                       root, allow)
-    atomic_write_bytes(path, text, root, allow)
+    atomic_write_bytes(p + ".sha256", f"{hashlib.sha256(text).hexdigest()}  {os.path.basename(p)}\n".encode(), root, allow)
+    atomic_write_bytes(p, text, root, allow)
     return hashlib.sha256(text).hexdigest()
 
 
@@ -1082,26 +1084,53 @@ def alias_problem(base, rel):
 # create its absent target) routes the write into another namespace. Every mutation of the kit below a checked root
 # validates its own destination first (check_destination), through the primitives below; production code names that
 # root at every call (src/tests/test_exp46_mutation_guards.py audits every mutating call of the kit).
-def destination_problems(path, root, what, allow=()):
-    """Problems of ``path``, the destination of a mutation below its checked ``root``: it must lie lexically at or below
-    the root; the root may not equal or lie inside a protected root; no existing component from the root down to
-    ``path`` may be a symlink (alias_problem: the deepest existing one resolves to its lexical place -- a dangling link
-    included); and the resolved destination is isolated (``allow``: exp46_table.materialise's exception only)."""
-    p, r = os.path.abspath(path), os.path.abspath(root)
+def resolve_dotdot(path):
+    """The absolute path the KERNEL will address (Codex code r3 finding 1). abspath collapses '..' lexically, but the
+    kernel applies it after resolving the component it cancels: for a symlink, from the link's target
+    (``<tree>/AcousticRooms/../checkpoints/...`` is ``<tree>/checkpoints/...`` to abspath, the NAS to the kernel). Walked
+    from '/' or the physical cwd, each '..' is collapsed only over a component that is NOT a symlink -- then both agree --
+    and a '..' that would cancel a symlink refuses. Returns the absolute path; raises GateError."""
+    p = os.fspath(path)
+    cur = os.sep if os.path.isabs(p) else os.getcwd()
+    for part in p.split(os.sep):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            if os.path.islink(cur):
+                raise GateError(f"{p}: a '..' after the symlink {cur} (the kernel resolves it from the link's target, "
+                                "abspath lexically): refused")
+            cur = os.path.dirname(cur)
+        else:
+            cur = os.path.join(cur, part)
+    return cur
+
+
+def destination_problems(path, root, what, allow=(), contains=True):
+    """Problems of ``path``, the destination of a mutation below its checked ``root``: both are resolved as the kernel
+    will (resolve_dotdot: a '..' after a symlink refuses); the path must lie lexically at or below the root; the root may
+    not equal or lie inside a protected root; no existing component from the root down to ``path`` may be a symlink
+    (alias_problem: the deepest existing one resolves to its lexical place -- a dangling link included); and the resolved
+    destination is isolated (``allow``: exp46_table.materialise's exception only; ``contains=False``: a container
+    directory that may hold foreign namespaces -- each write below it is checked on its own)."""
+    try:
+        p, r = resolve_dotdot(path), resolve_dotdot(root)
+    except GateError as err:
+        return [f"{what} {err}"]
     if p != r and not p.startswith(r.rstrip(os.sep) + os.sep):
         return [f"{what} {path} lies outside its checked root {root}"]
     out = isolation_problems(r, f"the root of {what}", contains=False, allow=allow)
     problem = alias_problem(r, os.path.relpath(p, r)) if p != r else None
-    return out + ([f"{what} {problem}"] if problem else []) + isolation_problems(p, what, allow=allow)
+    return out + ([f"{what} {problem}"] if problem else []) + isolation_problems(p, what, contains=contains, allow=allow)
 
 
-def check_destination(path, root, what, allow=()):
-    """GateError on any destination_problems (before anything is written); the absolute path otherwise."""
-    probs = destination_problems(path, root, what, allow)
+def check_destination(path, root, what, allow=(), contains=True):
+    """GateError on any destination_problems (before anything is written); otherwise the VALIDATED absolute path --
+    the one every primitive then passes to the syscall (Codex code r3 finding 1: never the original argument)."""
+    probs = destination_problems(path, root, what, allow, contains)
     if probs:
         raise GateError("isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): " + "; ".join(probs)
                         + ": refused, nothing written")
-    return os.path.abspath(path)
+    return resolve_dotdot(path)
 
 
 def run_root(rd):
@@ -1115,34 +1144,32 @@ _WRITE_FLAGS = {"a": os.O_WRONLY | os.O_CREAT | os.O_APPEND, "w": os.O_WRONLY | 
 
 
 def open_below(path, mode, root, what, allow=()):
-    """open(path, mode) for writing ("a", "w" or "x", optionally "b") after check_destination, never through a final
-    link (O_NOFOLLOW: a link planted after the check fails instead of being written through)."""
-    check_destination(path, root, what, allow)
-    fd = os.open(path, _WRITE_FLAGS[mode[0]] | os.O_NOFOLLOW, 0o666)
+    """open(path, mode) for writing ("a", "w" or "x", optionally "b") at the path check_destination validated, never
+    through a final link (O_NOFOLLOW: a link planted after the check fails instead of being written through)."""
+    p = check_destination(path, root, what, allow)
+    fd = os.open(p, _WRITE_FLAGS[mode[0]] | os.O_NOFOLLOW, 0o666)
     return os.fdopen(fd, mode.replace("x", "w"))
 
 
-def makedirs_below(path, root, what, exist_ok=True, allow=()):
-    check_destination(path, root, what, allow)
-    os.makedirs(path, exist_ok=exist_ok)
+def makedirs_below(path, root, what, exist_ok=True, allow=(), container=False):
+    """os.makedirs at the validated path. ``container``: a directory that may already hold foreign namespaces (a
+    tree's outputs_FLAC) -- not refused for CONTAINING a protected root, still refused for lying in or aliasing one."""
+    os.makedirs(check_destination(path, root, what, allow, contains=not container), exist_ok=exist_ok)
 
 
 def mkdir_below(path, root, what):
-    check_destination(path, root, what)
-    os.mkdir(path)
+    os.mkdir(check_destination(path, root, what))
 
 
 def rename_below(src, dst, root, what):
-    """os.rename inside one checked root: the source and the destination are both validated (rename moves the entry
-    itself and never follows a final link)."""
-    check_destination(src, root, f"{what} (its source)")
-    check_destination(dst, root, what)
-    os.rename(src, dst)
+    """os.rename inside one checked root: the source and the destination are both validated and the validated paths
+    are renamed (rename moves the entry itself and never follows a final link)."""
+    s = check_destination(src, root, f"{what} (its source)")
+    os.rename(s, check_destination(dst, root, what))
 
 
 def symlink_below(target, path, root, what):
-    check_destination(path, root, what)
-    os.symlink(target, path)
+    os.symlink(target, check_destination(path, root, what))
 
 
 def copyfile_below(src, dst, root, what, allow=()):
@@ -1164,16 +1191,18 @@ def publish_no_clobber(target, data, root=None, allow=()):
     """Publish ``data`` at ``target`` only if nothing is there: a private temp file is written and fsynced, then
     HARD-LINKED to the target (os.link refuses an existing entry, a dangling symlink included); FileExistsError
     otherwise, the existing entry untouched (Codex code r2 finding 9). The target passes check_destination below
-    ``root`` first (default: its own directory; mkstemp's temp name is exclusive and never follows a link)."""
-    d = os.path.dirname(os.path.abspath(target))
-    check_destination(target, d if root is None else root, f"the publication of {os.path.basename(target)}", allow)
-    fd, tmp = tempfile.mkstemp(prefix=f".{os.path.basename(target)}.publish.", dir=d)
+    ``root`` first (default: its own directory; mkstemp's temp name is exclusive and never follows a link); the
+    validated path is the one linked (Codex code r3 finding 1)."""
+    what = f"the publication of {os.path.basename(os.fspath(target))}"
+    p = check_destination(target, os.path.dirname(os.path.abspath(target)) if root is None else root, what, allow)
+    d = os.path.dirname(p)
+    fd, tmp = tempfile.mkstemp(prefix=f".{os.path.basename(p)}.publish.", dir=d)
     try:
         with os.fdopen(fd, "wb") as fh:
             fh.write(data)
             fh.flush()
             os.fsync(fh.fileno())
-        os.link(tmp, target)
+        os.link(tmp, p)
     finally:
         os.unlink(tmp)
     _fsync_dir(d)
