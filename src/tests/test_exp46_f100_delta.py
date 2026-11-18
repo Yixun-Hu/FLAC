@@ -170,7 +170,8 @@ def test_the_pass_record_is_the_registered_schema_and_admitted(tmp_path, monkeyp
 
 
 def test_every_f100_launch_needs_the_pinned_manifest(tmp_path, monkeypatch):
-    assert reg.F100_DELTA_SHA256 is None                       # pinned at L2: until then f100 refuses
+    # the unpinned state is INJECTED (fix round 1, Codex code r1 finding 4): before the L2 pin commit and after it alike
+    monkeypatch.setattr(reg, "F100_DELTA_SHA256", None)             # unpinned: every f100 launch refuses
     with pytest.raises(reg.GateError, match="not pinned"):
         reg.check_f100_delta_pinned()
     repo, man, out = _built(tmp_path, monkeypatch)

@@ -144,7 +144,8 @@ def test_offline_admission_needs_the_e0_receipt_the_training_receipt_and_its_los
 def test_the_f100_rows_need_the_sealed_delta_verification_at_the_pinned_manifest(tmp_path, monkeypatch):
     """plan r3 §3.2 "Data binding for f100": the generator's offline admission of an f100 cell re-opens the run's
     retained delta verification record (through the training receipt's offline check); missing, changed, or under no
-    / another pin -> the row does not validate. The registry ships the pin None (L2), so no f100 row can publish yet."""
+    / another pin -> the row does not validate. Every pin is INJECTED (fix round 1, Codex code r1 finding 4): the
+    unpinned case is the injected None, so the test holds before and after the L2 pin commit alike."""
     root, ev = _tmp_root(tmp_path, monkeypatch)
     files = _write_run(root, ev, RUNS[3], 8)
     assert gen.validate_exp46_cell(files, repo_root=str(root), expected_run=RUNS[3], expected_k=8) == (True, [])
@@ -162,7 +163,6 @@ def test_the_f100_rows_need_the_sealed_delta_verification_at_the_pinned_manifest
     open(rec, "wb").write(good.replace(b'"PASS"', b'"FAIL"'))
     ok, probs = gen.validate_exp46_cell(files, repo_root=str(root), expected_run=RUNS[3], expected_k=8)
     assert not ok, probs
-    assert open(os.path.join(REPO, EXP_REL, "exp46_registry.py")).read().count("\nF100_DELTA_SHA256 = None") == 1
 
 
 def test_published_exp46_rows_carry_the_registered_disclosures(tmp_path, monkeypatch):
