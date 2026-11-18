@@ -307,7 +307,7 @@ def test_config_contract_through_the_real_factory(tmp_path):
             (lambda c: c["training"]["yaw_aug"].update(flip=False), "yaw_aug"),
             (lambda c: c["training"]["yaw_aug"].pop("flip"), "yaw_aug"),
             (lambda c: c["training"]["yaw_aug"].update(flip=1), "factory refuses"),
-            (lambda c: c["training"]["yaw_aug"].update(offset_step=32), "factory refuses"),
+            (lambda c: c["training"]["yaw_aug"].update(offset_step=32), "exactly training.yaw_aug.flip"),
             (lambda c: c.update(sample_rate=1), "exactly training.yaw_aug.flip"),
             (lambda c: c["training"].update(use_ema=False), "use_ema")]:
         got = kit.config_contract_reasons(_contract_tree(tmp_path, mutate), sys.executable)

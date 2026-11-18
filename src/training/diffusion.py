@@ -293,19 +293,15 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         self.yaw_aug_offset_step = yaw_aug_offset_step
         # exp_43: the horizontal mirror flip (p = 1/2) after the roll. KEYWORD-ONLY, so no
         # positional caller can ever reach it. Literal bool only (1 / "true" refused); True is
-        # refused on a disabled arm (a silent no-op) and with an offset_step (out of scope:
-        # the flip arm is the continuous roll). The fa_invariant / canonicalize exclusions
-        # above cover it through yaw_aug_enabled.
+        # refused on a disabled arm (a silent no-op). exp_46: True composes with a valid
+        # offset_step (C4 + flip; exp_43's scope refusal removed). The fa_invariant /
+        # canonicalize exclusions above cover it through yaw_aug_enabled.
         if not isinstance(yaw_aug_flip, bool):
             raise ValueError(f"yaw_aug_flip must be a bool, got {yaw_aug_flip!r}")
         if yaw_aug_flip and not yaw_aug_enabled:
             raise ValueError(
                 "yaw_aug_flip=True requires yaw_aug_enabled=True (a flip on a disabled arm "
                 "would be a silent no-op)")
-        if yaw_aug_flip and yaw_aug_offset_step is not None:
-            raise ValueError(
-                f"yaw_aug_flip=True with yaw_aug_offset_step={yaw_aug_offset_step!r} is out of "
-                "scope for exp_43 (the flip arm is the continuous full-circle roll)")
         self.yaw_aug_flip = yaw_aug_flip
 
         # exp_25: deepest-column yaw canonicalization of every step's metadata
@@ -755,7 +751,8 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         across ``y = 0`` by ``mirror_scene_metadata`` (UniFuse's order: roll, then
         flip). Every rotated sample is first checked against the mirror's input
         contract, so a malformed sample is refused whatever its bit. Flip absent: no
-        extra draw, no extra check, the exp_15 / exp_40 path.
+        extra draw, no extra check, the exp_15 / exp_40 path. exp_46: with an offset
+        step the snap draws nothing, so the bits equal the flip arm's (C4 + flip).
         """
         self._check_yaw_aug_metadata(metadata)
 

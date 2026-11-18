@@ -7,7 +7,7 @@ Rules, mirroring exp_40's ``offset_step`` exactly:
 * enabled -> ``flip`` must be a literal JSON boolean (nothing is coerced);
 * ``flip: true`` adds ``yaw_aug_flip=True``; ``flip`` absent or ``false`` adds NO kwarg, so the
   wrapper call of every existing config (and of an explicit ``false``) is literally unchanged;
-* ``flip: true`` together with ``offset_step`` is refused (the RF arm is the continuous roll).
+* ``flip: true`` with a valid ``offset_step`` adds both kwargs (exp_46 C4 + flip; exp_43 refused it).
 
 Every rule is checked on ``_parse_yaw_aug_config`` and, for the kwargs, through the real
 ``create_training_wrapper_from_config`` with the wrapper class stubbed (the model is never
@@ -101,9 +101,11 @@ def test_enabled_block_refuses_a_non_literal_bool_flip(flip):
 
 @pytest.mark.parametrize("step", [32, 1, 4])
 def test_true_flip_with_offset_step_is_refused(step):
-    with pytest.raises(ValueError,
-                       match=r"training\.yaw_aug\.flip=true with training\.yaw_aug\.offset_step"):
-        _parse_yaw_aug_config(_training({**_ENABLED, "offset_step": step, "flip": True}))
+    """exp_46 declared edit E2: no longer refused -- a valid offset_step with a true flip parses to both kwargs (C4 +
+    flip); the invalid-step refusal is the next test, unchanged. Node ids kept (exp_46 plan r3 §3.1)."""
+    got = _parse_yaw_aug_config(_training({**_ENABLED, "offset_step": step, "flip": True}))
+    assert got == {**_EXP15_KWARGS, "yaw_aug_offset_step": step, "yaw_aug_flip": True}
+    assert got["yaw_aug_flip"] is True
 
 
 def test_true_flip_with_an_invalid_offset_step_is_still_refused():

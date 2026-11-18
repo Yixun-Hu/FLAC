@@ -88,6 +88,8 @@ def _parse_yaw_aug_config(training_config):
     # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
     # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
     # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+    # exp_46: a true flip composes with a valid offset_step (C4 + flip: the grid roll, then the
+    # flip); exp_43's scope refusal of the pair is removed. An invalid step is refused above.
     if "flip" in block:
         flip = block["flip"]
         if not isinstance(flip, bool):
@@ -95,10 +97,6 @@ def _parse_yaw_aug_config(training_config):
                 "training.yaw_aug.flip must be a literal boolean (true/false), got "
                 f"{flip!r}")
         if flip:
-            if "offset_step" in block:
-                raise ValueError(
-                    "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
-                    "scope for exp_43: the flip arm is the continuous full-circle roll")
             kwargs["yaw_aug_flip"] = True
     return kwargs
 

@@ -167,8 +167,13 @@ def test_constructor_refuses_flip_on_a_disabled_arm():
 
 
 def test_constructor_refuses_flip_with_offset_step():
-    with pytest.raises(ValueError, match="yaw_aug_flip=True with yaw_aug_offset_step"):
-        _construct(**_ENABLED_KW, yaw_aug_offset_step=32, yaw_aug_flip=True)
+    """exp_46 declared edit E1: a flip with a VALID offset_step is accepted (C4 + flip; exp_43's scope refusal is
+    removed); an invalid offset_step is still refused, flip or not. Node id kept (exp_46 plan r3 §3.1)."""
+    for step in (32, 128):
+        w = _construct(**_ENABLED_KW, yaw_aug_offset_step=step, yaw_aug_flip=True)
+        assert (w.yaw_aug_offset_step, w.yaw_aug_flip) == (step, True)
+    with pytest.raises(ValueError, match="yaw_aug_offset_step: "):
+        _construct(**_ENABLED_KW, yaw_aug_offset_step=30, yaw_aug_flip=True)
 
 
 def test_existing_guards_still_refuse_a_flip_arm():
