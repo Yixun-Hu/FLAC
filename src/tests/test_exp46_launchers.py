@@ -114,7 +114,7 @@ def test_sbatch_refuses_unregistered_runs_and_an_unallowed_rung():
     base = dict(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, MODE="FULL", EXPECT_SHA="a" * 40,
                 EXP38_TOKEN="0" * 32, SAVE_DIR="/x")
     for run, needle in (("de_yaw_f025", "not a registered"), ("exp46_C4Ff025_l40_8x8", "not a registered"),
-                        ("exp46_C4Ff100_l40_2x32", "not a registered"), ("exp46_C4Ff025_l40_2x32_r8x8", "not a registered")):
+                        ("exp46_C4Ff090_l40_2x32", "not a registered"), ("exp46_C4Ff025_l40_2x32_r8x8", "not a registered")):
         env = _env(RUN=run, **base)
         env.pop("SLURM_JOB_ID", None)
         r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)

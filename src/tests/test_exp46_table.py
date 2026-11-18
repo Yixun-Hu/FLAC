@@ -326,7 +326,7 @@ def test_the_disclosures_have_one_source_and_appear_under_every_exp46_table(buil
     assert all(d in md for d in reg.disclosures("table"))
     import exp46_collect as col
     rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in tbl.ev.METRIC_KEYS}, "source": "s"}
-            for m, f in [("c4f", t) for t in tbl.FRACS] for K in (8, 1)}
+            for m, f in [("c4f", t) for t in tbl.reg.FRACS] for K in (8, 1)}
     cmd = col.render(rows, [])
     assert all(d in cmd for d in reg.disclosures("collect")) and reg.DISCLOSURES[6] not in cmd
 

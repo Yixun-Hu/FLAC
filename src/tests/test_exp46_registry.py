@@ -28,7 +28,7 @@ def _load(name):
 
 reg = _load("exp46_registry")
 
-C4F = {t: f"exp46_C4Ff{t}_l40_2x32" for t in ("025", "050", "075")}
+C4F = {t: f"exp46_C4Ff{t}_l40_2x32" for t in ("025", "050", "075", "100")}
 # plan r3 fact F2: exp_38's de_yaw_f025 FULL argv on neuronic, verbatim (cmd of
 # at_launch_de_yaw_f025_neuronic_FULL_2026-11-09_18-01-10.json without the torchrun prefix)
 DE_YAW_F025_RD = "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f025"
@@ -50,12 +50,13 @@ def _opt(argv, flag):
 # ------------------------------------------------------------------ runs and rungs
 def test_the_registry_imports_and_registers_exactly_the_c4f_runs():
     """plan r3 §3.2: exactly three runs; no P1 bridge, no 8x8 rung, no _r suffix (import-time construction)."""
-    assert reg.required_runs() == reg.all_runs() == reg.campaign_runs() == [C4F["025"], C4F["050"], C4F["075"]]
+    assert reg.required_runs() == reg.all_runs() == reg.campaign_runs() == [C4F["025"], C4F["050"], C4F["075"],
+                                                                            C4F["100"]]
     assert reg.REGISTERED_RUNS == frozenset(C4F.values()) and reg.OPTIONAL_RUNS == ()
     assert sorted(reg.ARMS) == ["c4f"] and sorted(reg.RUNGS) == ["2x32"]
     for t, run in C4F.items():
         assert reg.parse_run_id(run) == ("c4f", t, "2x32") and reg.run_id("c4f", t) == run
-    for bad in ("de_yaw_f025", "de_bf_f025", "de_p1_f025", "exp46_C4Ff100_l40_2x32", "exp46_C4Ff025_l40_8x8",
+    for bad in ("de_yaw_f025", "de_bf_f025", "de_p1_f025", "exp46_C4Ff090_l40_2x32", "exp46_C4Ff025_l40_8x8",
                 "exp46_C4Ff025_l40_2x32_r8x8", "exp45_YAWf025_l40_2x32", "exp46_C4Ff025_a6000_2x32", "", None):
         with pytest.raises(reg.GateError):
             reg.parse_run_id(bad)
@@ -146,10 +147,11 @@ def test_check_config_refuses_every_c4f_block_mutation(tmp_path, monkeypatch, na
 
 
 # ------------------------------------------------------------------ subsets
-@pytest.mark.parametrize("tag,n", [("025", 73473), ("050", 145665), ("075", 218463)])
+@pytest.mark.parametrize("tag,n", [("025", 73473), ("050", 145665), ("075", 218463), ("100", 291210)])
 def test_check_subset_reads_the_registered_split(tag, n):
     out = reg.check_subset(tag)
-    assert out["n_items"] == n and out["rooms"] == 243 and out["restrict_to_split"] is True
+    assert out["n_items"] == n and out["rooms"] == 243 and out["restrict_to_split"] is (tag != "100")
+    assert ("full_split_audit" in out) is (tag == "100")
 
 
 def test_check_subset_refuses_a_tampered_split(tmp_path):
@@ -162,6 +164,73 @@ def test_check_subset_refuses_a_tampered_split(tmp_path):
     (root / f["split"]).write_bytes(open(os.path.join(REPO, f["split"]), "rb").read() + b" ")
     with pytest.raises(reg.GateError):
         reg.check_subset("025", repo=str(root))
+
+
+# ------------------------------------------------------------------ f100 (plan r3 §3.2 "FRACS, runs", "Data binding")
+def test_f100_is_the_unmodified_full_config_and_split_with_the_g7_loader_length():
+    f = reg.FRACS["100"]
+    assert (f["split"], f["dataset_config"]) == ("data/AR/train.json",
+                                                 "src/configs/dataset_configs/AR/train/acousticroom_train.json")
+    assert reg.sha256_file(os.path.join(REPO, f["split"])) == f["split_sha256"]
+    assert reg.sha256_file(os.path.join(REPO, f["dataset_config"])) == f["dataset_config_sha256"]
+    assert (f["n_items"], f["steps_per_epoch"]) == (291210, 4550) and reg.FULL_TAG == "100"
+    assert reg.SUBSET_TAGS == ("025", "050", "075") and list(reg.FRACS) == ["025", "050", "075", "100"]
+    assert reg.ckpt_name(40000, "100") == "epoch=8-step=40000.ckpt"            # = exp_43 RF 100 %'s name (exp_45 F12)
+    assert [reg.ckpt_name(s, "100") for s in (2500, 4550, 4551, 37500)] == [
+        "epoch=0-step=2500.ckpt", "epoch=0-step=4550.ckpt", "epoch=1-step=4551.ckpt", "epoch=8-step=37500.ckpt"]
+    dc = json.load(open(os.path.join(REPO, f["dataset_config"])))
+    assert "restrict_to_split" not in dc["modalities"]["acoustic_context"]        # the unrestricted policy (G7)
+
+
+def test_the_audit_bound_set_stays_exp38s_three_fractions():
+    """exp_38's audit schema is unchanged: its bound set is the three subset fractions' files; f100's config is pinned
+    by sha in FRACS and the full split is bound through the audit's full_split entry."""
+    res = json.load(open(os.path.join(REPO, reg.SUBSET_AUDIT)))
+    assert set(res["bound"]) == reg.SUBSET_AUDIT_BOUND and sorted(res["fractions"]) == list(reg.SUBSET_TAGS)
+    assert reg.FRACS["100"]["dataset_config"] not in reg.SUBSET_AUDIT_BOUND
+    assert reg.check_subset_audit()["sha256"] == open(os.path.join(REPO, reg.SUBSET_AUDIT + ".sha256")).read().split()[0]
+
+
+@pytest.mark.parametrize("key,value", [("on_disk_candidates_outside_split", 1), ("candidates_removed_by_restriction", 1),
+                                       ("restricted", True), ("n_targets", 291209), ("rooms", 242),
+                                       ("split_sha256", "0" * 64), ("split", "data/AR/train_frac075_s2026.json"),
+                                       ("empty_restricted_pools", 1), ("n_targets", None)])
+def test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent(key, value):
+    import copy
+    res = json.load(open(os.path.join(REPO, reg.SUBSET_AUDIT)))
+    assert reg.full_split_problems(res)["n_targets"] == 291210
+    bad = copy.deepcopy(res)
+    bad["full_split"][key] = value
+    with pytest.raises(reg.GateError, match="full_split"):
+        reg.full_split_problems(bad)
+    del bad["full_split"]
+    with pytest.raises(reg.GateError, match="full_split"):
+        reg.full_split_problems(bad)
+
+
+def test_f100_binds_the_unrestricted_policy_and_refuses_a_restricted_or_changed_full_config(tmp_path, monkeypatch):
+    f = reg.FRACS["100"]
+    root = tmp_path / "repo"
+    for rel in (f["split"], f["dataset_config"]):
+        (root / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
+        (root / rel).write_bytes(open(os.path.join(REPO, rel), "rb").read())
+    monkeypatch.setattr(reg, "full_split_audit", lambda repo=None: {"bound": "stub"})
+    out = reg.check_subset("100", repo=str(root))
+    assert out["restrict_to_split"] is False and out["context_policy"].startswith("unrestricted")
+    assert out["full_split_audit"] == {"bound": "stub"} and out["n_items"] == 291210
+    cfg = json.load(open(root / f["dataset_config"]))
+    for value in (True, "true", 1):
+        cfg["modalities"]["acoustic_context"]["restrict_to_split"] = value
+        (root / f["dataset_config"]).write_text(json.dumps(cfg, indent=4))
+        with pytest.raises(reg.GateError):                      # the sha pin first ...
+            reg.check_subset("100", repo=str(root))
+        monkeypatch.setitem(reg.FRACS["100"], "dataset_config_sha256", reg.sha256_file(str(root / f["dataset_config"])))
+        with pytest.raises(reg.GateError, match="restrict_to_split"):   # ... and the context policy behind it
+            reg.check_subset("100", repo=str(root))
+    cfg["modalities"]["acoustic_context"]["restrict_to_split"] = False   # an explicit false is the same policy
+    (root / f["dataset_config"]).write_text(json.dumps(cfg, indent=4))
+    monkeypatch.setitem(reg.FRACS["100"], "dataset_config_sha256", reg.sha256_file(str(root / f["dataset_config"])))
+    assert reg.check_subset("100", repo=str(root))["restrict_to_split"] is False
 
 
 # ------------------------------------------------------------------ checkpoint names, legs, run dirs
@@ -230,7 +299,7 @@ def test_d2_campaign_is_the_three_rf_runs(monkeypatch):
 
 def test_only_the_registered_matrix_is_launchable():
     assert sorted(reg.REGISTERED_RUNS) == sorted(reg.all_runs("2x32"))
-    for bad in ("de_p1_f025", "de_yaw_f025", "exp46_C4Ff025_l40_2x32 ", "exp46_C4Ff100_l40_2x32", "", None):
+    for bad in ("de_p1_f025", "de_yaw_f025", "exp46_C4Ff025_l40_2x32 ", "exp46_C4Ff100_l40_8x8", "exp46_RFf100_l40_2x32", "", None):
         with pytest.raises(reg.GateError):
             reg.parse_run_id(bad)
         with pytest.raises(reg.GateError):
@@ -238,7 +307,7 @@ def test_only_the_registered_matrix_is_launchable():
 
 
 # ------------------------------------------------------------------ argv
-@pytest.mark.parametrize("tag", ["025", "050", "075"])
+@pytest.mark.parametrize("tag", ["025", "050", "075", "100"])
 def test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions(tag):
     """plan r3 §2 argv rule: F2 with exactly --model-config (RF), the fraction's dataset config, --name /
     --experiment-name = run id, --save-dir / --evidence-json under the exp_46 save root -- nothing else."""
@@ -523,6 +592,9 @@ def test_log_gate_start_pass():
     assert reg.log_gate(_log(), C4F["025"], "start", "flash", 2) == []
     assert reg.log_gate(_log(flash_missing=2), C4F["025"], "start", "sdpa", 2) == []
     assert reg.log_gate(_log(C4F["075"], n=218463), C4F["075"], "start", "flash", 2) == []
+    assert reg.log_gate(_log(C4F["100"], n=291210), C4F["100"], "start", "flash", 2) == []          # f100: 4,550 / epoch
+    assert reg.log_gate(_log(C4F["100"], n=291210, spe=4551), C4F["100"], "start", "flash", 2)      # exp_43's 4,551
+    assert reg.log_gate(_log(C4F["100"], n=218463), C4F["100"], "start", "flash", 2)                # another split
 
 
 @pytest.mark.parametrize("ngpu,spe", [(1, 2296), (1, 1148), (4, 574), (0, 1148)])
@@ -614,16 +686,17 @@ def _fake_audit(root):
     bound = {"src/configs/dataset_configs/custom_metadata/AR_md.py": None, "src/data/dataset.py": None,
              "data/AR/train_frac_manifest_s2026.json": None, "data/AR/train.json": None,
              f"{reg.EXP38_DIR}/exp38_subset_audit.py": None}
-    for t in reg.FRACS:
+    for t in reg.SUBSET_TAGS:                        # exp_38's audit binds its three subset fractions
         bound[reg.FRACS[t]["dataset_config"]] = None
-    for rel in list(bound) + [reg.FRACS[t]["split"] for t in reg.FRACS]:
+    for rel in list(bound) + [reg.FRACS[t]["split"] for t in reg.SUBSET_TAGS]:
         (root / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
         (root / rel).write_bytes(open(os.path.join(REPO, rel), "rb").read())
-    for t in reg.FRACS:
+    for t in reg.SUBSET_TAGS:
         bound[reg.FRACS[t]["split"]] = None
     bound = {rel: reg.sha256_file(str(root / rel)) for rel in bound}
     res = {"verdict": "PASS", "problems": [], "bound": bound, "root_fingerprint": "f" * 64,
-           "fractions": {t: {"split_sha256": reg.FRACS[t]["split_sha256"]} for t in reg.FRACS}}
+           "fractions": {t: {"split_sha256": reg.FRACS[t]["split_sha256"]} for t in reg.SUBSET_TAGS},
+           "full_split": json.load(open(os.path.join(REPO, reg.SUBSET_AUDIT)))["full_split"]}       # f100's entry
     path = root / reg.SUBSET_AUDIT
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(res).encode()
@@ -748,14 +821,15 @@ def test_describe_every_required_run(platform, tmp_path, monkeypatch):
     monkeypatch.setattr(reg, "check_subset_audit", lambda repo=None: {"sha256": "0" * 64})
     for run in reg.required_runs():
         d = reg.describe_run(run, platform, save_root=str(tmp_path))
-        assert d["run_dir_state"] == "fresh" and d["subset"]["restrict_to_split"] is True
+        assert d["run_dir_state"] == "fresh" and d["subset"]["restrict_to_split"] is (run != C4F["100"])
+        assert d["subset"]["context_policy"].startswith("unrestricted" if run == C4F["100"] else "restricted")
         assert d["final_ckpt"].endswith("-step=40000.ckpt")
 
 
 def test_cli_dry_run_exit_codes(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(reg, "check_subset_audit", lambda repo=None: {"sha256": "0" * 64})
     assert reg._cli(["dry-run", "--platform", "a6000", "--save-root", str(tmp_path)]) == 0
-    assert "DRY-RUN OK: 3 run(s) on a6000" in capsys.readouterr().out
+    assert "DRY-RUN OK: 4 run(s) on a6000" in capsys.readouterr().out
     _touch(tmp_path / C4F["050"], ["epoch=2-step=2500.ckpt"])
     assert reg._cli(["dry-run", "--platform", "a6000", "--save-root", str(tmp_path)]) == 2
     with pytest.raises(SystemExit):                              # the 8x8 rung does not exist

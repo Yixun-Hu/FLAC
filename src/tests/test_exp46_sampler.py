@@ -18,7 +18,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-FRACTIONS = {"025": 73473, "050": 145665, "075": 218463}
+FRACTIONS = {"025": 73473, "050": 145665, "075": 218463, "100": 291210}   # exp_46: + the full split (G7)
 
 
 class _Toy(Dataset):
@@ -52,13 +52,13 @@ def _consumed(n, world, epoch=0):
 @pytest.mark.parametrize("tag", sorted(FRACTIONS))
 def test_padding_and_unique_drops_per_fraction(tag):
     n = FRACTIONS[tag]
-    expect_pad = {"025": (1, 7), "050": (1, 7), "075": (1, 1)}[tag]
-    expect_drop = {"025": 1, "050": 1, "075": 31}[tag]
+    expect_pad = {"025": (1, 7), "050": (1, 7), "075": (1, 1), "100": (0, 6)}[tag]
+    expect_drop = {"025": 1, "050": 1, "075": 31, "100": 10}[tag]
     for world, pad in zip((2, 8), expect_pad):
         assert math.ceil(n / world) * world - n == pad
         micro = 64 // world
         steps = (math.ceil(n / world)) // micro
-        assert steps == {"025": 1148, "050": 2276, "075": 3413}[tag]
+        assert steps == {"025": 1148, "050": 2276, "075": 3413, "100": 4550}[tag]
         assert n - steps * micro * world == expect_drop
 
 

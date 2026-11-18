@@ -9,7 +9,8 @@ reference cells and the sealed E0a decision.
 
 Every launch path (the neuronic sbatch + submitter, the eval driver) asks THIS module for the run's
 config, dataset config, argv, expected checkpoint names and gates. The runs are exp_46's C4F arm (C4 + flip: yaw
-rolls uniform over {0, 90, 180, 270} degrees, then the mirror flip p = 1/2) at exp_38's subsets on neuronic 2 x L40 x 32
+rolls uniform over {0, 90, 180, 270} degrees, then the mirror flip p = 1/2) at exp_38's 25 / 50 / 75 % subsets and the full split (100 %), four runs, on
+neuronic 2 x L40 x 32
 (plan_c4flip_data_curve.md r3 §2, §3.2; exp_38: plan_data_efficiency.md §6-§7, §10 item 4).
 
 Pure functions on top; a small CLI at the bottom (``python exp46_registry.py -h``). torch is
@@ -89,7 +90,18 @@ FRACS = {
             "dataset_config": "src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json",
             "dataset_config_sha256": "cc0e5fb8b5f221f393f19122d60c862763688f088329bcf0e42fb4ac338a17b5",
             "n_items": 218463, "steps_per_epoch": 3413},
+    # exp_46 (plan r3 §2, G7, C4): 100 % with the UNMODIFIED full train config (the 100 % config of exp_15 YAW and exp_43
+    # RF). It does not set restrict_to_split (default false); exp_38's subset audit (its full_split entry) found 0
+    # outside-split context candidates and 0 removed, so the unrestricted policy draws the restricted pool (audited
+    # equivalent, disclosed). Loader length floor(ceil(291,210 / 2) / 32) = 4,550 (G7: a CPU test at L0), epoch index 8.
+    "100": {"split": "data/AR/train.json",
+            "split_sha256": "aa4e52d616fc42e88d5e4952c7e7ff266347615a60f93a0590b707f5eeaead03",
+            "dataset_config": "src/configs/dataset_configs/AR/train/acousticroom_train.json",
+            "dataset_config_sha256": "71f11e80b9b09db754e2ce42f517480a9fb85977f27990f7f01cdbdebfc9b242",
+            "n_items": 291210, "steps_per_epoch": 4550},
 }
+SUBSET_TAGS = ("025", "050", "075")     # exp_38's audited subset fractions (its audit schema, unchanged)
+FULL_TAG = "100"                        # the full split: bound to the audit's full_split entry
 
 ARMS = {
     # exp_46's C4F arm (plan r3 §2, C1): exp_43's RF config (d6a02dde...) + exactly training.yaw_aug.offset_step = 128
@@ -168,7 +180,7 @@ def run_id(arm, tag, rung="2x32"):
 
 
 def required_runs(rung="2x32"):
-    return [run_id("c4f", t, rung) for t in ("025", "050", "075")]
+    return [run_id("c4f", t, rung) for t in FRACS]
 
 
 def all_runs(rung="2x32"):
@@ -184,7 +196,7 @@ TRAINING_PLATFORM = "neuronic"
 def campaign_runs():
     """The runs the campaign must train and evaluate: the registered C4F runs."""
     return required_runs("2x32")
-_RUN_RE = re.compile(r"^exp46_C4Ff(025|050|075)_l40_2x32$")
+_RUN_RE = re.compile(r"^exp46_C4Ff(025|050|075|100)_l40_2x32$")
 
 
 def parse_run_id(run):
@@ -256,16 +268,24 @@ def check_subset(tag, repo=None):
         raise GateError(f"{f['dataset_config']} is not exp_14's dataset config")
     dc = json.load(open(_abs(f["dataset_config"], repo)))
     ctx = dc["modalities"]["acoustic_context"]
-    if dc["datasets"][0]["json_file_path"] != f["split"] or ctx.get("restrict_to_split") is not True \
-            or ctx.get("max_context") != 8:
+    full = tag == FULL_TAG
+    # f100 (plan r3 §3.2 "Data binding", context policy): the pinned full config, byte-identical (sha above), with
+    # restrict_to_split ABSENT or false, and the audit's full_split entry showing outside = removed = 0 (bound below)
+    restrict_ok = ctx.get("restrict_to_split", False) is False if full else ctx.get("restrict_to_split") is True
+    if dc["datasets"][0]["json_file_path"] != f["split"] or not restrict_ok or ctx.get("max_context") != 8:
         raise GateError(f"{f['dataset_config']}: split path / restrict_to_split / K=8 wrong")
     split = json.load(open(_abs(f["split"], repo)))
     n = sum(len(v) for rooms in split.values() for v in rooms.values())
     rooms = sum(len(r) for r in split.values())
     if n != f["n_items"] or rooms != N_ROOMS:
         raise GateError(f"{f['split']}: {n} items / {rooms} rooms != {f['n_items']} / {N_ROOMS}")
-    return {"split": f["split"], "split_sha256": f["split_sha256"], "n_items": n, "rooms": rooms,
-            "dataset_config": f["dataset_config"], "restrict_to_split": True}
+    out = {"split": f["split"], "split_sha256": f["split_sha256"], "n_items": n, "rooms": rooms,
+           "dataset_config": f["dataset_config"], "restrict_to_split": not full,
+           "context_policy": "restricted to the split" if not full else
+           "unrestricted (full train config; audited equivalent: full_split outside 0, removed 0)"}
+    if full:
+        out["full_split_audit"] = full_split_audit(repo)
+    return out
 
 
 SUBSET_AUDIT = f"{EXP38_DIR}/data_efficiency_subset_audit.json"
@@ -275,7 +295,9 @@ AR_CONTENT_SHA256 = "369bd4fcf015f232f5dbd0561ea77ccc6b32e1dcc6a71788e264bd9825f
 SUBSET_AUDIT_BOUND = frozenset({"src/configs/dataset_configs/custom_metadata/AR_md.py", "src/data/dataset.py",
                                 "data/AR/train_frac_manifest_s2026.json", "data/AR/train.json",
                                 f"{EXP38_DIR}/exp38_subset_audit.py"}
-                               | {FRACS[t][k] for t in FRACS for k in ("split", "dataset_config")})
+                               | {FRACS[t][k] for t in SUBSET_TAGS for k in ("split", "dataset_config")})
+# (exp_38's bound set, unchanged: the three subset fractions; f100's full config and split are pinned by sha in FRACS
+# and bound to the audit's full_split entry by full_split_audit)
 
 
 def check_subset_audit(repo=None):
@@ -295,16 +317,43 @@ def check_subset_audit(repo=None):
     if res.get("verdict") != "PASS" or res.get("problems"):
         raise GateError(f"subset audit verdict {res.get('verdict')}")
     bound = res.get("bound", {})
-    if set(bound) != SUBSET_AUDIT_BOUND or sorted(res.get("fractions", {})) != sorted(FRACS) \
+    if set(bound) != SUBSET_AUDIT_BOUND or sorted(res.get("fractions", {})) != sorted(SUBSET_TAGS) \
             or not isinstance(res.get("root_fingerprint"), str):
         raise GateError("subset audit artifact is incomplete / not the registered schema")
     for rel, digest in bound.items():
         if sha256_file(_abs(rel, repo)) != digest:
             raise GateError(f"{rel} changed since the subset audit")
-    for tag, f in FRACS.items():
-        if res["fractions"][tag]["split_sha256"] != f["split_sha256"]:
+    for tag in SUBSET_TAGS:
+        if res["fractions"][tag]["split_sha256"] != FRACS[tag]["split_sha256"]:
             raise GateError(f"subset audit is not bound to the {tag} split")
+    full_split_problems(res)
     return {"subset_audit": SUBSET_AUDIT, "sha256": side}
+
+
+FULL_SPLIT_KEYS = ("split", "split_sha256", "n_targets", "rooms", "restricted", "on_disk_candidates_outside_split",
+                   "candidates_removed_by_restriction", "empty_restricted_pools")
+
+
+def full_split_problems(res):
+    """f100's binding to exp_38's audit (plan r3 §3.2 "Data binding", G7): the audit's full_split entry must be the full
+    split (path + sha256), 291,210 targets in 243 rooms, unrestricted, with 0 on-disk candidates outside the split,
+    0 removed and no empty pool -- the evidence that the unrestricted full config draws the restricted pool. Raises."""
+    fs, f = res.get("full_split"), FRACS[FULL_TAG]
+    want = {"split": f["split"], "split_sha256": f["split_sha256"], "n_targets": f["n_items"], "rooms": N_ROOMS,
+            "restricted": False, "on_disk_candidates_outside_split": 0, "candidates_removed_by_restriction": 0,
+            "empty_restricted_pools": 0}
+    if not isinstance(fs, dict):
+        raise GateError("subset audit has no full_split entry (f100 binds it)")
+    bad = sorted(k for k in FULL_SPLIT_KEYS if canonical(fs.get(k)) != canonical(want[k]))
+    if bad:
+        raise GateError(f"subset audit full_split is not the audited-equivalent full split: {bad}")
+    return {k: fs[k] for k in FULL_SPLIT_KEYS}
+
+
+def full_split_audit(repo=None):
+    """The verified audit (check_subset_audit: sidecar, PASS, binding) and its full_split entry for f100."""
+    check_subset_audit(repo)
+    return dict(full_split_problems(json.load(open(_abs(SUBSET_AUDIT, repo)))), subset_audit=SUBSET_AUDIT)
 
 
 # ---------------------------------------------------------------- checkpoints and run dirs
@@ -2450,7 +2499,7 @@ def _cli(argv=None):
                 d = describe_run(run, a.platform, a.save_root, a.allow_nonmatched_rung)
                 print(f"=== {run} [{a.platform} {d['rung']}] config {d['model_config']} "
                       f"({d['model_config_sha256'][:12]}) split {d['subset']['split']} "
-                      f"({d['subset']['n_items']} items / {d['subset']['rooms']} rooms, restricted; audit "
+                      f"({d['subset']['n_items']} items / {d['subset']['rooms']} rooms, {d['subset']['context_policy']}; audit "
                       f"{d['subset_audit']['sha256'][:12]}) chunk {d['chunk_plan']} run dir {d['run_dir_state']} "
                       f"final {d['final_ckpt']}")
                 print("    argv: " + " ".join(d["argv"]))

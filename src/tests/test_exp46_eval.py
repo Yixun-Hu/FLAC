@@ -49,7 +49,7 @@ def _opt(argv, flag):
 def test_plan_has_8_e0_and_the_campaign_runs_result_cells_with_unique_outputs():
     cells = ev.all_cells()                      # E0 + the campaign runs' cells (exp_46: no bridge, plan r3 §3.2)
     n = 8 + 10 * len(ev.reg.campaign_runs())
-    assert ev.reg.TRAINING_PLATFORM == "neuronic" and len(cells) == n == 38
+    assert ev.reg.TRAINING_PLATFORM == "neuronic" and len(cells) == n == 48
     assert len({c["name"] for c in cells}) == n and len({c["metrics"] for c in cells}) == n
     assert sum(c["e0"] is not None for c in cells) == 8 and not any("bridge" in c for c in cells)
     assert {c["run"] for c in cells if not c["e0"]} == set(ev.reg.campaign_runs())
