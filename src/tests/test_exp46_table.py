@@ -200,7 +200,8 @@ def built(imp, world, monkeypatch):
     repo, root, sha = imp
     assert TE.ev is tbl.ev
     tbl.import_exp38(sha, repo=repo)
-    rows = {f"c4f|{t}|{K}": {k: [2.0, 0.1, 5] for k in tbl.ev.METRIC_KEYS} for t in tbl.FRACS for K in (8, 1)}
+    rows = {f"c4f|{t}|{K}": {k: [2.0, 0.1, 5] for k in tbl.ev.METRIC_KEYS} for t in tbl.METHOD_FRACS["c4f"]
+            for K in (8, 1)}
     monkeypatch.setattr(tbl, "c4f_rows", lambda campaign: json.loads(json.dumps(rows)))
     res = {"rows": [{"model": "c4f", "fraction": k.split("|")[1], "K": int(k.split("|")[2]),
                      "stats": {m: {"mean": v[0], "sd": v[1], "n": v[2]} for m, v in st.items()}} for k, st in rows.items()]}
@@ -212,15 +213,19 @@ def built(imp, world, monkeypatch):
     return repo, sha, path
 
 
-def test_build_renders_all_eighteen_cells_and_the_disclosures(built):
+def test_build_renders_all_twenty_rows_and_the_disclosures(built):
+    """plan r3 §3.2 (M2): C4F x {25, 50, 75, 100}, YAW-Aug and OrbitRIR x {25, 50, 75}, each x K {8, 1} = 20 rows."""
     repo, sha, _ = built
     md = tbl.build(sha, repo=repo)
-    for label in tbl.METHODS.values():
-        assert md.count(f"| {label} | ") == 6
-    assert sum(ln.count(" ± ") for ln in md.split("\n") if ln.startswith("| ")) == 18 * 6
+    assert tbl.N_ROWS == 20 and tbl.METHOD_FRACS == {"c4f": ("025", "050", "075", "100"), "yaw": tbl.FRACS,
+                                                     "bf": tbl.FRACS} and tbl.FRACS == ("025", "050", "075")
+    for m, label in tbl.METHODS.items():
+        assert md.count(f"| {label} | ") == 2 * len(tbl.METHOD_FRACS[m])
+    assert md.count("| 100 % |") == 2 and md.count("C4 + flip (C4F), exp_46 | 100 % |") == 2
+    assert sum(ln.count(" ± ") for ln in md.split("\n") if ln.startswith("| ")) == 20 * 6
     assert all(d in md for d in tbl.DISCLOSURES) and sha[:12] in md
     ev_rec, _ = tbl.reg.read_sealed(os.path.join(repo, tbl.TABLE_EVIDENCE), EVIDENCE_KEYS)
-    assert ev_rec["exp38_commit"] == sha and len(ev_rec["rows"]) == 18
+    assert ev_rec["exp38_commit"] == sha and len(ev_rec["rows"]) == 20
 
 
 EVIDENCE_KEYS = {"schema", "exp38_commit", "exp38_import_sha256", "exp46_campaign", "c4f_results_sha256", "rows",
@@ -326,7 +331,7 @@ def test_the_disclosures_have_one_source_and_appear_under_every_exp46_table(buil
     assert all(d in md for d in reg.disclosures("table"))
     import exp46_collect as col
     rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in tbl.ev.METRIC_KEYS}, "source": "s"}
-            for m, f in [("c4f", t) for t in tbl.reg.FRACS] for K in (8, 1)}
+            for m, f in [("c4f", t) for t in tbl.METHOD_FRACS["c4f"]] for K in (8, 1)}
     cmd = col.render(rows, [])
     assert all(d in cmd for d in reg.disclosures("collect")) and reg.DISCLOSURES[6] not in cmd
 
@@ -389,3 +394,13 @@ def test_build_never_reads_the_preliminary_files(built, monkeypatch):
     assert opened and not [p for p in opened if "prelim_eval" in p or "_sessions" in p]
     import inspect
     assert "prelim" not in inspect.getsource(tbl.build) + inspect.getsource(tbl.c4f_rows)
+
+
+def test_the_row_set_is_exactly_the_twenty_registered_rows():
+    """plan r3 §3.2 "exp46_table.py": build and the renderer refuse any missing row of the 20 and any extra row."""
+    want = {f"{m}|{t}|{K}" for m in tbl.METHODS for t in tbl.METHOD_FRACS[m] for K in (8, 1)}
+    assert len(want) == 20 and tbl.row_set_problems({k: {} for k in want}) == []
+    for drop in ("c4f|100|8", "c4f|025|1", "yaw|075|8", "bf|050|1"):
+        assert tbl.row_set_problems({k: {} for k in want - {drop}}) == [f"table rows missing {[drop]}"]
+    for extra in ("yaw|100|8", "bf|100|1", "c4f|090|8", "rf|025|8"):
+        assert tbl.row_set_problems({**{k: {} for k in want}, extra: {}}) == [f"table rows extra {[extra]}"]

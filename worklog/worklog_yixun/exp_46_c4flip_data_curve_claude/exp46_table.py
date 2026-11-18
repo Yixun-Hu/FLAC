@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""exp_46 table: C4F / YAW-Aug / OrbitRIR x {25, 50, 75} % x K {8, 1} (plan_c4flip_data_curve.md r3 §3.2, §8).
+"""exp_46 table: C4F at 25 / 50 / 75 / 100 % next to YAW-Aug and OrbitRIR at 25 / 50 / 75 % x K {8, 1} = 20 rows
+(plan_c4flip_data_curve.md r3 §3.2 "exp46_table.py", M2, §8).
 
     exp46_table.py import-exp38 --commit <sha> [--generator-root <dir>]
     exp46_table.py build --exp38-commit <sha>
@@ -60,7 +61,11 @@ IMPORT_KEYS = frozenset({"schema", "commit", "base", "campaign", "files", "code"
 TABLE_MD = f"{reg.EXP_DIR}/c4flip_data_curve_table.md"
 TABLE_EVIDENCE = f"{reg.EXP_DIR}/c4flip_data_curve_table_evidence.json"
 METHODS = {"c4f": "C4 + flip (C4F), exp_46", "yaw": "YAW-Aug, exp_38", "bf": "OrbitRIR (B-F), exp_38"}
-FRACS = ("025", "050", "075")
+FRACS = ("025", "050", "075")                      # exp_38's imported fractions
+# per-method fraction sets (plan r3 §3.2 "exp46_table.py", M2): C4F at 25 / 50 / 75 / 100 %, YAW-Aug and OrbitRIR at
+# 25 / 50 / 75 % (exp_38's formal results); x K {8, 1} = 20 comparison rows -- no YAW-Aug / OrbitRIR 100 % row
+METHOD_FRACS = {"c4f": ("025", "050", "075", "100"), "yaw": FRACS, "bf": FRACS}
+N_ROWS = 2 * sum(len(t) for t in METHOD_FRACS.values())            # 20
 HEADLINE = (("EDT", "EDT (ms) ↓", 3), ("C50", "C50 (dB) ↓", 4), ("T60", "T60 (%) ↓", 3),
             ("RIR_to_GT_RIR_R@1", "R@1 ↑", 3), ("RIR_to_GT_RIR_R@5", "R@5 ↑", 3), ("RIR_to_GT_RIR_R@10", "R@10 ↑", 3))
 DISCLOSURES = reg.disclosures("table")          # the ONE source: exp46_registry.DISCLOSURES (finding 15)
@@ -380,6 +385,14 @@ def verify_record_at_commit(rec, repo=None):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def row_set_problems(rows):
+    """The 20 registered rows exactly: a missing row OR an extra one (e.g. a YAW-Aug 100 % row) is a problem."""
+    want = {f"{m}|{t}|{K}" for m in METHODS for t in METHOD_FRACS[m] for K in (8, 1)}
+    assert len(want) == N_ROWS == 20
+    missing, extra = sorted(want - set(rows)), sorted(set(rows) - want)
+    return ([f"table rows missing {missing}"] if missing else []) + ([f"table rows extra {extra}"] if extra else [])
+
+
 def build(exp38_commit, repo=None):
     repo = repo or reg.REPO
     if not (isinstance(exp38_commit, str) and len(exp38_commit) == 40):
@@ -399,9 +412,9 @@ def build(exp38_commit, repo=None):
         if not _same(published.get(key), st):
             raise TableError(f"{key}: the collector's published value differs from its source cells")
     rows.update(rec["rows"])
-    want = {f"{m}|{t}|{K}" for m in METHODS for t in FRACS for K in (8, 1)}
-    if set(rows) != want:
-        raise TableError(f"table cells missing: {sorted(want - set(rows))}")
+    problems = row_set_problems(rows)
+    if problems:
+        raise TableError("; ".join(problems))
     md = render(rows, rec, rec_sha, campaign)
     evidence = {"schema": 1, "exp38_commit": exp38_commit, "exp38_import_sha256": rec_sha,
                 "exp46_campaign": {k: campaign[k] for k in ("head", "closure_sha256", "sha256")},
@@ -424,7 +437,7 @@ def render(rows, rec, rec_sha, campaign):
         out += [f"## K = {K}" + (" (headline)" if K == 8 else ""), "",
                 "| method | data | " + " | ".join(h for _, h, _ in HEADLINE) + " |", "|---|---|" + "---|" * len(HEADLINE)]
         for m, label in METHODS.items():
-            for t in FRACS:
+            for t in METHOD_FRACS[m]:
                 st = rows[f"{m}|{t}|{K}"]
                 out.append(f"| {label} | {int(t)} % | " + " | ".join(f"{st[k][0]:.{d}f} ± {st[k][1]:.{d}f}"
                                                                     for k, _, d in HEADLINE) + " |")
