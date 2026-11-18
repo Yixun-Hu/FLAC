@@ -73,19 +73,22 @@ def test_three_concurrent_candidates_never_share_the_floor(fs):
 
 
 def test_one_run_from_submission_through_full_start_is_counted_once(fs):
-    """Codex plan r3 finding 2: 70 GiB free, three 12.8-GiB reservations pass at submission (70 - 25.6 - 12.8 >= 30);
-    each FULL-start re-check subtracts the ledger's outstanding only (70 - 38.4 >= 30), never the run twice."""
+    """Codex plan r3 finding 2, for exp_46's four runs (plan r3 G8: 4 x 12.788 GiB): 90 GiB free, four 12.8-GiB
+    reservations pass at submission (90 - 38.4 - 12.8 >= 30); each FULL-start re-check subtracts the ledger's
+    outstanding only (90 - 51.2 >= 30), never the run twice."""
     root, set_free = fs
+    set_free(90 * GIB)
+    assert len(RUNS) == 4
     for r in RUNS:
         reg.reserve_storage(r, TOKENS[r], _rd(root, r), str(root))
     for r in RUNS:
         out = reg.recheck_storage(r, TOKENS[r], str(root))
-        assert out["outstanding_bytes"] == 3 * NEED and out["free_bytes"] == 70 * GIB
+        assert out["outstanding_bytes"] == 4 * NEED and out["free_bytes"] == 90 * GIB
     with pytest.raises(reg.GateError, match="already holds"):
         reg.reserve_storage(RUNS[0], "f" * 32, _rd(root, RUNS[0]), str(root))       # one reservation per run
-    set_free(70 * GIB - 2 * GIB)                     # the margin was 70 - 3 x 12.79 - 30 = 1.64 GiB
+    set_free(90 * GIB - 9 * GIB)                     # the margin was 90 - 4 x 12.79 - 30 = 8.85 GiB
     with pytest.raises(reg.GateError, match="floor"):
-        reg.recheck_storage(RUNS[1], TOKENS[RUNS[1]], str(root))                     # someone else used 2 GiB
+        reg.recheck_storage(RUNS[1], TOKENS[RUNS[1]], str(root))                     # someone else used 9 GiB
 
 
 KIB = 1024
@@ -93,7 +96,8 @@ KIB = 1024
 
 def test_partially_written_runs_count_only_their_outstanding_bytes(fs):
     """outstanding = reserved - bytes already written, counted as ALLOCATED bytes (Codex code r1 finding 5); KiB
-    scale (real bytes, so the allocation is real): three 64-KiB reservations, 20 KiB written by the first run."""
+    scale (real bytes, so the allocation is real): one 64-KiB reservation per run (exp_46: four), 20 KiB written by
+    the first run."""
     root, set_free = fs
     need = 64 * KIB
     for r in RUNS:
@@ -104,10 +108,10 @@ def test_partially_written_runs_count_only_their_outstanding_bytes(fs):
     os.symlink("/nonexistent/target", d / "link")                                   # links are not counted
     set_free(70 * GIB - 20 * KIB)                                                    # the run wrote those bytes
     out = reg.recheck_storage(RUNS[2], TOKENS[RUNS[2]], str(root), floor=0)
-    assert out["outstanding_bytes"] == 3 * need - 20 * KIB and out["free_bytes"] == 70 * GIB - 20 * KIB
+    assert out["outstanding_bytes"] == 4 * need - 20 * KIB and out["free_bytes"] == 70 * GIB - 20 * KIB
     assert reg.written_bytes(str(d)) == 20 * KIB and reg.written_bytes(str(root / "absent")) == 0
     (d / "epoch=4-step=5000.ckpt").write_bytes(os.urandom(need))                     # written beyond the reservation
-    assert reg.recheck_storage(RUNS[2], TOKENS[RUNS[2]], str(root), floor=0)["outstanding_bytes"] == 2 * need
+    assert reg.recheck_storage(RUNS[2], TOKENS[RUNS[2]], str(root), floor=0)["outstanding_bytes"] == 3 * need
 
 
 def test_written_bytes_credit_only_allocated_bytes(tmp_path):
