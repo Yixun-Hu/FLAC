@@ -1,0 +1,19 @@
+HEAD 12aa8805bee451ab875f35af8ac42dfffec0d077 tracked-clean=no host neu303.neuronic.cs.princeton.edu start 2026-11-18T18:54:37-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_command_sheets.py 
+..F..............................                                        [100%]
+=================================== FAILURES ===================================
+_ test_the_campaign_order_is_the_recommended_one_and_marked_approved_by_yixun_d2 _
+
+    def test_the_campaign_order_is_the_recommended_one_and_marked_approved_by_yixun_d2():
+        """The coordinator's recommendation (Codex code r1 open item 10), approved by Yixun 2026-11-18 (D2): final code round -> L2
+        delta build -> pin commit -> definitive L1 -> L2 union verification before any f100 SMOKE -> L3 -> L4 freeze X46."""
+        text, b = _text(NEURONIC), _blocks(NEURONIC)
+        approved = "approved by Yixun 2026-11-18 (D2)"                    # D2 decided (Yixun 2026-11-18): no "pending" left
+>       assert approved in text and b.count(approved) >= 2 and "Yixun's D1" in text
+E       AssertionError: assert ('approved by Yixun 2026-11-18 (D2)' in '# exp_46 c4flip_data_curve — neuronic command sheet (for Yixun / the neuronic session; nothing below has been run yet...worklog/worklog_yixun/gen_model_comparison.py --repo-root $G --out $B/worklog/worklog_yixun/model_comparison.md\n```\n')
+
+src/tests/test_exp46_command_sheets.py:118: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_command_sheets.py::test_the_campaign_order_is_the_recommended_one_and_marked_approved_by_yixun_d2
+1 failed, 32 passed in 10.64s
+EXIT 1 end 2026-11-18T18:54:49-05:00

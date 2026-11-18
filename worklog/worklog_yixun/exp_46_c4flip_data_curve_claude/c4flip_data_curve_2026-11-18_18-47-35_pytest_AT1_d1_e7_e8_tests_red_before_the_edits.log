@@ -1,0 +1,78 @@
+HEAD 42cdb52fa2a75a17ab7bf7a77513ca9a0414add2 tracked-clean=yes host neu306.neuronic.cs.princeton.edu start 2026-11-18T18:47:36-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_d1_rank_isolation.py src/tests/test_exp46_provenance.py 
+FF........................FF.                                            [100%]
+=================================== FAILURES ===================================
+______ test_the_upstream_sampler_followed_by_a_real_banner_assertion[E7] _______
+
+tag = 'E7'
+
+    @pytest.mark.parametrize("tag", sorted(SAMPLERS))
+    def test_the_upstream_sampler_followed_by_a_real_banner_assertion(tag):
+        res = _session(f"{SAMPLERS[tag]}::{NODE}", PROBE, BANNER)
+>       assert res.returncode == 0 and "3 passed" in res.stdout, (tag, res.stdout[-3000:])
+E       AssertionError: ('E7', 'sys.readouterr().out.count("yaw_aug ENABLED img_w=512 seed=42") == 1
+E         E       AssertionError: assert 0 == 1
+E         E...test_yaw_aug_training.py::test_banner_printed_once_at_fit_start
+E         2 failed, 1 passed, 4 warnings in 60.73s (0:01:00)
+E         ')
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/n/fs/gatrdp/envs/flac/bin/python', '-B', '-I', '-m', 'pytest', '-q', '-p', 'no:cacheprovider'...g_training.py::test_banner_printed_once_at_fit_start\n2 failed, 1 passed, 4 warnings in 60.73s (0:01:00)\n', stderr='').returncode
+
+src/tests/test_exp46_d1_rank_isolation.py:43: AssertionError
+______ test_the_upstream_sampler_followed_by_a_real_banner_assertion[E8] _______
+
+tag = 'E8'
+
+    @pytest.mark.parametrize("tag", sorted(SAMPLERS))
+    def test_the_upstream_sampler_followed_by_a_real_banner_assertion(tag):
+        res = _session(f"{SAMPLERS[tag]}::{NODE}", PROBE, BANNER)
+>       assert res.returncode == 0 and "3 passed" in res.stdout, (tag, res.stdout[-3000:])
+E       AssertionError: ('E8', 'assert capsys.readouterr().out.count("yaw_aug ENABLED img_w=512 seed=42") == 1
+E         E       AssertionError: assert...src/tests/test_yaw_aug_training.py::test_banner_printed_once_at_fit_start
+E         2 failed, 1 passed, 4 warnings in 10.69s
+E         ')
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/n/fs/gatrdp/envs/flac/bin/python', '-B', '-I', '-m', 'pytest', '-q', '-p', 'no:cacheprovider'...est_yaw_aug_training.py::test_banner_printed_once_at_fit_start\n2 failed, 1 passed, 4 warnings in 10.69s\n', stderr='').returncode
+
+src/tests/test_exp46_d1_rank_isolation.py:43: AssertionError
+_ test_e7_e8_are_the_x45f_file_plus_exactly_the_four_line_insertion[src/tests/test_exp38_sampler.py] _
+
+path = 'src/tests/test_exp38_sampler.py'
+
+    @pytest.mark.parametrize("path", sorted(E_INSERTIONS))
+    def test_e7_e8_are_the_x45f_file_plus_exactly_the_four_line_insertion(path):
+        """The committed file (HEAD) AND the tracked working tree are the whole X45f file plus exactly the insertion, with
+        X45f's mode. RED until E7 + E8 land (Yixun's D1)."""
+        tag, old = E_INSERTIONS[path], _show(X45F, path)
+>       assert insertion_problems(old, _show("HEAD", path), tag) == [], (path, "HEAD")
+E       AssertionError: ('src/tests/test_exp38_sampler.py', 'HEAD')
+E       assert ['not the X45...t the anchor'] == []
+E         
+E         Left contains one more item: 'not the X45f file plus exactly the four-line insertion at the anchor'
+E         Use -v to get more diff
+
+src/tests/test_exp46_provenance.py:476: AssertionError
+_ test_e7_e8_are_the_x45f_file_plus_exactly_the_four_line_insertion[src/tests/test_exp45_sampler.py] _
+
+path = 'src/tests/test_exp45_sampler.py'
+
+    @pytest.mark.parametrize("path", sorted(E_INSERTIONS))
+    def test_e7_e8_are_the_x45f_file_plus_exactly_the_four_line_insertion(path):
+        """The committed file (HEAD) AND the tracked working tree are the whole X45f file plus exactly the insertion, with
+        X45f's mode. RED until E7 + E8 land (Yixun's D1)."""
+        tag, old = E_INSERTIONS[path], _show(X45F, path)
+>       assert insertion_problems(old, _show("HEAD", path), tag) == [], (path, "HEAD")
+E       AssertionError: ('src/tests/test_exp45_sampler.py', 'HEAD')
+E       assert ['not the X45...t the anchor'] == []
+E         
+E         Left contains one more item: 'not the X45f file plus exactly the four-line insertion at the anchor'
+E         Use -v to get more diff
+
+src/tests/test_exp46_provenance.py:476: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_d1_rank_isolation.py::test_the_upstream_sampler_followed_by_a_real_banner_assertion[E7]
+FAILED src/tests/test_exp46_d1_rank_isolation.py::test_the_upstream_sampler_followed_by_a_real_banner_assertion[E8]
+FAILED src/tests/test_exp46_provenance.py::test_e7_e8_are_the_x45f_file_plus_exactly_the_four_line_insertion[src/tests/test_exp38_sampler.py]
+FAILED src/tests/test_exp46_provenance.py::test_e7_e8_are_the_x45f_file_plus_exactly_the_four_line_insertion[src/tests/test_exp45_sampler.py]
+4 failed, 25 passed in 131.44s (0:02:11)
+EXIT 1 end 2026-11-18T18:49:51-05:00

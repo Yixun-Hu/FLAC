@@ -617,3 +617,29 @@ X45f; the declared edits stay E1–E5; no pytest / python ran on the login node;
   `test_exp46_provenance.py` stands (Codex code r1 open item 3: accept).
 - **Next:** the Coder applies D1 (test-first: the prepared regression is red before E7 + E8), CPU Slurm job for the
   affected tests; the coordinator verifies, then L2a.
+
+## 2026-11-18 18:47 → 18:58 EST — D1 (a′) and D2 landed (exp_46 Coder, Claude Opus 5.5)
+
+Yixun's "按推荐批准" (a6b679e6): D1 = (a′), D2 = the sheet's order. Test-first, every run a CPU Slurm job (`pyt46.sh`,
+`JOBTMP=/tmp`); no other frozen path touched (the exp_38 / 40 / 43 / 45 folders, src/data, src/training, the yaw_*.py
+files and gen_model_comparison.py unchanged).
+
+- **Change:** `42cdb52f` = the prepared d7561047 cherry-picked with `git cherry-pick -n` and committed under a proper
+  message (the `wip-exp46-d1-e7-e8` branch is kept for the coordinator to drop); `6c223854` = E7, `12aa8805` = E8:
+  each exactly the four pre-reviewed lines after the `from lightning_fabric.plugins.environments import …` line of
+  `test_both_launch_environments_give_the_same_rank_and_world`, nothing else, mode 644 unchanged; `bc3a35b6` = the D2
+  markers ("pending Yixun D2" → "approved by Yixun 2026-11-18 (D2)" in the neuronic sheet's Order paragraph, L2a, L1,
+  L2c and the A6000 sheet's reference; order and commands unchanged) and the order test updated to the new marker.
+- **Validation / Result:**
+  - AT1 (red, `42cdb52f`, tracked-clean): 4 failed, 25 passed, EXIT 1 -- exactly the expected four: both exact-insertion
+    checks ("not the X45f file plus exactly the four-line insertion") and both real-sampler sessions ("2 failed, 1
+    passed": after each unpatched sampler the probe and the banner fail, the banner count 0 instead of 1).
+  - AT2 (green, `12aa8805`, tracked-clean): the D1 regression, provenance, L1 compare, both samplers and the sheet
+    tests -- 93 passed, EXIT 0.
+  - AT3 (green, `12aa8805`, tracked-clean): one process, in order: test_exp45_sampler.py, test_exp38_sampler.py, then
+    the rank-0 banner nodes the leak silenced in L0's ABORTED final run (exp_43's real-banner test, the C4F
+    whole-line banner test, the yaw_aug c16 / flip / training banner tests) -- 30 passed, EXIT 0.
+  - AW1 (red, uncommitted test): the order test against the previous sheets -- 1 failed, 32 passed, EXIT 1; AW2 (green,
+    `bc3a35b6`, tracked-clean): the sheet and provenance tests -- 59 passed, EXIT 0.
+- **Analysis:** the leak is closed at its two sources; the whole-suite isolation Codex asked for is now registered (E7,
+  E8 in DECLARED_EDITED: present and passed in L1). Next per the coordinator: verification, then L2a.

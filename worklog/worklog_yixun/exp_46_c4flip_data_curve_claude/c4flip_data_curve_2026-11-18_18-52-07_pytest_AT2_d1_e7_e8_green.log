@@ -1,0 +1,19 @@
+HEAD 12aa8805bee451ab875f35af8ac42dfffec0d077 tracked-clean=yes host neu306.neuronic.cs.princeton.edu start 2026-11-18T18:52:08-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_d1_rank_isolation.py src/tests/test_exp46_provenance.py src/tests/test_exp46_regression_compare.py src/tests/test_exp45_sampler.py src/tests/test_exp38_sampler.py src/tests/test_exp46_command_sheets.py 
+........................................................................ [ 77%]
+.....................                                                    [100%]
+=============================== warnings summary ===============================
+src/tests/test_exp45_sampler.py::test_both_rungs_consume_the_same_unique_prefix_and_global_batches
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp45_sampler.py::test_both_rungs_consume_the_same_unique_prefix_and_global_batches
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp45_sampler.py::test_both_rungs_consume_the_same_unique_prefix_and_global_batches
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+93 passed, 3 warnings in 64.96s (0:01:04)
+EXIT 0 end 2026-11-18T18:53:14-05:00
