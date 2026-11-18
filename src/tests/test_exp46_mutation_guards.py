@@ -360,3 +360,52 @@ def test_the_loss_record_move_refuses_an_aliased_receipts_folder(tmp_path, prote
     with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
         sv.move_loss_record(str(rd))
     assert listing(prot) == before and (v0 / "metrics.csv").is_file()
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_the_evaluator_refuses_an_aliased_farm_directory_before_any_claim_link_or_copy(tmp_path, protected_all,
+                                                                                    monkeypatch, kind):
+    prot = protected_root(kind, protected_all, tmp_path)
+    before = listing(prot)
+    ev = _load("exp46_eval.py", "exp46_eval_guards")
+    tree = tmp_path / "tree"
+    (tree / ev.FARM).mkdir(parents=True)
+    monkeypatch.setattr(reg, "REPO", str(tree))
+    cell = ev.run_cells(RUN)[0]
+    (tree / ev.FARM / RUN).symlink_to(prot)
+    src = tmp_path / "x.json"
+    src.write_text("{}")
+    for fn in (lambda: ev.claim_cell(cell), lambda: ev._link(f"{ev.FARM}/{RUN}/x.ckpt", str(src)),
+               lambda: ev._copy_once(str(src), ev._abs(f"{ev.FARM}/{RUN}/x.json"))):
+        with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+            fn()
+    assert listing(prot) == before
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_write(tmp_path, protected_all, monkeypatch,
+                                                                                  kind):
+    """The collector's publication lock; the delta manifest's (exp_38 writer's) temp name; the L1 report destination."""
+    import exp46_collect as col
+    prot = protected_root(kind, protected_all, tmp_path)
+    before = listing(prot)
+    tree = tmp_path / "tree"
+    (tree / reg.EXP_DIR).mkdir(parents=True)
+    (tree / col.LOCK).symlink_to(prot / "absent.lock")
+    rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
+            for m, f in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        col.publish(rows, [], {"artifacts": {}, "runs": {}}, repo=str(tree))
+    assert not os.path.lexists(tree / col.OUT_JSON)
+    cm46 = _load("exp46_content_manifest.py", "exp46_cm_guards")
+    monkeypatch.setattr(cm46, "delta_files", lambda repo=None: (_ for _ in ()).throw(AssertionError("split read")))
+    out = tmp_path / "manifests" / "m.txt.gz"
+    out.parent.mkdir()
+    (out.parent / f".m.txt.gz.tmp.{os.getpid()}").symlink_to(prot / "absent.gz")
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        cm46.build(str(out))
+    rc = _load("exp46_regression_compare.py", "exp46_rc_guards")
+    (tmp_path / "report.json").symlink_to(prot / "absent.json")
+    assert rc.main(["--merged", "x", "--exp38", "x", "--exp43", "x", "--merged-root", "/m", "--exp38-root", "/p",
+                    "--exp43-root", "/q", "--out", str(tmp_path / "report.json")]) == 2
+    assert listing(prot) == before

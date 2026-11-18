@@ -234,8 +234,8 @@ def eval_snapshot(closure, create=False):
         # a realpath BEFORE any directory is created
         reg.check_isolation(SNAPSHOT_ROOT, "the evaluation snapshot root")
         reg.check_isolation(dest, "the evaluation snapshot")
-        os.makedirs(_abs("outputs_FLAC"), exist_ok=True)
-        os.makedirs(SNAPSHOT_ROOT, exist_ok=True)
+        reg.makedirs_below(_abs("outputs_FLAC"), _abs("outputs_FLAC"), "outputs_FLAC")    # (a link there is the tree's own)
+        reg.makedirs_below(SNAPSHOT_ROOT, SNAPSHOT_ROOT, "the evaluation snapshot root")
         reg.snapshot_tools("eval", dest, reg.REPO, links=EVAL_LINKS)
     v = reg.verify_snapshot(dest)
     if reg.closure_digest(dest)["closure_sha256"] != closure:
@@ -725,14 +725,14 @@ def campaign_artifacts(campaign):
 
 # ---------------------------------------------------------------- preparation
 def _link(path, target):
-    os.makedirs(os.path.dirname(_abs(path)), exist_ok=True)
+    reg.makedirs_below(os.path.dirname(_abs(path)), _abs(FARM), "a farm directory")   # (Codex code r2 finding 1)
     if os.path.islink(_abs(path)):
         if os.readlink(_abs(path)) != target:
             raise EvalError(f"{path} already links to {os.readlink(_abs(path))}")
         return
     if os.path.exists(_abs(path)):
         raise EvalError(f"{path} exists and is not our link")
-    os.symlink(target, _abs(path))
+    reg.symlink_below(target, _abs(path), _abs(FARM), "a farm link")
 
 
 def _copy_once(src, dest):
@@ -741,7 +741,7 @@ def _copy_once(src, dest):
         if open(dest, "rb").read() != data:
             raise EvalError(f"{dest} differs from {src}")
         return
-    reg.atomic_write_bytes(dest, data)
+    reg.atomic_write_bytes(dest, data, root=_abs(FARM))       # every offline copy lives in the farm
 
 
 def prepare(run):
@@ -771,7 +771,7 @@ def prepare(run):
               reg.COMMIT_MARKER + ".sha256", cm["launch_record"]):
         _copy_once(os.path.join(rd, f), _abs(f"{FARM}/{run}/{f}"))
     for sub in (reg.RECEIPTS_DIR, "evidence"):           # what the offline consumer re-validates
-        os.makedirs(_abs(f"{FARM}/{run}/{sub}"), exist_ok=True)
+        reg.makedirs_below(_abs(f"{FARM}/{run}/{sub}"), _abs(FARM), "a farm directory")
         for f in sorted(os.listdir(os.path.join(rd, sub))):
             _copy_once(os.path.join(rd, sub, f), _abs(f"{FARM}/{run}/{sub}/{f}"))
     return {"run": run, "admitted": audit, "training_receipt_sha256": digest}
@@ -828,11 +828,11 @@ def claim_cell(cell):
     """Atomic per-cell ownership (Codex code r2 HIGH 9): refused while a claim exists (a live or
     crashed run of this cell: archive it first). Released only when the cell is admitted."""
     try:
-        os.makedirs(os.path.dirname(claim_path(cell)), exist_ok=True)
-        os.mkdir(claim_path(cell))
+        reg.makedirs_below(os.path.dirname(claim_path(cell)), _abs(FARM), "a farm directory")
+        reg.mkdir_below(claim_path(cell), _abs(FARM), "the cell claim")
     except FileExistsError:
         raise EvalError(f"{cell['name']}: claimed by another (or a crashed) run ({claim_path(cell)}); archive it first")
-    with open(os.path.join(claim_path(cell), "holder"), "w") as fh:
+    with reg.open_below(os.path.join(claim_path(cell), "holder"), "w", _abs(FARM), "the cell claim") as fh:
         fh.write(f"{os.getpid()} {os.uname().nodename} {time.strftime('%Y-%m-%dT%H:%M:%S%z')}\n")
 
 
@@ -872,9 +872,9 @@ def run_one(cell, gpu, campaign, lock_fds=()):
     ts = time.strftime("%Y-%m-%d_%H-%M-%S")
     started = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     log = _abs(f"{EVAL_LOG_DIR}/c4flip_data_curve_{ts}_{cell['name']}.log")
-    os.makedirs(os.path.dirname(log), exist_ok=True)
+    reg.makedirs_below(os.path.dirname(log), _abs(EVAL_LOG_DIR), "the eval log folder")
     argv = eval_argv(cell)
-    with open(log, "w") as fh:
+    with reg.open_below(log, "w", _abs(EVAL_LOG_DIR), "the eval log") as fh:
         fh.write("argv: " + " ".join(["python", NO_FLASH, "eval_FLAC.py"] + argv) + "\n")
     rc = run_owned([sys.executable, NO_FLASH, "eval_FLAC.py"] + argv, snap, eval_env(gpu), log, lock_fds)
     if reg.eval_pins(snap) != pins:
@@ -902,7 +902,8 @@ def run_one(cell, gpu, campaign, lock_fds=()):
     if cell["dump"] and exists(os.path.join(cell["dump_dir"], "manifest.json")):
         _copy_once(os.path.join(cell["dump_dir"], "manifest.json"), dump_manifest_copy(cell))
         receipt["dump_manifest_sha256"] = reg.sha256_file(dump_manifest_copy(cell))
-    reg.atomic_write_bytes(_abs(cell["receipt"]), (json.dumps(receipt, indent=1, sort_keys=True) + "\n").encode())
+    reg.atomic_write_bytes(_abs(cell["receipt"]), (json.dumps(receipt, indent=1, sort_keys=True) + "\n").encode(),
+                           root=_abs(FARM))
     probs = validate_cell(cell, campaign)
     if rc != 0 or probs:
         raise EvalError(f"{cell['name']}: rc {rc}; " + "; ".join(probs) + f" (claim {claim_path(cell)} kept)")
@@ -912,6 +913,7 @@ def run_one(cell, gpu, campaign, lock_fds=()):
 
 def shutil_rmtree(path):
     import shutil
+    reg.check_destination(path, _abs(FARM), "a cell claim")      # (rmtree itself refuses a link and never follows one)
     shutil.rmtree(path)
 
 
@@ -951,7 +953,7 @@ def cmd_run(gpu, names, shared=False, lockdir=LOCKDIR):
     if n_dump:
         reg.storage_gate("a6000", DUMP_ROOT, int(n_dump * reg.DUMP_CELL_BYTES * 1.25), tag="exp46_dump")
     lockfile = os.path.join(lockdir, f".exp38_card{gpu}.lock")
-    lock = open(lockfile, "a")
+    lock = reg.open_below(lockfile, "a", lockdir, "the card lock")     # validated, never through a link
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
@@ -997,7 +999,7 @@ def cmd_e0():
            "input_hash": {f"K{k}_s{s}": v for (k, s), v in INPUT_HASH.items()},
            "eval_pins": {k: pins[k] for k in ("agree_sha256", "vae_ckpt_sha256", "vit_rev")},
            "written_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
-    reg.write_sealed(_abs(E0_RECEIPT), rec)
+    reg.write_sealed(_abs(E0_RECEIPT), rec, root=_abs(reg.EXP_DIR))
     return rec
 
 

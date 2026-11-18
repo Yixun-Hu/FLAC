@@ -207,7 +207,8 @@ def extract_bundle(commit, dest, repo=None):
             if not (m.isfile() or m.isdir()) or m.name.startswith("/") or ".." in m.name.split("/"):
                 raise TableError(f"bundle entry {m.name!r} is not a plain file")
         tar.extractall(dest)
-    open(os.path.join(dest, ".git"), "w").write("exp46 import extraction marker\n")
+    with reg.open_below(os.path.join(dest, ".git"), "w", dest, "the extraction marker") as fh:
+        fh.write("exp46 import extraction marker\n")
     return sha
 
 
@@ -237,6 +238,7 @@ def import_exp38(commit, generator_root=None, repo=None, python=None):
     out_path = os.path.join(repo, IMPORT_RECORD)
     if os.path.exists(out_path):
         raise TableError(f"{IMPORT_RECORD} exists (an import is sealed once; archive it first)")
+    reg.check_isolation(tempfile.gettempdir(), "the system temporary directory")     # (Codex code r2 finding 1)
     tmp = tempfile.mkdtemp(prefix="exp46_exp38_import_")
     try:
         sha = extract_bundle(commit, tmp, repo)
@@ -280,7 +282,7 @@ def import_exp38(commit, generator_root=None, repo=None, python=None):
                "rows": exp38_rows(got["cells"]), "written_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
         if generator_root:
             materialise(tmp, dict(hashes, **code_hashes), generator_root)
-        digest = reg.write_sealed(out_path, rec)
+        digest = reg.write_sealed(out_path, rec, root=os.path.join(repo, reg.EXP_DIR))
         return {"import_record": out_path, "sha256": digest, "commit": sha, "files": len(hashes)}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -353,6 +355,7 @@ def verify_record_at_commit(rec, repo=None):
     record's file set must be EXP38_IMPORT_FILES of that tree, every recorded sha256 must re-hash, every cell's
     (run, K, seed, metrics) must be its metrics file's, its checkpoint / dump-manifest attestations its receipt's,
     and the campaign the E0 receipt's. Raises TableError."""
+    reg.check_isolation(tempfile.gettempdir(), "the system temporary directory")     # (Codex code r2 finding 1)
     tmp = tempfile.mkdtemp(prefix="exp46_table_build_")
     try:
         commit = extract_bundle(rec["commit"], tmp, repo)
@@ -440,8 +443,8 @@ def build(exp38_commit, repo=None):
     for p in (TABLE_EVIDENCE, TABLE_EVIDENCE + ".sha256"):
         if os.path.exists(os.path.join(repo, p)):
             raise TableError(f"{p} exists (the table is built once per evidence; archive it first)")
-    reg.atomic_write_bytes(os.path.join(repo, TABLE_MD), md.encode())
-    reg.write_sealed(os.path.join(repo, TABLE_EVIDENCE), evidence)
+    reg.atomic_write_bytes(os.path.join(repo, TABLE_MD), md.encode(), root=os.path.join(repo, reg.EXP_DIR))
+    reg.write_sealed(os.path.join(repo, TABLE_EVIDENCE), evidence, root=os.path.join(repo, reg.EXP_DIR))
     return md
 
 

@@ -592,11 +592,11 @@ def test_publish_order_markdown_first_json_last(tmp_path, e0, monkeypatch):
     assert not [p for p in exp.iterdir() if ".tmp" in p.name]
     order, real = [], col.reg.atomic_write_bytes
 
-    def spy(path, data):
+    def spy(path, data, **kw):                     # (kw: the checked root, Codex code r2 finding 1)
         order.append(os.path.basename(path))
         if path.endswith(".json"):
             raise OSError("crash before the commit point")
-        real(path, data)
+        real(path, data, **kw)
     monkeypatch.setattr(col.reg, "atomic_write_bytes", spy)
     with pytest.raises(OSError):
         col.publish(rows, ["x"], {"m": 2}, repo=str(tmp_path))

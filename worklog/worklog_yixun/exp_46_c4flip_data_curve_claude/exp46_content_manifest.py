@@ -146,7 +146,9 @@ def build(out, dataset_root="AcousticRooms", repo=None):
     destination is isolation-checked first -- before the split is read or anything is written (Codex code r1
     finding 2: a misdirected --build into an exp_38 / exp_45 namespace refuses)."""
     repo = repo or reg.REPO
-    reg.check_isolation(out, "the delta manifest output")
+    outdir = os.path.dirname(os.path.abspath(out))   # the destination AND exp_38 writer's temp name below it (Codex r2
+    for p in (out, os.path.join(outdir, f".{os.path.basename(out)}.tmp.{os.getpid()}")):   # finding 1): a link at either
+        reg.check_destination(p, outdir, "the delta manifest output")                     # refuses, nothing written
     if os.path.lexists(out):
         raise reg.GateError(f"{out} exists (the delta manifest is built once)")
     files = delta_files(repo)

@@ -190,7 +190,7 @@ def main(argv=None):
         sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
         import exp46_registry as reg
         try:
-            reg.check_isolation(a.out, "the L1 comparison report")
+            reg.check_destination(a.out, os.path.dirname(os.path.abspath(a.out)), "the L1 comparison report")
         except reg.GateError as err:
             print(f"EXP46 REGRESSION COMPARE: refused: {err}", file=sys.stderr)
             return 2
@@ -202,7 +202,8 @@ def main(argv=None):
         return 2
     text = json.dumps(report, indent=1, sort_keys=True)
     if a.out:
-        open(a.out, "w").write(text + "\n")
+        with reg.open_below(a.out, "w", os.path.dirname(os.path.abspath(a.out)), "the L1 comparison report") as fh:
+            fh.write(text + "\n")                    # validated again, never through a link (Codex code r2 finding 1)
     print(text)
     print(f"REGRESSION POLICY {report['verdict']}: {len(problems)} problem(s), {len(report['allowed_failures'])} "
           f"allowed failure(s)")

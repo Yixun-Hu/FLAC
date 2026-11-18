@@ -137,11 +137,11 @@ def publish(rows, pending, manifest, repo=None):
     jtext = (json.dumps(payload, indent=1, sort_keys=True) + "\n").encode()
     mtext = (render(rows, pending) +
              f"\nresults JSON sha256: `{hashlib.sha256(jtext).hexdigest()}`\n").encode()
-    lock = open(os.path.join(repo, LOCK), "a")
+    lock = reg.open_below(os.path.join(repo, LOCK), "a", os.path.join(repo, reg.EXP_DIR), "the publication lock")
     fcntl.flock(lock, fcntl.LOCK_EX)
     try:
-        reg.atomic_write_bytes(os.path.join(repo, OUT_MD), mtext)      # first
-        reg.atomic_write_bytes(os.path.join(repo, OUT_JSON), jtext)    # last: the commit point
+        reg.atomic_write_bytes(os.path.join(repo, OUT_MD), mtext, root=os.path.join(repo, reg.EXP_DIR))     # first
+        reg.atomic_write_bytes(os.path.join(repo, OUT_JSON), jtext, root=os.path.join(repo, reg.EXP_DIR))   # the commit point
     finally:
         fcntl.flock(lock, fcntl.LOCK_UN)
         lock.close()
@@ -232,11 +232,16 @@ def materialise(dest, root=None):
         data = open(os.path.join(root, rel), "rb").read()
         if hashlib.sha256(data).hexdigest() != digest:
             raise ev.EvalError(f"{rel} changed during the copy")
-        os.makedirs(os.path.dirname(target), exist_ok=True)
+        try:                                          # below the destination root (Codex code r2 finding 1)
+            reg.makedirs_below(os.path.dirname(target), dest, "a publication directory")
+        except reg.GateError as err:
+            raise ev.EvalError(str(err))
         try:
-            reg.publish_no_clobber(target, data)       # no replacing rename: an entry created meanwhile is kept
+            reg.publish_no_clobber(target, data, root=dest)    # no replacing rename: an entry created meanwhile is kept
         except FileExistsError:
             raise ev.EvalError(f"{target} appeared during the copy: refused, never overwritten")
+        except reg.GateError as err:
+            raise ev.EvalError(str(err))
         if reg.sha256_file(target) != digest:
             raise ev.EvalError(f"{target}: the copy does not re-hash to {digest[:12]}")
         copied += 1

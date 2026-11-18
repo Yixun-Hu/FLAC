@@ -105,13 +105,12 @@ def main(argv=None):
     print(text)
     print("INIT DIGEST PREDICTION " + ("PASS" if not problems else "FAIL: " + " | ".join(problems)))
     if a.json:
-        try:                # the same absolute path, re-checked (a component aliased meanwhile refuses); exclusive and
-            reg.check_isolation(a.json, "the init-digest record")       # not following a final link: an entry
-            fd = os.open(a.json, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o664)   # created meanwhile
-        except (reg.GateError, OSError) as err:                                                 # is never replaced
+        try:                # the same absolute path, validated again (Codex code r2 findings 1, 3): exclusive, never a link
+            fh = reg.open_below(a.json, "x", os.path.dirname(a.json), "the init-digest record")   # an entry created
+        except (reg.GateError, OSError) as err:                                         # meanwhile is never replaced
             print(f"EXP46 INIT DIGEST REFUSED: {err}", file=sys.stderr)
             return 2
-        with os.fdopen(fd, "w") as fh:
+        with fh:
             fh.write(text + "\n")
     return 0 if not problems else 1
 
