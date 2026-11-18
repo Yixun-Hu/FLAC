@@ -25,6 +25,13 @@ sys.path.insert(0, EXP)
 import exp46_supervise as sv  # noqa: E402
 
 PY = sys.executable
+
+
+@pytest.fixture(autouse=True)
+def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+    """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+    writes one), so the real exp_45 state never decides a test."""
+    monkeypatch.setattr(sv.reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
 SLEEPER = textwrap.dedent("""
     import subprocess, sys, time
     p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
@@ -528,6 +535,29 @@ def test_a_failed_full_run_keeps_its_crash_marker(tmp_path, monkeypatch, mode, a
 def test_a_full_run_without_its_reservation_is_refused_before_any_child(tmp_path, monkeypatch):
     with pytest.raises(sv.reg.GateError, match="no storage reservation"):
         _campaign(tmp_path, monkeypatch, reserve=False)
+
+
+def test_c3_the_full_start_refuses_before_any_child_once_exp45_holds_a_reservation(tmp_path, monkeypatch):
+    """exp_46 plan r3 §3.2 "Storage" (C3): exp_45 reserving after exp_46's submitter did -- the supervisor's FULL-start
+    re-check reads exp_45's ledger (read-only) and refuses before any child; exp_46's own hold stays, exp_45's ledger
+    is untouched."""
+    ledger = tmp_path / "exp45_root" / ".exp45_storage.json"
+    ledger.parent.mkdir()
+    monkeypatch.setattr(sv.reg, "EXP45_LEDGER", str(ledger))
+    held = json.dumps({"schema": 1, "reservations": {"exp45_RFf025_l40_2x32": {"token": "b" * 32}}, "releases": []})
+    real = sv.reg.reserve_storage
+
+    def reserve_then_exp45_reserves(*a, **k):                  # the submitter's step, then exp_45 reserves
+        out = real(*a, **k)
+        ledger.write_text(held)
+        return out
+    monkeypatch.setattr(sv.reg, "reserve_storage", reserve_then_exp45_reserves)
+    with pytest.raises(sv.reg.GateError, match="C3: exp_45 holds 1 outstanding"):
+        _campaign(tmp_path, monkeypatch)
+    assert ledger.read_text() == held and sorted(os.listdir(ledger.parent)) == [".exp45_storage.json"]
+    mine = json.load(open(tmp_path / "nas" / sv.reg.STORAGE_LEDGER))["reservations"]
+    assert list(mine) == ["exp46_C4Ff025_l40_2x32"]
+    assert not (tmp_path / "nas" / "exp46_C4Ff025_l40_2x32" / sv.reg.TRAINING_RECEIPT).exists()
 
 
 @pytest.mark.parametrize("audit_ok,want", [(True, 0), (False, sv.EXIT_END)])

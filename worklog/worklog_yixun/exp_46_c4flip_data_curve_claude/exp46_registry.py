@@ -1231,9 +1231,45 @@ class _Ledger:
         return False
 
 
+# C3 (plan r3 §3.2 "Storage", Codex plan r1 finding 8): exp_45 (RF, on hold) is a WHOLE-CAMPAIGN exclusion. exp_46's
+# submitter (before sbatch) and its FULL-start re-check read exp_45's reservation ledger READ-ONLY -- never opened for
+# writing, never locked, no file created beside it: absent -> nothing held; a ledger holding any reservation, or an
+# unreadable / malformed file, refuses. The other direction (exp_45 resumes only after every exp_46 reservation has
+# cleared, read-only on exp_46's ledger) is exp_45's standing rule, recorded in its worklog; resumption is Yixun's.
+EXP45_LEDGER = f"{EXP45_SAVE_ROOTS[1]}/.exp45_storage.json"
+
+
+def foreign_ledger_problems(path=None):
+    """Problems (empty = no exp_45 reservation outstanding) of exp_45's ledger, read once, read-only."""
+    path = EXP45_LEDGER if path is None else path
+    if not os.path.lexists(path):
+        return []
+    try:
+        with open(path, "rb") as fh:
+            data = json.loads(fh.read())
+    except (OSError, ValueError) as err:
+        return [f"C3: exp_45's storage ledger {path} is unreadable / malformed ({err})"]
+    if not isinstance(data, dict) or set(data) != {"schema", "reservations", "releases"} or data["schema"] != 1 \
+            or not isinstance(data["reservations"], dict) or not isinstance(data["releases"], list):
+        return [f"C3: exp_45's storage ledger {path} is not the registered ledger schema"]
+    if data["reservations"]:
+        return [f"C3: exp_45 holds {len(data['reservations'])} outstanding storage reservation(s) "
+                f"{sorted(data['reservations'])[:3]}: exp_46 refuses until they clear (whole-campaign exclusion)"]
+    return []
+
+
+def check_foreign_ledger(path=None):
+    p = foreign_ledger_problems(path)
+    if p:
+        raise GateError("; ".join(p))
+    return {"exp45_ledger": EXP45_LEDGER if path is None else path, "outstanding": 0}
+
+
 def reserve_storage(run, token, run_dir, root, need=RUN_RESERVE_BYTES, floor=STORAGE_FLOOR_BYTES):
-    """Submitter, before sbatch and any owner intent: insert the run's reservation or refuse (GateError)."""
+    """Submitter, before sbatch and any owner intent: insert the run's reservation or refuse (GateError). exp_45's
+    ledger is read first (C3, read-only)."""
     parse_run_id(run)
+    check_foreign_ledger()
     if not (isinstance(token, str) and re.fullmatch(r"[0-9a-f]{32}", token)):
         raise GateError(f"reservation token {token!r} is not a 32-hex intent token")
     with _Ledger(root) as led:
@@ -1260,7 +1296,9 @@ def storage_reservation(run, root):
 
 def recheck_storage(run, token, root, floor=STORAGE_FLOOR_BYTES):
     """Supervisor at FULL start, under the same lock: the run's own reservation (its token) must exist, and
-    free - sum(outstanding of all reservations, its own included) >= floor. Changes nothing."""
+    free - sum(outstanding of all reservations, its own included) >= floor. Changes nothing. exp_45's ledger is read
+    first (C3, read-only)."""
+    check_foreign_ledger()
     with _Ledger(root) as led:
         mine = led.data["reservations"].get(run)
         if mine is None or mine["token"] != token:

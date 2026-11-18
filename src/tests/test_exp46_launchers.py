@@ -37,6 +37,13 @@ def _load(name):
 sub = _load("exp46_submit_neuronic")
 reg = sub.reg
 
+
+@pytest.fixture(autouse=True)
+def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+    """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in, so the real
+    exp_45 state never decides a test."""
+    monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+
 pytestmark = pytest.mark.skipif(not os.path.exists(os.path.join(EXP38, "data_efficiency_subset_audit.json")),
                                 reason="the subset-audit artifact is produced at ladder rung 3")
 

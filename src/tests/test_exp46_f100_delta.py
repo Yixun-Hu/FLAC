@@ -35,6 +35,13 @@ F100 = "exp46_C4Ff100_l40_2x32"
 F025 = "exp46_C4Ff025_l40_2x32"
 
 
+@pytest.fixture(autouse=True)
+def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+    """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in, so the real
+    exp_45 state never decides a test."""
+    monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+
+
 # ------------------------------------------------------------------ the delta file set
 def test_the_real_delta_is_the_registered_145494_files_waveforms_and_metadata_only():
     files = cm46.delta_files(REPO)

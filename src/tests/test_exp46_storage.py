@@ -28,6 +28,13 @@ TOKENS = {r: f"{i + 1:x}" * 32 for i, r in enumerate(RUNS)}
 NEED = reg.RUN_RESERVE_BYTES
 
 
+@pytest.fixture(autouse=True)
+def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+    """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+    writes one), so the real exp_45 state never decides a test."""
+    monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+
+
 @pytest.fixture
 def fs(tmp_path, monkeypatch):
     """A fake filesystem: free bytes are read from a file (so forked children see changes too)."""
@@ -478,3 +485,125 @@ def test_a_submitting_intent_without_a_job_id_keeps_its_hold_while_an_sbatch_may
     out = sub.abandon(RUN, "FULL", root=str(root), runner=Sched())        # after the grace, no job of that name
     assert out["storage_released"] and _held(root) == {}
 
+
+# ------------------------------------------------------------------ C3: exp_45's ledger, read-only (exp_46 plan r3 §3.2)
+_HELD = {"run": "exp45_RFf025_l40_2x32", "token": "b" * 32, "run_dir": "/x/exp45_RFf025_l40_2x32",
+         "reserved_bytes": 1, "reserved_at": "2026-11-17T00:00:00-0500"}
+_C3_CASES = {
+    "absent": (None, True),
+    "an empty ledger": (json.dumps({"schema": 1, "reservations": {}, "releases": []}).encode(), True),
+    "only releases": (json.dumps({"schema": 1, "reservations": {}, "releases": [dict(
+        _HELD, released_at="2026-11-17T01:00:00-0500", reason="abandoned")]}).encode(), True),
+    "an outstanding reservation": (json.dumps({"schema": 1, "reservations": {_HELD["run"]: _HELD},
+                                               "releases": []}).encode(), False),
+    "malformed JSON": (b"{not json", False),
+    "zero bytes": (b"", False),
+    "another schema": (json.dumps({"reservations": {}}).encode(), False),
+    "schema 2": (json.dumps({"schema": 2, "reservations": {}, "releases": []}).encode(), False),
+    "a list": (b"[]", False),
+}
+
+
+def _state(d):
+    return sorted((n, os.lstat(os.path.join(d, n)).st_ino, os.lstat(os.path.join(d, n)).st_mtime_ns,
+                   open(os.path.join(d, n), "rb").read() if os.path.isfile(os.path.join(d, n)) else None)
+                  for n in os.listdir(d))
+
+
+def _foreign(tmp_path, monkeypatch, content):
+    """A stand-in exp_45 save root whose ledger holds ``content`` (None: absent), registered as EXP45_LEDGER."""
+    foreign = tmp_path / "exp45_save_root"
+    foreign.mkdir()
+    path = foreign / ".exp45_storage.json"
+    if content is not None:
+        path.write_bytes(content)
+    monkeypatch.setattr(reg, "EXP45_LEDGER", str(path))
+    return foreign
+
+
+@pytest.mark.parametrize("case", sorted(_C3_CASES))
+def test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held(tmp_path, monkeypatch, case):
+    """plan r3 §3.2 "Storage" (a): the reservation and the FULL-start re-check read exp_45's ledger read-only; absent /
+    empty (or only releases) -> proceed; an outstanding reservation, malformed JSON or another schema -> refuse,
+    before exp_46's own ledger or lock; exp_45's directory is never written, locked or added to."""
+    content, ok = _C3_CASES[case]
+    foreign = _foreign(tmp_path, monkeypatch, content)
+    before = _state(str(foreign))
+    root = tmp_path / "nas"
+    root.mkdir()
+    run = reg.required_runs()[0]
+    monkeypatch.setattr(reg, "free_bytes", lambda p: 10 ** 15)
+    if ok:
+        assert reg.check_foreign_ledger()["outstanding"] == 0
+        reg.reserve_storage(run, "a" * 32, str(root / run), str(root))
+        assert reg.recheck_storage(run, "a" * 32, str(root))["reserved_bytes"] == reg.RUN_RESERVE_BYTES
+    else:
+        with pytest.raises(reg.GateError, match="C3"):
+            reg.reserve_storage(run, "a" * 32, str(root / run), str(root))
+        assert os.listdir(str(root)) == []                     # refused before exp_46's own ledger or lock
+        with pytest.raises(reg.GateError, match="C3"):
+            reg.recheck_storage(run, "a" * 32, str(root))
+    assert _state(str(foreign)) == before                      # nothing written, locked or created beside it
+
+
+def test_c3_the_full_start_recheck_refuses_once_exp45_reserves_after_the_submission(tmp_path, monkeypatch):
+    """exp_45 reserving AFTER exp_46's submitter did: the FULL-start re-check refuses; exp_46's own hold stays (it is
+    released only on seal / abandon) and exp_45's ledger is left exactly as exp_45 wrote it."""
+    foreign = _foreign(tmp_path, monkeypatch, None)
+    root = tmp_path / "nas"
+    root.mkdir()
+    monkeypatch.setattr(reg, "free_bytes", lambda p: 10 ** 15)
+    reg.reserve_storage(RUNS[0], TOKENS[RUNS[0]], str(root / RUNS[0]), str(root))
+    (foreign / ".exp45_storage.json").write_bytes(_C3_CASES["an outstanding reservation"][0])
+    before = _state(str(foreign))
+    with pytest.raises(reg.GateError, match="C3: exp_45 holds 1 outstanding"):
+        reg.recheck_storage(RUNS[0], TOKENS[RUNS[0]], str(root))
+    assert list(json.load(open(root / reg.STORAGE_LEDGER))["reservations"]) == [RUNS[0]]
+    assert _state(str(foreign)) == before
+
+
+def test_c3_an_unreadable_exp45_ledger_refuses(tmp_path, monkeypatch):
+    path = tmp_path / ".exp45_storage.json"
+    path.mkdir()                                              # a directory where the ledger file should be
+    monkeypatch.setattr(reg, "EXP45_LEDGER", str(path))
+    with pytest.raises(reg.GateError, match="unreadable"):
+        reg.check_foreign_ledger()
+    dangling = tmp_path / "dangling.json"
+    dangling.symlink_to(tmp_path / "nowhere.json")             # an entry that cannot be read is not "absent"
+    monkeypatch.setattr(reg, "EXP45_LEDGER", str(dangling))
+    with pytest.raises(reg.GateError, match="unreadable"):
+        reg.check_foreign_ledger()
+    if os.geteuid() != 0:                                     # a file this user may not read
+        locked = tmp_path / "locked.json"
+        locked.write_bytes(_C3_CASES["an empty ledger"][0])
+        locked.chmod(0)
+        monkeypatch.setattr(reg, "EXP45_LEDGER", str(locked))
+        try:
+            with pytest.raises(reg.GateError, match="unreadable"):
+                reg.check_foreign_ledger()
+        finally:
+            locked.chmod(0o600)
+
+
+@pytest.mark.parametrize("mode", ["SMOKE", "FULL"])
+def test_c3_the_submitter_refuses_any_submission_while_exp45_holds_before_any_mutation(subm, tmp_path, monkeypatch,
+                                                                                     mode):
+    """C3 is a whole-campaign exclusion: while exp_45 holds a reservation the submitter refuses SMOKE and FULL alike,
+    right after the isolation check -- before any scheduler call, lock, reservation, owner intent or directory on
+    exp_46's side, and without writing anything on exp_45's."""
+    foreign = _foreign(tmp_path, monkeypatch, _C3_CASES["an outstanding reservation"][0])
+    before = _state(str(foreign))
+    sched = Sched()
+    with pytest.raises(reg.GateError, match="C3"):
+        _submit(subm, mode=mode, runner=sched)
+    assert sched.calls == [] and os.listdir(str(subm)) == [] and _state(str(foreign)) == before
+
+
+def test_c3_reads_exactly_exp45s_registered_ledger_path(monkeypatch):
+    monkeypatch.undo()                                        # the module's own value, not the autouse stand-in
+    assert reg.EXP45_LEDGER == "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve/.exp45_storage.json"
+    assert reg.EXP45_LEDGER != os.path.join(reg.PLATFORMS["neuronic"]["save_root"], reg.STORAGE_LEDGER)
+    import subprocess
+    reg45 = subprocess.run(["git", "-C", REPO, "show", "1e37ead2:worklog/worklog_yixun/exp_45_rf_data_curve_claude/"
+                            "exp45_registry.py"], capture_output=True, text=True, check=True).stdout
+    assert 'STORAGE_LEDGER = ".exp45_storage.json"' in reg45 and f'"save_root": "{reg.EXP45_SAVE_ROOTS[1]}"' in reg45

@@ -194,6 +194,10 @@ def submit(run, mode, time_limit, backend, flash_version, allow_nonmatched, dry,
         raise SubmitError(f"exp_46 trains with backend {reg.TRAINING_BACKEND} only (plan r3 F2, L5): --backend "
                           f"{backend} is refused")
     reg.check_isolation(save_root(root), "the exp_46 save root")     # before ANY mutation (Codex code r2 finding 6)
+    # C3 (plan r3 §3.2 "Storage"): a whole-campaign exclusion -- while exp_45 holds a reservation no exp_46 SMOKE or
+    # FULL is submitted; exp_45's ledger is read read-only, before any scheduler call or mutation (the reservation
+    # and the FULL-start re-check read it again)
+    reg.check_foreign_ledger()
     want_s = slurm_seconds(time_limit)
     if want_s is None:
         raise SubmitError(f"--time {time_limit!r} is not a Slurm time (e.g. 24:00:00 or 3-00:00:00)")

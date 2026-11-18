@@ -33,6 +33,13 @@ import exp46_registry as reg  # noqa: E402
 RUN = "exp46_C4Ff025_l40_2x32"
 
 
+@pytest.fixture(autouse=True)
+def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+    """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in, so the real
+    exp_45 state never decides a test."""
+    monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+
+
 def _load(path, name):
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
