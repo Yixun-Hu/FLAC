@@ -316,3 +316,20 @@ registry without `closure_digest_at` (F9), the sheets held aside (F10).
   L0's final run (the round's new tests). The 15 skips are L0's environmental ones; the 41 deselected are the same
   wandb-environment nodes of `test_exp43_kit.py` (open item 1; the definitive L1 keeps them, as inherited failures).
 - Analysis: every fix-round finding except F6 is closed and tested; ready for Codex code round 2 (the coordinator's call).
+
+## 2026-11-18 05:40 EST — coordinator: fix round 1 verified; Codex code round 2 → REVISE (2 HIGH, 7 MEDIUM) (coordinating session)
+
+- **Verification:** at `9cda0203` tracked-clean; since `671ae6c0` only `EXPREL46` and `src/tests/test_exp46_*` changed;
+  the exp_38 / 40 / 43 / 45 folders, the three yaw files, `test_exp45_sampler.py` and `src/training/` unchanged since
+  L0; final targeted log confirmed (2,579 passed, 15 skipped, 41 deselected, EXIT 0, `c8a04475`, tracked-clean, neu306).
+- **Codex code r2** (`c4flip_data_curve_codex_code_r2_review.md`, prompt `…_r2_prompt.md`, log
+  `c4flip_data_curve_2026-11-18_05-22-35_codex_code_r2.log.gz`): F1, F3, F4, F5, F7, F9, F11, F12 and open item 1
+  RESOLVED; F2, F8, F10 PARTIAL; F6 deferred (D1). New: R2-1 HIGH nested aliases (lock / owners / other child
+  components) bypass the isolation guard; R2-2 HIGH the regenerations run the shared generator without `-B`
+  (exp_38 bytecode); R2-3 the init-digest guard checks the path before the cwd change; R2-4 `render()` accepts values
+  unequal to their sources; R2-5 materialisation needs exp_38's static files in G before they exist; R2-6 L4's four
+  dry-runs missing before the freeze; R2-7 the A6000 publication worktree never created / pinned; R2-8 NAS publication
+  not atomic no-clobber, staging unchecked; R2-9 recovery misses the sealed-run `release` path.
+- **Dispositions:** all nine go to the Coder's fix round 2 (one batch for Codex code r3, the last round). F6 waits for
+  Yixun's D1; if he answers during the round it joins this batch, otherwise it is fixed after r3 without re-review
+  (review cap) and recorded.
