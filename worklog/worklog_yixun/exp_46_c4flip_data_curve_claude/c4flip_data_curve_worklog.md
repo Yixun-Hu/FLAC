@@ -148,6 +148,43 @@ removes the H / B nodes from the copies (the three mixed files: eval, registry, 
   1,148 / 2,276 / 3,413 for f025 / f050 / f075; an audit hook showed only the split JSON was opened (no AcousticRooms
   file). G7 holds: the f100 final checkpoint is `epoch=8-step=40000.ckpt`.
 
+### 01:36–01:58 — Q1: every exp_45 test at the exp_46 head (check for E6 candidates)
+- Command: `pyt46.sh Q1_exp45_suite_at_exp46_head_check` over the 13 `src/tests/test_exp45_*.py` files at `cb8a7850`.
+- Result: 727 passed, 5 skipped (exactly exp_45's five registered environment skips) in 21 min: all 732 exp_45 nodes
+  pass or skip as registered with the two source edits, E4 and the generator's exp_46 contract in place.
+- Analysis: no E6 candidate among exp_45's nodes (with K2 and T2b: none anywhere).
+
+### 01:45–02:24 — first final L0 run ABORTED (16 failed: a rank leak between tests) → commit U `e6920ace`
+- Command: the final job at `76a2a81c` (tracked-clean = yes), files in `ls` order (test_exp45_* first).
+- Result: 2,506 passed, 15 skipped, 41 deselected, **16 failed** — every failure a rank-0 banner test:
+  `test_exp46_c4flip_wrapper.py::test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm` ×5 and the
+  pre-existing `test_yaw_aug_c16.py::test_banner_lines` ×2, `test_yaw_aug_flip.py` ×6, `test_yaw_aug_training.py` ×2,
+  `test_exp43_kit.py::test_treatment_constants_and_the_real_banner`. Log kept as `…_ABORTED_16fail_rank_zero_leak_…`.
+- Analysis (U1 / U1b / U1c, a collect-only job mapping the failure positions): exp_45's
+  `test_exp45_sampler.py::test_both_launch_environments_give_the_same_rank_and_world` calls
+  `LightningEnvironment.set_global_rank(1)`, which also sets lightning's GLOBAL `rank_zero_only.rank = 1` and never
+  restores it; every later test in the same process that relies on the default rank 0 prints no banner. Pre-existing
+  at X45f, not caused by exp_46 (T2b passed because the C4F / yaw files ran first there). Commit U: the C4F banner test
+  pins rank 0 (hermetic) and exp_46's sampler copy restores the global rank (U1b / U1c red, U2 green, 30 passed).
+  exp_45's frozen original still leaks — open item 13.
+
+### 02:24–03:06 — the final L0 run: GREEN
+- Command: `JOBTMP=/tmp TLIM=02:00:00 pyt46.sh L0_final2_yawaug_first_exp45_last -rfEs <8 --deselect> <50 files>` at
+  `e6920ace` (header: tracked-clean=yes). The same 50 files as the first run, ordered so that the pre-existing banner
+  tests run before exp_45's leaking sampler test: every `src/tests/test_yaw_aug_*.py` (9: E1, E2 and
+  `test_yaw_aug_collect.py` among them), `test_exp43_kit.py` (E3), `test_yaw_mirror.py`,
+  `test_exp43_yaw_aug_flip_golden.py`, every `src/tests/test_exp46_*.py` (18), the six generator test files, every
+  `src/tests/test_exp45_*.py` (13). The 8 `--deselect` prefixes remove exactly the 41 wandb-dependent nodes of
+  `test_exp43_kit.py` (open item 1).
+- Result: **2,522 passed, 15 skipped, 41 deselected, 0 failed** (EXIT 0) in 40 min 51 s on neu318, 02:25:00 → 03:05:55
+  EST; log `c4flip_data_curve_2026-11-18_02-24-31_pytest_L0_final2_yawaug_first_exp45_last.log`. The 15 skips are all
+  environmental: exp_45's five and exp_46's four registered environment skips (A6000 box, NAS, GPU-0 smoke evidence),
+  `test_exp43_kit.py` ×5 (the pinned DINOv3 snapshot is not in this box's HF cache) and `test_yaw_aug_collect.py` ×1
+  (exp_14 campaign artifacts not in this tree).
+- Analysis: L0 is complete: every exp_46 node, every exp_45 node, both generator contracts, E1–E5 and the yaw-aug files
+  pass on the committed tree; no E6 candidate. Open items 1 (the deselected wandb nodes) and 13 (the rank leak) bear on
+  L1.
+
 ### Open for the coordinator (decisions / records outside this Coder's allowed set; recommendation for each)
 1. **wandb on neuronic** — the `flac` env has wandb 0.26.1 (≠ the exp_43 kit's pinned 0.15.4): 41 nodes of
    `test_exp43_kit.py` (the E3 file) and 10 of `test_exp43_train_history.py` fail in every neuronic job, independent of
@@ -176,3 +213,16 @@ removes the H / B nodes from the copies (the three mixed files: eval, registry, 
     a code commit at L2 (closure change) before X46 is frozen.
 12. Minor: a few trivial `python3` invocations on the login node (a string replacement in a test file, no-op
     imports) before switching to the Edit tool — no test code ran there.
+13. **exp_45's sampler test leaks lightning's global rank (an L1 blocker; not caused by exp_46)** —
+    `test_exp45_sampler.py::test_both_launch_environments_give_the_same_rank_and_world` calls
+    `LightningEnvironment.set_global_rank(1)`, which leaves `rank_zero_only.rank = 1` for the rest of the process. Every
+    later rank-0 banner test then fails: `test_yaw_aug_c16.py::test_banner_lines` ×2, `test_yaw_aug_flip.py::test_banner_lines`
+    ×5 and `::test_flip_banner_is_one_flushed_print`, `test_yaw_aug_training.py::test_banner_printed_once_at_fit_start` and
+    `::test_banner_is_flushed` (and `test_exp43_kit.py::test_treatment_constants_and_the_real_banner` when it runs after).
+    The same at X45f. L1 runs the whole suite in ONE process in alphabetical order (`test_exp45_sampler.py` before
+    `test_yaw_aug_*.py`), so these ~10 pre-existing nodes will fail in exp_46's tree while passing in both parents (neither
+    has the exp_45 file): the L1 policy refuses them as new failures. exp_46's own copy no longer leaks (commit U); the
+    final L0 run orders the yaw / E1–E3 files before the exp_45 files. Options: (a) a declared edit to the frozen
+    `test_exp45_sampler.py` — the same 3-line, assertion-preserving monkeypatch restore as exp_46's copy; (b) a registered
+    L1 allowance for exactly these nodes with this reason; (c) run L1 so the exp_45 file runs last or in its own process.
+    Recommendation: (a), with the coordinator's / Yixun's approval (it touches a frozen exp_45 file).

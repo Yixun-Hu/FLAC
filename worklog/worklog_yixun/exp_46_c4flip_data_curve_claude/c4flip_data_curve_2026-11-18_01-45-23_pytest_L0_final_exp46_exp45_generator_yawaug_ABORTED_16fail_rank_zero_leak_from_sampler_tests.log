@@ -1,0 +1,488 @@
+HEAD 76a2a81ccf3d198a611f31732f1635cbcd3930a9 tracked-clean=yes host neu301.neuronic.cs.princeton.edu start 2026-11-18T01:45:53-05:00
+cmd: pytest -q -rfEs --deselect=src/tests/test_exp43_kit.py::test_admission_validator_accepts_the_exact_record_and_rehashes --deselect=src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation --deselect=src/tests/test_exp43_kit.py::test_admission_validator_rejects_schema_and_nas_mutations --deselect=src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields --deselect=src/tests/test_exp43_kit.py::test_the_history_tool_is_pinned_and_bound_by_its_sidecar --deselect=src/tests/test_exp43_kit.py::test_history_csv_and_sidecar_mutations_are_refused --deselect=src/tests/test_exp43_kit.py::test_smoke_evidence_cli_requires_the_preserved_wandb_run --deselect=src/tests/test_exp43_kit.py::test_train_history_subprocess_is_fail_closed\[cadence_gap src/tests/test_exp45_command_sheets.py src/tests/test_exp45_ddp_evidence.py src/tests/test_exp45_eval.py src/tests/test_exp45_isolation.py src/tests/test_exp45_launchers.py src/tests/test_exp45_merge_provenance.py src/tests/test_exp45_receipts.py src/tests/test_exp45_registry.py src/tests/test_exp45_regression_compare.py src/tests/test_exp45_sampler.py src/tests/test_exp45_storage.py src/tests/test_exp45_supervise.py src/tests/test_exp45_table.py src/tests/test_exp46_c4flip_factory.py src/tests/test_exp46_c4flip_wrapper.py src/tests/test_exp46_closure.py src/tests/test_exp46_ddp_evidence.py src/tests/test_exp46_eval.py src/tests/test_exp46_f100_delta.py src/tests/test_exp46_g7_loader_length.py src/tests/test_exp46_init_digest.py src/tests/test_exp46_isolation.py src/tests/test_exp46_launchers.py src/tests/test_exp46_paths.py src/tests/test_exp46_provenance.py src/tests/test_exp46_receipts.py src/tests/test_exp46_registry.py src/tests/test_exp46_regression_compare.py src/tests/test_exp46_sampler.py src/tests/test_exp46_storage.py src/tests/test_exp46_supervise.py src/tests/test_exp46_table.py src/tests/test_gen_model_comparison_exp46.py src/tests/test_gen_model_comparison_exp45.py src/tests/test_gen_model_comparison_exp38.py src/tests/test_gen_model_comparison_depth_canon.py src/tests/test_gen_model_comparison_data_curve.py src/tests/test_gen_model_comparison_gate.py src/tests/test_yaw_aug_arm_config.py src/tests/test_yaw_aug_c16_config.py src/tests/test_yaw_aug_c16.py src/tests/test_yaw_aug_collect.py src/tests/test_yaw_aug_flip_config.py src/tests/test_yaw_aug_flip_factory.py src/tests/test_yaw_aug_flip.py src/tests/test_yaw_aug_record_control.py src/tests/test_yaw_aug_training.py src/tests/test_exp43_kit.py src/tests/test_yaw_mirror.py src/tests/test_exp43_yaw_aug_flip_golden.py 
+........................................................................ [  2%]
+........................................................................ [  5%]
+........................................................................ [  8%]
+........................................................................ [ 11%]
+..........................................s............................. [ 14%]
+........................................................................ [ 17%]
+........................................................................ [ 19%]
+.................s.....s.s.........................................s.... [ 22%]
+........................................................................ [ 25%]
+........................................................................ [ 28%]
+........................................................................ [ 31%]
+..............................FFFFF..................................... [ 34%]
+........................................................................ [ 36%]
+........................................................................ [ 39%]
+........................................................................ [ 42%]
+........................................................................ [ 45%]
+......................s................................................. [ 48%]
+........................................................................ [ 51%]
+......................................................................s. [ 53%]
+....s.s................................................................. [ 56%]
+........................................................................ [ 59%]
+........................................................................ [ 62%]
+........................................................................ [ 65%]
+........................................................................ [ 68%]
+........................................................................ [ 70%]
+......................FF................................................ [ 73%]
+.............................................................s.......... [ 76%]
+........................................................................ [ 79%]
+........FFFFFF.......................................................... [ 82%]
+....................................................FF.................. [ 85%]
+........................................................................ [ 87%]
+...........F............................................................ [ 90%]
+........................................................................ [ 93%]
+...........ss..s...s................s................................... [ 96%]
+........................................................................ [ 99%]
+.................                                                        [100%]
+=================================== FAILURES ===================================
+_ test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra0-yaw_aug ENABLED img_w=512 seed=42] _
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f72c1106d70>, extra = {}
+line = 'yaw_aug ENABLED img_w=512 seed=42'
+
+    @pytest.mark.parametrize("extra,line", [
+        ({}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"offset_step": 32}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        ({"offset_step": 128}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=128"),
+        (RF, "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"),
+        (C4F, C4F_BANNER),
+    ])
+    def test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm(capsys, extra, line):
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(W, extra))
+        cap.attach_stub_trainer(w, 0, 0)
+        w.on_fit_start()
+        out = [x for x in capsys.readouterr().out.splitlines() if x.startswith("yaw_aug ")]
+>       assert out == [line]
+E       AssertionError: assert [] == ['yaw_aug ENA...=512 seed=42']
+E         
+E         Right contains one more item: 'yaw_aug ENABLED img_w=512 seed=42'
+E         Use -v to get more diff
+
+src/tests/test_exp46_c4flip_wrapper.py:486: AssertionError
+_ test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra1-yaw_aug ENABLED img_w=512 seed=42 offset_step=32] _
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f72c115ba90>
+extra = {'offset_step': 32}
+line = 'yaw_aug ENABLED img_w=512 seed=42 offset_step=32'
+
+    @pytest.mark.parametrize("extra,line", [
+        ({}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"offset_step": 32}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        ({"offset_step": 128}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=128"),
+        (RF, "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"),
+        (C4F, C4F_BANNER),
+    ])
+    def test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm(capsys, extra, line):
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(W, extra))
+        cap.attach_stub_trainer(w, 0, 0)
+        w.on_fit_start()
+        out = [x for x in capsys.readouterr().out.splitlines() if x.startswith("yaw_aug ")]
+>       assert out == [line]
+E       AssertionError: assert [] == ['yaw_aug ENA...fset_step=32']
+E         
+E         Right contains one more item: 'yaw_aug ENABLED img_w=512 seed=42 offset_step=32'
+E         Use -v to get more diff
+
+src/tests/test_exp46_c4flip_wrapper.py:486: AssertionError
+_ test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra2-yaw_aug ENABLED img_w=512 seed=42 offset_step=128] _
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f72c0d1a050>
+extra = {'offset_step': 128}
+line = 'yaw_aug ENABLED img_w=512 seed=42 offset_step=128'
+
+    @pytest.mark.parametrize("extra,line", [
+        ({}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"offset_step": 32}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        ({"offset_step": 128}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=128"),
+        (RF, "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"),
+        (C4F, C4F_BANNER),
+    ])
+    def test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm(capsys, extra, line):
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(W, extra))
+        cap.attach_stub_trainer(w, 0, 0)
+        w.on_fit_start()
+        out = [x for x in capsys.readouterr().out.splitlines() if x.startswith("yaw_aug ")]
+>       assert out == [line]
+E       AssertionError: assert [] == ['yaw_aug ENA...set_step=128']
+E         
+E         Right contains one more item: 'yaw_aug ENABLED img_w=512 seed=42 offset_step=128'
+E         Use -v to get more diff
+
+src/tests/test_exp46_c4flip_wrapper.py:486: AssertionError
+_ test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra3-yaw_aug ENABLED img_w=512 seed=42 flip=0.5] _
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f72c115baf0>
+extra = {'flip': True}, line = 'yaw_aug ENABLED img_w=512 seed=42 flip=0.5'
+
+    @pytest.mark.parametrize("extra,line", [
+        ({}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"offset_step": 32}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        ({"offset_step": 128}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=128"),
+        (RF, "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"),
+        (C4F, C4F_BANNER),
+    ])
+    def test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm(capsys, extra, line):
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(W, extra))
+        cap.attach_stub_trainer(w, 0, 0)
+        w.on_fit_start()
+        out = [x for x in capsys.readouterr().out.splitlines() if x.startswith("yaw_aug ")]
+>       assert out == [line]
+E       AssertionError: assert [] == ['yaw_aug ENA...=42 flip=0.5']
+E         
+E         Right contains one more item: 'yaw_aug ENABLED img_w=512 seed=42 flip=0.5'
+E         Use -v to get more diff
+
+src/tests/test_exp46_c4flip_wrapper.py:486: AssertionError
+_ test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra4-yaw_aug ENABLED img_w=512 seed=42 offset_step=128 flip=0.5] _
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f72c1166bf0>
+extra = {'offset_step': 128, 'flip': True}
+line = 'yaw_aug ENABLED img_w=512 seed=42 offset_step=128 flip=0.5'
+
+    @pytest.mark.parametrize("extra,line", [
+        ({}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"offset_step": 32}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        ({"offset_step": 128}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=128"),
+        (RF, "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"),
+        (C4F, C4F_BANNER),
+    ])
+    def test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm(capsys, extra, line):
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(W, extra))
+        cap.attach_stub_trainer(w, 0, 0)
+        w.on_fit_start()
+        out = [x for x in capsys.readouterr().out.splitlines() if x.startswith("yaw_aug ")]
+>       assert out == [line]
+E       AssertionError: assert [] == ['yaw_aug ENA...128 flip=0.5']
+E         
+E         Right contains one more item: 'yaw_aug ENABLED img_w=512 seed=42 offset_step=128 flip=0.5'
+E         Use -v to get more diff
+
+src/tests/test_exp46_c4flip_wrapper.py:486: AssertionError
+_________ test_banner_lines[extra0-yaw_aug ENABLED img_w=512 seed=42] __________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f723cde1ab0>, extra = {}
+line = 'yaw_aug ENABLED img_w=512 seed=42'
+
+    @pytest.mark.parametrize("extra,line", [
+        ({}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"offset_step": C16}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+    ])
+    def test_banner_lines(capsys, extra, line):
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(512, extra))
+        cap.attach_stub_trainer(w, 0, 0)
+        w.on_fit_start()
+        out = capsys.readouterr().out.splitlines()
+>       assert out.count(line) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <built-in method count of list object at 0x7f723ceae480>('yaw_aug ENABLED img_w=512 seed=42')
+E        +    where <built-in method count of list object at 0x7f723ceae480> = [].count
+
+src/tests/test_yaw_aug_c16.py:333: AssertionError
+__ test_banner_lines[extra1-yaw_aug ENABLED img_w=512 seed=42 offset_step=32] __
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f723cb473a0>
+extra = {'offset_step': 32}
+line = 'yaw_aug ENABLED img_w=512 seed=42 offset_step=32'
+
+    @pytest.mark.parametrize("extra,line", [
+        ({}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"offset_step": C16}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+    ])
+    def test_banner_lines(capsys, extra, line):
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(512, extra))
+        cap.attach_stub_trainer(w, 0, 0)
+        w.on_fit_start()
+        out = capsys.readouterr().out.splitlines()
+>       assert out.count(line) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <built-in method count of list object at 0x7f723c80c400>('yaw_aug ENABLED img_w=512 seed=42 offset_step=32')
+E        +    where <built-in method count of list object at 0x7f723c80c400> = [].count
+
+src/tests/test_yaw_aug_c16.py:333: AssertionError
+_________ test_banner_lines[extra0-yaw_aug ENABLED img_w=512 seed=42] __________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f723d734430>, extra = {}
+line = 'yaw_aug ENABLED img_w=512 seed=42'
+
+    @pytest.mark.parametrize("extra,line", [
+        ({}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"flip": False}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"offset_step": 32}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        ({"offset_step": 32, "flip": False}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        (FLIP, "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"),
+    ])
+    def test_banner_lines(capsys, extra, line):
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(512, extra))
+        cap.attach_stub_trainer(w, 0, 0)
+        w.on_fit_start()
+        out = capsys.readouterr().out.splitlines()
+>       assert [x for x in out if x.startswith("yaw_aug ")] == [line]
+E       AssertionError: assert [] == ['yaw_aug ENA...=512 seed=42']
+E         
+E         Right contains one more item: 'yaw_aug ENABLED img_w=512 seed=42'
+E         Use -v to get more diff
+
+src/tests/test_yaw_aug_flip.py:216: AssertionError
+_________ test_banner_lines[extra1-yaw_aug ENABLED img_w=512 seed=42] __________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f723ce02a10>
+extra = {'flip': False}, line = 'yaw_aug ENABLED img_w=512 seed=42'
+
+    @pytest.mark.parametrize("extra,line", [
+        ({}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"flip": False}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"offset_step": 32}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        ({"offset_step": 32, "flip": False}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        (FLIP, "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"),
+    ])
+    def test_banner_lines(capsys, extra, line):
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(512, extra))
+        cap.attach_stub_trainer(w, 0, 0)
+        w.on_fit_start()
+        out = capsys.readouterr().out.splitlines()
+>       assert [x for x in out if x.startswith("yaw_aug ")] == [line]
+E       AssertionError: assert [] == ['yaw_aug ENA...=512 seed=42']
+E         
+E         Right contains one more item: 'yaw_aug ENABLED img_w=512 seed=42'
+E         Use -v to get more diff
+
+src/tests/test_yaw_aug_flip.py:216: AssertionError
+__ test_banner_lines[extra2-yaw_aug ENABLED img_w=512 seed=42 offset_step=32] __
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f723d14cf40>
+extra = {'offset_step': 32}
+line = 'yaw_aug ENABLED img_w=512 seed=42 offset_step=32'
+
+    @pytest.mark.parametrize("extra,line", [
+        ({}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"flip": False}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"offset_step": 32}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        ({"offset_step": 32, "flip": False}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        (FLIP, "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"),
+    ])
+    def test_banner_lines(capsys, extra, line):
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(512, extra))
+        cap.attach_stub_trainer(w, 0, 0)
+        w.on_fit_start()
+        out = capsys.readouterr().out.splitlines()
+>       assert [x for x in out if x.startswith("yaw_aug ")] == [line]
+E       AssertionError: assert [] == ['yaw_aug ENA...fset_step=32']
+E         
+E         Right contains one more item: 'yaw_aug ENABLED img_w=512 seed=42 offset_step=32'
+E         Use -v to get more diff
+
+src/tests/test_yaw_aug_flip.py:216: AssertionError
+__ test_banner_lines[extra3-yaw_aug ENABLED img_w=512 seed=42 offset_step=32] __
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f72c1154040>
+extra = {'offset_step': 32, 'flip': False}
+line = 'yaw_aug ENABLED img_w=512 seed=42 offset_step=32'
+
+    @pytest.mark.parametrize("extra,line", [
+        ({}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"flip": False}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"offset_step": 32}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        ({"offset_step": 32, "flip": False}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        (FLIP, "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"),
+    ])
+    def test_banner_lines(capsys, extra, line):
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(512, extra))
+        cap.attach_stub_trainer(w, 0, 0)
+        w.on_fit_start()
+        out = capsys.readouterr().out.splitlines()
+>       assert [x for x in out if x.startswith("yaw_aug ")] == [line]
+E       AssertionError: assert [] == ['yaw_aug ENA...fset_step=32']
+E         
+E         Right contains one more item: 'yaw_aug ENABLED img_w=512 seed=42 offset_step=32'
+E         Use -v to get more diff
+
+src/tests/test_yaw_aug_flip.py:216: AssertionError
+_____ test_banner_lines[extra4-yaw_aug ENABLED img_w=512 seed=42 flip=0.5] _____
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f72c110ae30>
+extra = {'flip': True}, line = 'yaw_aug ENABLED img_w=512 seed=42 flip=0.5'
+
+    @pytest.mark.parametrize("extra,line", [
+        ({}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"flip": False}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"offset_step": 32}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        ({"offset_step": 32, "flip": False}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        (FLIP, "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"),
+    ])
+    def test_banner_lines(capsys, extra, line):
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(512, extra))
+        cap.attach_stub_trainer(w, 0, 0)
+        w.on_fit_start()
+        out = capsys.readouterr().out.splitlines()
+>       assert [x for x in out if x.startswith("yaw_aug ")] == [line]
+E       AssertionError: assert [] == ['yaw_aug ENA...=42 flip=0.5']
+E         
+E         Right contains one more item: 'yaw_aug ENABLED img_w=512 seed=42 flip=0.5'
+E         Use -v to get more diff
+
+src/tests/test_yaw_aug_flip.py:216: AssertionError
+____________________ test_flip_banner_is_one_flushed_print _____________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f723d4e7700>
+
+    def test_flip_banner_is_one_flushed_print(monkeypatch):
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(512, FLIP))
+        cap.attach_stub_trainer(w, 0, 0)
+        calls = []
+        monkeypatch.setattr("builtins.print", lambda *a, **kw: calls.append((a, kw)))
+        w.on_fit_start()
+>       assert calls == [(("yaw_aug ENABLED img_w=512 seed=42 flip=0.5",), {"flush": True})]
+E       AssertionError: assert [] == [(('yaw_aug E...lush': True})]
+E         
+E         Right contains one more item: (('yaw_aug ENABLED img_w=512 seed=42 flip=0.5',), {'flush': True})
+E         Use -v to get more diff
+
+src/tests/test_yaw_aug_flip.py:226: AssertionError
+____________________ test_banner_printed_once_at_fit_start _____________________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f723ce00fa0>
+
+    def test_banner_printed_once_at_fit_start(capsys):
+        wrapper = _enabled_wrapper(img_w=512, seed=42)
+        wrapper.on_fit_start()
+>       assert capsys.readouterr().out.count("yaw_aug ENABLED img_w=512 seed=42") == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <built-in method count of str object at 0x7f73ccea8030>('yaw_aug ENABLED img_w=512 seed=42')
+E        +    where <built-in method count of str object at 0x7f73ccea8030> = ''.count
+E        +      where '' = CaptureResult(out='', err='').out
+E        +        where CaptureResult(out='', err='') = readouterr()
+E        +          where readouterr = <_pytest.capture.CaptureFixture object at 0x7f723ce00fa0>.readouterr
+
+src/tests/test_yaw_aug_training.py:641: AssertionError
+____________________________ test_banner_is_flushed ____________________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f723d4e50c0>
+
+    def test_banner_is_flushed(monkeypatch):
+        """The launcher tees torchrun's stdout through a FIFO without
+        PYTHONUNBUFFERED, so a buffered banner can reach the log after the launch
+        gate has already given up (review finding 3)."""
+        calls = []
+        monkeypatch.setattr("builtins.print", lambda *a, **kw: calls.append((a, kw)))
+        _enabled_wrapper(img_w=512, seed=42).on_fit_start()
+>       assert len(calls) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+src/tests/test_yaw_aug_training.py:651: AssertionError
+_________________ test_treatment_constants_and_the_real_banner _________________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f723cd19ea0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f723d4e6e00>
+
+    def test_treatment_constants_and_the_real_banner(capsys, monkeypatch):
+        assert kit.YAW_BLOCK == {"enabled": True, "img_w": 512, "seed": 42, "flip": True}
+        assert kit.YAW_KWARGS == {"yaw_aug_enabled": True, "yaw_aug_img_w": 512, "yaw_aug_seed": 42,
+                                  "yaw_aug_flip": True}
+        assert kit.BANNER == "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"
+        assert (kit.HIST_BINS, kit.HIST_WIDTH) == (16, 32) and kit.HIST_BINS * kit.HIST_WIDTH == kit.YAW_BLOCK["img_w"]
+        assert json.loads((_REPO / kit.ARM_CONFIG).read_text())["training"]["yaw_aug"] == kit.YAW_BLOCK
+        import src.models.transformer as T
+        monkeypatch.setattr(T, "flash_attn_func", None)
+        m = cap._mods()
+        w = cap.build_wrapper(m, cap.tiny_config(512, {"flip": True}))
+        capsys.readouterr()
+        w._print_yaw_aug_banner()
+>       assert capsys.readouterr().out.strip().splitlines() == [kit.BANNER]
+E       AssertionError: assert [] == ['yaw_aug ENA...=42 flip=0.5']
+E         
+E         Right contains one more item: 'yaw_aug ENABLED img_w=512 seed=42 flip=0.5'
+E         Use -v to get more diff
+
+src/tests/test_exp43_kit.py:285: AssertionError
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+src/tests/test_exp46_c4flip_wrapper.py::test_the_validation_step_never_augments_a_c4f_arm
+src/tests/test_exp46_c4flip_wrapper.py::test_the_test_step_never_augments_a_c4f_arm
+src/tests/test_yaw_aug_c16.py::test_validation_step_never_augments_with_offset_step
+src/tests/test_yaw_aug_c16.py::test_test_step_never_augments_with_offset_step
+src/tests/test_yaw_aug_flip.py::test_validation_step_never_flips
+src/tests/test_yaw_aug_flip.py::test_test_step_never_flips
+src/tests/test_yaw_aug_training.py::test_validation_step_never_augments
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/amp/autocast_mode.py:266: UserWarning: User provided device_type of 'cuda', but CUDA is not available. Disabling
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra0-yaw_aug ENABLED img_w=512 seed=42]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra1-yaw_aug ENABLED img_w=512 seed=42 offset_step=32]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra2-yaw_aug ENABLED img_w=512 seed=42 offset_step=128]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra3-yaw_aug ENABLED img_w=512 seed=42 flip=0.5]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra4-yaw_aug ENABLED img_w=512 seed=42 offset_step=128 flip=0.5]
+FAILED src/tests/test_yaw_aug_c16.py::test_banner_lines[extra0-yaw_aug ENABLED img_w=512 seed=42]
+FAILED src/tests/test_yaw_aug_c16.py::test_banner_lines[extra1-yaw_aug ENABLED img_w=512 seed=42 offset_step=32]
+FAILED src/tests/test_yaw_aug_flip.py::test_banner_lines[extra0-yaw_aug ENABLED img_w=512 seed=42]
+FAILED src/tests/test_yaw_aug_flip.py::test_banner_lines[extra1-yaw_aug ENABLED img_w=512 seed=42]
+FAILED src/tests/test_yaw_aug_flip.py::test_banner_lines[extra2-yaw_aug ENABLED img_w=512 seed=42 offset_step=32]
+FAILED src/tests/test_yaw_aug_flip.py::test_banner_lines[extra3-yaw_aug ENABLED img_w=512 seed=42 offset_step=32]
+FAILED src/tests/test_yaw_aug_flip.py::test_banner_lines[extra4-yaw_aug ENABLED img_w=512 seed=42 flip=0.5]
+FAILED src/tests/test_yaw_aug_flip.py::test_flip_banner_is_one_flushed_print
+FAILED src/tests/test_yaw_aug_training.py::test_banner_printed_once_at_fit_start
+FAILED src/tests/test_yaw_aug_training.py::test_banner_is_flushed - assert 0 ...
+FAILED src/tests/test_exp43_kit.py::test_treatment_constants_and_the_real_banner
+SKIPPED [1] src/tests/test_exp45_receipts.py:72: the GPU-0 smoke evidence lives in this checkout's outputs_FLAC only
+SKIPPED [1] src/tests/test_exp45_receipts.py:716: A6000 box only (nvidia-smi, A6000s)
+SKIPPED [1] src/tests/test_exp45_receipts.py:892: A6000 box only
+SKIPPED [1] src/tests/test_exp45_receipts.py:922: NAS not mounted
+SKIPPED [1] src/tests/test_exp45_registry.py:463: NAS not mounted
+SKIPPED [1] src/tests/test_exp46_receipts.py:72: the GPU-0 smoke evidence lives in this checkout's outputs_FLAC only
+SKIPPED [1] src/tests/test_exp46_receipts.py:716: A6000 box only (nvidia-smi, A6000s)
+SKIPPED [1] src/tests/test_exp46_receipts.py:892: A6000 box only
+SKIPPED [1] src/tests/test_exp46_receipts.py:922: NAS not mounted
+SKIPPED [1] src/tests/test_yaw_aug_collect.py:944: exp_14 campaign artifacts not present in this tree
+SKIPPED [1] src/tests/test_exp43_kit.py:1815: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp43_kit.py:1865: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp43_kit.py:1933: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp43_kit.py:2008: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp43_kit.py:2356: the pinned DINOv3 snapshot is not in this box's HF cache
+16 failed, 2506 passed, 15 skipped, 41 deselected, 17 warnings in 2131.99s (0:35:31)
+EXIT 1 end 2026-11-18T02:21:28-05:00
