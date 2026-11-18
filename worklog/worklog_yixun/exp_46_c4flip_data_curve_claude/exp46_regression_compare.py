@@ -185,6 +185,15 @@ def main(argv=None):
         p.add_argument(f"--{name}-root", required=True, help=f"the checkout the {name} suite ran in")
     p.add_argument("--out")
     a = p.parse_args(argv)
+    if a.out:               # Codex code r1 finding 2: the report's resolved destination, before anything is read
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+        import exp46_registry as reg
+        try:
+            reg.check_isolation(a.out, "the L1 comparison report")
+        except reg.GateError as err:
+            print(f"EXP46 REGRESSION COMPARE: refused: {err}", file=sys.stderr)
+            return 2
     roots = (a.merged_root, a.exp38_root, a.exp43_root)
     try:
         problems, report = compare(load(a.merged, roots), load(a.exp38, roots), load(a.exp43, roots))

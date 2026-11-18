@@ -1457,6 +1457,7 @@ def snapshot_tools(run, dest, repo=None, links=SNAPSHOT_LINKS):
     launched FROM the snapshot and every later audit reads it (Codex code r1 HIGH 5)."""
     import shutil
     repo = repo or REPO
+    check_isolation(dest, "the snapshot")        # Codex code r1 finding 2: every caller, before any read or write
     if os.path.lexists(dest):
         raise GateError(f"snapshot dir {dest} exists")
     lines = []

@@ -142,8 +142,11 @@ def record_problems(rec):
 
 
 def build(out, dataset_root="AcousticRooms", repo=None):
-    """L2: hash every delta file (sequentially) and write the manifest (never over an existing file)."""
+    """L2: hash every delta file (sequentially) and write the manifest (never over an existing file). The resolved
+    destination is isolation-checked first -- before the split is read or anything is written (Codex code r1
+    finding 2: a misdirected --build into an exp_38 / exp_45 namespace refuses)."""
     repo = repo or reg.REPO
+    reg.check_isolation(out, "the delta manifest output")
     if os.path.lexists(out):
         raise reg.GateError(f"{out} exists (the delta manifest is built once)")
     files = delta_files(repo)

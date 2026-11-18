@@ -275,7 +275,9 @@ def test_every_mutating_path_refuses_every_protected_root_before_any_write(tmp_p
     """exp_46 plan r3 §3.2 "Isolation" (Codex plan r1 finding 3, r2 finding 1): a destination equal to, inside, or
     symlinked onto any exp_38 / exp_45 protected root refuses -- realpath, symlinks followed -- at every mutating entry
     point (the storage probe and ledger, submit / abandon / reconcile / release, the supervisor, the evaluator's gates,
-    prepare, the evaluation snapshot writer, prepare-e0) before any write: the protected root is left untouched."""
+    prepare, the evaluation snapshot writer, prepare-e0, both materialisers, and -- fix round 1, Codex code r1 finding
+    2 -- the delta manifest's --build, the init digest's --json, the L1 comparison's --out and snapshot_tools())
+    before any write: the protected root is left untouched."""
     root = protected_all[kind] if kind in protected_all else tmp_path / "tree" / IN_TREE[kind]
     root.mkdir(parents=True, exist_ok=True)
     dest = {"direct": root, "nested": root / "deeper" / "dest", "symlinked": tmp_path / "alias_dest"}[how]
@@ -335,6 +337,29 @@ def test_every_mutating_path_refuses_every_protected_root_before_any_write(tmp_p
         col.materialise(str(dest), root=str(tmp_path / "published"))
     with pytest.raises(tbl.TableError, match="exp_38 / exp_45"):                   # the exp_38 import materialiser
         tbl.materialise(str(tmp_path / "bundle"), {}, str(dest))
+    # fix round 1 (Codex code r1 finding 2): the auxiliary writers -- the delta manifest's --build output, the init
+    # digest's --json record, the L1 comparison's --out report and snapshot_tools() -- check the resolved destination
+    # before any read of their inputs and before any write
+    import exp46_content_manifest as cm46
+    monkeypatch.setattr(cm46, "delta_files", lambda repo=None: (_ for _ in ()).throw(AssertionError("split read")))
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        cm46.build(str(dest / "exp46_f100_delta_manifest.txt.gz"))
+    assert cm46.main(["--build", str(dest / "m.txt.gz")]) == 2
+    assert cm46.main(["--verify", str(dest / "m.txt.gz")]) == 1            # a reader: FAIL, nothing written
+    idg = _load(os.path.join(EXP, "exp46_init_digest.py"), "exp46_init_digest_isolation_matrix")
+    monkeypatch.setattr(idg, "init_digest", lambda *a, **k: (_ for _ in ()).throw(AssertionError("model built")))
+    assert idg.main(["--run", RUN, "--json", str(dest / "init_digest.json")]) == 2
+    rc = _load(os.path.join(EXP, "exp46_regression_compare.py"), "exp46_rc_isolation_matrix")
+    junit = tmp_path / "junit.xml"
+    junit.write_text('<?xml version="1.0"?><testsuites><testsuite name="pytest"><testcase classname="src.tests.test_a" '
+                     'name="test_x" time="0.1"></testcase></testsuite></testsuites>')
+    cmp_argv = ["--merged", str(junit), "--exp38", str(junit), "--exp43", str(junit), "--merged-root", "/m",
+                "--exp38-root", "/p", "--exp43-root", "/q"]
+    assert rc.main(cmp_argv + ["--out", str(tmp_path / "exp46_report.json")]) in (0, 1)  # the guard admits exp_46's
+    assert (tmp_path / "exp46_report.json").exists()                                     # own destination
+    assert rc.main(cmp_argv + ["--out", str(dest / "report.json")]) == 2
+    with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+        reg.snapshot_tools(RUN, str(dest / "snap"))
     assert _listing(root) == before                                         # zero writes into the protected root
     assert not (tmp_path / "exp46_save_root").exists()
 

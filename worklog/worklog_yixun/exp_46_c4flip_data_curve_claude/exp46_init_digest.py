@@ -57,14 +57,20 @@ def main(argv=None):
     p.add_argument("--run", required=True)
     p.add_argument("--json")
     a = p.parse_args(argv)
+    if a.json:              # the destination FIRST (Codex code r1 finding 2): resolved, isolation-checked, never clobbered
+        try:                # -- before the model is built
+            reg.check_isolation(a.json, "the init-digest record")
+        except reg.GateError as err:
+            print(f"EXP46 INIT DIGEST REFUSED: {err}", file=sys.stderr)
+            return 2
+        if os.path.lexists(a.json):
+            print(f"refusing to overwrite {a.json}", file=sys.stderr)
+            return 2
     out = init_digest(a.run)
     text = json.dumps(out, indent=1, sort_keys=True)
     print(text)
     if a.json:
-        if os.path.exists(a.json):
-            print(f"refusing to overwrite {a.json}", file=sys.stderr)
-            return 2
-        with open(a.json, "w") as fh:
+        with open(a.json, "x") as fh:                     # exclusive: a file created meanwhile is never overwritten
             fh.write(text + "\n")
     return 0
 
