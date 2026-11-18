@@ -1,0 +1,308 @@
+HEAD 26d644d06282775bbc0c22a1960e3a04e82b7b39 tracked-clean=no host neu302.neuronic.cs.princeton.edu start 2026-11-18T01:25:50-05:00
+cmd: pytest -q -rfE src/tests/test_gen_model_comparison_exp46.py src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically 
+FFFFFFFFF                                                                [100%]
+=================================== FAILURES ===================================
+___ test_eight_preregistered_rows_with_exact_globs_and_exp45s_six_unchanged ____
+
+    def test_eight_preregistered_rows_with_exact_globs_and_exp45s_six_unchanged():
+        rows = [r for r in gen.ROWS if len(r) > 4 and r[4] == "exp46"]
+>       assert len(rows) == 8 and sorted((gen.exp46_run_of(r[0]), r[2]) for r in rows) == sorted(
+            (run, k) for run in RUNS for k in (1, 8))
+E       assert (0 == 8)
+E        +  where 0 = len([])
+
+src/tests/test_gen_model_comparison_exp46.py:38: AssertionError
+_______________________ test_validate_exp46_cell_offline _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_exp46_cell_offli0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0f46d46dd0>
+
+    def test_validate_exp46_cell_offline(tmp_path, monkeypatch):
+>       root, ev = _tmp_root(tmp_path, monkeypatch)
+
+src/tests/test_gen_model_comparison_exp46.py:100: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_validate_exp46_cell_offli0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0f46d46dd0>
+delta_pin = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+
+    def _tmp_root(tmp_path, monkeypatch, delta_pin="e" * 64):
+        """A self-contained root holding only what OFFLINE admission reads (exp46_collect.generator_static(): the exp_46
+        kit's evaluator + registry, the C4F and E0 configs, exp_38's read-only reference cells and E0a decision) -- and no
+        exp_45 file at all; the cached exp46 modules are set aside so the root's own copies (REPO = this root) are the
+        ones the loaded validator uses. ``delta_pin`` stands in for the f100 delta manifest's L2 pin."""
+        sys.path.insert(0, os.path.join(REPO, EXP_REL))
+        import exp46_collect as col
+        root = tmp_path / "repo"
+        (root / ".git").mkdir(parents=True)
+        for rel in col.generator_static():
+            (root / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(os.path.join(REPO, rel), root / rel)
+        assert not [rel for rel in col.generator_static() if "exp_45" in rel or "exp45" in rel]
+        for name in ("exp46_registry", "exp46_eval"):
+            monkeypatch.delitem(sys.modules, name, raising=False)
+        monkeypatch.setattr(sys, "path", list(sys.path))
+>       ev = gen._load_exp46_eval(str(root))
+E       AttributeError: module 'gen_model_comparison_exp46_test' has no attribute '_load_exp46_eval'. Did you mean: '_load_exp45_eval'?
+
+src/tests/test_gen_model_comparison_exp46.py:71: AttributeError
+_ test_offline_admission_needs_the_e0_receipt_the_training_receipt_and_its_loss_record _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_offline_admission_needs_t0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0f46ca7e20>
+
+    def test_offline_admission_needs_the_e0_receipt_the_training_receipt_and_its_loss_record(tmp_path, monkeypatch):
+>       root, ev = _tmp_root(tmp_path, monkeypatch)
+
+src/tests/test_gen_model_comparison_exp46.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_offline_admission_needs_t0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0f46ca7e20>
+delta_pin = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+
+    def _tmp_root(tmp_path, monkeypatch, delta_pin="e" * 64):
+        """A self-contained root holding only what OFFLINE admission reads (exp46_collect.generator_static(): the exp_46
+        kit's evaluator + registry, the C4F and E0 configs, exp_38's read-only reference cells and E0a decision) -- and no
+        exp_45 file at all; the cached exp46 modules are set aside so the root's own copies (REPO = this root) are the
+        ones the loaded validator uses. ``delta_pin`` stands in for the f100 delta manifest's L2 pin."""
+        sys.path.insert(0, os.path.join(REPO, EXP_REL))
+        import exp46_collect as col
+        root = tmp_path / "repo"
+        (root / ".git").mkdir(parents=True)
+        for rel in col.generator_static():
+            (root / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(os.path.join(REPO, rel), root / rel)
+        assert not [rel for rel in col.generator_static() if "exp_45" in rel or "exp45" in rel]
+        for name in ("exp46_registry", "exp46_eval"):
+            monkeypatch.delitem(sys.modules, name, raising=False)
+        monkeypatch.setattr(sys, "path", list(sys.path))
+>       ev = gen._load_exp46_eval(str(root))
+E       AttributeError: module 'gen_model_comparison_exp46_test' has no attribute '_load_exp46_eval'. Did you mean: '_load_exp45_eval'?
+
+src/tests/test_gen_model_comparison_exp46.py:71: AttributeError
+_ test_the_f100_rows_need_the_sealed_delta_verification_at_the_pinned_manifest _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_f100_rows_need_the_se0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0f46d887c0>
+
+    def test_the_f100_rows_need_the_sealed_delta_verification_at_the_pinned_manifest(tmp_path, monkeypatch):
+        """plan r3 §3.2 "Data binding for f100": the generator's offline admission of an f100 cell re-opens the run's
+        retained delta verification record (through the training receipt's offline check); missing, changed, or under no
+        / another pin -> the row does not validate. The registry ships the pin None (L2), so no f100 row can publish yet."""
+>       root, ev = _tmp_root(tmp_path, monkeypatch)
+
+src/tests/test_gen_model_comparison_exp46.py:148: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_f100_rows_need_the_se0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0f46d887c0>
+delta_pin = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+
+    def _tmp_root(tmp_path, monkeypatch, delta_pin="e" * 64):
+        """A self-contained root holding only what OFFLINE admission reads (exp46_collect.generator_static(): the exp_46
+        kit's evaluator + registry, the C4F and E0 configs, exp_38's read-only reference cells and E0a decision) -- and no
+        exp_45 file at all; the cached exp46 modules are set aside so the root's own copies (REPO = this root) are the
+        ones the loaded validator uses. ``delta_pin`` stands in for the f100 delta manifest's L2 pin."""
+        sys.path.insert(0, os.path.join(REPO, EXP_REL))
+        import exp46_collect as col
+        root = tmp_path / "repo"
+        (root / ".git").mkdir(parents=True)
+        for rel in col.generator_static():
+            (root / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(os.path.join(REPO, rel), root / rel)
+        assert not [rel for rel in col.generator_static() if "exp_45" in rel or "exp45" in rel]
+        for name in ("exp46_registry", "exp46_eval"):
+            monkeypatch.delitem(sys.modules, name, raising=False)
+        monkeypatch.setattr(sys, "path", list(sys.path))
+>       ev = gen._load_exp46_eval(str(root))
+E       AttributeError: module 'gen_model_comparison_exp46_test' has no attribute '_load_exp46_eval'. Did you mean: '_load_exp45_eval'?
+
+src/tests/test_gen_model_comparison_exp46.py:71: AttributeError
+__________ test_published_exp46_rows_carry_the_registered_disclosures __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_published_exp46_rows_carr0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0f46cdb760>
+
+    def test_published_exp46_rows_carry_the_registered_disclosures(tmp_path, monkeypatch):
+        """Under the shared table, published exp_46 rows carry the plan r3 §8 disclosures, loaded from the exp_46 kit at
+        the generator root (exp46_registry.disclosures("generator") -- the one source the exp_46 tables print); none while
+        every exp_46 row is pending or withheld; fail closed when they cannot be loaded."""
+>       root, ev = _tmp_root(tmp_path, monkeypatch)
+
+src/tests/test_gen_model_comparison_exp46.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_published_exp46_rows_carr0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0f46cdb760>
+delta_pin = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+
+    def _tmp_root(tmp_path, monkeypatch, delta_pin="e" * 64):
+        """A self-contained root holding only what OFFLINE admission reads (exp46_collect.generator_static(): the exp_46
+        kit's evaluator + registry, the C4F and E0 configs, exp_38's read-only reference cells and E0a decision) -- and no
+        exp_45 file at all; the cached exp46 modules are set aside so the root's own copies (REPO = this root) are the
+        ones the loaded validator uses. ``delta_pin`` stands in for the f100 delta manifest's L2 pin."""
+        sys.path.insert(0, os.path.join(REPO, EXP_REL))
+        import exp46_collect as col
+        root = tmp_path / "repo"
+        (root / ".git").mkdir(parents=True)
+        for rel in col.generator_static():
+            (root / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(os.path.join(REPO, rel), root / rel)
+        assert not [rel for rel in col.generator_static() if "exp_45" in rel or "exp45" in rel]
+        for name in ("exp46_registry", "exp46_eval"):
+            monkeypatch.delitem(sys.modules, name, raising=False)
+        monkeypatch.setattr(sys, "path", list(sys.path))
+>       ev = gen._load_exp46_eval(str(root))
+E       AttributeError: module 'gen_model_comparison_exp46_test' has no attribute '_load_exp46_eval'. Did you mean: '_load_exp45_eval'?
+
+src/tests/test_gen_model_comparison_exp46.py:71: AttributeError
+___________ test_round_gate_publishes_only_complete_pairs_at_one_pin ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_round_gate_publishes_only0')
+
+    def test_round_gate_publishes_only_complete_pairs_at_one_pin(tmp_path):
+>       label = gen.EXP46_LABELS["100"]
+E       AttributeError: module 'gen_model_comparison_exp46_test' has no attribute 'EXP46_LABELS'. Did you mean: 'EXP45_LABELS'?
+
+src/tests/test_gen_model_comparison_exp46.py:192: AttributeError
+_ test_exp45_is_dormant_a_regen_with_exp46_evidence_and_no_exp45_evidence_publishes _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_exp45_is_dormant_a_regen_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0f46cdb400>
+
+    def test_exp45_is_dormant_a_regen_with_exp46_evidence_and_no_exp45_evidence_publishes(tmp_path, monkeypatch):
+        """plan r3 §3.2 "Generator": through main(), over a root holding a complete exp_46 C4F f=25 % run (K=8 + K=1,
+        five seeds each) and NO exp_45 file at all, the two C4F rows publish with the registered disclosures, the other
+        six exp_46 rows stay pending, and exp_45's six rows render exactly the pending placeholders they render with no
+        evidence at all -- no exp_45 row, bridge artifact or exp_45 kit is required (none exists to read)."""
+>       root, ev = _tmp_root(tmp_path, monkeypatch)
+
+src/tests/test_gen_model_comparison_exp46.py:223: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_exp45_is_dormant_a_regen_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0f46cdb400>
+delta_pin = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+
+    def _tmp_root(tmp_path, monkeypatch, delta_pin="e" * 64):
+        """A self-contained root holding only what OFFLINE admission reads (exp46_collect.generator_static(): the exp_46
+        kit's evaluator + registry, the C4F and E0 configs, exp_38's read-only reference cells and E0a decision) -- and no
+        exp_45 file at all; the cached exp46 modules are set aside so the root's own copies (REPO = this root) are the
+        ones the loaded validator uses. ``delta_pin`` stands in for the f100 delta manifest's L2 pin."""
+        sys.path.insert(0, os.path.join(REPO, EXP_REL))
+        import exp46_collect as col
+        root = tmp_path / "repo"
+        (root / ".git").mkdir(parents=True)
+        for rel in col.generator_static():
+            (root / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(os.path.join(REPO, rel), root / rel)
+        assert not [rel for rel in col.generator_static() if "exp_45" in rel or "exp45" in rel]
+        for name in ("exp46_registry", "exp46_eval"):
+            monkeypatch.delitem(sys.modules, name, raising=False)
+        monkeypatch.setattr(sys, "path", list(sys.path))
+>       ev = gen._load_exp46_eval(str(root))
+E       AttributeError: module 'gen_model_comparison_exp46_test' has no attribute '_load_exp46_eval'. Did you mean: '_load_exp45_eval'?
+
+src/tests/test_gen_model_comparison_exp46.py:71: AttributeError
+____________ test_an_incomplete_exp46_pair_is_withheld_through_main ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_incomplete_exp46_pair_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0f46deaa40>
+
+    def test_an_incomplete_exp46_pair_is_withheld_through_main(tmp_path, monkeypatch):
+        """A run with only its K=8 cells on disk publishes nothing: both rows WITHHELD, no disclosures (fail closed)."""
+>       root, ev = _tmp_root(tmp_path, monkeypatch)
+
+src/tests/test_gen_model_comparison_exp46.py:246: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_incomplete_exp46_pair_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0f46deaa40>
+delta_pin = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+
+    def _tmp_root(tmp_path, monkeypatch, delta_pin="e" * 64):
+        """A self-contained root holding only what OFFLINE admission reads (exp46_collect.generator_static(): the exp_46
+        kit's evaluator + registry, the C4F and E0 configs, exp_38's read-only reference cells and E0a decision) -- and no
+        exp_45 file at all; the cached exp46 modules are set aside so the root's own copies (REPO = this root) are the
+        ones the loaded validator uses. ``delta_pin`` stands in for the f100 delta manifest's L2 pin."""
+        sys.path.insert(0, os.path.join(REPO, EXP_REL))
+        import exp46_collect as col
+        root = tmp_path / "repo"
+        (root / ".git").mkdir(parents=True)
+        for rel in col.generator_static():
+            (root / os.path.dirname(rel)).mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(os.path.join(REPO, rel), root / rel)
+        assert not [rel for rel in col.generator_static() if "exp_45" in rel or "exp45" in rel]
+        for name in ("exp46_registry", "exp46_eval"):
+            monkeypatch.delitem(sys.modules, name, raising=False)
+        monkeypatch.setattr(sys, "path", list(sys.path))
+>       ev = gen._load_exp46_eval(str(root))
+E       AttributeError: module 'gen_model_comparison_exp46_test' has no attribute '_load_exp46_eval'. Did you mean: '_load_exp45_eval'?
+
+src/tests/test_gen_model_comparison_exp46.py:71: AttributeError
+______________ test_every_pre_exp25_row_renders_byte_identically _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_pre_exp25_row_rende0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0f46cdbdf0>
+
+    def test_every_pre_exp25_row_renders_byte_identically(tmp_path, monkeypatch):
+        base_mod = _generator_at(BASE_COMMIT)
+        base = _render_lines(base_mod, tmp_path / "base.md", monkeypatch)
+        cur = _render_lines(G, tmp_path / "cur.md", monkeypatch)
+        exp25 = [ln for ln in cur if any(ln.startswith(f"| {label} |") for label in G.EXP25_LABELS.values())]
+        assert len(exp25) == 6                                               # the additive rows, nothing else
+        # exp_14 round P appended its own additive block after exp_25's: the twelve data-curve rows
+        data_curve = [ln for ln in cur if ln.startswith("| data-curve ")]
+        assert len(data_curve) == 12
+        # exp_40 appended its own additive block (the two C16 theta=0 rows, contract exp40)
+        exp40 = [ln for ln in cur if ln.startswith(f"| {G.EXP40_LABEL} |")]
+        assert len(exp40) == 2
+        # exp_38 appended its own additive block of twelve preregistered rows (pending until its cells land)
+        data_eff = [ln for ln in cur if any(ln.startswith(f"| {label} |") for label in G.EXP38_LABELS.values())]
+        assert len(data_eff) == 12
+        # exp_45 appended its own additive block of six preregistered RF rows (pending until its cells land)
+        exp45 = [ln for ln in cur if any(ln.startswith(f"| {label} |") for label in G.EXP45_LABELS.values())]
+        assert len(exp45) == 6
+        # exp_46 appended its own additive block of eight preregistered C4F rows (exp_46 declared edit E5): pending here,
+        # so zero exp_46 disclosure blocks; the published case is asserted below
+>       exp46 = [ln for ln in cur if any(ln.startswith(f"| {label} |") for label in G.EXP46_LABELS.values())]
+
+src/tests/test_gen_model_comparison_depth_canon.py:240: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <list_iterator object at 0x7f1055460130>
+
+>   exp46 = [ln for ln in cur if any(ln.startswith(f"| {label} |") for label in G.EXP46_LABELS.values())]
+E   AttributeError: module 'gen_model_comparison' has no attribute 'EXP46_LABELS'. Did you mean: 'EXP45_LABELS'?
+
+src/tests/test_gen_model_comparison_depth_canon.py:240: AttributeError
+----------------------------- Captured stdout call -----------------------------
+wrote /tmp/pytest-of-yh4742/pytest-0/test_every_pre_exp25_row_rende0/base.md
+wrote /tmp/pytest-of-yh4742/pytest-0/test_every_pre_exp25_row_rende0/cur.md
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_gen_model_comparison_exp46.py::test_eight_preregistered_rows_with_exact_globs_and_exp45s_six_unchanged
+FAILED src/tests/test_gen_model_comparison_exp46.py::test_validate_exp46_cell_offline
+FAILED src/tests/test_gen_model_comparison_exp46.py::test_offline_admission_needs_the_e0_receipt_the_training_receipt_and_its_loss_record
+FAILED src/tests/test_gen_model_comparison_exp46.py::test_the_f100_rows_need_the_sealed_delta_verification_at_the_pinned_manifest
+FAILED src/tests/test_gen_model_comparison_exp46.py::test_published_exp46_rows_carry_the_registered_disclosures
+FAILED src/tests/test_gen_model_comparison_exp46.py::test_round_gate_publishes_only_complete_pairs_at_one_pin
+FAILED src/tests/test_gen_model_comparison_exp46.py::test_exp45_is_dormant_a_regen_with_exp46_evidence_and_no_exp45_evidence_publishes
+FAILED src/tests/test_gen_model_comparison_exp46.py::test_an_incomplete_exp46_pair_is_withheld_through_main
+FAILED src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically
+9 failed, 3 warnings in 163.09s (0:02:43)
+EXIT 1 end 2026-11-18T01:28:49-05:00

@@ -1,0 +1,56 @@
+HEAD dfbbda543a9fdab6b729b0974e5ea05067f65f46 tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-18T00:02:36-05:00
+cmd: pytest -q -rfEs src/tests/test_exp46_paths.py src/tests/test_exp46_table.py src/tests/test_exp46_registry.py 
+................F....................................................... [ 75%]
+........................                                                 [100%]
+=================================== FAILURES ===================================
+___ test_the_disclosures_have_one_source_and_appear_under_every_exp46_table ____
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '8a770f42781aa3509b1ec2fa99ffe17b7ba9b7e6', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+
+    def test_the_disclosures_have_one_source_and_appear_under_every_exp46_table(built):
+        """Codex code r1 finding 15: the plan r3 §8 disclosures live in ONE place (exp46_registry.DISCLOSURES) and print
+        under every exp_46 table -- this comparison table, the collector's results Markdown (all but item 7: it has no
+        OrbitRIR row) and the shared generator's exp_46 block (test_gen_model_comparison_exp45.py) -- so they cannot drift."""
+        reg = tbl.reg
+        assert len(reg.DISCLOSURES) == 12 and tbl.DISCLOSURES == reg.disclosures("table") == reg.DISCLOSURES
+>       assert reg.disclosures("collect") == tuple(d for i, d in enumerate(reg.DISCLOSURES, 1) if i != 7)
+E       AssertionError: assert ('1. One trai...otocol.', ...) == ('1. One trai...otocol.', ...)
+E         
+E         Right contains one more item: '12. YAW-Aug and OrbitRIR appear at 25 / 50 / 75 % only; their 100 % rows in model_comparison.md come from earlier A6000 runs in other evaluation trees and are not part of this table.'
+E         Use -v to get more diff
+
+src/tests/test_exp46_table.py:317: AssertionError
+=============================== warnings summary ===============================
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    from pkg_resources import packaging
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_table.py::test_the_disclosures_have_one_source_and_appear_under_every_exp46_table
+1 failed, 95 passed, 7 warnings in 47.31s
+EXIT 1 end 2026-11-18T00:03:26-05:00

@@ -1,0 +1,35 @@
+HEAD 1775f0f01100da703e71889f3801137c3e6887fc tracked-clean=no host neu301.neuronic.cs.princeton.edu start 2026-11-18T00:51:44-05:00
+cmd: pytest -q -rfE --continue-on-collection-errors src/tests/test_exp46_isolation.py src/tests/test_exp46_paths.py 
+F.......                                                                 [100%]
+==================================== ERRORS ====================================
+______________ ERROR collecting src/tests/test_exp46_isolation.py ______________
+src/tests/test_exp46_isolation.py:250: in <module>
+    IN_TREE = {"exp38 farm": reg.EXP38_FARM, "exp38 worklog": reg.EXP38_DIR, "exp38 SMOKE folder": reg.EXP38_SMOKE_DIR,
+E   AttributeError: module 'exp46_registry' has no attribute 'EXP38_SMOKE_DIR'
+=================================== FAILURES ===================================
+___ test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition ___
+
+    def test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition():
+        got = set(foreign_literals())
+        unregistered = sorted(got - set(REGISTERED))
+        stale = sorted(set(REGISTERED) - got)
+>       assert not unregistered and not stale, "\n" + "\n".join(f"{kind} {f} {s!r}" for kind, items in
+                                                           (("UNREGISTERED", unregistered), ("STALE", stale)) for f, s in items)
+E       AssertionError: 
+E         STALE exp46_registry.py '/home/yixunhu/codespace/exp-38-snapshots'
+E         STALE exp46_registry.py '/home/yixunhu/codespace/exp-45-campaign'
+E         STALE exp46_registry.py '/home/yixunhu/codespace/exp-45-publish'
+E         STALE exp46_registry.py '/media/diskstation/yixunhu/FLAC/checkpoints/exp45_rf_data_curve'
+E         STALE exp46_registry.py '/media/diskstation/yixunhu/FLAC/exp45_pred_waveforms'
+E         STALE exp46_registry.py '/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve'
+E         STALE exp46_registry.py 'outputs_FLAC/exp38_smoke'
+E         STALE exp46_registry.py 'outputs_FLAC/exp45_rf_data_curve/eval'
+E         STALE exp46_registry.py 'worklog/worklog_yixun/exp_45_rf_data_curve_claude'
+E       assert (not [] and not [('exp46_registry.py', '/home/yixunhu/codespace/exp-38-snapshots'), ('exp46_registry.py', '/home/yixunhu/codespace/exp...LAC/exp45_pred_waveforms'), ('exp46_registry.py', '/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve'), ...])
+
+src/tests/test_exp46_paths.py:76: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_paths.py::test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition
+ERROR src/tests/test_exp46_isolation.py - AttributeError: module 'exp46_regis...
+1 failed, 7 passed, 1 error in 4.42s
+EXIT 1 end 2026-11-18T00:51:50-05:00

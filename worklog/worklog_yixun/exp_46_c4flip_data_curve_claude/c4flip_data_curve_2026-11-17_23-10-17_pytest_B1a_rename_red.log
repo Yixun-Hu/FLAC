@@ -1,0 +1,1046 @@
+HEAD 407d11d1f77d7a1b4f23f497d53f95c9494c3da8 tracked-clean=no host neu312.neuronic.cs.princeton.edu start 2026-11-17T23:10:18-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_registry.py src/tests/test_exp46_regression_compare.py src/tests/test_exp46_sampler.py src/tests/test_exp46_ddp_evidence.py 
+FF...................FF.FFFFFF.F.F.FFFFFFFFFFFFFFFFFFFFF....Fss..F...... [ 84%]
+.............                                                            [100%]
+=================================== FAILURES ===================================
+______ test_the_registry_imports_and_registers_exactly_the_three_rf_runs _______
+
+    def test_the_registry_imports_and_registers_exactly_the_three_rf_runs():
+        """plan r3 §3.2: exactly three runs; no P1 bridge, no 8x8 rung, no _r suffix (import-time construction)."""
+>       assert reg.required_runs() == reg.all_runs() == reg.campaign_runs() == [RF["025"], RF["050"], RF["075"]]
+E       AssertionError: assert ['exp45_RFf02...075_l40_2x32'] == ['exp46_RFf02...075_l40_2x32']
+E         
+E         At index 0 diff: 'exp45_RFf025_l40_2x32' != 'exp46_RFf025_l40_2x32'
+E         Use -v to get more diff
+
+src/tests/test_exp46_registry.py:53: AssertionError
+_______________ test_the_one_rung_keeps_eff_and_syncbn_batch_64 ________________
+
+    def test_the_one_rung_keeps_eff_and_syncbn_batch_64():
+        assert reg.RUNGS == {"2x32": {"ngpu": 2, "micro": 32, "default": True}}
+        assert reg.check_rung("a6000", "2x32")["micro"] == reg.check_rung("neuronic", "2x32")["micro"] == 32
+        for platform in ("a6000", "neuronic"):
+            with pytest.raises(reg.GateError):
+                reg.check_rung(platform, "8x8", allow_nonmatched=True)
+            assert reg.PLATFORMS[platform]["rungs"] == ("2x32",)
+>       assert reg.PLATFORMS["neuronic"]["save_root"] == "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve"
+E       AssertionError: assert '/n/fs/gatrdp...rf_data_curve' == '/n/fs/gatrdp...ip_data_curve'
+E         
+E         Skipping 35 identical leading characters in diff, use -v to show
+E         - _FLAC/exp46_c4flip_data_curve
+E         ?           ^ ^^ ---
+E         + _FLAC/exp45_rf_data_curve
+E         ?           ^ ^
+
+src/tests/test_exp46_registry.py:71: AssertionError
+_________________ test_run_dir_fresh_and_complete_states_only __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_run_dir_fresh_and_complet0')
+
+    def test_run_dir_fresh_and_complete_states_only(tmp_path):
+        """No resume state exists (Codex code r1 HIGH 2): a run dir is fresh (0) or complete (40,000)."""
+        run = RF["025"]
+>       assert reg.check_run_dir(str(tmp_path / "absent"), run, 0)["state"] == "fresh"
+
+src/tests/test_exp46_registry.py:161: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:330: in check_run_dir
+    _, tag, _ = parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+____________________ test_d2_campaign_is_the_three_rf_runs _____________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f76b330b910>
+
+    def test_d2_campaign_is_the_three_rf_runs(monkeypatch):
+        assert reg.TRAINING_PLATFORM == "neuronic"
+>       assert reg.campaign_runs() == list(RF.values()) and all(r in reg.REGISTERED_RUNS for r in reg.campaign_runs())
+E       AssertionError: assert (['exp45_RFf02...075_l40_2x32'] == ['exp46_RFf02...075_l40_2x32']
+E         
+E         At index 0 diff: 'exp45_RFf025_l40_2x32' != 'exp46_RFf025_l40_2x32'
+E         Use -v to get more diff)
+
+src/tests/test_exp46_registry.py:198: AssertionError
+_ test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions[025] _
+
+tag = '025'
+
+    @pytest.mark.parametrize("tag", ["025", "050", "075"])
+    def test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions(tag):
+        """plan r3 §2 argv rule: F2 with exactly --model-config (RF), the fraction's dataset config, --name /
+        --experiment-name = run id, --save-dir / --evidence-json under the exp_46 save root -- nothing else."""
+        run = RF[tag]
+        rd = f"/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/{run}"
+        want = list(DE_YAW_F025_ARGV)
+        for flag, value in (("--model-config", reg.ARMS["rf"]["config"]), ("--dataset-config", reg.FRACS[tag]["dataset_config"]),
+                            ("--name", run), ("--experiment-name", run), ("--save-dir", rd),
+                            ("--evidence-json", rd + "/evidence/run_evidence.json")):
+            want[want.index(flag) + 1] = value
+>       got = reg.build_train_argv(run, "neuronic")
+
+src/tests/test_exp46_registry.py:224: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:609: in build_train_argv
+    arm, tag, rung = parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+_ test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions[050] _
+
+tag = '050'
+
+    @pytest.mark.parametrize("tag", ["025", "050", "075"])
+    def test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions(tag):
+        """plan r3 §2 argv rule: F2 with exactly --model-config (RF), the fraction's dataset config, --name /
+        --experiment-name = run id, --save-dir / --evidence-json under the exp_46 save root -- nothing else."""
+        run = RF[tag]
+        rd = f"/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/{run}"
+        want = list(DE_YAW_F025_ARGV)
+        for flag, value in (("--model-config", reg.ARMS["rf"]["config"]), ("--dataset-config", reg.FRACS[tag]["dataset_config"]),
+                            ("--name", run), ("--experiment-name", run), ("--save-dir", rd),
+                            ("--evidence-json", rd + "/evidence/run_evidence.json")):
+            want[want.index(flag) + 1] = value
+>       got = reg.build_train_argv(run, "neuronic")
+
+src/tests/test_exp46_registry.py:224: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:609: in build_train_argv
+    arm, tag, rung = parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf050_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf050_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+_ test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions[075] _
+
+tag = '075'
+
+    @pytest.mark.parametrize("tag", ["025", "050", "075"])
+    def test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions(tag):
+        """plan r3 §2 argv rule: F2 with exactly --model-config (RF), the fraction's dataset config, --name /
+        --experiment-name = run id, --save-dir / --evidence-json under the exp_46 save root -- nothing else."""
+        run = RF[tag]
+        rd = f"/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/{run}"
+        want = list(DE_YAW_F025_ARGV)
+        for flag, value in (("--model-config", reg.ARMS["rf"]["config"]), ("--dataset-config", reg.FRACS[tag]["dataset_config"]),
+                            ("--name", run), ("--experiment-name", run), ("--save-dir", rd),
+                            ("--evidence-json", rd + "/evidence/run_evidence.json")):
+            want[want.index(flag) + 1] = value
+>       got = reg.build_train_argv(run, "neuronic")
+
+src/tests/test_exp46_registry.py:224: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:609: in build_train_argv
+    arm, tag, rung = parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf075_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf075_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_argv_per_run[exp46_RFf025_l40_2x32] ___________________
+
+run = 'exp46_RFf025_l40_2x32'
+
+    @pytest.mark.parametrize("run", sorted(RF.values()))
+    def test_argv_per_run(run):
+>       arm, tag, _ = reg.parse_run_id(run)
+
+src/tests/test_exp46_registry.py:235: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_argv_per_run[exp46_RFf050_l40_2x32] ___________________
+
+run = 'exp46_RFf050_l40_2x32'
+
+    @pytest.mark.parametrize("run", sorted(RF.values()))
+    def test_argv_per_run(run):
+>       arm, tag, _ = reg.parse_run_id(run)
+
+src/tests/test_exp46_registry.py:235: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf050_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf050_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_argv_per_run[exp46_RFf075_l40_2x32] ___________________
+
+run = 'exp46_RFf075_l40_2x32'
+
+    @pytest.mark.parametrize("run", sorted(RF.values()))
+    def test_argv_per_run(run):
+>       arm, tag, _ = reg.parse_run_id(run)
+
+src/tests/test_exp46_registry.py:235: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf075_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf075_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+_________________________ test_smoke_argv_is_ddp_only __________________________
+
+    def test_smoke_argv_is_ddp_only():
+        """Codex code r1 finding 11 (plan r3 §5 L5: every SMOKE is 2 x L40): the single-rank SMOKE argv is refused."""
+        for kw in ({}, {"ddp": False}):
+>           with pytest.raises(reg.GateError, match="2 x 32"):
+E           AssertionError: Regex pattern did not match.
+E             Expected regex: '2 x 32'
+E             Actual message: "not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'"
+
+src/tests/test_exp46_registry.py:263: AssertionError
+________________ test_audit_ckpt_pass_and_every_schema_mutation ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_audit_ckpt_pass_and_every0')
+
+    def test_audit_ckpt_pass_and_every_schema_mutation(tmp_path):
+        run, step = RF["025"], 40000
+        good = tmp_path / reg.ckpt_name(step, "025")
+>       _fake_ckpt(str(good), run, step)
+
+src/tests/test_exp46_registry.py:416: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:331: in _fake_ckpt
+    ck = _ckpt_dict(run, step, run_dir or os.path.dirname(path))
+src/tests/test_exp46_registry.py:280: in _ckpt_dict
+    arm, tag, rung = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+__________________ test_ckpt_manifest_needs_the_full_cadence ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_ckpt_manifest_needs_the_f0')
+
+    def test_ckpt_manifest_needs_the_full_cadence(tmp_path):
+        run = RF["075"]
+        d = tmp_path / run
+        _touch(d, [reg.ckpt_name(s, "075") for s in reg.cadence_steps(37500)])
+        with pytest.raises(reg.GateError):
+            reg.write_ckpt_manifest(str(d), run)
+        _touch(d, [reg.ckpt_name(40000, "075")])
+>       out = reg.write_ckpt_manifest(str(d), run)
+
+src/tests/test_exp46_registry.py:466: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:590: in write_ckpt_manifest
+    _, tag, _ = parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf075_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf075_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________________ test_log_gate_start_pass ___________________________
+
+    def test_log_gate_start_pass():
+>       assert reg.log_gate(_log(), RF["025"], "start", "flash", 2) == []
+
+src/tests/test_exp46_registry.py:495: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+_____________ test_log_gate_refuses_every_world_size_but_2[1-2296] _____________
+
+ngpu = 1, spe = 2296
+
+    @pytest.mark.parametrize("ngpu,spe", [(1, 2296), (1, 1148), (4, 574), (0, 1148)])
+    def test_log_gate_refuses_every_world_size_but_2(ngpu, spe):
+        """Codex code r1 finding 11: every exp_46 launch path is 2 x 32 (plan r3 §5 L5, RUNGS); a log of any other world
+        size is refused explicitly -- whatever its loader length (a single rank's own 2,296 batches included)."""
+>       probs = reg.log_gate(_log(ngpu=max(ngpu, 1), spe=spe), RF["025"], "start", "flash", ngpu)
+
+src/tests/test_exp46_registry.py:504: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+_____________ test_log_gate_refuses_every_world_size_but_2[1-1148] _____________
+
+ngpu = 1, spe = 1148
+
+    @pytest.mark.parametrize("ngpu,spe", [(1, 2296), (1, 1148), (4, 574), (0, 1148)])
+    def test_log_gate_refuses_every_world_size_but_2(ngpu, spe):
+        """Codex code r1 finding 11: every exp_46 launch path is 2 x 32 (plan r3 §5 L5, RUNGS); a log of any other world
+        size is refused explicitly -- whatever its loader length (a single rank's own 2,296 batches included)."""
+>       probs = reg.log_gate(_log(ngpu=max(ngpu, 1), spe=spe), RF["025"], "start", "flash", ngpu)
+
+src/tests/test_exp46_registry.py:504: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+_____________ test_log_gate_refuses_every_world_size_but_2[4-574] ______________
+
+ngpu = 4, spe = 574
+
+    @pytest.mark.parametrize("ngpu,spe", [(1, 2296), (1, 1148), (4, 574), (0, 1148)])
+    def test_log_gate_refuses_every_world_size_but_2(ngpu, spe):
+        """Codex code r1 finding 11: every exp_46 launch path is 2 x 32 (plan r3 §5 L5, RUNGS); a log of any other world
+        size is refused explicitly -- whatever its loader length (a single rank's own 2,296 batches included)."""
+>       probs = reg.log_gate(_log(ngpu=max(ngpu, 1), spe=spe), RF["025"], "start", "flash", ngpu)
+
+src/tests/test_exp46_registry.py:504: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+_____________ test_log_gate_refuses_every_world_size_but_2[0-1148] _____________
+
+ngpu = 0, spe = 1148
+
+    @pytest.mark.parametrize("ngpu,spe", [(1, 2296), (1, 1148), (4, 574), (0, 1148)])
+    def test_log_gate_refuses_every_world_size_but_2(ngpu, spe):
+        """Codex code r1 finding 11: every exp_46 launch path is 2 x 32 (plan r3 §5 L5, RUNGS); a log of any other world
+        size is refused explicitly -- whatever its loader length (a single rank's own 2,296 batches included)."""
+>       probs = reg.log_gate(_log(ngpu=max(ngpu, 1), spe=spe), RF["025"], "start", "flash", ngpu)
+
+src/tests/test_exp46_registry.py:504: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_log_gate_start_failures[kw0-flash] ____________________
+
+kw = {'banner': []}, backend = 'flash'
+
+    @pytest.mark.parametrize("kw,backend", [
+        ({"banner": []}, "flash"),                                   # no banner
+        ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+        ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+        ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+        ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+        ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+        ({"n": 291210}, "flash"),
+        ({"members": [0]}, "flash"),
+        ({"flash_missing": 2}, "flash"),
+        ({"flash_missing": 1}, "sdpa"),
+        ({"step": False}, "flash"),
+        ({"loss": "nan"}, "flash"),
+        ({"loss": "-inf"}, "flash"),
+    ])
+    def test_log_gate_start_failures(kw, backend):
+>       assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+
+src/tests/test_exp46_registry.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_log_gate_start_failures[kw1-flash] ____________________
+
+kw = {'banner': ['yaw_aug ENABLED img_w=512 seed=42']}, backend = 'flash'
+
+    @pytest.mark.parametrize("kw,backend", [
+        ({"banner": []}, "flash"),                                   # no banner
+        ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+        ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+        ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+        ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+        ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+        ({"n": 291210}, "flash"),
+        ({"members": [0]}, "flash"),
+        ({"flash_missing": 2}, "flash"),
+        ({"flash_missing": 1}, "sdpa"),
+        ({"step": False}, "flash"),
+        ({"loss": "nan"}, "flash"),
+        ({"loss": "-inf"}, "flash"),
+    ])
+    def test_log_gate_start_failures(kw, backend):
+>       assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+
+src/tests/test_exp46_registry.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_log_gate_start_failures[kw2-flash] ____________________
+
+kw = {'banner': ['yaw_aug ENABLED img_w=512 seed=42 offset_step=32']}
+backend = 'flash'
+
+    @pytest.mark.parametrize("kw,backend", [
+        ({"banner": []}, "flash"),                                   # no banner
+        ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+        ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+        ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+        ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+        ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+        ({"n": 291210}, "flash"),
+        ({"members": [0]}, "flash"),
+        ({"flash_missing": 2}, "flash"),
+        ({"flash_missing": 1}, "sdpa"),
+        ({"step": False}, "flash"),
+        ({"loss": "nan"}, "flash"),
+        ({"loss": "-inf"}, "flash"),
+    ])
+    def test_log_gate_start_failures(kw, backend):
+>       assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+
+src/tests/test_exp46_registry.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_log_gate_start_failures[kw3-flash] ____________________
+
+kw = {'banner': ['yaw_aug ENABLED img_w=512 seed=42 flip=0.5', 'yaw_aug ENABLED img_w=512 seed=42 flip=0.5']}
+backend = 'flash'
+
+    @pytest.mark.parametrize("kw,backend", [
+        ({"banner": []}, "flash"),                                   # no banner
+        ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+        ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+        ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+        ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+        ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+        ({"n": 291210}, "flash"),
+        ({"members": [0]}, "flash"),
+        ({"flash_missing": 2}, "flash"),
+        ({"flash_missing": 1}, "sdpa"),
+        ({"step": False}, "flash"),
+        ({"loss": "nan"}, "flash"),
+        ({"loss": "-inf"}, "flash"),
+    ])
+    def test_log_gate_start_failures(kw, backend):
+>       assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+
+src/tests/test_exp46_registry.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_log_gate_start_failures[kw4-flash] ____________________
+
+kw = {'banner': ['yaw_aug ENABLED img_w=512 seed=42 flip=0.5', 'yaw_aug ENABLED img_w=512 seed=42']}
+backend = 'flash'
+
+    @pytest.mark.parametrize("kw,backend", [
+        ({"banner": []}, "flash"),                                   # no banner
+        ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+        ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+        ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+        ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+        ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+        ({"n": 291210}, "flash"),
+        ({"members": [0]}, "flash"),
+        ({"flash_missing": 2}, "flash"),
+        ({"flash_missing": 1}, "sdpa"),
+        ({"step": False}, "flash"),
+        ({"loss": "nan"}, "flash"),
+        ({"loss": "-inf"}, "flash"),
+    ])
+    def test_log_gate_start_failures(kw, backend):
+>       assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+
+src/tests/test_exp46_registry.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_log_gate_start_failures[kw5-flash] ____________________
+
+kw = {'spe': 4551}, backend = 'flash'
+
+    @pytest.mark.parametrize("kw,backend", [
+        ({"banner": []}, "flash"),                                   # no banner
+        ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+        ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+        ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+        ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+        ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+        ({"n": 291210}, "flash"),
+        ({"members": [0]}, "flash"),
+        ({"flash_missing": 2}, "flash"),
+        ({"flash_missing": 1}, "sdpa"),
+        ({"step": False}, "flash"),
+        ({"loss": "nan"}, "flash"),
+        ({"loss": "-inf"}, "flash"),
+    ])
+    def test_log_gate_start_failures(kw, backend):
+>       assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+
+src/tests/test_exp46_registry.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_log_gate_start_failures[kw6-flash] ____________________
+
+kw = {'n': 291210}, backend = 'flash'
+
+    @pytest.mark.parametrize("kw,backend", [
+        ({"banner": []}, "flash"),                                   # no banner
+        ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+        ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+        ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+        ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+        ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+        ({"n": 291210}, "flash"),
+        ({"members": [0]}, "flash"),
+        ({"flash_missing": 2}, "flash"),
+        ({"flash_missing": 1}, "sdpa"),
+        ({"step": False}, "flash"),
+        ({"loss": "nan"}, "flash"),
+        ({"loss": "-inf"}, "flash"),
+    ])
+    def test_log_gate_start_failures(kw, backend):
+>       assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+
+src/tests/test_exp46_registry.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_log_gate_start_failures[kw7-flash] ____________________
+
+kw = {'members': [0]}, backend = 'flash'
+
+    @pytest.mark.parametrize("kw,backend", [
+        ({"banner": []}, "flash"),                                   # no banner
+        ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+        ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+        ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+        ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+        ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+        ({"n": 291210}, "flash"),
+        ({"members": [0]}, "flash"),
+        ({"flash_missing": 2}, "flash"),
+        ({"flash_missing": 1}, "sdpa"),
+        ({"step": False}, "flash"),
+        ({"loss": "nan"}, "flash"),
+        ({"loss": "-inf"}, "flash"),
+    ])
+    def test_log_gate_start_failures(kw, backend):
+>       assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+
+src/tests/test_exp46_registry.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_log_gate_start_failures[kw8-flash] ____________________
+
+kw = {'flash_missing': 2}, backend = 'flash'
+
+    @pytest.mark.parametrize("kw,backend", [
+        ({"banner": []}, "flash"),                                   # no banner
+        ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+        ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+        ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+        ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+        ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+        ({"n": 291210}, "flash"),
+        ({"members": [0]}, "flash"),
+        ({"flash_missing": 2}, "flash"),
+        ({"flash_missing": 1}, "sdpa"),
+        ({"step": False}, "flash"),
+        ({"loss": "nan"}, "flash"),
+        ({"loss": "-inf"}, "flash"),
+    ])
+    def test_log_gate_start_failures(kw, backend):
+>       assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+
+src/tests/test_exp46_registry.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+____________________ test_log_gate_start_failures[kw9-sdpa] ____________________
+
+kw = {'flash_missing': 1}, backend = 'sdpa'
+
+    @pytest.mark.parametrize("kw,backend", [
+        ({"banner": []}, "flash"),                                   # no banner
+        ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+        ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+        ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+        ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+        ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+        ({"n": 291210}, "flash"),
+        ({"members": [0]}, "flash"),
+        ({"flash_missing": 2}, "flash"),
+        ({"flash_missing": 1}, "sdpa"),
+        ({"step": False}, "flash"),
+        ({"loss": "nan"}, "flash"),
+        ({"loss": "-inf"}, "flash"),
+    ])
+    def test_log_gate_start_failures(kw, backend):
+>       assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+
+src/tests/test_exp46_registry.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_log_gate_start_failures[kw10-flash] ___________________
+
+kw = {'step': False}, backend = 'flash'
+
+    @pytest.mark.parametrize("kw,backend", [
+        ({"banner": []}, "flash"),                                   # no banner
+        ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+        ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+        ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+        ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+        ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+        ({"n": 291210}, "flash"),
+        ({"members": [0]}, "flash"),
+        ({"flash_missing": 2}, "flash"),
+        ({"flash_missing": 1}, "sdpa"),
+        ({"step": False}, "flash"),
+        ({"loss": "nan"}, "flash"),
+        ({"loss": "-inf"}, "flash"),
+    ])
+    def test_log_gate_start_failures(kw, backend):
+>       assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+
+src/tests/test_exp46_registry.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_log_gate_start_failures[kw11-flash] ___________________
+
+kw = {'loss': 'nan'}, backend = 'flash'
+
+    @pytest.mark.parametrize("kw,backend", [
+        ({"banner": []}, "flash"),                                   # no banner
+        ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+        ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+        ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+        ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+        ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+        ({"n": 291210}, "flash"),
+        ({"members": [0]}, "flash"),
+        ({"flash_missing": 2}, "flash"),
+        ({"flash_missing": 1}, "sdpa"),
+        ({"step": False}, "flash"),
+        ({"loss": "nan"}, "flash"),
+        ({"loss": "-inf"}, "flash"),
+    ])
+    def test_log_gate_start_failures(kw, backend):
+>       assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+
+src/tests/test_exp46_registry.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+___________________ test_log_gate_start_failures[kw12-flash] ___________________
+
+kw = {'loss': '-inf'}, backend = 'flash'
+
+    @pytest.mark.parametrize("kw,backend", [
+        ({"banner": []}, "flash"),                                   # no banner
+        ({"banner": [reg.YAW_BANNER]}, "flash"),                     # exp_15's YAW line instead of RF's
+        ({"banner": [C16_BANNER]}, "flash"),                         # exp_40's C16 line
+        ({"banner": [reg.RF_BANNER, reg.RF_BANNER]}, "flash"),       # two RF banners (one per rank is impossible: F1)
+        ({"banner": [reg.RF_BANNER, reg.YAW_BANNER]}, "flash"),      # RF + another arm's line
+        ({"spe": 4551}, "flash"),                                    # the 100 % loader length, not f025's
+        ({"n": 291210}, "flash"),
+        ({"members": [0]}, "flash"),
+        ({"flash_missing": 2}, "flash"),
+        ({"flash_missing": 1}, "sdpa"),
+        ({"step": False}, "flash"),
+        ({"loss": "nan"}, "flash"),
+        ({"loss": "-inf"}, "flash"),
+    ])
+    def test_log_gate_start_failures(kw, backend):
+>       assert reg.log_gate(_log(**kw), RF["025"], "start", backend, 2) != []
+
+src/tests/test_exp46_registry.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+_______________ test_log_gate_banner_after_the_first_step_fails ________________
+
+    def test_log_gate_banner_after_the_first_step_fails():
+>       text = _log(banner=[]) + "\n" + reg.RF_BANNER
+
+src/tests/test_exp46_registry.py:532: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+______ test_log_gate_end_needs_lightnings_marker_and_enough_finite_losses ______
+
+    def test_log_gate_end_needs_lightnings_marker_and_enough_finite_losses():
+>       assert reg.log_gate(_log(end=True), RF["025"], "end", "flash", 2) == []
+
+src/tests/test_exp46_registry.py:537: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:477: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_45 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_45 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:186: GateError
+_______ test_the_fork_runs_from_its_own_folder_and_reads_exp38_read_only _______
+
+    def test_the_fork_runs_from_its_own_folder_and_reads_exp38_read_only():
+        """exp_46 (plan r3 §3.2): the records live in exp_46's folder under ``c4flip_data_curve_`` names; exp_38's tools and
+        artifacts are read at exp_38's own paths (their bound paths keep naming exp_38's folder), all tracked, all
+        entering the closure through EXTERNAL_CONFIGS."""
+        import subprocess
+>       assert reg.EXP_DIR == "worklog/worklog_yixun/exp_46_c4flip_data_curve_claude"
+E       AssertionError: assert 'worklog/work..._curve_claude' == 'worklog/work..._curve_claude'
+E         
+E         - worklog/worklog_yixun/exp_46_c4flip_data_curve_claude
+E         ?                            ^ ^^ ---
+E         + worklog/worklog_yixun/exp_45_rf_data_curve_claude
+E         ?                            ^ ^
+
+src/tests/test_exp46_registry.py:622: AssertionError
+_________________________ test_cli_dry_run_exit_codes __________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_cli_dry_run_exit_codes0')
+capsys = <_pytest.capture.CaptureFixture object at 0x7f754d8028c0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f754d800100>
+
+    def test_cli_dry_run_exit_codes(tmp_path, capsys, monkeypatch):
+        monkeypatch.setattr(reg, "check_subset_audit", lambda repo=None: {"sha256": "0" * 64})
+        assert reg._cli(["dry-run", "--platform", "a6000", "--save-root", str(tmp_path)]) == 0
+        assert "DRY-RUN OK: 3 run(s) on a6000" in capsys.readouterr().out
+        _touch(tmp_path / RF["050"], ["epoch=2-step=2500.ckpt"])
+>       assert reg._cli(["dry-run", "--platform", "a6000", "--save-root", str(tmp_path)]) == 2
+E       AssertionError: assert 0 == 2
+E        +  where 0 = <function _cli at 0x7f76b3373f40>(['dry-run', '--platform', 'a6000', '--save-root', '/tmp/pytest-of-yh4742/pytest-0/test_cli_dry_run_exit_codes0'])
+E        +    where <function _cli at 0x7f76b3373f40> = reg._cli
+
+src/tests/test_exp46_registry.py:728: AssertionError
+----------------------------- Captured stdout call -----------------------------
+=== exp45_RFf025_l40_2x32 [a6000 2x32] config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json (d6a02ddebdc3) split data/AR/train_frac025_s2026.json (73473 items / 243 rooms, restricted; audit 000000000000) chunk None run dir fresh final epoch=34-step=40000.ckpt
+    argv: train.py --model-config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --gradient-clip-val 0.0 --logger none --checkpoint-every 2500 --name exp45_RFf025_l40_2x32 --experiment-name exp45_RFf025_l40_2x32 --save-dir /tmp/pytest-of-yh4742/pytest-0/test_cli_dry_run_exit_codes0/exp45_RFf025_l40_2x32 --evidence-json /tmp/pytest-of-yh4742/pytest-0/test_cli_dry_run_exit_codes0/exp45_RFf025_l40_2x32/evidence/run_evidence.json
+=== exp45_RFf050_l40_2x32 [a6000 2x32] config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json (d6a02ddebdc3) split data/AR/train_frac050_s2026.json (145665 items / 243 rooms, restricted; audit 000000000000) chunk None run dir fresh final epoch=17-step=40000.ckpt
+    argv: train.py --model-config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac050.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --gradient-clip-val 0.0 --logger none --checkpoint-every 2500 --name exp45_RFf050_l40_2x32 --experiment-name exp45_RFf050_l40_2x32 --save-dir /tmp/pytest-of-yh4742/pytest-0/test_cli_dry_run_exit_codes0/exp45_RFf050_l40_2x32 --evidence-json /tmp/pytest-of-yh4742/pytest-0/test_cli_dry_run_exit_codes0/exp45_RFf050_l40_2x32/evidence/run_evidence.json
+=== exp45_RFf075_l40_2x32 [a6000 2x32] config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json (d6a02ddebdc3) split data/AR/train_frac075_s2026.json (218463 items / 243 rooms, restricted; audit 000000000000) chunk None run dir fresh final epoch=11-step=40000.ckpt
+    argv: train.py --model-config worklog/worklog_yixun/exp_43_std_aug_claude/FLAC_AR_YAWAUG_FLIP.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac075.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --gradient-clip-val 0.0 --logger none --checkpoint-every 2500 --name exp45_RFf075_l40_2x32 --experiment-name exp45_RFf075_l40_2x32 --save-dir /tmp/pytest-of-yh4742/pytest-0/test_cli_dry_run_exit_codes0/exp45_RFf075_l40_2x32 --evidence-json /tmp/pytest-of-yh4742/pytest-0/test_cli_dry_run_exit_codes0/exp45_RFf075_l40_2x32/evidence/run_evidence.json
+DRY-RUN OK: 3 run(s) on a6000
+=============================== warnings summary ===============================
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    from pkg_resources import packaging
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_registry.py::test_the_registry_imports_and_registers_exactly_the_three_rf_runs
+FAILED src/tests/test_exp46_registry.py::test_the_one_rung_keeps_eff_and_syncbn_batch_64
+FAILED src/tests/test_exp46_registry.py::test_run_dir_fresh_and_complete_states_only
+FAILED src/tests/test_exp46_registry.py::test_d2_campaign_is_the_three_rf_runs
+FAILED src/tests/test_exp46_registry.py::test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions[025]
+FAILED src/tests/test_exp46_registry.py::test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions[050]
+FAILED src/tests/test_exp46_registry.py::test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions[075]
+FAILED src/tests/test_exp46_registry.py::test_argv_per_run[exp46_RFf025_l40_2x32]
+FAILED src/tests/test_exp46_registry.py::test_argv_per_run[exp46_RFf050_l40_2x32]
+FAILED src/tests/test_exp46_registry.py::test_argv_per_run[exp46_RFf075_l40_2x32]
+FAILED src/tests/test_exp46_registry.py::test_smoke_argv_is_ddp_only - Assert...
+FAILED src/tests/test_exp46_registry.py::test_audit_ckpt_pass_and_every_schema_mutation
+FAILED src/tests/test_exp46_registry.py::test_ckpt_manifest_needs_the_full_cadence
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_pass - exp46_reg...
+FAILED src/tests/test_exp46_registry.py::test_log_gate_refuses_every_world_size_but_2[1-2296]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_refuses_every_world_size_but_2[1-1148]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_refuses_every_world_size_but_2[4-574]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_refuses_every_world_size_but_2[0-1148]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_failures[kw0-flash]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_failures[kw1-flash]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_failures[kw2-flash]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_failures[kw3-flash]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_failures[kw4-flash]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_failures[kw5-flash]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_failures[kw6-flash]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_failures[kw7-flash]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_failures[kw8-flash]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_failures[kw9-sdpa]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_failures[kw10-flash]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_failures[kw11-flash]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_failures[kw12-flash]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_banner_after_the_first_step_fails
+FAILED src/tests/test_exp46_registry.py::test_log_gate_end_needs_lightnings_marker_and_enough_finite_losses
+FAILED src/tests/test_exp46_registry.py::test_the_fork_runs_from_its_own_folder_and_reads_exp38_read_only
+FAILED src/tests/test_exp46_registry.py::test_cli_dry_run_exit_codes - Assert...
+35 failed, 48 passed, 2 skipped, 7 warnings in 46.58s
+EXIT 1 end 2026-11-17T23:11:07-05:00

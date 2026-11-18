@@ -1,0 +1,63 @@
+HEAD ce39a91d57d2779afa67141cecb8a51f4e012a3d tracked-clean=yes host neu306.neuronic.cs.princeton.edu start 2026-11-18T00:30:41-05:00
+cmd: pytest -q -rA -vv src/tests/test_exp46_g7_loader_length.py 
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 5 items
+
+src/tests/test_exp46_g7_loader_length.py::test_the_registered_fractions_are_the_four_c4f_points PASSED [ 20%]
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[025] PASSED [ 40%]
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[050] PASSED [ 60%]
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[075] PASSED [ 80%]
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[100] PASSED [100%]
+
+=============================== warnings summary ===============================
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[025]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[025]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[025]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[025]
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[050]
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[075]
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[100]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py:626: UserWarning: This DataLoader will create 6 worker processes in total. Our suggested max number of worker in current system is 4, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_ test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[025] _
+----------------------------- Captured stdout call -----------------------------
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 73473 files in 243 subfolders
+_ test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[050] _
+----------------------------- Captured stdout call -----------------------------
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 145665 files in 243 subfolders
+_ test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[075] _
+----------------------------- Captured stdout call -----------------------------
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 218463 files in 243 subfolders
+_ test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[100] _
+----------------------------- Captured stdout call -----------------------------
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+=========================== short test summary info ============================
+PASSED src/tests/test_exp46_g7_loader_length.py::test_the_registered_fractions_are_the_four_c4f_points
+PASSED src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[025]
+PASSED src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[050]
+PASSED src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[075]
+PASSED src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[100]
+======================== 5 passed, 7 warnings in 9.61s =========================
+EXIT 0 end 2026-11-18T00:30:52-05:00

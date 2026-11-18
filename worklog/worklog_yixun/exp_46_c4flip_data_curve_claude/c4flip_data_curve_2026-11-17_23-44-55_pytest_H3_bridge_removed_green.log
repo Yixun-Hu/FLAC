@@ -1,0 +1,5 @@
+HEAD 10c4200f7a167c5eed7b66f6be9e9eb95a7c5e66 tracked-clean=no host neu309.neuronic.cs.princeton.edu start 2026-11-17T23:45:33-05:00
+cmd: pytest -q -rfEs src/tests/test_exp46_eval.py -k publish_order\ or\ no_exp46_file_imports\ or\ plan_has\ or\ render_shows\ or\ collect 
+...........                                                              [100%]
+11 passed, 179 deselected in 39.24s
+EXIT 0 end 2026-11-17T23:46:13-05:00

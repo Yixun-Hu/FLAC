@@ -1,0 +1,1123 @@
+HEAD ce39a91d57d2779afa67141cecb8a51f4e012a3d tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-18T00:32:42-05:00
+cmd: pytest -q -rfEs src/tests/test_exp46_f100_delta.py src/tests/test_exp46_supervise.py src/tests/test_exp46_receipts.py src/tests/test_exp46_registry.py src/tests/test_exp46_paths.py src/tests/test_exp46_closure.py src/tests/test_exp46_eval.py 
+........................................................................ [ 12%]
+..............s......................................................... [ 24%]
+........................................................................ [ 37%]
+..............................................................s.....s.s. [ 49%]
+........................................................................ [ 61%]
+........................................................................ [ 74%]
+........................................................................ [ 86%]
+........................................FFFFF........................... [ 98%]
+.......                                                                  [100%]
+=================================== FAILURES ===================================
+____________ test_collect_admits_every_run_cell_produced_by_cmd_run ____________
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_admits_every_run_0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f47fc4dc520>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_admits_every_run_0')
+
+    def test_collect_admits_every_run_cell_produced_by_cmd_run(world, monkeypatch, tmp_path):
+        """plan r3 §3.2 (Codex plan r2 finding 3): the run cells come from cmd_run(); collect() admits every one OFFLINE
+        and lists {path: sha256} of every file that admission consumed (exp_46 has no bridge: plan r3 §3.2)."""
+>       names = _cmd_run_world(world, monkeypatch, tmp_path)
+
+src/tests/test_exp46_eval.py:662: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_eval.py:655: in _cmd_run_world
+    ev.cmd_run(1, names, lockdir=str(tmp_path))
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:959: in cmd_run
+    print(f"{n}: {run_one(cells[n], gpu, campaign, (lock.fileno(),))}", flush=True)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:860: in run_one
+    ck_sha, ck_bytes, tr_sha = cell_checkpoint(cell, campaign)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:515: in cell_checkpoint
+    return expected_ckpt(cell, campaign, offline)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:506: in expected_ckpt
+    rec, digest = reg.check_training_receipt(cell["run"], rd, closure=campaign["closure_sha256"],
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_C4Ff100_l40_2x32'
+rd = '/tmp/pytest-of-yh4742/pytest-0/test_collect_admits_every_run_0/nas/exp46_C4Ff100_l40_2x32'
+closure = 'f0c7c2b98c8fa6abf6c14536b3fca2eda2c43768aa570ce96684a06c05ccb0d9'
+receipt_dir = None, verify_bytes = False
+e0_sha = '542dadc492d50334cac06d1200b95c7b7e1761ff883b7b8f5c6ce7020503489b'
+platform = None
+
+    def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes=True, e0_sha=None, platform=None):
+        """The sealed terminal receipt of a run (in ``receipt_dir`` or the run dir), every field checked
+        (Codex code r2 BLOCKING 1): the run, platform, backend, HEAD, the campaign ``closure`` / ``e0_sha``,
+        the registered argv, configs, split and AR content, GPU topology; the RETAINED copies of the E0,
+        SMOKE_DDP and environment receipts (sealed, their shas == the receipt's, the SMOKE one re-validated
+        incl. its evidence); the retained train log (sha + the end gate re-run); the evidence (digest + the
+        gate re-run); the checkpoint manifest and -- with ``verify_bytes`` -- the final checkpoint's current
+        sha256 and byte count. Returns (receipt, receipt sha256)."""
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import exp46_eval
+        arm, tag, rung = parse_run_id(run)
+        ngpu = RUNGS[rung]["ngpu"]
+        src = receipt_dir or rd
+        rec, digest = read_sealed(os.path.join(src, TRAINING_RECEIPT), TRAINING_KEYS)
+        final = ckpt_name(MAX_STEPS, tag)
+        p = []
+        plat, backend = rec["platform"], rec["backend"]
+        if plat not in PLATFORMS or (platform is not None and plat != platform) or backend != TRAINING_BACKEND:
+            raise GateError(f"{run} training receipt: platform {plat!r} / backend {backend!r} (exp_46 trains with backend "
+                            f"{TRAINING_BACKEND} only, plan r3 F2 / L5)")
+        want = {"schema": 1, "run": run, "rc": 0, "log_gate": "PASS", "evidence_gate": "PASS", "final_ckpt": final,
+                "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung))),
+                "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"],
+                "data_content_sha256": AR_CONTENT_SHA256,
+                "argv": build_train_argv(run, plat, allow_nonmatched=rung != "2x32"),
+                "loss_record_rows": MAX_STEPS // LOSS_EVERY,
+                "f100_delta_sha256": F100_DELTA_SHA256 if tag == FULL_TAG else None}
+        p += [f"{k} {str(rec.get(k))[:60]!r} != {str(v)[:60]!r}" for k, v in want.items() if canonical(rec.get(k)) != canonical(v)]
+        if closure is not None and rec["closure_sha256"] != closure:
+            p.append(f"trained at closure {str(rec['closure_sha256'])[:12]}, not the campaign's {closure[:12]}")
+        if e0_sha is not None and rec["e0_receipt_sha256"] != e0_sha:
+            p.append("trained under another E0 receipt than the campaign's")
+        if not (isinstance(rec["head"], str) and re.fullmatch(r"[0-9a-f]{40}", rec["head"])
+                and all(_is_sha(rec[k]) for k in ("closure_sha256", "snapshot_sha256", "env_receipt_sha256",
+                                                  "e0_receipt_sha256", "smoke_receipt_sha256", "log_sha256",
+                                                  "evidence_sha256", "checkpoints_sha256", "final_ckpt_sha256",
+                                                  "loss_record_sha256"))
+                and type(rec["final_ckpt_bytes"]) is int and isinstance(rec["launched_at"], str)
+                and isinstance(rec["finished_at"], str) and isinstance(rec["log"], str)
+                and isinstance(rec["smoke_receipt"], str)):
+            p.append("hash / byte / time / path fields malformed")
+        if not _gpus_ok(plat, ngpu, rec["gpus"]):
+            p.append(f"GPUs {rec['gpus']} are not the {plat} topology")
+        # ---- the retained receipts and log
+        rdir = os.path.join(src, RECEIPTS_DIR)
+        names = rec["receipts"] if isinstance(rec["receipts"], dict) else {}
+        try:
+            full = tag == FULL_TAG
+            if sorted(names) != sorted(["e0", "env", "log", "loss_record", "loss_record_hparams", "smoke", "smoke_log",
+                                        "snapshot_links", "snapshot_manifest"] + (["f100_delta_verification"] if full else [])) \
+                    or (names["loss_record"], names["loss_record_hparams"]) != (LOSS_RECORD, LOSS_RECORD_HPARAMS) \
+                    or (full and names["f100_delta_verification"] != F100_VERIFICATION):
+                raise GateError(f"retained receipts {sorted(names)}")
+            if full:                     # f100: the in-job delta re-verification, re-opened online and offline (plan r3 §3.2)
+                vrec, vsha = read_sealed(os.path.join(rdir, F100_VERIFICATION), F100_VERIFICATION_KEYS)
+                if vsha != rec["f100_delta_verification_sha256"]:
+                    p.append("the retained f100 delta verification != the sha the training receipt bound")
+                p += f100_verification_problems(vrec)
+            elif rec["f100_delta_verification_sha256"] is not None:
+                p.append("a fraction run carries an f100 delta verification")
+            # the loss record is re-opened and re-validated, online and offline (plan r3 §3.2, Codex plan r1 finding 9)
+            got = check_loss_record(os.path.join(rdir, LOSS_RECORD))
+            if (got["loss_record_sha256"], got["loss_record_rows"]) != (rec["loss_record_sha256"], rec["loss_record_rows"]):
+                p.append("the retained loss record != the training receipt's sha256 / rows")
+            if not os.path.isfile(os.path.join(rdir, LOSS_RECORD_HPARAMS)):
+                p.append(f"the retained {LOSS_RECORD_HPARAMS} is missing")
+            e0c, d_e0 = read_sealed(os.path.join(rdir, names["e0"]), exp46_eval.E0_KEYS)
+            envc, d_env = read_sealed(os.path.join(rdir, names["env"]), ENV_RECEIPT_KEYS)
+            smk, d_smk = read_sealed(os.path.join(rdir, names["smoke"]), SMOKE_KEYS)
+            if (d_e0, d_env, d_smk) != (rec["e0_receipt_sha256"], rec["env_receipt_sha256"], rec["smoke_receipt_sha256"]):
+                p.append("a retained receipt copy != the sha the training receipt bound")
+            if e0c["verdict"] != "PASS" or e0c["closure_sha256"] != rec["closure_sha256"]:
+                p.append("the retained E0 receipt is not a PASS at the run's closure")
+            p += [f"retained E0: {x}" for x in exp46_eval.e0_static_problems(e0c)]
+            if envc["platform"] != plat:
+                p.append("the retained environment receipt is another platform's")
+            if not (isinstance(envc["packages"], dict) and envc["packages_sha256"] ==
+                    hashlib.sha256(canonical(dict(sorted(envc["packages"].items()))).encode()).hexdigest()
+                    and isinstance(envc["flags"], dict) and envc["flags"].get("optimize") == 0
+                    and envc["flags"].get("no_user_site") == 1
+                    and (plat != "a6000" or envc["packages"].get("flash-attn") == FLASH_VERSION)):
+                p.append("the retained environment receipt is internally inconsistent / off the registered flags")
+            snap_dir = rdir
+            if snapshot_digest(snap_dir) != rec["snapshot_sha256"] or \
+                    closure_of_manifest(open(os.path.join(snap_dir, names["snapshot_manifest"])).read()) != rec["closure_sha256"]:
+                p.append("the retained snapshot manifests are not the run's snapshot / closure")
+            if not (_iso(rec["launched_at"]) <= _iso(rec["finished_at"])):
+                p.append("finished before it launched")
+            want_s = {"mode": "SMOKE_DDP", "run": run, "platform": plat, "backend": backend, "head": rec["head"],
+                      "closure_sha256": rec["closure_sha256"], "env_receipt_sha256": rec["env_receipt_sha256"],
+                      "rc": 0, "checkpoints_written": 0, "log_gate": "PASS", "evidence_gate": "PASS", "verdict": "PASS",
+                      "logger_gate": "PASS", "argv_projection": argv_projection(rec["argv"])}
+            p += [f"retained SMOKE {k} {str(smk.get(k))[:40]!r} != {str(v)[:40]!r}" for k, v in want_s.items()
+                  if canonical(smk.get(k)) != canonical(v)]
+            ev = smk.get("evidence") or {}
+            p += evidence_problems({int(r): v for r, v in ev.items()} if sorted(ev) == [str(r) for r in range(ngpu)] else {},
+                                   run, ngpu, backend, SMOKE_STEPS_DDP)
+            if smk.get("schema") != 1 or not _gpus_ok(plat, ngpu, smk.get("gpus")) or not _is_sha(smk.get("snapshot_sha256")):
+                p.append("retained SMOKE schema / GPUs / snapshot")
+            slog = os.path.join(rdir, names["smoke_log"])
+            if sha256_file(slog) != smk.get("log_sha256"):
+                p.append("the retained SMOKE log != the SMOKE receipt's sha")
+            else:
+                p += [f"retained SMOKE log: {x}" for x in log_gate(open(slog, errors="replace").read(), run, "end", backend,
+                                                                   ngpu, max_steps=SMOKE_STEPS_DDP, min_losses=1)]
+            if not (_iso(smk["finished_at"]) <= _iso(rec["launched_at"])):
+                p.append("the SMOKE finished after this run launched")
+            logc = os.path.join(rdir, names["log"])
+            if sha256_file(logc) != rec["log_sha256"]:
+                p.append("the retained train log != the receipt's sha")
+            else:
+                p += log_gate(open(logc, errors="replace").read(), run, "end", backend, ngpu, min_losses=FULL_MIN_LOSSES)
+            evd = os.path.join(src, "evidence")
+            if evidence_digest(evd) != rec["evidence_sha256"]:
+                p.append("the evidence files != the receipt's digest")
+            else:
+                p += evidence_gate(evd, run, ngpu, backend)
+        except (GateError, OSError, ValueError, KeyError, TypeError) as err:
+            p.append(f"retained records: {err}")
+        try:
+            manifest = os.path.join(src, "CHECKPOINTS.sha256")
+            if sha256_file(manifest) != rec["checkpoints_sha256"]:
+                p.append("CHECKPOINTS.sha256 != the receipt's")
+            lines = dict(reversed(ln.split("  ", 1)) for ln in open(manifest).read().strip().split("\n"))
+            if sorted(lines) != sorted(ckpt_name(s, tag) for s in cadence_steps()) or lines[final] != rec["final_ckpt_sha256"]:
+                p.append("checkpoint manifest set / final line")
+            if verify_bytes:
+                path = os.path.join(rd, final)
+                if os.path.getsize(path) != rec["final_ckpt_bytes"] or sha256_file(path) != rec["final_ckpt_sha256"]:
+                    p.append(f"{path} sha / bytes != the training receipt")
+        except (OSError, ValueError) as err:
+            p.append(f"checkpoint manifest: {err}")
+        # the single final commit (Codex code r3 HIGH 7)
+        try:
+            cm, _ = read_sealed(os.path.join(src, COMMIT_MARKER), COMMIT_KEYS)
+            lr = os.path.join(src, str(cm["launch_record"]))
+            lrec = json.load(open(lr))
+            if (cm["schema"], cm["run"], cm["training_receipt_sha256"]) != (1, run, digest) \
+                    or sha256_file(lr) != cm["launch_record_sha256"] or lrec.get("status") != "COMPLETE" \
+                    or lrec.get("training_receipt_sha256") != digest:
+                p.append("the commit marker / terminal launch record do not bind this receipt")
+        except (GateError, OSError, ValueError, KeyError) as err:
+            p.append(f"no committed completion: {err}")
+        if rec["data_content_checks"] != ["pre-launch", "post-run"] + (["f100 delta post-run"] if tag == FULL_TAG else []):
+            p.append("the AR content was not verified before and after the run (f100: and its delta after it)")
+        if p:
+>           raise GateError(f"{run} training receipt: " + "; ".join(p))
+E           exp46_registry.GateError: exp46_C4Ff100_l40_2x32 training receipt: f100 delta verification: not the registered manifest at its pinned sha256
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:2447: GateError
+----------------------------- Captured stdout call -----------------------------
+exp46_C4Ff025_l40_2x32_K8_s42: done
+exp46_C4Ff025_l40_2x32_K8_s43: done
+exp46_C4Ff025_l40_2x32_K8_s44: done
+exp46_C4Ff025_l40_2x32_K8_s45: done
+exp46_C4Ff025_l40_2x32_K8_s46: done
+exp46_C4Ff025_l40_2x32_K1_s42: done
+exp46_C4Ff025_l40_2x32_K1_s43: done
+exp46_C4Ff025_l40_2x32_K1_s44: done
+exp46_C4Ff025_l40_2x32_K1_s45: done
+exp46_C4Ff025_l40_2x32_K1_s46: done
+exp46_C4Ff050_l40_2x32_K8_s42: done
+exp46_C4Ff050_l40_2x32_K8_s43: done
+exp46_C4Ff050_l40_2x32_K8_s44: done
+exp46_C4Ff050_l40_2x32_K8_s45: done
+exp46_C4Ff050_l40_2x32_K8_s46: done
+exp46_C4Ff050_l40_2x32_K1_s42: done
+exp46_C4Ff050_l40_2x32_K1_s43: done
+exp46_C4Ff050_l40_2x32_K1_s44: done
+exp46_C4Ff050_l40_2x32_K1_s45: done
+exp46_C4Ff050_l40_2x32_K1_s46: done
+exp46_C4Ff075_l40_2x32_K8_s42: done
+exp46_C4Ff075_l40_2x32_K8_s43: done
+exp46_C4Ff075_l40_2x32_K8_s44: done
+exp46_C4Ff075_l40_2x32_K8_s45: done
+exp46_C4Ff075_l40_2x32_K8_s46: done
+exp46_C4Ff075_l40_2x32_K1_s42: done
+exp46_C4Ff075_l40_2x32_K1_s43: done
+exp46_C4Ff075_l40_2x32_K1_s44: done
+exp46_C4Ff075_l40_2x32_K1_s45: done
+exp46_C4Ff075_l40_2x32_K1_s46: done
+____ test_collect_refuses_any_missing_or_unadmitted_cell[missing run cell] _____
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_refuses_any_missi0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f47fd8cb250>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_refuses_any_missi0')
+what = 'missing run cell'
+
+    @pytest.mark.parametrize("what", ["missing run cell", "missing run metrics", "unadmitted run cell", "e0 cell"])
+    def test_collect_refuses_any_missing_or_unadmitted_cell(world, monkeypatch, tmp_path, what):
+>       _cmd_run_world(world, monkeypatch, tmp_path)
+
+src/tests/test_exp46_eval.py:686: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_eval.py:655: in _cmd_run_world
+    ev.cmd_run(1, names, lockdir=str(tmp_path))
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:959: in cmd_run
+    print(f"{n}: {run_one(cells[n], gpu, campaign, (lock.fileno(),))}", flush=True)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:860: in run_one
+    ck_sha, ck_bytes, tr_sha = cell_checkpoint(cell, campaign)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:515: in cell_checkpoint
+    return expected_ckpt(cell, campaign, offline)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:506: in expected_ckpt
+    rec, digest = reg.check_training_receipt(cell["run"], rd, closure=campaign["closure_sha256"],
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_C4Ff100_l40_2x32'
+rd = '/tmp/pytest-of-yh4742/pytest-0/test_collect_refuses_any_missi0/nas/exp46_C4Ff100_l40_2x32'
+closure = 'f0c7c2b98c8fa6abf6c14536b3fca2eda2c43768aa570ce96684a06c05ccb0d9'
+receipt_dir = None, verify_bytes = False
+e0_sha = '4a412a9cad9aa5ba98672285fd37c43b87a7359080268fd7b2ae34c02d5c2774'
+platform = None
+
+    def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes=True, e0_sha=None, platform=None):
+        """The sealed terminal receipt of a run (in ``receipt_dir`` or the run dir), every field checked
+        (Codex code r2 BLOCKING 1): the run, platform, backend, HEAD, the campaign ``closure`` / ``e0_sha``,
+        the registered argv, configs, split and AR content, GPU topology; the RETAINED copies of the E0,
+        SMOKE_DDP and environment receipts (sealed, their shas == the receipt's, the SMOKE one re-validated
+        incl. its evidence); the retained train log (sha + the end gate re-run); the evidence (digest + the
+        gate re-run); the checkpoint manifest and -- with ``verify_bytes`` -- the final checkpoint's current
+        sha256 and byte count. Returns (receipt, receipt sha256)."""
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import exp46_eval
+        arm, tag, rung = parse_run_id(run)
+        ngpu = RUNGS[rung]["ngpu"]
+        src = receipt_dir or rd
+        rec, digest = read_sealed(os.path.join(src, TRAINING_RECEIPT), TRAINING_KEYS)
+        final = ckpt_name(MAX_STEPS, tag)
+        p = []
+        plat, backend = rec["platform"], rec["backend"]
+        if plat not in PLATFORMS or (platform is not None and plat != platform) or backend != TRAINING_BACKEND:
+            raise GateError(f"{run} training receipt: platform {plat!r} / backend {backend!r} (exp_46 trains with backend "
+                            f"{TRAINING_BACKEND} only, plan r3 F2 / L5)")
+        want = {"schema": 1, "run": run, "rc": 0, "log_gate": "PASS", "evidence_gate": "PASS", "final_ckpt": final,
+                "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung))),
+                "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"],
+                "data_content_sha256": AR_CONTENT_SHA256,
+                "argv": build_train_argv(run, plat, allow_nonmatched=rung != "2x32"),
+                "loss_record_rows": MAX_STEPS // LOSS_EVERY,
+                "f100_delta_sha256": F100_DELTA_SHA256 if tag == FULL_TAG else None}
+        p += [f"{k} {str(rec.get(k))[:60]!r} != {str(v)[:60]!r}" for k, v in want.items() if canonical(rec.get(k)) != canonical(v)]
+        if closure is not None and rec["closure_sha256"] != closure:
+            p.append(f"trained at closure {str(rec['closure_sha256'])[:12]}, not the campaign's {closure[:12]}")
+        if e0_sha is not None and rec["e0_receipt_sha256"] != e0_sha:
+            p.append("trained under another E0 receipt than the campaign's")
+        if not (isinstance(rec["head"], str) and re.fullmatch(r"[0-9a-f]{40}", rec["head"])
+                and all(_is_sha(rec[k]) for k in ("closure_sha256", "snapshot_sha256", "env_receipt_sha256",
+                                                  "e0_receipt_sha256", "smoke_receipt_sha256", "log_sha256",
+                                                  "evidence_sha256", "checkpoints_sha256", "final_ckpt_sha256",
+                                                  "loss_record_sha256"))
+                and type(rec["final_ckpt_bytes"]) is int and isinstance(rec["launched_at"], str)
+                and isinstance(rec["finished_at"], str) and isinstance(rec["log"], str)
+                and isinstance(rec["smoke_receipt"], str)):
+            p.append("hash / byte / time / path fields malformed")
+        if not _gpus_ok(plat, ngpu, rec["gpus"]):
+            p.append(f"GPUs {rec['gpus']} are not the {plat} topology")
+        # ---- the retained receipts and log
+        rdir = os.path.join(src, RECEIPTS_DIR)
+        names = rec["receipts"] if isinstance(rec["receipts"], dict) else {}
+        try:
+            full = tag == FULL_TAG
+            if sorted(names) != sorted(["e0", "env", "log", "loss_record", "loss_record_hparams", "smoke", "smoke_log",
+                                        "snapshot_links", "snapshot_manifest"] + (["f100_delta_verification"] if full else [])) \
+                    or (names["loss_record"], names["loss_record_hparams"]) != (LOSS_RECORD, LOSS_RECORD_HPARAMS) \
+                    or (full and names["f100_delta_verification"] != F100_VERIFICATION):
+                raise GateError(f"retained receipts {sorted(names)}")
+            if full:                     # f100: the in-job delta re-verification, re-opened online and offline (plan r3 §3.2)
+                vrec, vsha = read_sealed(os.path.join(rdir, F100_VERIFICATION), F100_VERIFICATION_KEYS)
+                if vsha != rec["f100_delta_verification_sha256"]:
+                    p.append("the retained f100 delta verification != the sha the training receipt bound")
+                p += f100_verification_problems(vrec)
+            elif rec["f100_delta_verification_sha256"] is not None:
+                p.append("a fraction run carries an f100 delta verification")
+            # the loss record is re-opened and re-validated, online and offline (plan r3 §3.2, Codex plan r1 finding 9)
+            got = check_loss_record(os.path.join(rdir, LOSS_RECORD))
+            if (got["loss_record_sha256"], got["loss_record_rows"]) != (rec["loss_record_sha256"], rec["loss_record_rows"]):
+                p.append("the retained loss record != the training receipt's sha256 / rows")
+            if not os.path.isfile(os.path.join(rdir, LOSS_RECORD_HPARAMS)):
+                p.append(f"the retained {LOSS_RECORD_HPARAMS} is missing")
+            e0c, d_e0 = read_sealed(os.path.join(rdir, names["e0"]), exp46_eval.E0_KEYS)
+            envc, d_env = read_sealed(os.path.join(rdir, names["env"]), ENV_RECEIPT_KEYS)
+            smk, d_smk = read_sealed(os.path.join(rdir, names["smoke"]), SMOKE_KEYS)
+            if (d_e0, d_env, d_smk) != (rec["e0_receipt_sha256"], rec["env_receipt_sha256"], rec["smoke_receipt_sha256"]):
+                p.append("a retained receipt copy != the sha the training receipt bound")
+            if e0c["verdict"] != "PASS" or e0c["closure_sha256"] != rec["closure_sha256"]:
+                p.append("the retained E0 receipt is not a PASS at the run's closure")
+            p += [f"retained E0: {x}" for x in exp46_eval.e0_static_problems(e0c)]
+            if envc["platform"] != plat:
+                p.append("the retained environment receipt is another platform's")
+            if not (isinstance(envc["packages"], dict) and envc["packages_sha256"] ==
+                    hashlib.sha256(canonical(dict(sorted(envc["packages"].items()))).encode()).hexdigest()
+                    and isinstance(envc["flags"], dict) and envc["flags"].get("optimize") == 0
+                    and envc["flags"].get("no_user_site") == 1
+                    and (plat != "a6000" or envc["packages"].get("flash-attn") == FLASH_VERSION)):
+                p.append("the retained environment receipt is internally inconsistent / off the registered flags")
+            snap_dir = rdir
+            if snapshot_digest(snap_dir) != rec["snapshot_sha256"] or \
+                    closure_of_manifest(open(os.path.join(snap_dir, names["snapshot_manifest"])).read()) != rec["closure_sha256"]:
+                p.append("the retained snapshot manifests are not the run's snapshot / closure")
+            if not (_iso(rec["launched_at"]) <= _iso(rec["finished_at"])):
+                p.append("finished before it launched")
+            want_s = {"mode": "SMOKE_DDP", "run": run, "platform": plat, "backend": backend, "head": rec["head"],
+                      "closure_sha256": rec["closure_sha256"], "env_receipt_sha256": rec["env_receipt_sha256"],
+                      "rc": 0, "checkpoints_written": 0, "log_gate": "PASS", "evidence_gate": "PASS", "verdict": "PASS",
+                      "logger_gate": "PASS", "argv_projection": argv_projection(rec["argv"])}
+            p += [f"retained SMOKE {k} {str(smk.get(k))[:40]!r} != {str(v)[:40]!r}" for k, v in want_s.items()
+                  if canonical(smk.get(k)) != canonical(v)]
+            ev = smk.get("evidence") or {}
+            p += evidence_problems({int(r): v for r, v in ev.items()} if sorted(ev) == [str(r) for r in range(ngpu)] else {},
+                                   run, ngpu, backend, SMOKE_STEPS_DDP)
+            if smk.get("schema") != 1 or not _gpus_ok(plat, ngpu, smk.get("gpus")) or not _is_sha(smk.get("snapshot_sha256")):
+                p.append("retained SMOKE schema / GPUs / snapshot")
+            slog = os.path.join(rdir, names["smoke_log"])
+            if sha256_file(slog) != smk.get("log_sha256"):
+                p.append("the retained SMOKE log != the SMOKE receipt's sha")
+            else:
+                p += [f"retained SMOKE log: {x}" for x in log_gate(open(slog, errors="replace").read(), run, "end", backend,
+                                                                   ngpu, max_steps=SMOKE_STEPS_DDP, min_losses=1)]
+            if not (_iso(smk["finished_at"]) <= _iso(rec["launched_at"])):
+                p.append("the SMOKE finished after this run launched")
+            logc = os.path.join(rdir, names["log"])
+            if sha256_file(logc) != rec["log_sha256"]:
+                p.append("the retained train log != the receipt's sha")
+            else:
+                p += log_gate(open(logc, errors="replace").read(), run, "end", backend, ngpu, min_losses=FULL_MIN_LOSSES)
+            evd = os.path.join(src, "evidence")
+            if evidence_digest(evd) != rec["evidence_sha256"]:
+                p.append("the evidence files != the receipt's digest")
+            else:
+                p += evidence_gate(evd, run, ngpu, backend)
+        except (GateError, OSError, ValueError, KeyError, TypeError) as err:
+            p.append(f"retained records: {err}")
+        try:
+            manifest = os.path.join(src, "CHECKPOINTS.sha256")
+            if sha256_file(manifest) != rec["checkpoints_sha256"]:
+                p.append("CHECKPOINTS.sha256 != the receipt's")
+            lines = dict(reversed(ln.split("  ", 1)) for ln in open(manifest).read().strip().split("\n"))
+            if sorted(lines) != sorted(ckpt_name(s, tag) for s in cadence_steps()) or lines[final] != rec["final_ckpt_sha256"]:
+                p.append("checkpoint manifest set / final line")
+            if verify_bytes:
+                path = os.path.join(rd, final)
+                if os.path.getsize(path) != rec["final_ckpt_bytes"] or sha256_file(path) != rec["final_ckpt_sha256"]:
+                    p.append(f"{path} sha / bytes != the training receipt")
+        except (OSError, ValueError) as err:
+            p.append(f"checkpoint manifest: {err}")
+        # the single final commit (Codex code r3 HIGH 7)
+        try:
+            cm, _ = read_sealed(os.path.join(src, COMMIT_MARKER), COMMIT_KEYS)
+            lr = os.path.join(src, str(cm["launch_record"]))
+            lrec = json.load(open(lr))
+            if (cm["schema"], cm["run"], cm["training_receipt_sha256"]) != (1, run, digest) \
+                    or sha256_file(lr) != cm["launch_record_sha256"] or lrec.get("status") != "COMPLETE" \
+                    or lrec.get("training_receipt_sha256") != digest:
+                p.append("the commit marker / terminal launch record do not bind this receipt")
+        except (GateError, OSError, ValueError, KeyError) as err:
+            p.append(f"no committed completion: {err}")
+        if rec["data_content_checks"] != ["pre-launch", "post-run"] + (["f100 delta post-run"] if tag == FULL_TAG else []):
+            p.append("the AR content was not verified before and after the run (f100: and its delta after it)")
+        if p:
+>           raise GateError(f"{run} training receipt: " + "; ".join(p))
+E           exp46_registry.GateError: exp46_C4Ff100_l40_2x32 training receipt: f100 delta verification: not the registered manifest at its pinned sha256
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:2447: GateError
+----------------------------- Captured stdout call -----------------------------
+exp46_C4Ff025_l40_2x32_K8_s42: done
+exp46_C4Ff025_l40_2x32_K8_s43: done
+exp46_C4Ff025_l40_2x32_K8_s44: done
+exp46_C4Ff025_l40_2x32_K8_s45: done
+exp46_C4Ff025_l40_2x32_K8_s46: done
+exp46_C4Ff025_l40_2x32_K1_s42: done
+exp46_C4Ff025_l40_2x32_K1_s43: done
+exp46_C4Ff025_l40_2x32_K1_s44: done
+exp46_C4Ff025_l40_2x32_K1_s45: done
+exp46_C4Ff025_l40_2x32_K1_s46: done
+exp46_C4Ff050_l40_2x32_K8_s42: done
+exp46_C4Ff050_l40_2x32_K8_s43: done
+exp46_C4Ff050_l40_2x32_K8_s44: done
+exp46_C4Ff050_l40_2x32_K8_s45: done
+exp46_C4Ff050_l40_2x32_K8_s46: done
+exp46_C4Ff050_l40_2x32_K1_s42: done
+exp46_C4Ff050_l40_2x32_K1_s43: done
+exp46_C4Ff050_l40_2x32_K1_s44: done
+exp46_C4Ff050_l40_2x32_K1_s45: done
+exp46_C4Ff050_l40_2x32_K1_s46: done
+exp46_C4Ff075_l40_2x32_K8_s42: done
+exp46_C4Ff075_l40_2x32_K8_s43: done
+exp46_C4Ff075_l40_2x32_K8_s44: done
+exp46_C4Ff075_l40_2x32_K8_s45: done
+exp46_C4Ff075_l40_2x32_K8_s46: done
+exp46_C4Ff075_l40_2x32_K1_s42: done
+exp46_C4Ff075_l40_2x32_K1_s43: done
+exp46_C4Ff075_l40_2x32_K1_s44: done
+exp46_C4Ff075_l40_2x32_K1_s45: done
+exp46_C4Ff075_l40_2x32_K1_s46: done
+___ test_collect_refuses_any_missing_or_unadmitted_cell[missing run metrics] ___
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_refuses_any_missi1'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f48014ce380>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_refuses_any_missi1')
+what = 'missing run metrics'
+
+    @pytest.mark.parametrize("what", ["missing run cell", "missing run metrics", "unadmitted run cell", "e0 cell"])
+    def test_collect_refuses_any_missing_or_unadmitted_cell(world, monkeypatch, tmp_path, what):
+>       _cmd_run_world(world, monkeypatch, tmp_path)
+
+src/tests/test_exp46_eval.py:686: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_eval.py:655: in _cmd_run_world
+    ev.cmd_run(1, names, lockdir=str(tmp_path))
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:959: in cmd_run
+    print(f"{n}: {run_one(cells[n], gpu, campaign, (lock.fileno(),))}", flush=True)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:860: in run_one
+    ck_sha, ck_bytes, tr_sha = cell_checkpoint(cell, campaign)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:515: in cell_checkpoint
+    return expected_ckpt(cell, campaign, offline)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:506: in expected_ckpt
+    rec, digest = reg.check_training_receipt(cell["run"], rd, closure=campaign["closure_sha256"],
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_C4Ff100_l40_2x32'
+rd = '/tmp/pytest-of-yh4742/pytest-0/test_collect_refuses_any_missi1/nas/exp46_C4Ff100_l40_2x32'
+closure = 'f0c7c2b98c8fa6abf6c14536b3fca2eda2c43768aa570ce96684a06c05ccb0d9'
+receipt_dir = None, verify_bytes = False
+e0_sha = '5f3c9f9af5ab96ce6459975f2933071860dad239ecbbe159c08ec65d22d0fc70'
+platform = None
+
+    def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes=True, e0_sha=None, platform=None):
+        """The sealed terminal receipt of a run (in ``receipt_dir`` or the run dir), every field checked
+        (Codex code r2 BLOCKING 1): the run, platform, backend, HEAD, the campaign ``closure`` / ``e0_sha``,
+        the registered argv, configs, split and AR content, GPU topology; the RETAINED copies of the E0,
+        SMOKE_DDP and environment receipts (sealed, their shas == the receipt's, the SMOKE one re-validated
+        incl. its evidence); the retained train log (sha + the end gate re-run); the evidence (digest + the
+        gate re-run); the checkpoint manifest and -- with ``verify_bytes`` -- the final checkpoint's current
+        sha256 and byte count. Returns (receipt, receipt sha256)."""
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import exp46_eval
+        arm, tag, rung = parse_run_id(run)
+        ngpu = RUNGS[rung]["ngpu"]
+        src = receipt_dir or rd
+        rec, digest = read_sealed(os.path.join(src, TRAINING_RECEIPT), TRAINING_KEYS)
+        final = ckpt_name(MAX_STEPS, tag)
+        p = []
+        plat, backend = rec["platform"], rec["backend"]
+        if plat not in PLATFORMS or (platform is not None and plat != platform) or backend != TRAINING_BACKEND:
+            raise GateError(f"{run} training receipt: platform {plat!r} / backend {backend!r} (exp_46 trains with backend "
+                            f"{TRAINING_BACKEND} only, plan r3 F2 / L5)")
+        want = {"schema": 1, "run": run, "rc": 0, "log_gate": "PASS", "evidence_gate": "PASS", "final_ckpt": final,
+                "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung))),
+                "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"],
+                "data_content_sha256": AR_CONTENT_SHA256,
+                "argv": build_train_argv(run, plat, allow_nonmatched=rung != "2x32"),
+                "loss_record_rows": MAX_STEPS // LOSS_EVERY,
+                "f100_delta_sha256": F100_DELTA_SHA256 if tag == FULL_TAG else None}
+        p += [f"{k} {str(rec.get(k))[:60]!r} != {str(v)[:60]!r}" for k, v in want.items() if canonical(rec.get(k)) != canonical(v)]
+        if closure is not None and rec["closure_sha256"] != closure:
+            p.append(f"trained at closure {str(rec['closure_sha256'])[:12]}, not the campaign's {closure[:12]}")
+        if e0_sha is not None and rec["e0_receipt_sha256"] != e0_sha:
+            p.append("trained under another E0 receipt than the campaign's")
+        if not (isinstance(rec["head"], str) and re.fullmatch(r"[0-9a-f]{40}", rec["head"])
+                and all(_is_sha(rec[k]) for k in ("closure_sha256", "snapshot_sha256", "env_receipt_sha256",
+                                                  "e0_receipt_sha256", "smoke_receipt_sha256", "log_sha256",
+                                                  "evidence_sha256", "checkpoints_sha256", "final_ckpt_sha256",
+                                                  "loss_record_sha256"))
+                and type(rec["final_ckpt_bytes"]) is int and isinstance(rec["launched_at"], str)
+                and isinstance(rec["finished_at"], str) and isinstance(rec["log"], str)
+                and isinstance(rec["smoke_receipt"], str)):
+            p.append("hash / byte / time / path fields malformed")
+        if not _gpus_ok(plat, ngpu, rec["gpus"]):
+            p.append(f"GPUs {rec['gpus']} are not the {plat} topology")
+        # ---- the retained receipts and log
+        rdir = os.path.join(src, RECEIPTS_DIR)
+        names = rec["receipts"] if isinstance(rec["receipts"], dict) else {}
+        try:
+            full = tag == FULL_TAG
+            if sorted(names) != sorted(["e0", "env", "log", "loss_record", "loss_record_hparams", "smoke", "smoke_log",
+                                        "snapshot_links", "snapshot_manifest"] + (["f100_delta_verification"] if full else [])) \
+                    or (names["loss_record"], names["loss_record_hparams"]) != (LOSS_RECORD, LOSS_RECORD_HPARAMS) \
+                    or (full and names["f100_delta_verification"] != F100_VERIFICATION):
+                raise GateError(f"retained receipts {sorted(names)}")
+            if full:                     # f100: the in-job delta re-verification, re-opened online and offline (plan r3 §3.2)
+                vrec, vsha = read_sealed(os.path.join(rdir, F100_VERIFICATION), F100_VERIFICATION_KEYS)
+                if vsha != rec["f100_delta_verification_sha256"]:
+                    p.append("the retained f100 delta verification != the sha the training receipt bound")
+                p += f100_verification_problems(vrec)
+            elif rec["f100_delta_verification_sha256"] is not None:
+                p.append("a fraction run carries an f100 delta verification")
+            # the loss record is re-opened and re-validated, online and offline (plan r3 §3.2, Codex plan r1 finding 9)
+            got = check_loss_record(os.path.join(rdir, LOSS_RECORD))
+            if (got["loss_record_sha256"], got["loss_record_rows"]) != (rec["loss_record_sha256"], rec["loss_record_rows"]):
+                p.append("the retained loss record != the training receipt's sha256 / rows")
+            if not os.path.isfile(os.path.join(rdir, LOSS_RECORD_HPARAMS)):
+                p.append(f"the retained {LOSS_RECORD_HPARAMS} is missing")
+            e0c, d_e0 = read_sealed(os.path.join(rdir, names["e0"]), exp46_eval.E0_KEYS)
+            envc, d_env = read_sealed(os.path.join(rdir, names["env"]), ENV_RECEIPT_KEYS)
+            smk, d_smk = read_sealed(os.path.join(rdir, names["smoke"]), SMOKE_KEYS)
+            if (d_e0, d_env, d_smk) != (rec["e0_receipt_sha256"], rec["env_receipt_sha256"], rec["smoke_receipt_sha256"]):
+                p.append("a retained receipt copy != the sha the training receipt bound")
+            if e0c["verdict"] != "PASS" or e0c["closure_sha256"] != rec["closure_sha256"]:
+                p.append("the retained E0 receipt is not a PASS at the run's closure")
+            p += [f"retained E0: {x}" for x in exp46_eval.e0_static_problems(e0c)]
+            if envc["platform"] != plat:
+                p.append("the retained environment receipt is another platform's")
+            if not (isinstance(envc["packages"], dict) and envc["packages_sha256"] ==
+                    hashlib.sha256(canonical(dict(sorted(envc["packages"].items()))).encode()).hexdigest()
+                    and isinstance(envc["flags"], dict) and envc["flags"].get("optimize") == 0
+                    and envc["flags"].get("no_user_site") == 1
+                    and (plat != "a6000" or envc["packages"].get("flash-attn") == FLASH_VERSION)):
+                p.append("the retained environment receipt is internally inconsistent / off the registered flags")
+            snap_dir = rdir
+            if snapshot_digest(snap_dir) != rec["snapshot_sha256"] or \
+                    closure_of_manifest(open(os.path.join(snap_dir, names["snapshot_manifest"])).read()) != rec["closure_sha256"]:
+                p.append("the retained snapshot manifests are not the run's snapshot / closure")
+            if not (_iso(rec["launched_at"]) <= _iso(rec["finished_at"])):
+                p.append("finished before it launched")
+            want_s = {"mode": "SMOKE_DDP", "run": run, "platform": plat, "backend": backend, "head": rec["head"],
+                      "closure_sha256": rec["closure_sha256"], "env_receipt_sha256": rec["env_receipt_sha256"],
+                      "rc": 0, "checkpoints_written": 0, "log_gate": "PASS", "evidence_gate": "PASS", "verdict": "PASS",
+                      "logger_gate": "PASS", "argv_projection": argv_projection(rec["argv"])}
+            p += [f"retained SMOKE {k} {str(smk.get(k))[:40]!r} != {str(v)[:40]!r}" for k, v in want_s.items()
+                  if canonical(smk.get(k)) != canonical(v)]
+            ev = smk.get("evidence") or {}
+            p += evidence_problems({int(r): v for r, v in ev.items()} if sorted(ev) == [str(r) for r in range(ngpu)] else {},
+                                   run, ngpu, backend, SMOKE_STEPS_DDP)
+            if smk.get("schema") != 1 or not _gpus_ok(plat, ngpu, smk.get("gpus")) or not _is_sha(smk.get("snapshot_sha256")):
+                p.append("retained SMOKE schema / GPUs / snapshot")
+            slog = os.path.join(rdir, names["smoke_log"])
+            if sha256_file(slog) != smk.get("log_sha256"):
+                p.append("the retained SMOKE log != the SMOKE receipt's sha")
+            else:
+                p += [f"retained SMOKE log: {x}" for x in log_gate(open(slog, errors="replace").read(), run, "end", backend,
+                                                                   ngpu, max_steps=SMOKE_STEPS_DDP, min_losses=1)]
+            if not (_iso(smk["finished_at"]) <= _iso(rec["launched_at"])):
+                p.append("the SMOKE finished after this run launched")
+            logc = os.path.join(rdir, names["log"])
+            if sha256_file(logc) != rec["log_sha256"]:
+                p.append("the retained train log != the receipt's sha")
+            else:
+                p += log_gate(open(logc, errors="replace").read(), run, "end", backend, ngpu, min_losses=FULL_MIN_LOSSES)
+            evd = os.path.join(src, "evidence")
+            if evidence_digest(evd) != rec["evidence_sha256"]:
+                p.append("the evidence files != the receipt's digest")
+            else:
+                p += evidence_gate(evd, run, ngpu, backend)
+        except (GateError, OSError, ValueError, KeyError, TypeError) as err:
+            p.append(f"retained records: {err}")
+        try:
+            manifest = os.path.join(src, "CHECKPOINTS.sha256")
+            if sha256_file(manifest) != rec["checkpoints_sha256"]:
+                p.append("CHECKPOINTS.sha256 != the receipt's")
+            lines = dict(reversed(ln.split("  ", 1)) for ln in open(manifest).read().strip().split("\n"))
+            if sorted(lines) != sorted(ckpt_name(s, tag) for s in cadence_steps()) or lines[final] != rec["final_ckpt_sha256"]:
+                p.append("checkpoint manifest set / final line")
+            if verify_bytes:
+                path = os.path.join(rd, final)
+                if os.path.getsize(path) != rec["final_ckpt_bytes"] or sha256_file(path) != rec["final_ckpt_sha256"]:
+                    p.append(f"{path} sha / bytes != the training receipt")
+        except (OSError, ValueError) as err:
+            p.append(f"checkpoint manifest: {err}")
+        # the single final commit (Codex code r3 HIGH 7)
+        try:
+            cm, _ = read_sealed(os.path.join(src, COMMIT_MARKER), COMMIT_KEYS)
+            lr = os.path.join(src, str(cm["launch_record"]))
+            lrec = json.load(open(lr))
+            if (cm["schema"], cm["run"], cm["training_receipt_sha256"]) != (1, run, digest) \
+                    or sha256_file(lr) != cm["launch_record_sha256"] or lrec.get("status") != "COMPLETE" \
+                    or lrec.get("training_receipt_sha256") != digest:
+                p.append("the commit marker / terminal launch record do not bind this receipt")
+        except (GateError, OSError, ValueError, KeyError) as err:
+            p.append(f"no committed completion: {err}")
+        if rec["data_content_checks"] != ["pre-launch", "post-run"] + (["f100 delta post-run"] if tag == FULL_TAG else []):
+            p.append("the AR content was not verified before and after the run (f100: and its delta after it)")
+        if p:
+>           raise GateError(f"{run} training receipt: " + "; ".join(p))
+E           exp46_registry.GateError: exp46_C4Ff100_l40_2x32 training receipt: f100 delta verification: not the registered manifest at its pinned sha256
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:2447: GateError
+----------------------------- Captured stdout call -----------------------------
+exp46_C4Ff025_l40_2x32_K8_s42: done
+exp46_C4Ff025_l40_2x32_K8_s43: done
+exp46_C4Ff025_l40_2x32_K8_s44: done
+exp46_C4Ff025_l40_2x32_K8_s45: done
+exp46_C4Ff025_l40_2x32_K8_s46: done
+exp46_C4Ff025_l40_2x32_K1_s42: done
+exp46_C4Ff025_l40_2x32_K1_s43: done
+exp46_C4Ff025_l40_2x32_K1_s44: done
+exp46_C4Ff025_l40_2x32_K1_s45: done
+exp46_C4Ff025_l40_2x32_K1_s46: done
+exp46_C4Ff050_l40_2x32_K8_s42: done
+exp46_C4Ff050_l40_2x32_K8_s43: done
+exp46_C4Ff050_l40_2x32_K8_s44: done
+exp46_C4Ff050_l40_2x32_K8_s45: done
+exp46_C4Ff050_l40_2x32_K8_s46: done
+exp46_C4Ff050_l40_2x32_K1_s42: done
+exp46_C4Ff050_l40_2x32_K1_s43: done
+exp46_C4Ff050_l40_2x32_K1_s44: done
+exp46_C4Ff050_l40_2x32_K1_s45: done
+exp46_C4Ff050_l40_2x32_K1_s46: done
+exp46_C4Ff075_l40_2x32_K8_s42: done
+exp46_C4Ff075_l40_2x32_K8_s43: done
+exp46_C4Ff075_l40_2x32_K8_s44: done
+exp46_C4Ff075_l40_2x32_K8_s45: done
+exp46_C4Ff075_l40_2x32_K8_s46: done
+exp46_C4Ff075_l40_2x32_K1_s42: done
+exp46_C4Ff075_l40_2x32_K1_s43: done
+exp46_C4Ff075_l40_2x32_K1_s44: done
+exp46_C4Ff075_l40_2x32_K1_s45: done
+exp46_C4Ff075_l40_2x32_K1_s46: done
+___ test_collect_refuses_any_missing_or_unadmitted_cell[unadmitted run cell] ___
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_refuses_any_missi2'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f485e24d180>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_refuses_any_missi2')
+what = 'unadmitted run cell'
+
+    @pytest.mark.parametrize("what", ["missing run cell", "missing run metrics", "unadmitted run cell", "e0 cell"])
+    def test_collect_refuses_any_missing_or_unadmitted_cell(world, monkeypatch, tmp_path, what):
+>       _cmd_run_world(world, monkeypatch, tmp_path)
+
+src/tests/test_exp46_eval.py:686: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_eval.py:655: in _cmd_run_world
+    ev.cmd_run(1, names, lockdir=str(tmp_path))
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:959: in cmd_run
+    print(f"{n}: {run_one(cells[n], gpu, campaign, (lock.fileno(),))}", flush=True)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:860: in run_one
+    ck_sha, ck_bytes, tr_sha = cell_checkpoint(cell, campaign)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:515: in cell_checkpoint
+    return expected_ckpt(cell, campaign, offline)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:506: in expected_ckpt
+    rec, digest = reg.check_training_receipt(cell["run"], rd, closure=campaign["closure_sha256"],
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_C4Ff100_l40_2x32'
+rd = '/tmp/pytest-of-yh4742/pytest-0/test_collect_refuses_any_missi2/nas/exp46_C4Ff100_l40_2x32'
+closure = 'f0c7c2b98c8fa6abf6c14536b3fca2eda2c43768aa570ce96684a06c05ccb0d9'
+receipt_dir = None, verify_bytes = False
+e0_sha = '85f889a2ea0ce3ef473d23279de30275876376b1278b955d9489f62c62cb04c0'
+platform = None
+
+    def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes=True, e0_sha=None, platform=None):
+        """The sealed terminal receipt of a run (in ``receipt_dir`` or the run dir), every field checked
+        (Codex code r2 BLOCKING 1): the run, platform, backend, HEAD, the campaign ``closure`` / ``e0_sha``,
+        the registered argv, configs, split and AR content, GPU topology; the RETAINED copies of the E0,
+        SMOKE_DDP and environment receipts (sealed, their shas == the receipt's, the SMOKE one re-validated
+        incl. its evidence); the retained train log (sha + the end gate re-run); the evidence (digest + the
+        gate re-run); the checkpoint manifest and -- with ``verify_bytes`` -- the final checkpoint's current
+        sha256 and byte count. Returns (receipt, receipt sha256)."""
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import exp46_eval
+        arm, tag, rung = parse_run_id(run)
+        ngpu = RUNGS[rung]["ngpu"]
+        src = receipt_dir or rd
+        rec, digest = read_sealed(os.path.join(src, TRAINING_RECEIPT), TRAINING_KEYS)
+        final = ckpt_name(MAX_STEPS, tag)
+        p = []
+        plat, backend = rec["platform"], rec["backend"]
+        if plat not in PLATFORMS or (platform is not None and plat != platform) or backend != TRAINING_BACKEND:
+            raise GateError(f"{run} training receipt: platform {plat!r} / backend {backend!r} (exp_46 trains with backend "
+                            f"{TRAINING_BACKEND} only, plan r3 F2 / L5)")
+        want = {"schema": 1, "run": run, "rc": 0, "log_gate": "PASS", "evidence_gate": "PASS", "final_ckpt": final,
+                "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung))),
+                "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"],
+                "data_content_sha256": AR_CONTENT_SHA256,
+                "argv": build_train_argv(run, plat, allow_nonmatched=rung != "2x32"),
+                "loss_record_rows": MAX_STEPS // LOSS_EVERY,
+                "f100_delta_sha256": F100_DELTA_SHA256 if tag == FULL_TAG else None}
+        p += [f"{k} {str(rec.get(k))[:60]!r} != {str(v)[:60]!r}" for k, v in want.items() if canonical(rec.get(k)) != canonical(v)]
+        if closure is not None and rec["closure_sha256"] != closure:
+            p.append(f"trained at closure {str(rec['closure_sha256'])[:12]}, not the campaign's {closure[:12]}")
+        if e0_sha is not None and rec["e0_receipt_sha256"] != e0_sha:
+            p.append("trained under another E0 receipt than the campaign's")
+        if not (isinstance(rec["head"], str) and re.fullmatch(r"[0-9a-f]{40}", rec["head"])
+                and all(_is_sha(rec[k]) for k in ("closure_sha256", "snapshot_sha256", "env_receipt_sha256",
+                                                  "e0_receipt_sha256", "smoke_receipt_sha256", "log_sha256",
+                                                  "evidence_sha256", "checkpoints_sha256", "final_ckpt_sha256",
+                                                  "loss_record_sha256"))
+                and type(rec["final_ckpt_bytes"]) is int and isinstance(rec["launched_at"], str)
+                and isinstance(rec["finished_at"], str) and isinstance(rec["log"], str)
+                and isinstance(rec["smoke_receipt"], str)):
+            p.append("hash / byte / time / path fields malformed")
+        if not _gpus_ok(plat, ngpu, rec["gpus"]):
+            p.append(f"GPUs {rec['gpus']} are not the {plat} topology")
+        # ---- the retained receipts and log
+        rdir = os.path.join(src, RECEIPTS_DIR)
+        names = rec["receipts"] if isinstance(rec["receipts"], dict) else {}
+        try:
+            full = tag == FULL_TAG
+            if sorted(names) != sorted(["e0", "env", "log", "loss_record", "loss_record_hparams", "smoke", "smoke_log",
+                                        "snapshot_links", "snapshot_manifest"] + (["f100_delta_verification"] if full else [])) \
+                    or (names["loss_record"], names["loss_record_hparams"]) != (LOSS_RECORD, LOSS_RECORD_HPARAMS) \
+                    or (full and names["f100_delta_verification"] != F100_VERIFICATION):
+                raise GateError(f"retained receipts {sorted(names)}")
+            if full:                     # f100: the in-job delta re-verification, re-opened online and offline (plan r3 §3.2)
+                vrec, vsha = read_sealed(os.path.join(rdir, F100_VERIFICATION), F100_VERIFICATION_KEYS)
+                if vsha != rec["f100_delta_verification_sha256"]:
+                    p.append("the retained f100 delta verification != the sha the training receipt bound")
+                p += f100_verification_problems(vrec)
+            elif rec["f100_delta_verification_sha256"] is not None:
+                p.append("a fraction run carries an f100 delta verification")
+            # the loss record is re-opened and re-validated, online and offline (plan r3 §3.2, Codex plan r1 finding 9)
+            got = check_loss_record(os.path.join(rdir, LOSS_RECORD))
+            if (got["loss_record_sha256"], got["loss_record_rows"]) != (rec["loss_record_sha256"], rec["loss_record_rows"]):
+                p.append("the retained loss record != the training receipt's sha256 / rows")
+            if not os.path.isfile(os.path.join(rdir, LOSS_RECORD_HPARAMS)):
+                p.append(f"the retained {LOSS_RECORD_HPARAMS} is missing")
+            e0c, d_e0 = read_sealed(os.path.join(rdir, names["e0"]), exp46_eval.E0_KEYS)
+            envc, d_env = read_sealed(os.path.join(rdir, names["env"]), ENV_RECEIPT_KEYS)
+            smk, d_smk = read_sealed(os.path.join(rdir, names["smoke"]), SMOKE_KEYS)
+            if (d_e0, d_env, d_smk) != (rec["e0_receipt_sha256"], rec["env_receipt_sha256"], rec["smoke_receipt_sha256"]):
+                p.append("a retained receipt copy != the sha the training receipt bound")
+            if e0c["verdict"] != "PASS" or e0c["closure_sha256"] != rec["closure_sha256"]:
+                p.append("the retained E0 receipt is not a PASS at the run's closure")
+            p += [f"retained E0: {x}" for x in exp46_eval.e0_static_problems(e0c)]
+            if envc["platform"] != plat:
+                p.append("the retained environment receipt is another platform's")
+            if not (isinstance(envc["packages"], dict) and envc["packages_sha256"] ==
+                    hashlib.sha256(canonical(dict(sorted(envc["packages"].items()))).encode()).hexdigest()
+                    and isinstance(envc["flags"], dict) and envc["flags"].get("optimize") == 0
+                    and envc["flags"].get("no_user_site") == 1
+                    and (plat != "a6000" or envc["packages"].get("flash-attn") == FLASH_VERSION)):
+                p.append("the retained environment receipt is internally inconsistent / off the registered flags")
+            snap_dir = rdir
+            if snapshot_digest(snap_dir) != rec["snapshot_sha256"] or \
+                    closure_of_manifest(open(os.path.join(snap_dir, names["snapshot_manifest"])).read()) != rec["closure_sha256"]:
+                p.append("the retained snapshot manifests are not the run's snapshot / closure")
+            if not (_iso(rec["launched_at"]) <= _iso(rec["finished_at"])):
+                p.append("finished before it launched")
+            want_s = {"mode": "SMOKE_DDP", "run": run, "platform": plat, "backend": backend, "head": rec["head"],
+                      "closure_sha256": rec["closure_sha256"], "env_receipt_sha256": rec["env_receipt_sha256"],
+                      "rc": 0, "checkpoints_written": 0, "log_gate": "PASS", "evidence_gate": "PASS", "verdict": "PASS",
+                      "logger_gate": "PASS", "argv_projection": argv_projection(rec["argv"])}
+            p += [f"retained SMOKE {k} {str(smk.get(k))[:40]!r} != {str(v)[:40]!r}" for k, v in want_s.items()
+                  if canonical(smk.get(k)) != canonical(v)]
+            ev = smk.get("evidence") or {}
+            p += evidence_problems({int(r): v for r, v in ev.items()} if sorted(ev) == [str(r) for r in range(ngpu)] else {},
+                                   run, ngpu, backend, SMOKE_STEPS_DDP)
+            if smk.get("schema") != 1 or not _gpus_ok(plat, ngpu, smk.get("gpus")) or not _is_sha(smk.get("snapshot_sha256")):
+                p.append("retained SMOKE schema / GPUs / snapshot")
+            slog = os.path.join(rdir, names["smoke_log"])
+            if sha256_file(slog) != smk.get("log_sha256"):
+                p.append("the retained SMOKE log != the SMOKE receipt's sha")
+            else:
+                p += [f"retained SMOKE log: {x}" for x in log_gate(open(slog, errors="replace").read(), run, "end", backend,
+                                                                   ngpu, max_steps=SMOKE_STEPS_DDP, min_losses=1)]
+            if not (_iso(smk["finished_at"]) <= _iso(rec["launched_at"])):
+                p.append("the SMOKE finished after this run launched")
+            logc = os.path.join(rdir, names["log"])
+            if sha256_file(logc) != rec["log_sha256"]:
+                p.append("the retained train log != the receipt's sha")
+            else:
+                p += log_gate(open(logc, errors="replace").read(), run, "end", backend, ngpu, min_losses=FULL_MIN_LOSSES)
+            evd = os.path.join(src, "evidence")
+            if evidence_digest(evd) != rec["evidence_sha256"]:
+                p.append("the evidence files != the receipt's digest")
+            else:
+                p += evidence_gate(evd, run, ngpu, backend)
+        except (GateError, OSError, ValueError, KeyError, TypeError) as err:
+            p.append(f"retained records: {err}")
+        try:
+            manifest = os.path.join(src, "CHECKPOINTS.sha256")
+            if sha256_file(manifest) != rec["checkpoints_sha256"]:
+                p.append("CHECKPOINTS.sha256 != the receipt's")
+            lines = dict(reversed(ln.split("  ", 1)) for ln in open(manifest).read().strip().split("\n"))
+            if sorted(lines) != sorted(ckpt_name(s, tag) for s in cadence_steps()) or lines[final] != rec["final_ckpt_sha256"]:
+                p.append("checkpoint manifest set / final line")
+            if verify_bytes:
+                path = os.path.join(rd, final)
+                if os.path.getsize(path) != rec["final_ckpt_bytes"] or sha256_file(path) != rec["final_ckpt_sha256"]:
+                    p.append(f"{path} sha / bytes != the training receipt")
+        except (OSError, ValueError) as err:
+            p.append(f"checkpoint manifest: {err}")
+        # the single final commit (Codex code r3 HIGH 7)
+        try:
+            cm, _ = read_sealed(os.path.join(src, COMMIT_MARKER), COMMIT_KEYS)
+            lr = os.path.join(src, str(cm["launch_record"]))
+            lrec = json.load(open(lr))
+            if (cm["schema"], cm["run"], cm["training_receipt_sha256"]) != (1, run, digest) \
+                    or sha256_file(lr) != cm["launch_record_sha256"] or lrec.get("status") != "COMPLETE" \
+                    or lrec.get("training_receipt_sha256") != digest:
+                p.append("the commit marker / terminal launch record do not bind this receipt")
+        except (GateError, OSError, ValueError, KeyError) as err:
+            p.append(f"no committed completion: {err}")
+        if rec["data_content_checks"] != ["pre-launch", "post-run"] + (["f100 delta post-run"] if tag == FULL_TAG else []):
+            p.append("the AR content was not verified before and after the run (f100: and its delta after it)")
+        if p:
+>           raise GateError(f"{run} training receipt: " + "; ".join(p))
+E           exp46_registry.GateError: exp46_C4Ff100_l40_2x32 training receipt: f100 delta verification: not the registered manifest at its pinned sha256
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:2447: GateError
+----------------------------- Captured stdout call -----------------------------
+exp46_C4Ff025_l40_2x32_K8_s42: done
+exp46_C4Ff025_l40_2x32_K8_s43: done
+exp46_C4Ff025_l40_2x32_K8_s44: done
+exp46_C4Ff025_l40_2x32_K8_s45: done
+exp46_C4Ff025_l40_2x32_K8_s46: done
+exp46_C4Ff025_l40_2x32_K1_s42: done
+exp46_C4Ff025_l40_2x32_K1_s43: done
+exp46_C4Ff025_l40_2x32_K1_s44: done
+exp46_C4Ff025_l40_2x32_K1_s45: done
+exp46_C4Ff025_l40_2x32_K1_s46: done
+exp46_C4Ff050_l40_2x32_K8_s42: done
+exp46_C4Ff050_l40_2x32_K8_s43: done
+exp46_C4Ff050_l40_2x32_K8_s44: done
+exp46_C4Ff050_l40_2x32_K8_s45: done
+exp46_C4Ff050_l40_2x32_K8_s46: done
+exp46_C4Ff050_l40_2x32_K1_s42: done
+exp46_C4Ff050_l40_2x32_K1_s43: done
+exp46_C4Ff050_l40_2x32_K1_s44: done
+exp46_C4Ff050_l40_2x32_K1_s45: done
+exp46_C4Ff050_l40_2x32_K1_s46: done
+exp46_C4Ff075_l40_2x32_K8_s42: done
+exp46_C4Ff075_l40_2x32_K8_s43: done
+exp46_C4Ff075_l40_2x32_K8_s44: done
+exp46_C4Ff075_l40_2x32_K8_s45: done
+exp46_C4Ff075_l40_2x32_K8_s46: done
+exp46_C4Ff075_l40_2x32_K1_s42: done
+exp46_C4Ff075_l40_2x32_K1_s43: done
+exp46_C4Ff075_l40_2x32_K1_s44: done
+exp46_C4Ff075_l40_2x32_K1_s45: done
+exp46_C4Ff075_l40_2x32_K1_s46: done
+_________ test_collect_refuses_any_missing_or_unadmitted_cell[e0 cell] _________
+
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_refuses_any_missi3'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f47fc4df220>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_collect_refuses_any_missi3')
+what = 'e0 cell'
+
+    @pytest.mark.parametrize("what", ["missing run cell", "missing run metrics", "unadmitted run cell", "e0 cell"])
+    def test_collect_refuses_any_missing_or_unadmitted_cell(world, monkeypatch, tmp_path, what):
+>       _cmd_run_world(world, monkeypatch, tmp_path)
+
+src/tests/test_exp46_eval.py:686: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_eval.py:655: in _cmd_run_world
+    ev.cmd_run(1, names, lockdir=str(tmp_path))
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:959: in cmd_run
+    print(f"{n}: {run_one(cells[n], gpu, campaign, (lock.fileno(),))}", flush=True)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:860: in run_one
+    ck_sha, ck_bytes, tr_sha = cell_checkpoint(cell, campaign)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:515: in cell_checkpoint
+    return expected_ckpt(cell, campaign, offline)
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_eval.py:506: in expected_ckpt
+    rec, digest = reg.check_training_receipt(cell["run"], rd, closure=campaign["closure_sha256"],
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_C4Ff100_l40_2x32'
+rd = '/tmp/pytest-of-yh4742/pytest-0/test_collect_refuses_any_missi3/nas/exp46_C4Ff100_l40_2x32'
+closure = 'f0c7c2b98c8fa6abf6c14536b3fca2eda2c43768aa570ce96684a06c05ccb0d9'
+receipt_dir = None, verify_bytes = False
+e0_sha = '6dce1f96956ea36240dfc62bfbfb6808f0bfa6b5167f7c26fff7a51c8c5d1fba'
+platform = None
+
+    def check_training_receipt(run, rd, closure=None, receipt_dir=None, verify_bytes=True, e0_sha=None, platform=None):
+        """The sealed terminal receipt of a run (in ``receipt_dir`` or the run dir), every field checked
+        (Codex code r2 BLOCKING 1): the run, platform, backend, HEAD, the campaign ``closure`` / ``e0_sha``,
+        the registered argv, configs, split and AR content, GPU topology; the RETAINED copies of the E0,
+        SMOKE_DDP and environment receipts (sealed, their shas == the receipt's, the SMOKE one re-validated
+        incl. its evidence); the retained train log (sha + the end gate re-run); the evidence (digest + the
+        gate re-run); the checkpoint manifest and -- with ``verify_bytes`` -- the final checkpoint's current
+        sha256 and byte count. Returns (receipt, receipt sha256)."""
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import exp46_eval
+        arm, tag, rung = parse_run_id(run)
+        ngpu = RUNGS[rung]["ngpu"]
+        src = receipt_dir or rd
+        rec, digest = read_sealed(os.path.join(src, TRAINING_RECEIPT), TRAINING_KEYS)
+        final = ckpt_name(MAX_STEPS, tag)
+        p = []
+        plat, backend = rec["platform"], rec["backend"]
+        if plat not in PLATFORMS or (platform is not None and plat != platform) or backend != TRAINING_BACKEND:
+            raise GateError(f"{run} training receipt: platform {plat!r} / backend {backend!r} (exp_46 trains with backend "
+                            f"{TRAINING_BACKEND} only, plan r3 F2 / L5)")
+        want = {"schema": 1, "run": run, "rc": 0, "log_gate": "PASS", "evidence_gate": "PASS", "final_ckpt": final,
+                "model_config_sha256": sha256_file(_abs(model_config_rel(arm, rung))),
+                "dataset_config_sha256": FRACS[tag]["dataset_config_sha256"], "split_sha256": FRACS[tag]["split_sha256"],
+                "data_content_sha256": AR_CONTENT_SHA256,
+                "argv": build_train_argv(run, plat, allow_nonmatched=rung != "2x32"),
+                "loss_record_rows": MAX_STEPS // LOSS_EVERY,
+                "f100_delta_sha256": F100_DELTA_SHA256 if tag == FULL_TAG else None}
+        p += [f"{k} {str(rec.get(k))[:60]!r} != {str(v)[:60]!r}" for k, v in want.items() if canonical(rec.get(k)) != canonical(v)]
+        if closure is not None and rec["closure_sha256"] != closure:
+            p.append(f"trained at closure {str(rec['closure_sha256'])[:12]}, not the campaign's {closure[:12]}")
+        if e0_sha is not None and rec["e0_receipt_sha256"] != e0_sha:
+            p.append("trained under another E0 receipt than the campaign's")
+        if not (isinstance(rec["head"], str) and re.fullmatch(r"[0-9a-f]{40}", rec["head"])
+                and all(_is_sha(rec[k]) for k in ("closure_sha256", "snapshot_sha256", "env_receipt_sha256",
+                                                  "e0_receipt_sha256", "smoke_receipt_sha256", "log_sha256",
+                                                  "evidence_sha256", "checkpoints_sha256", "final_ckpt_sha256",
+                                                  "loss_record_sha256"))
+                and type(rec["final_ckpt_bytes"]) is int and isinstance(rec["launched_at"], str)
+                and isinstance(rec["finished_at"], str) and isinstance(rec["log"], str)
+                and isinstance(rec["smoke_receipt"], str)):
+            p.append("hash / byte / time / path fields malformed")
+        if not _gpus_ok(plat, ngpu, rec["gpus"]):
+            p.append(f"GPUs {rec['gpus']} are not the {plat} topology")
+        # ---- the retained receipts and log
+        rdir = os.path.join(src, RECEIPTS_DIR)
+        names = rec["receipts"] if isinstance(rec["receipts"], dict) else {}
+        try:
+            full = tag == FULL_TAG
+            if sorted(names) != sorted(["e0", "env", "log", "loss_record", "loss_record_hparams", "smoke", "smoke_log",
+                                        "snapshot_links", "snapshot_manifest"] + (["f100_delta_verification"] if full else [])) \
+                    or (names["loss_record"], names["loss_record_hparams"]) != (LOSS_RECORD, LOSS_RECORD_HPARAMS) \
+                    or (full and names["f100_delta_verification"] != F100_VERIFICATION):
+                raise GateError(f"retained receipts {sorted(names)}")
+            if full:                     # f100: the in-job delta re-verification, re-opened online and offline (plan r3 §3.2)
+                vrec, vsha = read_sealed(os.path.join(rdir, F100_VERIFICATION), F100_VERIFICATION_KEYS)
+                if vsha != rec["f100_delta_verification_sha256"]:
+                    p.append("the retained f100 delta verification != the sha the training receipt bound")
+                p += f100_verification_problems(vrec)
+            elif rec["f100_delta_verification_sha256"] is not None:
+                p.append("a fraction run carries an f100 delta verification")
+            # the loss record is re-opened and re-validated, online and offline (plan r3 §3.2, Codex plan r1 finding 9)
+            got = check_loss_record(os.path.join(rdir, LOSS_RECORD))
+            if (got["loss_record_sha256"], got["loss_record_rows"]) != (rec["loss_record_sha256"], rec["loss_record_rows"]):
+                p.append("the retained loss record != the training receipt's sha256 / rows")
+            if not os.path.isfile(os.path.join(rdir, LOSS_RECORD_HPARAMS)):
+                p.append(f"the retained {LOSS_RECORD_HPARAMS} is missing")
+            e0c, d_e0 = read_sealed(os.path.join(rdir, names["e0"]), exp46_eval.E0_KEYS)
+            envc, d_env = read_sealed(os.path.join(rdir, names["env"]), ENV_RECEIPT_KEYS)
+            smk, d_smk = read_sealed(os.path.join(rdir, names["smoke"]), SMOKE_KEYS)
+            if (d_e0, d_env, d_smk) != (rec["e0_receipt_sha256"], rec["env_receipt_sha256"], rec["smoke_receipt_sha256"]):
+                p.append("a retained receipt copy != the sha the training receipt bound")
+            if e0c["verdict"] != "PASS" or e0c["closure_sha256"] != rec["closure_sha256"]:
+                p.append("the retained E0 receipt is not a PASS at the run's closure")
+            p += [f"retained E0: {x}" for x in exp46_eval.e0_static_problems(e0c)]
+            if envc["platform"] != plat:
+                p.append("the retained environment receipt is another platform's")
+            if not (isinstance(envc["packages"], dict) and envc["packages_sha256"] ==
+                    hashlib.sha256(canonical(dict(sorted(envc["packages"].items()))).encode()).hexdigest()
+                    and isinstance(envc["flags"], dict) and envc["flags"].get("optimize") == 0
+                    and envc["flags"].get("no_user_site") == 1
+                    and (plat != "a6000" or envc["packages"].get("flash-attn") == FLASH_VERSION)):
+                p.append("the retained environment receipt is internally inconsistent / off the registered flags")
+            snap_dir = rdir
+            if snapshot_digest(snap_dir) != rec["snapshot_sha256"] or \
+                    closure_of_manifest(open(os.path.join(snap_dir, names["snapshot_manifest"])).read()) != rec["closure_sha256"]:
+                p.append("the retained snapshot manifests are not the run's snapshot / closure")
+            if not (_iso(rec["launched_at"]) <= _iso(rec["finished_at"])):
+                p.append("finished before it launched")
+            want_s = {"mode": "SMOKE_DDP", "run": run, "platform": plat, "backend": backend, "head": rec["head"],
+                      "closure_sha256": rec["closure_sha256"], "env_receipt_sha256": rec["env_receipt_sha256"],
+                      "rc": 0, "checkpoints_written": 0, "log_gate": "PASS", "evidence_gate": "PASS", "verdict": "PASS",
+                      "logger_gate": "PASS", "argv_projection": argv_projection(rec["argv"])}
+            p += [f"retained SMOKE {k} {str(smk.get(k))[:40]!r} != {str(v)[:40]!r}" for k, v in want_s.items()
+                  if canonical(smk.get(k)) != canonical(v)]
+            ev = smk.get("evidence") or {}
+            p += evidence_problems({int(r): v for r, v in ev.items()} if sorted(ev) == [str(r) for r in range(ngpu)] else {},
+                                   run, ngpu, backend, SMOKE_STEPS_DDP)
+            if smk.get("schema") != 1 or not _gpus_ok(plat, ngpu, smk.get("gpus")) or not _is_sha(smk.get("snapshot_sha256")):
+                p.append("retained SMOKE schema / GPUs / snapshot")
+            slog = os.path.join(rdir, names["smoke_log"])
+            if sha256_file(slog) != smk.get("log_sha256"):
+                p.append("the retained SMOKE log != the SMOKE receipt's sha")
+            else:
+                p += [f"retained SMOKE log: {x}" for x in log_gate(open(slog, errors="replace").read(), run, "end", backend,
+                                                                   ngpu, max_steps=SMOKE_STEPS_DDP, min_losses=1)]
+            if not (_iso(smk["finished_at"]) <= _iso(rec["launched_at"])):
+                p.append("the SMOKE finished after this run launched")
+            logc = os.path.join(rdir, names["log"])
+            if sha256_file(logc) != rec["log_sha256"]:
+                p.append("the retained train log != the receipt's sha")
+            else:
+                p += log_gate(open(logc, errors="replace").read(), run, "end", backend, ngpu, min_losses=FULL_MIN_LOSSES)
+            evd = os.path.join(src, "evidence")
+            if evidence_digest(evd) != rec["evidence_sha256"]:
+                p.append("the evidence files != the receipt's digest")
+            else:
+                p += evidence_gate(evd, run, ngpu, backend)
+        except (GateError, OSError, ValueError, KeyError, TypeError) as err:
+            p.append(f"retained records: {err}")
+        try:
+            manifest = os.path.join(src, "CHECKPOINTS.sha256")
+            if sha256_file(manifest) != rec["checkpoints_sha256"]:
+                p.append("CHECKPOINTS.sha256 != the receipt's")
+            lines = dict(reversed(ln.split("  ", 1)) for ln in open(manifest).read().strip().split("\n"))
+            if sorted(lines) != sorted(ckpt_name(s, tag) for s in cadence_steps()) or lines[final] != rec["final_ckpt_sha256"]:
+                p.append("checkpoint manifest set / final line")
+            if verify_bytes:
+                path = os.path.join(rd, final)
+                if os.path.getsize(path) != rec["final_ckpt_bytes"] or sha256_file(path) != rec["final_ckpt_sha256"]:
+                    p.append(f"{path} sha / bytes != the training receipt")
+        except (OSError, ValueError) as err:
+            p.append(f"checkpoint manifest: {err}")
+        # the single final commit (Codex code r3 HIGH 7)
+        try:
+            cm, _ = read_sealed(os.path.join(src, COMMIT_MARKER), COMMIT_KEYS)
+            lr = os.path.join(src, str(cm["launch_record"]))
+            lrec = json.load(open(lr))
+            if (cm["schema"], cm["run"], cm["training_receipt_sha256"]) != (1, run, digest) \
+                    or sha256_file(lr) != cm["launch_record_sha256"] or lrec.get("status") != "COMPLETE" \
+                    or lrec.get("training_receipt_sha256") != digest:
+                p.append("the commit marker / terminal launch record do not bind this receipt")
+        except (GateError, OSError, ValueError, KeyError) as err:
+            p.append(f"no committed completion: {err}")
+        if rec["data_content_checks"] != ["pre-launch", "post-run"] + (["f100 delta post-run"] if tag == FULL_TAG else []):
+            p.append("the AR content was not verified before and after the run (f100: and its delta after it)")
+        if p:
+>           raise GateError(f"{run} training receipt: " + "; ".join(p))
+E           exp46_registry.GateError: exp46_C4Ff100_l40_2x32 training receipt: f100 delta verification: not the registered manifest at its pinned sha256
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:2447: GateError
+----------------------------- Captured stdout call -----------------------------
+exp46_C4Ff025_l40_2x32_K8_s42: done
+exp46_C4Ff025_l40_2x32_K8_s43: done
+exp46_C4Ff025_l40_2x32_K8_s44: done
+exp46_C4Ff025_l40_2x32_K8_s45: done
+exp46_C4Ff025_l40_2x32_K8_s46: done
+exp46_C4Ff025_l40_2x32_K1_s42: done
+exp46_C4Ff025_l40_2x32_K1_s43: done
+exp46_C4Ff025_l40_2x32_K1_s44: done
+exp46_C4Ff025_l40_2x32_K1_s45: done
+exp46_C4Ff025_l40_2x32_K1_s46: done
+exp46_C4Ff050_l40_2x32_K8_s42: done
+exp46_C4Ff050_l40_2x32_K8_s43: done
+exp46_C4Ff050_l40_2x32_K8_s44: done
+exp46_C4Ff050_l40_2x32_K8_s45: done
+exp46_C4Ff050_l40_2x32_K8_s46: done
+exp46_C4Ff050_l40_2x32_K1_s42: done
+exp46_C4Ff050_l40_2x32_K1_s43: done
+exp46_C4Ff050_l40_2x32_K1_s44: done
+exp46_C4Ff050_l40_2x32_K1_s45: done
+exp46_C4Ff050_l40_2x32_K1_s46: done
+exp46_C4Ff075_l40_2x32_K8_s42: done
+exp46_C4Ff075_l40_2x32_K8_s43: done
+exp46_C4Ff075_l40_2x32_K8_s44: done
+exp46_C4Ff075_l40_2x32_K8_s45: done
+exp46_C4Ff075_l40_2x32_K8_s46: done
+exp46_C4Ff075_l40_2x32_K1_s42: done
+exp46_C4Ff075_l40_2x32_K1_s43: done
+exp46_C4Ff075_l40_2x32_K1_s44: done
+exp46_C4Ff075_l40_2x32_K1_s45: done
+exp46_C4Ff075_l40_2x32_K1_s46: done
+=============================== warnings summary ===============================
+src/tests/test_exp46_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp46_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_receipts.py::test_logger_metadata_without_the_flag_is_the_pre_flag_dict
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_eval.py::test_collect_admits_every_run_cell_produced_by_cmd_run
+FAILED src/tests/test_exp46_eval.py::test_collect_refuses_any_missing_or_unadmitted_cell[missing run cell]
+FAILED src/tests/test_exp46_eval.py::test_collect_refuses_any_missing_or_unadmitted_cell[missing run metrics]
+FAILED src/tests/test_exp46_eval.py::test_collect_refuses_any_missing_or_unadmitted_cell[unadmitted run cell]
+FAILED src/tests/test_exp46_eval.py::test_collect_refuses_any_missing_or_unadmitted_cell[e0 cell]
+SKIPPED [1] src/tests/test_exp46_receipts.py:72: the GPU-0 smoke evidence lives in this checkout's outputs_FLAC only
+SKIPPED [1] src/tests/test_exp46_receipts.py:716: A6000 box only (nvidia-smi, A6000s)
+SKIPPED [1] src/tests/test_exp46_receipts.py:892: A6000 box only
+SKIPPED [1] src/tests/test_exp46_receipts.py:922: NAS not mounted
+5 failed, 574 passed, 4 skipped, 7 warnings in 378.80s (0:06:18)
+EXIT 1 end 2026-11-18T00:39:04-05:00

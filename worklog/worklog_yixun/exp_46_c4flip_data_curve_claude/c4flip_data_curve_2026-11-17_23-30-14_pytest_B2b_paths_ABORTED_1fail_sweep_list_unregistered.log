@@ -1,0 +1,58 @@
+HEAD 942db750228bf1bb81ded3b13f61057d5999d98d tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-17T23:30:30-05:00
+cmd: pytest -q -rfEs src/tests/test_exp46_paths.py src/tests/test_exp46_supervise.py src/tests/test_exp46_registry.py src/tests/test_exp46_receipts.py src/tests/test_exp46_launchers.py src/tests/test_exp46_storage.py src/tests/test_exp46_isolation.py 
+F....................................................................... [ 17%]
+..................................................................s..... [ 34%]
+........................................................................ [ 51%]
+........................................................................ [ 68%]
+.........................................s.....s.s...................... [ 85%]
+..............................................................           [100%]
+=================================== FAILURES ===================================
+___ test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition ___
+
+    def test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition():
+        got = set(foreign_literals())
+        unregistered = sorted(got - set(REGISTERED))
+        stale = sorted(set(REGISTERED) - got)
+>       assert not unregistered and not stale, {"unregistered": unregistered, "stale": stale}
+E       AssertionError: {'unregistered': [('exp46_eval.py', '.exp38_card'), ('exp46_registry.py', '/exp38_content_manifest.py'), ('exp46_regis...38_data_efficiency'), ('exp46_registry.py', '/media/diskstation/yixunhu/FLAC/exp38_pred_waveforms'), ...], 'stale': []}
+E       assert (not [('exp46_eval.py', '.exp38_card'), ('exp46_registry.py', '/exp38_content_manifest.py'), ('exp46_registry.py', '/exp38_...heckpoints/exp38_data_efficiency'), ('exp46_registry.py', '/media/diskstation/yixunhu/FLAC/exp38_pred_waveforms'), ...])
+
+src/tests/test_exp46_paths.py:76: AssertionError
+=============================== warnings summary ===============================
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    from pkg_resources import packaging
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_paths.py::test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition
+SKIPPED [1] src/tests/test_exp46_receipts.py:72: the GPU-0 smoke evidence lives in this checkout's outputs_FLAC only
+SKIPPED [1] src/tests/test_exp46_receipts.py:716: A6000 box only (nvidia-smi, A6000s)
+SKIPPED [1] src/tests/test_exp46_receipts.py:892: A6000 box only
+SKIPPED [1] src/tests/test_exp46_receipts.py:922: NAS not mounted
+1 failed, 417 passed, 4 skipped, 7 warnings in 190.76s (0:03:10)
+EXIT 1 end 2026-11-17T23:33:44-05:00

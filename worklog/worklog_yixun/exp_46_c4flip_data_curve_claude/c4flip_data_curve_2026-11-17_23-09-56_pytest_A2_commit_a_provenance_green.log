@@ -1,0 +1,9 @@
+HEAD 407d11d1f77d7a1b4f23f497d53f95c9494c3da8 tracked-clean=yes host neu321.neuronic.cs.princeton.edu start 2026-11-17T23:09:57-05:00
+cmd: pytest -q -rA src/tests/test_exp46_provenance.py 
+..                                                                       [100%]
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp46_provenance.py::test_commit_a_is_the_x45f_sources_under_the_declared_rename_map
+PASSED src/tests/test_exp46_provenance.py::test_the_rename_map_covers_the_nine_kit_files_and_every_kit_behaviour_test_file
+2 passed in 3.83s
+EXIT 0 end 2026-11-17T23:10:02-05:00

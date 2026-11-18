@@ -1,0 +1,20 @@
+HEAD 26d644d06282775bbc0c22a1960e3a04e82b7b39 tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-18T01:29:50-05:00
+cmd: pytest -q -rfEs src/tests/test_gen_model_comparison_exp46.py src/tests/test_gen_model_comparison_exp45.py src/tests/test_gen_model_comparison_exp38.py src/tests/test_gen_model_comparison_depth_canon.py src/tests/test_gen_model_comparison_data_curve.py src/tests/test_gen_model_comparison_gate.py src/tests/test_exp46_table.py 
+........................................................................ [ 45%]
+........................................................................ [ 91%]
+..............                                                           [100%]
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+158 passed, 3 warnings in 183.26s (0:03:03)
+EXIT 0 end 2026-11-18T01:32:56-05:00

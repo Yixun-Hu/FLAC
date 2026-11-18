@@ -1,0 +1,13 @@
+HEAD dfbbda543a9fdab6b729b0974e5ea05067f65f46 tracked-clean=no host neu309.neuronic.cs.princeton.edu start 2026-11-17T23:47:33-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_registry.py 
+
+==================================== ERRORS ====================================
+______________ ERROR collecting src/tests/test_exp46_registry.py _______________
+src/tests/test_exp46_registry.py:538: in <module>
+    assert C16_BANNER == reg.C16_BANNER
+E   AttributeError: module 'exp46_registry' has no attribute 'C16_BANNER'. Did you mean: 'RF_BANNER'?
+=========================== short test summary info ============================
+ERROR src/tests/test_exp46_registry.py - AttributeError: module 'exp46_regist...
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.33s
+EXIT 2 end 2026-11-17T23:47:34-05:00

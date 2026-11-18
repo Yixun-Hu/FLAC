@@ -1,0 +1,122 @@
+HEAD dfbbda543a9fdab6b729b0974e5ea05067f65f46 tracked-clean=no host neu301.neuronic.cs.princeton.edu start 2026-11-17T23:48:33-05:00
+cmd: pytest -q -rfEs src/tests/test_exp46_ddp_evidence.py src/tests/test_exp46_eval.py src/tests/test_exp46_isolation.py src/tests/test_exp46_launchers.py src/tests/test_exp46_receipts.py src/tests/test_exp46_registry.py src/tests/test_exp46_regression_compare.py src/tests/test_exp46_sampler.py src/tests/test_exp46_storage.py src/tests/test_exp46_supervise.py src/tests/test_exp46_table.py src/tests/test_exp46_provenance.py src/tests/test_exp46_paths.py 
+........................................................................ [ 10%]
+........................................................................ [ 21%]
+........................................................................ [ 32%]
+..........................s............................................. [ 43%]
+........................................................................ [ 54%]
+........................................................................ [ 65%]
+.s.....s.s.............................................................. [ 76%]
+........................................................................ [ 87%]
+...............................................................F........ [ 98%]
+.F....F                                                                  [100%]
+=================================== FAILURES ===================================
+___ test_the_disclosures_have_one_source_and_appear_under_every_exp46_table ____
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', 'c98b71e5ca30e3ba08af7c48272fcc23fbb1139a', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+
+    def test_the_disclosures_have_one_source_and_appear_under_every_exp46_table(built):
+        """Codex code r1 finding 15: the plan r3 §8 disclosures live in ONE place (exp46_registry.DISCLOSURES) and print
+        under every exp_46 table -- this comparison table, the collector's results Markdown (all but item 7: it has no
+        OrbitRIR row) and the shared generator's exp_46 block (test_gen_model_comparison_exp45.py) -- so they cannot drift."""
+        reg = tbl.reg
+>       assert len(reg.DISCLOSURES) == 11 and tbl.DISCLOSURES == reg.disclosures("table") == reg.DISCLOSURES
+E       assert (12 == 11)
+E        +  where 12 = len(('1. One training seed and one subset draw per point; the SD is evaluation randomness only (eval seeds 42-46): no sign...as a C4F audit.", "6. Item-weighted aggregation over the 6,337 unseen items, not the paper's per-scene protocol.", ...))
+E        +    where ('1. One training seed and one subset draw per point; the SD is evaluation randomness only (eval seeds 42-46): no sign...as a C4F audit.", "6. Item-weighted aggregation over the 6,337 unseen items, not the paper's per-scene protocol.", ...) = <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'>.DISCLOSURES
+
+src/tests/test_exp46_table.py:316: AssertionError
+_________ test_no_exp46_write_path_names_another_experiments_namespace _________
+
+    def test_no_exp46_write_path_names_another_experiments_namespace():
+>       paths = _write_paths()
+
+src/tests/test_exp46_paths.py:102: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_paths.py:95: in _write_paths
+    paths += [sub.SUBLOG, sub.OWNERS, sub.owner_dir(RUN, "FULL", "/x"), sub.submit_lock_path(RUN, "FULL", "/x"),
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_submit_neuronic.py:86: in owner_dir
+    reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_46 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_46 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:193: GateError
+______________ test_the_dry_run_names_no_a6000_smoke_destination _______________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7fdfe8554130>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fdf46bdd150>
+
+    def test_the_dry_run_names_no_a6000_smoke_destination(capsys, monkeypatch):
+        monkeypatch.setattr(sv, "common_gates", lambda a, p: ("rf", "025", "2x32", sys.executable,
+                                                              {"argv": ["--save-dir", "/x"], "run_dir_state": "fresh"}, {}))
+        monkeypatch.setattr(sv, "backend_gate", lambda *x: {})
+        monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": "c" * 64})
+>       sv.mode_dry_run(sv.parse(["--platform", "a6000", "--mode", "DRY_RUN", "--run", RUN]), "a6000")
+
+src/tests/test_exp46_paths.py:149: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_supervise.py:475: in mode_dry_run
+    full = launch_cmd(platform, ngpu, reg.build_train_argv(a.run, platform, a.dry_save_root, a.allow_nonmatched_rung))
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:616: in build_train_argv
+    arm, tag, rung = parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_RFf025_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_46 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_46 run id: 'exp46_RFf025_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:193: GateError
+----------------------------- Captured stdout call -----------------------------
+pins: {}
+closure: {"closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}
+run dir /x: fresh
+=============================== warnings summary ===============================
+src/tests/test_exp46_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp46_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_table.py::test_the_disclosures_have_one_source_and_appear_under_every_exp46_table
+FAILED src/tests/test_exp46_paths.py::test_no_exp46_write_path_names_another_experiments_namespace
+FAILED src/tests/test_exp46_paths.py::test_the_dry_run_names_no_a6000_smoke_destination
+SKIPPED [1] src/tests/test_exp46_receipts.py:72: the GPU-0 smoke evidence lives in this checkout's outputs_FLAC only
+SKIPPED [1] src/tests/test_exp46_receipts.py:716: A6000 box only (nvidia-smi, A6000s)
+SKIPPED [1] src/tests/test_exp46_receipts.py:892: A6000 box only
+SKIPPED [1] src/tests/test_exp46_receipts.py:922: NAS not mounted
+3 failed, 648 passed, 4 skipped, 7 warnings in 782.46s (0:13:02)
+EXIT 1 end 2026-11-18T00:01:39-05:00

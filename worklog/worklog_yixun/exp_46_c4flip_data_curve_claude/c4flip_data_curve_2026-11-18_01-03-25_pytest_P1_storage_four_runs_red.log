@@ -1,0 +1,64 @@
+HEAD c9e82921f46a98ad3caaf4f236b3c26c1c5f6dab tracked-clean=yes host neu326.neuronic.cs.princeton.edu start 2026-11-18T01:03:47-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_storage.py 
+..FF.......................                                              [100%]
+=================================== FAILURES ===================================
+_______ test_one_run_from_submission_through_full_start_is_counted_once ________
+
+fs = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_one_run_from_submission_t0/save_root'), <function fs.<locals>.set_free at 0x7f6ebedef910>)
+
+    def test_one_run_from_submission_through_full_start_is_counted_once(fs):
+        """Codex plan r3 finding 2: 70 GiB free, three 12.8-GiB reservations pass at submission (70 - 25.6 - 12.8 >= 30);
+        each FULL-start re-check subtracts the ledger's outstanding only (70 - 38.4 >= 30), never the run twice."""
+        root, set_free = fs
+        for r in RUNS:
+>           reg.reserve_storage(r, TOKENS[r], _rd(root, r), str(root))
+
+src/tests/test_exp46_storage.py:80: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_C4Ff100_l40_2x32', token = '44444444444444444444444444444444'
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/test_one_run_from_submission_t0/save_root/exp46_C4Ff100_l40_2x32'
+root = '/tmp/pytest-of-yh4742/pytest-0/test_one_run_from_submission_t0/save_root'
+need = 13731483648, floor = 32212254720
+
+    def reserve_storage(run, token, run_dir, root, need=RUN_RESERVE_BYTES, floor=STORAGE_FLOOR_BYTES):
+        """Submitter, before sbatch and any owner intent: insert the run's reservation or refuse (GateError)."""
+        parse_run_id(run)
+        if not (isinstance(token, str) and re.fullmatch(r"[0-9a-f]{32}", token)):
+            raise GateError(f"reservation token {token!r} is not a 32-hex intent token")
+        with _Ledger(root) as led:
+            if run in led.data["reservations"]:
+                raise GateError(f"{run} already holds a storage reservation (abandon / seal it first)")
+            free, out = led.headroom_terms(root)             # scan, sample, scan (r1 finding 5, r2 finding 2)
+            if free - out - need < floor:
+>               raise GateError(f"storage: {free / 2**30:.1f} GiB free - {out / 2**30:.1f} GiB outstanding - "
+                                f"{need / 2**30:.1f} GiB needed < the {floor / 2**30:.0f} GiB floor")
+E               exp46_registry.GateError: storage: 70.0 GiB free - 38.4 GiB outstanding - 12.8 GiB needed < the 30 GiB floor
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:1244: GateError
+________ test_partially_written_runs_count_only_their_outstanding_bytes ________
+
+fs = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_partially_written_runs_co0/save_root'), <function fs.<locals>.set_free at 0x7f6fa92cb490>)
+
+    def test_partially_written_runs_count_only_their_outstanding_bytes(fs):
+        """outstanding = reserved - bytes already written, counted as ALLOCATED bytes (Codex code r1 finding 5); KiB
+        scale (real bytes, so the allocation is real): three 64-KiB reservations, 20 KiB written by the first run."""
+        root, set_free = fs
+        need = 64 * KIB
+        for r in RUNS:
+            reg.reserve_storage(r, TOKENS[r], _rd(root, r), str(root), need=need, floor=0)
+        d = root / RUNS[0]
+        d.mkdir()
+        (d / "epoch=2-step=2500.ckpt").write_bytes(os.urandom(20 * KIB))
+        os.symlink("/nonexistent/target", d / "link")                                   # links are not counted
+        set_free(70 * GIB - 20 * KIB)                                                    # the run wrote those bytes
+        out = reg.recheck_storage(RUNS[2], TOKENS[RUNS[2]], str(root), floor=0)
+>       assert out["outstanding_bytes"] == 3 * need - 20 * KIB and out["free_bytes"] == 70 * GIB - 20 * KIB
+E       assert (241664 == ((3 * 65536) - (20 * 1024)))
+
+src/tests/test_exp46_storage.py:107: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_storage.py::test_one_run_from_submission_through_full_start_is_counted_once
+FAILED src/tests/test_exp46_storage.py::test_partially_written_runs_count_only_their_outstanding_bytes
+2 failed, 25 passed in 101.43s (0:01:41)
+EXIT 1 end 2026-11-18T01:05:41-05:00

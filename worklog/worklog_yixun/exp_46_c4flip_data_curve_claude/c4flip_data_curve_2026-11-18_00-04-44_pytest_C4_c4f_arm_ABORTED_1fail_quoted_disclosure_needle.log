@@ -1,0 +1,32 @@
+HEAD dfbbda543a9fdab6b729b0974e5ea05067f65f46 tracked-clean=no host neu306.neuronic.cs.princeton.edu start 2026-11-18T00:05:37-05:00
+cmd: pytest -q -rfEs src/tests/test_exp46_paths.py src/tests/test_exp46_table.py 
+................F.....                                                   [100%]
+=================================== FAILURES ===================================
+___ test_the_disclosures_have_one_source_and_appear_under_every_exp46_table ____
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', 'aa40a758bd90965bd4dabf769c6c39c64d191e93', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+
+    def test_the_disclosures_have_one_source_and_appear_under_every_exp46_table(built):
+        """Codex code r1 finding 15: the plan r3 §8 disclosures live in ONE place (exp46_registry.DISCLOSURES) and print
+        under every exp_46 table -- this comparison table, the collector's results Markdown (all but items 7 and 12: it
+        has no OrbitRIR / YAW-Aug row) and the shared generator's exp_46 block (test_gen_model_comparison_exp45.py) -- so they cannot drift."""
+        reg = tbl.reg
+        assert len(reg.DISCLOSURES) == 12 and tbl.DISCLOSURES == reg.disclosures("table") == reg.DISCLOSURES
+        assert reg.disclosures("collect") == tuple(d for i, d in enumerate(reg.DISCLOSURES, 1) if i not in (7, 12))
+        assert reg.disclosures("generator") == reg.DISCLOSURES[:11]                 # item 12 is about the 20-row table
+        gen = os.path.join(REPO, "worklog", "worklog_yixun", "gen_model_comparison.py")
+        for d in reg.DISCLOSURES:                            # the text itself is written once, in the registry
+            needle = d[3:60]
+            holders = sorted(f for f in os.listdir(EXP) if f.endswith(".py") and needle in open(os.path.join(EXP, f)).read())
+>           assert holders == ["exp46_registry.py"] and needle not in open(gen).read(), (needle, holders)
+E           AssertionError: (' "C4 + flip" = rolls uniform over {0, 90, 180, 270} degre', [])
+E           assert ([] == ['exp46_registry.py']
+E             
+E             Right contains one more item: 'exp46_registry.py'
+E             Use -v to get more diff)
+
+src/tests/test_exp46_table.py:323: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_table.py::test_the_disclosures_have_one_source_and_appear_under_every_exp46_table
+1 failed, 21 passed in 70.27s (0:01:10)
+EXIT 1 end 2026-11-18T00:06:55-05:00

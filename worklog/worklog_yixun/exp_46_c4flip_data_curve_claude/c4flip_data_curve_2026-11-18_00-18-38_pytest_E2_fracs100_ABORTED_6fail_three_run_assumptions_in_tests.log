@@ -1,0 +1,194 @@
+HEAD 1771258bbdb0adae1bbb486f2a0a3341e8c1000b tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-18T00:19:39-05:00
+cmd: pytest -q -rfEs src/tests/test_exp46_registry.py src/tests/test_exp46_sampler.py src/tests/test_exp46_g7_loader_length.py src/tests/test_exp46_eval.py src/tests/test_exp46_launchers.py src/tests/test_exp46_receipts.py src/tests/test_exp46_closure.py src/tests/test_exp46_paths.py src/tests/test_exp46_table.py 
+F....................................................................... [ 12%]
+..........F...FFF....................................................... [ 25%]
+........................................................................ [ 38%]
+........................................................................ [ 50%]
+...............................................s........................ [ 63%]
+........................................................................ [ 76%]
+........................................................................ [ 88%]
+.......................s.....s.s.........................F.....          [100%]
+=================================== FAILURES ===================================
+_________ test_the_registry_imports_and_registers_exactly_the_c4f_runs _________
+
+    def test_the_registry_imports_and_registers_exactly_the_c4f_runs():
+        """plan r3 §3.2: exactly three runs; no P1 bridge, no 8x8 rung, no _r suffix (import-time construction)."""
+>       assert reg.required_runs() == reg.all_runs() == reg.campaign_runs() == [C4F["025"], C4F["050"], C4F["075"]]
+E       AssertionError: assert ['exp46_C4Ff0...100_l40_2x32'] == ['exp46_C4Ff0...075_l40_2x32']
+E         
+E         Left contains one more item: 'exp46_C4Ff100_l40_2x32'
+E         Use -v to get more diff
+
+src/tests/test_exp46_registry.py:53: AssertionError
+_______________________ test_check_subset_audit_binding ________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_check_subset_audit_bindin0')
+
+    def test_check_subset_audit_binding(tmp_path):
+        path = _fake_audit(tmp_path)
+>       assert reg.check_subset_audit(str(tmp_path))["sha256"]
+
+src/tests/test_exp46_registry.py:708: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+repo = '/tmp/pytest-of-yh4742/pytest-0/test_check_subset_audit_bindin0'
+
+    def check_subset_audit(repo=None):
+        """The committed exhaustive subset audit (plan §10 A4) must exist, match its .sha256, say PASS
+        and be bound -- exactly this file set -- to the CURRENT bytes. The dataset ROOT is checked by
+        content (``exp38_subset_audit.py --verify`` recomputes the room-listing fingerprint), never by
+        path, so the same artifact serves both platforms (Codex code r1 HIGH 8)."""
+        path = _abs(SUBSET_AUDIT, repo)
+        try:
+            text = open(path, "rb").read()
+            side = open(path + ".sha256").read().split()[0]
+        except OSError as err:
+            raise GateError(f"subset audit artifact missing: {err}")
+        if hashlib.sha256(text).hexdigest() != side:
+            raise GateError("subset audit artifact does not match its .sha256")
+        res = json.loads(text)
+        if res.get("verdict") != "PASS" or res.get("problems"):
+            raise GateError(f"subset audit verdict {res.get('verdict')}")
+        bound = res.get("bound", {})
+        if set(bound) != SUBSET_AUDIT_BOUND or sorted(res.get("fractions", {})) != sorted(SUBSET_TAGS) \
+                or not isinstance(res.get("root_fingerprint"), str):
+>           raise GateError("subset audit artifact is incomplete / not the registered schema")
+E           exp46_registry.GateError: subset audit artifact is incomplete / not the registered schema
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:322: GateError
+___________________ test_describe_every_required_run[a6000] ____________________
+
+platform = 'a6000'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_describe_every_required_r0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7ea12fcd00>
+
+    @pytest.mark.parametrize("platform", ["a6000", "neuronic"])
+    def test_describe_every_required_run(platform, tmp_path, monkeypatch):
+        monkeypatch.setattr(reg, "check_subset_audit", lambda repo=None: {"sha256": "0" * 64})
+        for run in reg.required_runs():
+            d = reg.describe_run(run, platform, save_root=str(tmp_path))
+>           assert d["run_dir_state"] == "fresh" and d["subset"]["restrict_to_split"] is True
+E           AssertionError: assert ('fresh' == 'fresh'
+E             
+E               fresh and False is True)
+
+src/tests/test_exp46_registry.py:822: AssertionError
+__________________ test_describe_every_required_run[neuronic] __________________
+
+platform = 'neuronic'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_describe_every_required_r1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7f40efc970>
+
+    @pytest.mark.parametrize("platform", ["a6000", "neuronic"])
+    def test_describe_every_required_run(platform, tmp_path, monkeypatch):
+        monkeypatch.setattr(reg, "check_subset_audit", lambda repo=None: {"sha256": "0" * 64})
+        for run in reg.required_runs():
+            d = reg.describe_run(run, platform, save_root=str(tmp_path))
+>           assert d["run_dir_state"] == "fresh" and d["subset"]["restrict_to_split"] is True
+E           AssertionError: assert ('fresh' == 'fresh'
+E             
+E               fresh and False is True)
+
+src/tests/test_exp46_registry.py:822: AssertionError
+_________________________ test_cli_dry_run_exit_codes __________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_cli_dry_run_exit_codes0')
+capsys = <_pytest.capture.CaptureFixture object at 0x7f7ea12fe020>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f7ea12fed10>
+
+    def test_cli_dry_run_exit_codes(tmp_path, capsys, monkeypatch):
+        monkeypatch.setattr(reg, "check_subset_audit", lambda repo=None: {"sha256": "0" * 64})
+        assert reg._cli(["dry-run", "--platform", "a6000", "--save-root", str(tmp_path)]) == 0
+>       assert "DRY-RUN OK: 3 run(s) on a6000" in capsys.readouterr().out
+E       AssertionError: assert 'DRY-RUN OK: 3 run(s) on a6000' in '=== exp46_C4Ff025_l40_2x32 [a6000 2x32] config worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_FLAC_AR_YA...test-0/test_cli_dry_run_exit_codes0/exp46_C4Ff100_l40_2x32/evidence/run_evidence.json\nDRY-RUN OK: 4 run(s) on a6000\n'
+E        +  where '=== exp46_C4Ff025_l40_2x32 [a6000 2x32] config worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_FLAC_AR_YA...test-0/test_cli_dry_run_exit_codes0/exp46_C4Ff100_l40_2x32/evidence/run_evidence.json\nDRY-RUN OK: 4 run(s) on a6000\n' = CaptureResult(out='=== exp46_C4Ff025_l40_2x32 [a6000 2x32] config worklog/worklog_yixun/exp_46_c4flip_data_curve_claud...st_cli_dry_run_exit_codes0/exp46_C4Ff100_l40_2x32/evidence/run_evidence.json\nDRY-RUN OK: 4 run(s) on a6000\n', err='').out
+E        +    where CaptureResult(out='=== exp46_C4Ff025_l40_2x32 [a6000 2x32] config worklog/worklog_yixun/exp_46_c4flip_data_curve_claud...st_cli_dry_run_exit_codes0/exp46_C4Ff100_l40_2x32/evidence/run_evidence.json\nDRY-RUN OK: 4 run(s) on a6000\n', err='') = readouterr()
+E        +      where readouterr = <_pytest.capture.CaptureFixture object at 0x7f7ea12fe020>.readouterr
+
+src/tests/test_exp46_registry.py:829: AssertionError
+___ test_the_disclosures_have_one_source_and_appear_under_every_exp46_table ____
+
+built = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', 'd5362e9811ccbaf430d101e3937cdbf9faa60fdd', '/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_results.json')
+
+    def test_the_disclosures_have_one_source_and_appear_under_every_exp46_table(built):
+        """Codex code r1 finding 15: the plan r3 §8 disclosures live in ONE place (exp46_registry.DISCLOSURES) and print
+        under every exp_46 table -- this comparison table, the collector's results Markdown (all but items 7 and 12: it
+        has no OrbitRIR / YAW-Aug row) and the shared generator's exp_46 block (test_gen_model_comparison_exp45.py) -- so they cannot drift."""
+        reg = tbl.reg
+        assert len(reg.DISCLOSURES) == 12 and tbl.DISCLOSURES == reg.disclosures("table") == reg.DISCLOSURES
+        assert reg.disclosures("collect") == tuple(d for i, d in enumerate(reg.DISCLOSURES, 1) if i not in (7, 12))
+        assert reg.disclosures("generator") == reg.DISCLOSURES[:11]                 # item 12 is about the 20-row table
+        gen = os.path.join(REPO, "worklog", "worklog_yixun", "gen_model_comparison.py")
+        for d in reg.DISCLOSURES:                            # the text itself is written once, in the registry
+            needle = d[3:60]
+            holders = sorted(f for f in os.listdir(EXP) if f.endswith(".py") and needle in open(os.path.join(EXP, f)).read())
+            assert holders == ["exp46_registry.py"] and needle not in open(gen).read(), (needle, holders)
+        repo, sha, _ = built
+        md = tbl.build(sha, repo=repo)
+        assert all(d in md for d in reg.disclosures("table"))
+        import exp46_collect as col
+        rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in tbl.ev.METRIC_KEYS}, "source": "s"}
+                for m, f in [("c4f", t) for t in tbl.FRACS] for K in (8, 1)}
+>       cmd = col.render(rows, [])
+
+src/tests/test_exp46_table.py:330: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rows = {('c4f', '025', 8): {'stats': {'T60': (1.0, 0.1, 5), 'Invalid T60': (1.0, 0.1, 5), 'C50': (1.0, 0.1, 5), 'EDT': (1.0, ...0': (1.0, 0.1, 5), 'Invalid T60': (1.0, 0.1, 5), 'C50': (1.0, 0.1, 5), 'EDT': (1.0, 0.1, 5), ...}, 'source': 's'}, ...}
+pending = []
+
+    def render(rows, pending):
+        out = ["# exp_46 c4flip_data_curve — results (generated by exp46_collect.py; never hand-edited)", "",
+               "Full unseen split (6,337 items / 17 rooms), split-level item-weighted, mean ± sample SD over eval "
+               "seeds 42–46, 40k-step EMA endpoints, one training seed (42) per run. EDT ms, C50 dB, T60 %, FD, R@1 %.", ""]
+        for K in (8, 1):
+            out += [f"## K = {K}" + (" (headline)" if K == 8 else ""), "",
+                    "| model | data | " + " | ".join(SHOW) + " | source |", "|---|---|" + "---|" * len(SHOW) + "---|"]
+            for model, frac in [("c4f", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()]:
+>               st = rows[(model, frac, K)]["stats"]
+E               KeyError: ('c4f', '100', 8)
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_collect.py:125: KeyError
+=============================== warnings summary ===============================
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    from pkg_resources import packaging
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_registry.py::test_the_registry_imports_and_registers_exactly_the_c4f_runs
+FAILED src/tests/test_exp46_registry.py::test_check_subset_audit_binding - ex...
+FAILED src/tests/test_exp46_registry.py::test_describe_every_required_run[a6000]
+FAILED src/tests/test_exp46_registry.py::test_describe_every_required_run[neuronic]
+FAILED src/tests/test_exp46_registry.py::test_cli_dry_run_exit_codes - Assert...
+FAILED src/tests/test_exp46_table.py::test_the_disclosures_have_one_source_and_appear_under_every_exp46_table
+SKIPPED [1] src/tests/test_exp46_receipts.py:72: the GPU-0 smoke evidence lives in this checkout's outputs_FLAC only
+SKIPPED [1] src/tests/test_exp46_receipts.py:716: A6000 box only (nvidia-smi, A6000s)
+SKIPPED [1] src/tests/test_exp46_receipts.py:892: A6000 box only
+SKIPPED [1] src/tests/test_exp46_receipts.py:922: NAS not mounted
+6 failed, 557 passed, 4 skipped, 7 warnings in 456.02s (0:07:36)
+EXIT 1 end 2026-11-18T00:27:18-05:00

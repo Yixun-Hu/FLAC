@@ -1,0 +1,19 @@
+HEAD 942db750228bf1bb81ded3b13f61057d5999d98d tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-17T23:36:31-05:00
+cmd: pytest -q -rfEs -vv src/tests/test_exp46_paths.py 
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 8 items
+
+src/tests/test_exp46_paths.py::test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition PASSED [ 12%]
+src/tests/test_exp46_paths.py::test_the_sbatch_names_only_exp46 PASSED   [ 25%]
+src/tests/test_exp46_paths.py::test_no_exp46_write_path_names_another_experiments_namespace PASSED [ 37%]
+src/tests/test_exp46_paths.py::test_the_run_dir_internals_and_probes_are_exp46_names PASSED [ 50%]
+src/tests/test_exp46_paths.py::test_the_shared_card_locks_are_the_only_intentional_sharing PASSED [ 62%]
+src/tests/test_exp46_paths.py::test_the_snapshot_roots_are_exp46s PASSED [ 75%]
+src/tests/test_exp46_paths.py::test_the_a6000_smoke_destination_is_refused_before_any_gate_or_write PASSED [ 87%]
+src/tests/test_exp46_paths.py::test_the_dry_run_names_no_a6000_smoke_destination PASSED [100%]
+
+============================== 8 passed in 4.61s ===============================
+EXIT 0 end 2026-11-17T23:36:37-05:00

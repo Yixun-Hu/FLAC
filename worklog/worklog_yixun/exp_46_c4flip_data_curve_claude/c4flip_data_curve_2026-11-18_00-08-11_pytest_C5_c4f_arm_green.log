@@ -1,0 +1,5 @@
+HEAD dfbbda543a9fdab6b729b0974e5ea05067f65f46 tracked-clean=no host neu306.neuronic.cs.princeton.edu start 2026-11-18T00:08:37-05:00
+cmd: pytest -q -rfEs src/tests/test_exp46_paths.py src/tests/test_exp46_table.py src/tests/test_exp46_eval.py -k disclosure\ or\ render\ or\ paths\ or\ foreign\ or\ write_path\ or\ snapshot\ or\ dry_run\ or\ card\ or\ sbatch\ or\ run_dir 
+..................                                                       [100%]
+18 passed, 194 deselected in 21.37s
+EXIT 0 end 2026-11-18T00:09:00-05:00

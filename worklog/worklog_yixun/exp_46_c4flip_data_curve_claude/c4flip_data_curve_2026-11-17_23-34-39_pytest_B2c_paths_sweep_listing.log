@@ -1,0 +1,57 @@
+HEAD 942db750228bf1bb81ded3b13f61057d5999d98d tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-17T23:35:31-05:00
+cmd: pytest -q -vv src/tests/test_exp46_paths.py::test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition 
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+src/tests/test_exp46_paths.py::test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition FAILED [100%]
+
+=================================== FAILURES ===================================
+___ test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition ___
+
+    def test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition():
+        got = set(foreign_literals())
+        unregistered = sorted(got - set(REGISTERED))
+        stale = sorted(set(REGISTERED) - got)
+>       assert not unregistered and not stale, "\n" + "\n".join(f"{kind} {f} {s!r}" for kind, items in
+                                                           (("UNREGISTERED", unregistered), ("STALE", stale)) for f, s in items)
+E       AssertionError: 
+E         UNREGISTERED exp46_eval.py '.exp38_card'
+E         UNREGISTERED exp46_registry.py '/exp38_content_manifest.py'
+E         UNREGISTERED exp46_registry.py '/exp38_registry.py'
+E         UNREGISTERED exp46_registry.py '/exp38_subset_audit.py'
+E         UNREGISTERED exp46_registry.py '/media/diskstation/yixunhu/FLAC/checkpoints/exp38_data_efficiency'
+E         UNREGISTERED exp46_registry.py '/media/diskstation/yixunhu/FLAC/exp38_pred_waveforms'
+E         UNREGISTERED exp46_registry.py '/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency'
+E         UNREGISTERED exp46_registry.py 'outputs_FLAC/exp38_data_efficiency/eval'
+E         UNREGISTERED exp46_regression_compare.py '--exp38'
+E         UNREGISTERED exp46_regression_compare.py '^src/tests/(test_exp45_[^/]+|test_gen_model_comparison_exp45)\\.py::'
+E         UNREGISTERED exp46_regression_compare.py 'exp38'
+E         UNREGISTERED exp46_regression_compare.py 'new_exp45_skips'
+E         UNREGISTERED exp46_regression_compare.py 'src/tests/test_exp45_receipts.py::test_a6000_links_need_the_registered_targets'
+E         UNREGISTERED exp46_regression_compare.py 'src/tests/test_exp45_receipts.py::test_mount_fstype_sees_the_nas_behind_autofs'
+E         UNREGISTERED exp46_regression_compare.py 'src/tests/test_exp45_receipts.py::test_the_environment_snapshot_is_complete_on_this_box'
+E         UNREGISTERED exp46_regression_compare.py 'src/tests/test_exp45_receipts.py::test_the_real_gpu0_smoke_evidence_passes_the_exact_gate[vanilla-de_yaw_f025]'
+E         UNREGISTERED exp46_regression_compare.py 'src/tests/test_exp45_registry.py::test_the_real_rf_100_percent_endpoint_satisfies_the_exact_schema'
+E         UNREGISTERED exp46_supervise.py ' is refused (the inherited SMOKE destination outputs_FLAC/exp38_smoke is never written); SMOKE runs on neuronic only'
+E         UNREGISTERED exp46_supervise.py '.exp38_card'
+E         UNREGISTERED exp46_table.py '\nimport json, os, sys\nroot = os.path.realpath(sys.argv[1])\nopened = set()\n\ndef hook(event, args):\n    if event in ("open", "os.listdir", "os.scandir") and args and args[0] is not None and not isinstance(args[0], int):\n        p = os.path.realpath(os.fsdecode(args[0]))\n        if "__pycache__" in p.split(os.sep):        # the import system probing bytecode caches: code, not data\n            return\n        if p.startswith("/media"):\n            opened.add("NAS:" + p)\n        elif p == root or p.startswith(root + os.sep):\n            opened.add(os.path.relpath(p, root) + ("/" if event != "open" else ""))\nsys.addaudithook(hook)\nsys.path.insert(0, os.path.join(root, sys.argv[2]))\nimport exp38_eval as ev\ncampaign = ev.validate_e0_receipt(offline=True)\ncells = {}\nfor run in json.loads(sys.argv[3]):\n    for c in ev.run_cells(run):\n        probs = ev.validate_cell(c, campaign, offline=True)\n        rec = json.load(open(ev._abs(c["metrics"]))) if not probs else {}\n        receipt = json.load(open(ev._abs(c["receipt"]))) if not probs else {}\n        cells[c["name"]] = {"run": run, "K": c["K"], "seed": c["seed"], "problems": probs,\n                            "metrics": rec.get("metrics"), "metrics_rel": os.path.relpath(ev._abs(c["metrics"]), root),\n                            "ckpt_sha256": receipt.get("ckpt_sha256"), "dump_manifest_sha256": receipt.get("dump_manifest_sha256")}\nprint("EXP46_ADAPTER " + json.dumps({"campaign": {k: campaign[k] for k in ("head", "closure_sha256", "sha256")},\n                                     "cells": cells, "opened": sorted(opened)}))\n'
+E         UNREGISTERED exp46_table.py '--exp38-commit'
+E         UNREGISTERED exp46_table.py '--exp38-commit must be a full 40-hex commit id'
+E         UNREGISTERED exp46_table.py '/c4flip_data_curve_exp38_import.json'
+E         UNREGISTERED exp46_table.py 'OrbitRIR (B-F), exp_38'
+E         UNREGISTERED exp46_table.py 'YAW-Aug, exp_38'
+E         UNREGISTERED exp46_table.py 'exp38_commit'
+E         UNREGISTERED exp46_table.py 'exp38_import_sha256'
+E         UNREGISTERED exp46_table.py 'exp46_exp38_import_'
+E         UNREGISTERED exp46_table.py 'import-exp38'
+E         UNREGISTERED exp46_table.py 'outputs_FLAC/exp38_data_efficiency/eval'
+E       assert (not [('exp46_eval.py', '.exp38_card'), ('exp46_registry.py', '/exp38_content_manifest.py'), ('exp46_registry.py', '/exp38_registry.py'), ('exp46_registry.py', '/exp38_subset_audit.py'), ('exp46_registry.py', '/media/diskstation/yixunhu/FLAC/checkpoints/exp38_data_efficiency'), ('exp46_registry.py', '/media/diskstation/yixunhu/FLAC/exp38_pred_waveforms'), ...])
+
+src/tests/test_exp46_paths.py:76: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_paths.py::test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition
+============================== 1 failed in 4.21s ===============================
+EXIT 1 end 2026-11-17T23:35:36-05:00

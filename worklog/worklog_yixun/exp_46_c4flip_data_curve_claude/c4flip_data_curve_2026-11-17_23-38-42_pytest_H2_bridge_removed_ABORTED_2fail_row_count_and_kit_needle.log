@@ -1,0 +1,78 @@
+HEAD 10c4200f7a167c5eed7b66f6be9e9eb95a7c5e66 tracked-clean=no host neu312.neuronic.cs.princeton.edu start 2026-11-17T23:39:31-05:00
+cmd: pytest -q -rfEs src/tests/test_exp46_eval.py src/tests/test_exp46_table.py src/tests/test_exp46_isolation.py src/tests/test_exp46_registry.py src/tests/test_exp46_paths.py 
+........................................................................ [ 25%]
+........................................................................ [ 50%]
+.....F.......................................F.......................... [ 75%]
+......................................................................   [100%]
+=================================== FAILURES ===================================
+_________________ test_publish_order_markdown_first_json_last __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_publish_order_markdown_fi0')
+e0 = ({'head': 'ffffffffffffffffffffffffffffffffffffffff', 'closure_sha256': 'f0c7c2b98c8fa6abf6c14536b3fca2eda2c43768aa570...e_E0b_K1_s42': {'reference': 'E0/E0b_K1_s42.json', 'equal': True, 'difference': None, 'problems': [], ...}, ...}, ...})
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fea9a947250>
+
+    def test_publish_order_markdown_first_json_last(tmp_path, e0, monkeypatch):
+        exp = tmp_path / col.reg.EXP_DIR
+        exp.mkdir(parents=True)
+        rows = _rows()
+        sha = col.publish(rows, [], {"m": 1}, repo=str(tmp_path))
+        j = (tmp_path / col.OUT_JSON).read_bytes()
+        assert hashlib.sha256(j).hexdigest() == sha and sha in (tmp_path / col.OUT_MD).read_text()
+>       assert json.loads(j)["manifest"] == {"m": 1} and len(json.loads(j)["rows"]) == 8
+E       AssertionError: assert ({'m': 1} == {'m': 1}
+E         
+E         Omitting 1 identical items, use -vv to show
+E         Use -v to get more diff and 6 == 8)
+E        +  where 6 = len([{'K': 1, 'fraction': '025', 'model': 'rf', 'source': 'x', ...}, {'K': 8, 'fraction': '025', 'model': 'rf', 'source': ... 'fraction': '075', 'model': 'rf', 'source': 'x', ...}, {'K': 8, 'fraction': '075', 'model': 'rf', 'source': 'x', ...}])
+
+src/tests/test_exp46_eval.py:588: AssertionError
+____________ test_no_exp46_file_imports_or_reads_a_bridge_artifact _____________
+
+    def test_no_exp46_file_imports_or_reads_a_bridge_artifact():
+        """exp_46 plan r3 §3.2 "Bridge": no RF100_BRIDGE, no bridge cells, no c4flip_data_curve_bridge.json, no bridge
+        publication gate; exp_43's admission validator (the bridge's) is out of the closure."""
+        for name in sorted(os.listdir(EXP)):
+            if not (name.startswith("exp46_") and name.endswith(".py")):
+                continue
+            names, strings = _code_tokens(os.path.join(EXP, name))
+            assert not [n for n in names if "bridge" in n.lower() or "rf100" in n.lower() or "exp43_kit" in n.lower()], name
+>           assert not [s for s in strings if "bridge" in s.lower() or "exp43_kit" in s or "exp43_ar_manifest" in s
+                        or "exp43_std_aug/exp43_RF" in s], name
+E           AssertionError: exp46_regression_compare.py
+E           assert not ['src/tests/test_exp43_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict']
+
+src/tests/test_exp46_eval.py:1137: AssertionError
+=============================== warnings summary ===============================
+src/tests/test_exp46_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp46_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_eval.py::test_publish_order_markdown_first_json_last
+FAILED src/tests/test_exp46_eval.py::test_no_exp46_file_imports_or_reads_a_bridge_artifact
+2 failed, 284 passed, 7 warnings in 263.01s (0:04:23)
+EXIT 1 end 2026-11-17T23:43:57-05:00

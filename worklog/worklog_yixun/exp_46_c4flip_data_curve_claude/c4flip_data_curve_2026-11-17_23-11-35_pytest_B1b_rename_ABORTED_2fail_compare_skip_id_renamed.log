@@ -1,0 +1,78 @@
+HEAD 407d11d1f77d7a1b4f23f497d53f95c9494c3da8 tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-17T23:11:36-05:00
+cmd: pytest -q -rfEs src/tests/test_exp46_ddp_evidence.py src/tests/test_exp46_eval.py src/tests/test_exp46_isolation.py src/tests/test_exp46_launchers.py src/tests/test_exp46_receipts.py src/tests/test_exp46_registry.py src/tests/test_exp46_regression_compare.py src/tests/test_exp46_sampler.py src/tests/test_exp46_storage.py src/tests/test_exp46_supervise.py src/tests/test_exp46_table.py src/tests/test_exp46_provenance.py 
+........................................................................ [ 11%]
+........................................................................ [ 22%]
+........................................................................ [ 33%]
+.........................s.............................................. [ 45%]
+........................................................................ [ 56%]
+........................................................................ [ 67%]
+s.....s.s............................................................... [ 79%]
+.................FF..................................................... [ 90%]
+.............................................................            [100%]
+=================================== FAILURES ===================================
+_____________________ test_every_new_exp45_node_must_pass ______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_every_new_exp45_node_must0')
+
+    def test_every_new_exp45_node_must_pass(tmp_path):
+        new = {"src/tests/test_exp45_registry.py::test_a[rf]": "passed", "src/tests/test_gen_model_comparison_exp45.py::test_b": "passed"}
+        problems, report = _run(tmp_path, dict(BASE, **new))
+        assert problems == [] and report["new_exp45_skips"] == []
+        for outcome in ("failed", "error"):
+            problems, _ = _run(tmp_path, dict(BASE, **dict(new, **{"src/tests/test_exp45_registry.py::test_a[rf]": outcome})))
+>           assert len(problems) == 1 and "new exp_45 node" in problems[0]
+E           AssertionError: assert (1 == 1 and 'new exp_45 node' in 'src/tests/test_exp45_registry.py::test_a[rf]: must pass (compat-edited / new exp_46 node), got failed failed: AssertionError: assert 1 == 2')
+E            +  where 1 = len(['src/tests/test_exp45_registry.py::test_a[rf]: must pass (compat-edited / new exp_46 node), got failed failed: AssertionError: assert 1 == 2'])
+
+src/tests/test_exp46_regression_compare.py:145: AssertionError
+_________ test_only_the_registered_environment_skips_of_new_nodes_pass _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_only_the_registered_envir0')
+
+    def test_only_the_registered_environment_skips_of_new_nodes_pass(tmp_path):
+        """Codex code r1 finding 9: skip reasons are kept; a new exp_45 node may be skipped only as an exactly registered
+        (node, reason) environment exception -- the same node with another reason, or the reason on another node, FAILs."""
+>       assert rc.ENV_SKIPS and all(rc.NEW_FILE.match(n) and isinstance(r, str) and r for n, r in rc.ENV_SKIPS)
+E       AssertionError: assert (frozenset({('src/tests/test_exp45_receipts.py::test_a6000_links_need_the_registered_targets', 'A6000 box only'), ('src...c/tests/test_exp46_registry.py::test_the_real_rf_100_percent_endpoint_satisfies_the_exact_schema', 'NAS not mounted')}) and False)
+E        +  where frozenset({('src/tests/test_exp45_receipts.py::test_a6000_links_need_the_registered_targets', 'A6000 box only'), ('src...c/tests/test_exp46_registry.py::test_the_real_rf_100_percent_endpoint_satisfies_the_exact_schema', 'NAS not mounted')}) = rc.ENV_SKIPS
+E        +  and   False = all(<generator object test_only_the_registered_environment_skips_of_new_nodes_pass.<locals>.<genexpr> at 0x7f48e3190350>)
+
+src/tests/test_exp46_regression_compare.py:154: AssertionError
+=============================== warnings summary ===============================
+src/tests/test_exp46_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp46_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_eval.py::test_output_names_equal_eval_flacs_own_builder
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_regression_compare.py::test_every_new_exp45_node_must_pass
+FAILED src/tests/test_exp46_regression_compare.py::test_only_the_registered_environment_skips_of_new_nodes_pass
+SKIPPED [1] src/tests/test_exp46_receipts.py:72: the GPU-0 smoke evidence lives in this checkout's outputs_FLAC only
+SKIPPED [1] src/tests/test_exp46_receipts.py:716: A6000 box only (nvidia-smi, A6000s)
+SKIPPED [1] src/tests/test_exp46_receipts.py:892: A6000 box only
+SKIPPED [1] src/tests/test_exp46_receipts.py:922: NAS not mounted
+2 failed, 631 passed, 4 skipped, 7 warnings in 765.46s (0:12:45)
+EXIT 1 end 2026-11-17T23:24:24-05:00

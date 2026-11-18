@@ -1,0 +1,233 @@
+HEAD ced658508606aeaa8ce9ed6c1689936fcde08a26 tracked-clean=no host neu303.neuronic.cs.princeton.edu start 2026-11-18T01:08:47-05:00
+cmd: pytest -q -rfE -k c3\ or\ every_foreign_literal src/tests/test_exp46_storage.py src/tests/test_exp46_supervise.py src/tests/test_exp46_paths.py 
+EEEEEEEEEEEEEEEF                                                         [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[a list] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_reads_exp45s_ledger_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b25d240>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+_ ERROR at setup of test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[absent] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_reads_exp45s_ledger_re1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b067910>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+_ ERROR at setup of test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[an empty ledger] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_reads_exp45s_ledger_re2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b067eb0>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+_ ERROR at setup of test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[an outstanding reservation] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_reads_exp45s_ledger_re3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b065a50>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+_ ERROR at setup of test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[another schema] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_reads_exp45s_ledger_re4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b25f0d0>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+_ ERROR at setup of test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[malformed JSON] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_reads_exp45s_ledger_re5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b0654b0>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+_ ERROR at setup of test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[only releases] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_reads_exp45s_ledger_re6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b0649d0>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+_ ERROR at setup of test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[schema 2] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_reads_exp45s_ledger_re7')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b0677c0>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+_ ERROR at setup of test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[zero bytes] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_reads_exp45s_ledger_re8')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b064d60>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+_ ERROR at setup of test_c3_the_full_start_recheck_refuses_once_exp45_reserves_after_the_submission _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_the_full_start_recheck0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b103b20>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+_________ ERROR at setup of test_c3_an_unreadable_exp45_ledger_refuses _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_an_unreadable_exp45_le0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b101420>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+_ ERROR at setup of test_c3_the_submitter_refuses_any_submission_while_exp45_holds_before_any_mutation[SMOKE] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_the_submitter_refuses_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b103820>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+_ ERROR at setup of test_c3_the_submitter_refuses_any_submission_while_exp45_holds_before_any_mutation[FULL] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_the_submitter_refuses_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b1025c0>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+____ ERROR at setup of test_c3_reads_exactly_exp45s_registered_ledger_path _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_reads_exactly_exp45s_r0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b102c80>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_storage.py:35: AttributeError
+_ ERROR at setup of test_c3_the_full_start_refuses_before_any_child_once_exp45_holds_a_reservation _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_c3_the_full_start_refuses0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1d8b0739a0>
+
+    @pytest.fixture(autouse=True)
+    def _exp45_ledger_stand_in(tmp_path, monkeypatch):
+        """C3 (plan r3 §3.2 "Storage") reads exp_45's REAL ledger path at run time; here an absent stand-in (unless a test
+        writes one), so the real exp_45 state never decides a test."""
+>       monkeypatch.setattr(sv.reg, "EXP45_LEDGER", str(tmp_path / "exp45_ledger_stand_in" / ".exp45_storage.json"))
+E       AttributeError: <module 'exp46_registry' from '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py'> has no attribute 'EXP45_LEDGER'
+
+src/tests/test_exp46_supervise.py:34: AttributeError
+=================================== FAILURES ===================================
+___ test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition ___
+
+    def test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition():
+        got = set(foreign_literals())
+        unregistered = sorted(got - set(REGISTERED))
+        stale = sorted(set(REGISTERED) - got)
+>       assert not unregistered and not stale, "\n" + "\n".join(f"{kind} {f} {s!r}" for kind, items in
+                                                           (("UNREGISTERED", unregistered), ("STALE", stale)) for f, s in items)
+E       AssertionError: 
+E         STALE exp46_registry.py '/.exp45_storage.json'
+E         STALE exp46_registry.py 'exp45_ledger'
+E       assert (not [] and not [('exp46_registry.py', '/.exp45_storage.json'), ('exp46_registry.py', 'exp45_ledger')])
+
+src/tests/test_exp46_paths.py:77: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_paths.py::test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition
+ERROR src/tests/test_exp46_storage.py::test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[a list]
+ERROR src/tests/test_exp46_storage.py::test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[absent]
+ERROR src/tests/test_exp46_storage.py::test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[an empty ledger]
+ERROR src/tests/test_exp46_storage.py::test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[an outstanding reservation]
+ERROR src/tests/test_exp46_storage.py::test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[another schema]
+ERROR src/tests/test_exp46_storage.py::test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[malformed JSON]
+ERROR src/tests/test_exp46_storage.py::test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[only releases]
+ERROR src/tests/test_exp46_storage.py::test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[schema 2]
+ERROR src/tests/test_exp46_storage.py::test_c3_reads_exp45s_ledger_read_only_and_refuses_unless_nothing_is_held[zero bytes]
+ERROR src/tests/test_exp46_storage.py::test_c3_the_full_start_recheck_refuses_once_exp45_reserves_after_the_submission
+ERROR src/tests/test_exp46_storage.py::test_c3_an_unreadable_exp45_ledger_refuses
+ERROR src/tests/test_exp46_storage.py::test_c3_the_submitter_refuses_any_submission_while_exp45_holds_before_any_mutation[SMOKE]
+ERROR src/tests/test_exp46_storage.py::test_c3_the_submitter_refuses_any_submission_while_exp45_holds_before_any_mutation[FULL]
+ERROR src/tests/test_exp46_storage.py::test_c3_reads_exactly_exp45s_registered_ledger_path
+ERROR src/tests/test_exp46_supervise.py::test_c3_the_full_start_refuses_before_any_child_once_exp45_holds_a_reservation
+1 failed, 98 deselected, 15 errors in 79.06s (0:01:19)
+EXIT 1 end 2026-11-18T01:10:24-05:00

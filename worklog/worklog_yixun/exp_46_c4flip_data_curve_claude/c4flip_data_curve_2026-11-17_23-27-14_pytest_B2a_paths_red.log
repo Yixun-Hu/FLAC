@@ -1,0 +1,1748 @@
+HEAD 942db750228bf1bb81ded3b13f61057d5999d98d tracked-clean=no host neu309.neuronic.cs.princeton.edu start 2026-11-17T23:27:29-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_paths.py src/tests/test_exp46_supervise.py src/tests/test_exp46_registry.py 
+F.FF.FFF........................................FFFF.FFFFFFFF..F........ [ 52%]
+.....................F............................................       [100%]
+=================================== FAILURES ===================================
+___ test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition ___
+
+    def test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition():
+        got = set(foreign_literals())
+        unregistered = sorted(got - set(REGISTERED))
+        stale = sorted(set(REGISTERED) - got)
+>       assert not unregistered and not stale, {"unregistered": unregistered, "stale": stale}
+E       AssertionError: {'unregistered': [('exp46_eval.py', '.exp38_card'), ('exp46_eval.py', '/home/yixunhu/codespace/exp-38-snapshots'), ('e...xp38_lock'), ('exp46_registry.py', '.exp38_lock.released_'), ('exp46_registry.py', '.exp38_probe_'), ...], 'stale': []}
+E       assert (not [('exp46_eval.py', '.exp38_card'), ('exp46_eval.py', '/home/yixunhu/codespace/exp-38-snapshots'), ('exp46_eval.py', 'e...istry.py', '.exp38_lock'), ('exp46_registry.py', '.exp38_lock.released_'), ('exp46_registry.py', '.exp38_probe_'), ...])
+
+src/tests/test_exp46_paths.py:76: AssertionError
+_________ test_no_exp46_write_path_names_another_experiments_namespace _________
+
+    def test_no_exp46_write_path_names_another_experiments_namespace():
+        paths = _write_paths()
+>       assert len(paths) > 25 and [p for p in paths if FOREIGN.search(p)] == []
+E       AssertionError: assert (37 > 25 and ['/home/yixun....exp38_tools'] == []
+E        +  where 37 = len(['/media/diskstation/yixunhu/FLAC/checkpoints/exp46_c4flip_data_curve', '/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp4...espace/exp-38-snapshots', '/home/yixunhu/codespace/exp-38-snapshots', 'outputs_FLAC/exp46_c4flip_data_curve/eval', ...])
+E         
+E         Left contains 4 more items, first extra item: '/home/yixunhu/codespace/exp-38-snapshots'
+E         Use -v to get more diff)
+
+src/tests/test_exp46_paths.py:102: AssertionError
+____________ test_the_run_dir_internals_and_probes_are_exp46_names _____________
+
+    def test_the_run_dir_internals_and_probes_are_exp46_names():
+>       assert ".exp46_lock" in reg.RUN_DIR_OWN and ".exp46_tools" in reg.RUN_DIR_OWN
+E       AssertionError: assert ('.exp46_lock' in ('.exp38_lock', '.exp38_tools', 'CHECKPOINTS.sha256', 'evidence', 'receipts', 'TRAINING_COMPLETE.json', ...))
+E        +  where ('.exp38_lock', '.exp38_tools', 'CHECKPOINTS.sha256', 'evidence', 'receipts', 'TRAINING_COMPLETE.json', ...) = reg.RUN_DIR_OWN
+
+src/tests/test_exp46_paths.py:109: AssertionError
+______________________ test_the_snapshot_roots_are_exp46s ______________________
+
+    def test_the_snapshot_roots_are_exp46s():
+>       assert sv.SNAPSHOT_ROOT == {"a6000": "/home/yixunhu/codespace/exp-46-snapshots"}
+E       AssertionError: assert {'a6000': '/h...38-snapshots'} == {'a6000': '/h...46-snapshots'}
+E         
+E         Differing items:
+E         {'a6000': '/home/yixunhu/codespace/exp-38-snapshots'} != {'a6000': '/home/yixunhu/codespace/exp-46-snapshots'}
+E         Use -v to get more diff
+
+src/tests/test_exp46_paths.py:125: AssertionError
+_____ test_the_a6000_smoke_destination_is_refused_before_any_gate_or_write _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_a6000_smoke_destinati0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711d223e0>
+
+    def test_the_a6000_smoke_destination_is_refused_before_any_gate_or_write(tmp_path, monkeypatch):
+        touched = []
+        monkeypatch.setattr(reg, "REPO", str(tmp_path))
+        monkeypatch.setattr(sv, "common_gates", lambda a, p: touched.append("common_gates"))
+        monkeypatch.setattr(sv, "campaign_gates", lambda a, p: touched.append("campaign_gates"))
+        a = sv.parse(["--platform", "a6000", "--mode", "SMOKE_DDP", "--run", RUN, "--expect-sha", "f" * 40,
+                      "--token", "a" * 32])
+        with pytest.raises(sv.Refused, match="no A6000 training path"):
+>           sv.mode_campaign(a, "a6000")
+
+src/tests/test_exp46_paths.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = Namespace(platform='a6000', mode='SMOKE_DDP', run='exp46_RFf025_l40_2x32', backend='flash', expect_sha='ffffffffffffff...ir=None, expect_python=None, expect_flash_version='', grace=120, dry_save_root=None, lockdir='/home/yixunhu/codespace')
+platform = 'a6000'
+
+    def mode_campaign(a, platform):
+        """SMOKE_DDP / FULL on a6000, SMOKE / FULL on neuronic."""
+>       arm, tag, rung, exe, d, pins = common_gates(a, platform)
+E       TypeError: cannot unpack non-iterable NoneType object
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_supervise.py:506: TypeError
+______________ test_the_dry_run_names_no_a6000_smoke_destination _______________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f07fc0e60b0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711b93370>
+
+    def test_the_dry_run_names_no_a6000_smoke_destination(capsys, monkeypatch):
+        monkeypatch.setattr(sv, "common_gates", lambda a, p: ("rf", "025", "2x32", sys.executable,
+                                                              {"argv": ["--save-dir", "/x"], "run_dir_state": "fresh"}, {}))
+        monkeypatch.setattr(sv, "backend_gate", lambda *x: {})
+        monkeypatch.setattr(reg, "closure_digest", lambda repo=None: {"closure_sha256": "c" * 64})
+        sv.mode_dry_run(sv.parse(["--platform", "a6000", "--mode", "DRY_RUN", "--run", RUN]), "a6000")
+        out = capsys.readouterr().out
+>       assert "exp38_smoke" not in out and "SMOKE_DDP: refused" in out
+E       AssertionError: assert ('exp38_smoke' not in 'pins: {}\nc...g spawned)\n'
+E         
+E         'exp38_smoke' is contained here:
+E           puts_FLAC/exp38_smoke/exp46_RFf025_l40_2x32_ddp_<ts> --evidence-json outputs_FLAC/exp38_smoke/exp46_RFf025_l40_2x32_ddp_<ts>/evidence/run_evidence.json
+E         ?           +++++++++++
+E           E0 receipt (FULL needs it): would refuse now (receipt /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_e0_receipt.json missing / unreadable: [Errno 2] No such file or directory: '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_e0_receipt....
+E         
+E         ...Full output truncated (5 lines hidden), use '-vv' to show)
+
+src/tests/test_exp46_paths.py:150: AssertionError
+________ test_a_full_run_launches_from_the_snapshot_gates_and_publishes ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_full_run_launches_from_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711bae530>
+
+    def test_a_full_run_launches_from_the_snapshot_gates_and_publishes(tmp_path, monkeypatch):
+        code, rec, rd, calls = _campaign(tmp_path, monkeypatch)
+        assert code == 0 and rec["status"] == "COMPLETE" and rec["start_gate"] == "PASS" and rec["evidence_gate"] == "PASS"
+        assert rec["cwd"].startswith(str(tmp_path / "snaps")) and rec["child_rc"] == 0 and rec["supervisor_pid"] == os.getpid()
+        assert len(calls) == 2 and calls[-1] == ("commits", [("COMPLETE", True)]) and not (rd / ".exp46_lock").exists()
+>       assert [n for n in os.listdir(rd) if n.startswith(".exp46_lock.released_")]
+E       assert []
+
+src/tests/test_exp46_supervise.py:494: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_RFf025_l40_2x32",
+ "mode": "FULL",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-17_23-28-29",
+ "launched_at": "2026-11-17T23:28:29-0500",
+ "host": "neu309.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": {
+  "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "head": "ffffffffffffffffffffffffffffffffffffffff"
+ },
+ "smoke": {
+  "smoke_receipt": "/tmp/pytest-of-yh4742/pytest-0/test_a_full_run_launches_from_0/smoke_receipt.json",
+  "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+ },
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs",
+  "reservation": {
+   "free_bytes": 1000000000000000,
+   "outstanding_bytes": 13731483648,
+   "reserved_bytes": 13731483648
+  }
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_a_full_run_launches_from_0/nas/exp46_RFf025_l40_2x32",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_a_full_run_launches_from_0/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-29",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_a_full_run_launches_from_0/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-29",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_a_full_run_launches_from_0/nas/exp46_RFf025_l40_2x32"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_ID": "4268886",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOB_NODELIST": "neu309",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NAME": "exp46-pytest-B2a_paths_red",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_NODEID": "0",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_NNODES": "1",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_NODELIST": "neu309",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_TOPOLOGY_ADDR": "neu309",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_PROCID": "0",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_JOBID": "4268886",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_END_TIME": "1794977849",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_START_TIME": "1794976049",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_LOCALID": "0",
+  "SLURM_TASK_PID": "1022510",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_USER": "yh4742"
+ },
+ "supervisor_sha256": "bda9edbf5cd715e1cb53119b3b887a5d8248c609b1b17a4f72ed133bb406402e",
+ "supervisor_pid": 1022528,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_a_full_run_launches_from_0/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-17_23-28-29_exp46_RFf025_l40_2x32_a6000_FULL_train.log",
+ "status": "launching"
+}
+storage reservation of exp46_RFf025_l40_2x32: released {"reason": "sealed", "released_at": "2026-11-17T23:28:31-0500", "reserved_at": "2026-11-17T23:28:29-0500", "reserved_bytes": 13731483648, "run": "exp46_RFf025_l40_2x32", "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_a_full_run_launches_from_0/nas/exp46_RFf025_l40_2x32", "token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+EXP38 exp46_RFf025_l40_2x32 FULL COMPLETE
+_________ test_a_failed_full_run_keeps_its_crash_marker[crash-True-1] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f07fc0e6aa0>
+mode = 'crash', audit_ok = True, want = 1
+
+    @pytest.mark.parametrize("mode,audit_ok,want", [("crash", True, 1), ("badstart", True, sv.EXIT_START),
+                                                    ("ok", False, sv.EXIT_END)])
+    def test_a_failed_full_run_keeps_its_crash_marker(tmp_path, monkeypatch, mode, audit_ok, want):
+        code, rec, rd, calls = _campaign(tmp_path, monkeypatch, mode, audit_ok)
+>       assert code == want and (rd / ".exp46_lock").is_dir() and "finished_at" in rec
+E       AssertionError: assert (1 == 1 and False)
+E        +  where False = is_dir()
+E        +    where is_dir = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i0/nas/exp46_RFf025_l40_2x32') / '.exp46_lock').is_dir
+
+src/tests/test_exp46_supervise.py:511: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_RFf025_l40_2x32",
+ "mode": "FULL",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-17_23-28-31",
+ "launched_at": "2026-11-17T23:28:31-0500",
+ "host": "neu309.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": {
+  "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "head": "ffffffffffffffffffffffffffffffffffffffff"
+ },
+ "smoke": {
+  "smoke_receipt": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i0/smoke_receipt.json",
+  "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+ },
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs",
+  "reservation": {
+   "free_bytes": 1000000000000000,
+   "outstanding_bytes": 13731483648,
+   "reserved_bytes": 13731483648
+  }
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i0/nas/exp46_RFf025_l40_2x32",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i0/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-31",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i0/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-31",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i0/nas/exp46_RFf025_l40_2x32"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_ID": "4268886",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOB_NODELIST": "neu309",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NAME": "exp46-pytest-B2a_paths_red",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_NODEID": "0",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_NNODES": "1",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_NODELIST": "neu309",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_TOPOLOGY_ADDR": "neu309",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_PROCID": "0",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_JOBID": "4268886",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_END_TIME": "1794977849",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_START_TIME": "1794976049",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_LOCALID": "0",
+  "SLURM_TASK_PID": "1022510",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_USER": "yh4742"
+ },
+ "supervisor_sha256": "bda9edbf5cd715e1cb53119b3b887a5d8248c609b1b17a4f72ed133bb406402e",
+ "supervisor_pid": 1022528,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i0/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-17_23-28-31_exp46_RFf025_l40_2x32_a6000_FULL_train.log",
+ "status": "launching"
+}
+EXP38 exp46_RFf025_l40_2x32 FULL FAILED rc=1; the run lock stays as the crash marker
+________ test_a_failed_full_run_keeps_its_crash_marker[badstart-True-4] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711b90100>
+mode = 'badstart', audit_ok = True, want = 4
+
+    @pytest.mark.parametrize("mode,audit_ok,want", [("crash", True, 1), ("badstart", True, sv.EXIT_START),
+                                                    ("ok", False, sv.EXIT_END)])
+    def test_a_failed_full_run_keeps_its_crash_marker(tmp_path, monkeypatch, mode, audit_ok, want):
+        code, rec, rd, calls = _campaign(tmp_path, monkeypatch, mode, audit_ok)
+>       assert code == want and (rd / ".exp46_lock").is_dir() and "finished_at" in rec
+E       AssertionError: assert (4 == 4 and False)
+E        +  where False = is_dir()
+E        +    where is_dir = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i1/nas/exp46_RFf025_l40_2x32') / '.exp46_lock').is_dir
+
+src/tests/test_exp46_supervise.py:511: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_RFf025_l40_2x32",
+ "mode": "FULL",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-17_23-28-33",
+ "launched_at": "2026-11-17T23:28:33-0500",
+ "host": "neu309.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": {
+  "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "head": "ffffffffffffffffffffffffffffffffffffffff"
+ },
+ "smoke": {
+  "smoke_receipt": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i1/smoke_receipt.json",
+  "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+ },
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs",
+  "reservation": {
+   "free_bytes": 1000000000000000,
+   "outstanding_bytes": 13731483648,
+   "reserved_bytes": 13731483648
+  }
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i1/nas/exp46_RFf025_l40_2x32",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i1/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-33",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i1/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-33",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i1/nas/exp46_RFf025_l40_2x32"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_ID": "4268886",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOB_NODELIST": "neu309",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NAME": "exp46-pytest-B2a_paths_red",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_NODEID": "0",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_NNODES": "1",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_NODELIST": "neu309",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_TOPOLOGY_ADDR": "neu309",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_PROCID": "0",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_JOBID": "4268886",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_END_TIME": "1794977849",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_START_TIME": "1794976049",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_LOCALID": "0",
+  "SLURM_TASK_PID": "1022510",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_USER": "yh4742"
+ },
+ "supervisor_sha256": "bda9edbf5cd715e1cb53119b3b887a5d8248c609b1b17a4f72ed133bb406402e",
+ "supervisor_pid": 1022528,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i1/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-17_23-28-33_exp46_RFf025_l40_2x32_a6000_FULL_train.log",
+ "status": "launching"
+}
+EXP38 exp46_RFf025_l40_2x32 FULL FAILED rc=4; the run lock stays as the crash marker
+__________ test_a_failed_full_run_keeps_its_crash_marker[ok-False-5] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711bc7eb0>
+mode = 'ok', audit_ok = False, want = 5
+
+    @pytest.mark.parametrize("mode,audit_ok,want", [("crash", True, 1), ("badstart", True, sv.EXIT_START),
+                                                    ("ok", False, sv.EXIT_END)])
+    def test_a_failed_full_run_keeps_its_crash_marker(tmp_path, monkeypatch, mode, audit_ok, want):
+        code, rec, rd, calls = _campaign(tmp_path, monkeypatch, mode, audit_ok)
+>       assert code == want and (rd / ".exp46_lock").is_dir() and "finished_at" in rec
+E       AssertionError: assert (5 == 5 and False)
+E        +  where False = is_dir()
+E        +    where is_dir = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i2/nas/exp46_RFf025_l40_2x32') / '.exp46_lock').is_dir
+
+src/tests/test_exp46_supervise.py:511: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_RFf025_l40_2x32",
+ "mode": "FULL",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-17_23-28-35",
+ "launched_at": "2026-11-17T23:28:35-0500",
+ "host": "neu309.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": {
+  "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "head": "ffffffffffffffffffffffffffffffffffffffff"
+ },
+ "smoke": {
+  "smoke_receipt": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i2/smoke_receipt.json",
+  "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+ },
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs",
+  "reservation": {
+   "free_bytes": 1000000000000000,
+   "outstanding_bytes": 13731483648,
+   "reserved_bytes": 13731483648
+  }
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i2/nas/exp46_RFf025_l40_2x32",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i2/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-35",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i2/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-35",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i2/nas/exp46_RFf025_l40_2x32"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_ID": "4268886",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOB_NODELIST": "neu309",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NAME": "exp46-pytest-B2a_paths_red",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_NODEID": "0",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_NNODES": "1",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_NODELIST": "neu309",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_TOPOLOGY_ADDR": "neu309",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_PROCID": "0",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_JOBID": "4268886",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_END_TIME": "1794977849",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_START_TIME": "1794976049",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_LOCALID": "0",
+  "SLURM_TASK_PID": "1022510",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_USER": "yh4742"
+ },
+ "supervisor_sha256": "bda9edbf5cd715e1cb53119b3b887a5d8248c609b1b17a4f72ed133bb406402e",
+ "supervisor_pid": 1022528,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_a_failed_full_run_keeps_i2/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-17_23-28-35_exp46_RFf025_l40_2x32_a6000_FULL_train.log",
+ "status": "launching"
+}
+EXP38 exp46_RFf025_l40_2x32 FULL END AUDIT FAILED: end gates: synthetic failure
+______ test_a_neuronic_smoke_seals_its_receipt_from_the_snapshot[True-0] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711d037c0>
+audit_ok = True, want = 0
+
+    @pytest.mark.parametrize("audit_ok,want", [(True, 0), (False, sv.EXIT_END)])
+    def test_a_neuronic_smoke_seals_its_receipt_from_the_snapshot(tmp_path, monkeypatch, audit_ok, want):
+        """exp_46: the SMOKE lifecycle is the neuronic one (exp_45's A6000 SMOKE_DDP path is refused, test below)."""
+        code, rec, rd, calls = _campaign(tmp_path, monkeypatch, audit_ok=audit_ok, smode="SMOKE")
+        assert code == want and len(calls) == 2 and rd == tmp_path / "nas" / "exp46_RFf025_l40_2x32_smoke"
+>       assert "start_gate" not in rec and rec["mode"] == "SMOKE" and rec["cwd"] == str(rd / ".exp46_tools")
+E       AssertionError: assert ('start_gate' not in {'backend': 'flash', 'child_exited_at': '2026-11-17T23:28:39-0500', 'child_rc': 0, 'closure_sha256': 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', ...} and 'SMOKE' == 'SMOKE'
+E         
+E           SMOKE and '/tmp/pytest-.../.exp38_tools' == '/tmp/pytest-.../.exp46_tools'
+E         
+E         Skipping 89 identical leading characters in diff, use -v to show
+E         - smoke/.exp46_tools
+E         ?           ^^
+E         + smoke/.exp38_tools
+E         ?           ^^)
+
+src/tests/test_exp46_supervise.py:530: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_RFf025_l40_2x32",
+ "mode": "SMOKE",
+ "platform": "neuronic",
+ "backend": "flash",
+ "ts": "2026-11-17_23-28-37",
+ "launched_at": "2026-11-17T23:28:37-0500",
+ "host": "neu309.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": null,
+ "smoke": null,
+ "owner": "/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it0/owner",
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs"
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it0/nas/exp46_RFf025_l40_2x32_smoke",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it0/nas/exp46_RFf025_l40_2x32_smoke/.exp38_tools",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it0/nas/exp46_RFf025_l40_2x32_smoke/.exp38_tools",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it0/nas/exp46_RFf025_l40_2x32_smoke"
+ ],
+ "cuda_visible_devices": null,
+ "slurm": {
+  "SLURM_JOB_ID": "4268886",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOB_NODELIST": "neu309",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NAME": "exp46-pytest-B2a_paths_red",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_NODEID": "0",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_NNODES": "1",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_NODELIST": "neu309",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_TOPOLOGY_ADDR": "neu309",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_PROCID": "0",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_JOBID": "4268886",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_END_TIME": "1794977849",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_START_TIME": "1794976049",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_LOCALID": "0",
+  "SLURM_TASK_PID": "1022510",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_USER": "yh4742"
+ },
+ "supervisor_sha256": "bda9edbf5cd715e1cb53119b3b887a5d8248c609b1b17a4f72ed133bb406402e",
+ "supervisor_pid": 1022528,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it0/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-17_23-28-37_exp46_RFf025_l40_2x32_neuronic_SMOKE_train.log",
+ "status": "launching"
+}
+EXP38 exp46_RFf025_l40_2x32 SMOKE PASS
+______ test_a_neuronic_smoke_seals_its_receipt_from_the_snapshot[False-5] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711c03a30>
+audit_ok = False, want = 5
+
+    @pytest.mark.parametrize("audit_ok,want", [(True, 0), (False, sv.EXIT_END)])
+    def test_a_neuronic_smoke_seals_its_receipt_from_the_snapshot(tmp_path, monkeypatch, audit_ok, want):
+        """exp_46: the SMOKE lifecycle is the neuronic one (exp_45's A6000 SMOKE_DDP path is refused, test below)."""
+        code, rec, rd, calls = _campaign(tmp_path, monkeypatch, audit_ok=audit_ok, smode="SMOKE")
+        assert code == want and len(calls) == 2 and rd == tmp_path / "nas" / "exp46_RFf025_l40_2x32_smoke"
+>       assert "start_gate" not in rec and rec["mode"] == "SMOKE" and rec["cwd"] == str(rd / ".exp46_tools")
+E       AssertionError: assert ('start_gate' not in {'backend': 'flash', 'child_exited_at': '2026-11-17T23:28:41-0500', 'child_rc': 0, 'closure_sha256': 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', ...} and 'SMOKE' == 'SMOKE'
+E         
+E           SMOKE and '/tmp/pytest-.../.exp38_tools' == '/tmp/pytest-.../.exp46_tools'
+E         
+E         Skipping 89 identical leading characters in diff, use -v to show
+E         - smoke/.exp46_tools
+E         ?           ^^
+E         + smoke/.exp38_tools
+E         ?           ^^)
+
+src/tests/test_exp46_supervise.py:530: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_RFf025_l40_2x32",
+ "mode": "SMOKE",
+ "platform": "neuronic",
+ "backend": "flash",
+ "ts": "2026-11-17_23-28-39",
+ "launched_at": "2026-11-17T23:28:39-0500",
+ "host": "neu309.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": null,
+ "smoke": null,
+ "owner": "/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it1/owner",
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs"
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it1/nas/exp46_RFf025_l40_2x32_smoke",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it1/nas/exp46_RFf025_l40_2x32_smoke/.exp38_tools",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it1/nas/exp46_RFf025_l40_2x32_smoke/.exp38_tools",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it1/nas/exp46_RFf025_l40_2x32_smoke"
+ ],
+ "cuda_visible_devices": null,
+ "slurm": {
+  "SLURM_JOB_ID": "4268886",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOB_NODELIST": "neu309",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NAME": "exp46-pytest-B2a_paths_red",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_NODEID": "0",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_NNODES": "1",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_NODELIST": "neu309",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_TOPOLOGY_ADDR": "neu309",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_PROCID": "0",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_JOBID": "4268886",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_END_TIME": "1794977849",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_START_TIME": "1794976049",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_LOCALID": "0",
+  "SLURM_TASK_PID": "1022510",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_USER": "yh4742"
+ },
+ "supervisor_sha256": "bda9edbf5cd715e1cb53119b3b887a5d8248c609b1b17a4f72ed133bb406402e",
+ "supervisor_pid": 1022528,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_a_neuronic_smoke_seals_it1/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-17_23-28-39_exp46_RFf025_l40_2x32_neuronic_SMOKE_train.log",
+ "status": "launching"
+}
+EXP38 exp46_RFf025_l40_2x32 SMOKE FAIL
+_______ test_the_a6000_smoke_ddp_is_refused_before_any_gate_or_directory _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_a6000_smoke_ddp_is_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711d3c8e0>
+
+    def test_the_a6000_smoke_ddp_is_refused_before_any_gate_or_directory(tmp_path, monkeypatch):
+        """exp_46 plan r3 §3.2 (Codex plan r2 finding 1): the inherited A6000 training-SMOKE destination
+        outputs_FLAC/exp38_smoke is refused; nothing is gated, claimed, locked or created."""
+>       with pytest.raises(sv.Refused, match="no A6000 training path"):
+E       Failed: DID NOT RAISE Refused
+
+src/tests/test_exp46_supervise.py:539: Failed
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_RFf025_l40_2x32",
+ "mode": "SMOKE_DDP",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-17_23-28-41",
+ "launched_at": "2026-11-17T23:28:41-0500",
+ "host": "neu309.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": null,
+ "smoke": null,
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": null,
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_the_a6000_smoke_ddp_is_re0/outputs_FLAC/exp38_smoke/exp46_RFf025_l40_2x32_ddp_2026-11-17_23-28-41",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_the_a6000_smoke_ddp_is_re0/snaps/exp46_RFf025_l40_2x32_SMOKE_DDP_2026-11-17_23-28-41",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_the_a6000_smoke_ddp_is_re0/snaps/exp46_RFf025_l40_2x32_SMOKE_DDP_2026-11-17_23-28-41",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_the_a6000_smoke_ddp_is_re0/outputs_FLAC/exp38_smoke/exp46_RFf025_l40_2x32_ddp_2026-11-17_23-28-41"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_ID": "4268886",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOB_NODELIST": "neu309",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NAME": "exp46-pytest-B2a_paths_red",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_NODEID": "0",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_NNODES": "1",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_NODELIST": "neu309",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_TOPOLOGY_ADDR": "neu309",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_PROCID": "0",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_JOBID": "4268886",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_END_TIME": "1794977849",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_START_TIME": "1794976049",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_LOCALID": "0",
+  "SLURM_TASK_PID": "1022510",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_USER": "yh4742"
+ },
+ "supervisor_sha256": "bda9edbf5cd715e1cb53119b3b887a5d8248c609b1b17a4f72ed133bb406402e",
+ "supervisor_pid": 1022528,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_the_a6000_smoke_ddp_is_re0/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-17_23-28-41_exp46_RFf025_l40_2x32_a6000_SMOKE_DDP_train.log",
+ "status": "launching"
+}
+EXP38 exp46_RFf025_l40_2x32 SMOKE_DDP PASS
+_ test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit[extra version-logger0] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711785d80>
+name = 'extra version'
+logger = {'lightning_logs/version_0/hparams.yaml': '{}\n', 'lightning_logs/version_0/metrics.csv': 'step,train/std_data,train/l...9,1.13,0.502506,0.5,34,4.9e-05\n39999,1.13,0.502500,0.5,34,4.9e-05\n', 'lightning_logs/version_1/hparams.yaml': '{}\n'}
+
+    @pytest.mark.parametrize("name,logger", [
+        ("extra version", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "LOSS", "lightning_logs/version_1/hparams.yaml": "{}\n"}),
+        ("extra file", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "LOSS", V0 + "events.out.tfevents.1": "x"}),
+        ("missing csv", {V0 + "hparams.yaml": "{}\n"}),
+        ("no logger dir", {}),
+        ("short csv", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "step,train/loss\n99,0.5\n"}),
+    ])
+    def test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit(tmp_path, monkeypatch, name, logger):
+        import exp46_fixtures as fx
+        logger = {k: (fx.loss_csv(sv.reg).decode() if v == "LOSS" else v) for k, v in logger.items()}
+        code, rec, rd, calls = _campaign(tmp_path, monkeypatch, logger=logger)
+        assert code == sv.EXIT_END and rec["status"].startswith("end audit failed") and "loss_record" not in rec
+>       assert calls == [("commits", [])] and (rd / ".exp46_lock").is_dir()             # no receipt; crash marker kept
+E       AssertionError: assert ([('commits', [])] == [('commits', [])]
+E         
+E         Use -v to get more diff and False)
+E        +  where False = is_dir()
+E        +    where is_dir = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa0/nas/exp46_RFf025_l40_2x32') / '.exp46_lock').is_dir
+
+src/tests/test_exp46_supervise.py:558: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_RFf025_l40_2x32",
+ "mode": "FULL",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-17_23-28-43",
+ "launched_at": "2026-11-17T23:28:43-0500",
+ "host": "neu309.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": {
+  "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "head": "ffffffffffffffffffffffffffffffffffffffff"
+ },
+ "smoke": {
+  "smoke_receipt": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa0/smoke_receipt.json",
+  "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+ },
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs",
+  "reservation": {
+   "free_bytes": 1000000000000000,
+   "outstanding_bytes": 13731483648,
+   "reserved_bytes": 13731483648
+  }
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa0/nas/exp46_RFf025_l40_2x32",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa0/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-43",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa0/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-43",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa0/nas/exp46_RFf025_l40_2x32"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_ID": "4268886",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOB_NODELIST": "neu309",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NAME": "exp46-pytest-B2a_paths_red",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_NODEID": "0",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_NNODES": "1",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_NODELIST": "neu309",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_TOPOLOGY_ADDR": "neu309",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_PROCID": "0",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_JOBID": "4268886",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_END_TIME": "1794977849",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_START_TIME": "1794976049",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_LOCALID": "0",
+  "SLURM_TASK_PID": "1022510",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_USER": "yh4742"
+ },
+ "supervisor_sha256": "bda9edbf5cd715e1cb53119b3b887a5d8248c609b1b17a4f72ed133bb406402e",
+ "supervisor_pid": 1022528,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa0/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-17_23-28-43_exp46_RFf025_l40_2x32_a6000_FULL_train.log",
+ "status": "launching"
+}
+EXP38 exp46_RFf025_l40_2x32 FULL END AUDIT FAILED: /tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa0/nas/exp46_RFf025_l40_2x32/lightning_logs: entries ['version_0', 'version_0/hparams.yaml', 'version_0/metrics.csv', 'version_1', 'version_1/hparams.yaml'] != exactly ['version_0', 'version_0/hparams.yaml', 'version_0/metrics.csv']
+_ test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit[extra file-logger1] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711786470>
+name = 'extra file'
+logger = {'lightning_logs/version_0/hparams.yaml': '{}\n', 'lightning_logs/version_0/metrics.csv': 'step,train/std_data,train/l...,0.502506,0.5,34,4.9e-05\n39999,1.13,0.502500,0.5,34,4.9e-05\n', 'lightning_logs/version_0/events.out.tfevents.1': 'x'}
+
+    @pytest.mark.parametrize("name,logger", [
+        ("extra version", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "LOSS", "lightning_logs/version_1/hparams.yaml": "{}\n"}),
+        ("extra file", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "LOSS", V0 + "events.out.tfevents.1": "x"}),
+        ("missing csv", {V0 + "hparams.yaml": "{}\n"}),
+        ("no logger dir", {}),
+        ("short csv", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "step,train/loss\n99,0.5\n"}),
+    ])
+    def test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit(tmp_path, monkeypatch, name, logger):
+        import exp46_fixtures as fx
+        logger = {k: (fx.loss_csv(sv.reg).decode() if v == "LOSS" else v) for k, v in logger.items()}
+        code, rec, rd, calls = _campaign(tmp_path, monkeypatch, logger=logger)
+        assert code == sv.EXIT_END and rec["status"].startswith("end audit failed") and "loss_record" not in rec
+>       assert calls == [("commits", [])] and (rd / ".exp46_lock").is_dir()             # no receipt; crash marker kept
+E       AssertionError: assert ([('commits', [])] == [('commits', [])]
+E         
+E         Use -v to get more diff and False)
+E        +  where False = is_dir()
+E        +    where is_dir = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa1/nas/exp46_RFf025_l40_2x32') / '.exp46_lock').is_dir
+
+src/tests/test_exp46_supervise.py:558: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_RFf025_l40_2x32",
+ "mode": "FULL",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-17_23-28-45",
+ "launched_at": "2026-11-17T23:28:45-0500",
+ "host": "neu309.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": {
+  "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "head": "ffffffffffffffffffffffffffffffffffffffff"
+ },
+ "smoke": {
+  "smoke_receipt": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa1/smoke_receipt.json",
+  "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+ },
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs",
+  "reservation": {
+   "free_bytes": 1000000000000000,
+   "outstanding_bytes": 13731483648,
+   "reserved_bytes": 13731483648
+  }
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa1/nas/exp46_RFf025_l40_2x32",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa1/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-45",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa1/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-45",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa1/nas/exp46_RFf025_l40_2x32"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_ID": "4268886",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOB_NODELIST": "neu309",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NAME": "exp46-pytest-B2a_paths_red",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_NODEID": "0",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_NNODES": "1",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_NODELIST": "neu309",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_TOPOLOGY_ADDR": "neu309",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_PROCID": "0",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_JOBID": "4268886",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_END_TIME": "1794977849",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_START_TIME": "1794976049",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_LOCALID": "0",
+  "SLURM_TASK_PID": "1022510",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_USER": "yh4742"
+ },
+ "supervisor_sha256": "bda9edbf5cd715e1cb53119b3b887a5d8248c609b1b17a4f72ed133bb406402e",
+ "supervisor_pid": 1022528,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa1/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-17_23-28-45_exp46_RFf025_l40_2x32_a6000_FULL_train.log",
+ "status": "launching"
+}
+EXP38 exp46_RFf025_l40_2x32 FULL END AUDIT FAILED: /tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa1/nas/exp46_RFf025_l40_2x32/lightning_logs: entries ['version_0', 'version_0/events.out.tfevents.1', 'version_0/hparams.yaml', 'version_0/metrics.csv'] != exactly ['version_0', 'version_0/hparams.yaml', 'version_0/metrics.csv']
+_ test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit[missing csv-logger2] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711b78730>
+name = 'missing csv', logger = {'lightning_logs/version_0/hparams.yaml': '{}\n'}
+
+    @pytest.mark.parametrize("name,logger", [
+        ("extra version", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "LOSS", "lightning_logs/version_1/hparams.yaml": "{}\n"}),
+        ("extra file", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "LOSS", V0 + "events.out.tfevents.1": "x"}),
+        ("missing csv", {V0 + "hparams.yaml": "{}\n"}),
+        ("no logger dir", {}),
+        ("short csv", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "step,train/loss\n99,0.5\n"}),
+    ])
+    def test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit(tmp_path, monkeypatch, name, logger):
+        import exp46_fixtures as fx
+        logger = {k: (fx.loss_csv(sv.reg).decode() if v == "LOSS" else v) for k, v in logger.items()}
+        code, rec, rd, calls = _campaign(tmp_path, monkeypatch, logger=logger)
+        assert code == sv.EXIT_END and rec["status"].startswith("end audit failed") and "loss_record" not in rec
+>       assert calls == [("commits", [])] and (rd / ".exp46_lock").is_dir()             # no receipt; crash marker kept
+E       AssertionError: assert ([('commits', [])] == [('commits', [])]
+E         
+E         Use -v to get more diff and False)
+E        +  where False = is_dir()
+E        +    where is_dir = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa2/nas/exp46_RFf025_l40_2x32') / '.exp46_lock').is_dir
+
+src/tests/test_exp46_supervise.py:558: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_RFf025_l40_2x32",
+ "mode": "FULL",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-17_23-28-48",
+ "launched_at": "2026-11-17T23:28:48-0500",
+ "host": "neu309.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": {
+  "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "head": "ffffffffffffffffffffffffffffffffffffffff"
+ },
+ "smoke": {
+  "smoke_receipt": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa2/smoke_receipt.json",
+  "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+ },
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs",
+  "reservation": {
+   "free_bytes": 1000000000000000,
+   "outstanding_bytes": 13731483648,
+   "reserved_bytes": 13731483648
+  }
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa2/nas/exp46_RFf025_l40_2x32",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa2/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-48",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa2/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-48",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa2/nas/exp46_RFf025_l40_2x32"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_ID": "4268886",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOB_NODELIST": "neu309",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NAME": "exp46-pytest-B2a_paths_red",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_NODEID": "0",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_NNODES": "1",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_NODELIST": "neu309",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_TOPOLOGY_ADDR": "neu309",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_PROCID": "0",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_JOBID": "4268886",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_END_TIME": "1794977849",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_START_TIME": "1794976049",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_LOCALID": "0",
+  "SLURM_TASK_PID": "1022510",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_USER": "yh4742"
+ },
+ "supervisor_sha256": "bda9edbf5cd715e1cb53119b3b887a5d8248c609b1b17a4f72ed133bb406402e",
+ "supervisor_pid": 1022528,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa2/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-17_23-28-48_exp46_RFf025_l40_2x32_a6000_FULL_train.log",
+ "status": "launching"
+}
+EXP38 exp46_RFf025_l40_2x32 FULL END AUDIT FAILED: /tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa2/nas/exp46_RFf025_l40_2x32/lightning_logs: entries ['version_0', 'version_0/hparams.yaml'] != exactly ['version_0', 'version_0/hparams.yaml', 'version_0/metrics.csv']
+_ test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit[no logger dir-logger3] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711b2aa70>
+name = 'no logger dir', logger = {}
+
+    @pytest.mark.parametrize("name,logger", [
+        ("extra version", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "LOSS", "lightning_logs/version_1/hparams.yaml": "{}\n"}),
+        ("extra file", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "LOSS", V0 + "events.out.tfevents.1": "x"}),
+        ("missing csv", {V0 + "hparams.yaml": "{}\n"}),
+        ("no logger dir", {}),
+        ("short csv", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "step,train/loss\n99,0.5\n"}),
+    ])
+    def test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit(tmp_path, monkeypatch, name, logger):
+        import exp46_fixtures as fx
+        logger = {k: (fx.loss_csv(sv.reg).decode() if v == "LOSS" else v) for k, v in logger.items()}
+        code, rec, rd, calls = _campaign(tmp_path, monkeypatch, logger=logger)
+        assert code == sv.EXIT_END and rec["status"].startswith("end audit failed") and "loss_record" not in rec
+>       assert calls == [("commits", [])] and (rd / ".exp46_lock").is_dir()             # no receipt; crash marker kept
+E       AssertionError: assert ([('commits', [])] == [('commits', [])]
+E         
+E         Use -v to get more diff and False)
+E        +  where False = is_dir()
+E        +    where is_dir = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa3/nas/exp46_RFf025_l40_2x32') / '.exp46_lock').is_dir
+
+src/tests/test_exp46_supervise.py:558: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_RFf025_l40_2x32",
+ "mode": "FULL",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-17_23-28-50",
+ "launched_at": "2026-11-17T23:28:50-0500",
+ "host": "neu309.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": {
+  "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "head": "ffffffffffffffffffffffffffffffffffffffff"
+ },
+ "smoke": {
+  "smoke_receipt": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa3/smoke_receipt.json",
+  "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+ },
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs",
+  "reservation": {
+   "free_bytes": 1000000000000000,
+   "outstanding_bytes": 13731483648,
+   "reserved_bytes": 13731483648
+  }
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa3/nas/exp46_RFf025_l40_2x32",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa3/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-50",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa3/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-50",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa3/nas/exp46_RFf025_l40_2x32"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_ID": "4268886",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOB_NODELIST": "neu309",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NAME": "exp46-pytest-B2a_paths_red",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_NODEID": "0",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_NNODES": "1",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_NODELIST": "neu309",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_TOPOLOGY_ADDR": "neu309",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_PROCID": "0",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_JOBID": "4268886",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_END_TIME": "1794977849",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_START_TIME": "1794976049",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_LOCALID": "0",
+  "SLURM_TASK_PID": "1022510",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_USER": "yh4742"
+ },
+ "supervisor_sha256": "bda9edbf5cd715e1cb53119b3b887a5d8248c609b1b17a4f72ed133bb406402e",
+ "supervisor_pid": 1022528,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa3/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-17_23-28-50_exp46_RFf025_l40_2x32_a6000_FULL_train.log",
+ "status": "launching"
+}
+EXP38 exp46_RFf025_l40_2x32 FULL END AUDIT FAILED: /tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa3/nas/exp46_RFf025_l40_2x32/lightning_logs: entries None != exactly ['version_0', 'version_0/hparams.yaml', 'version_0/metrics.csv']
+_ test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit[short csv-logger4] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711b6e410>
+name = 'short csv'
+logger = {'lightning_logs/version_0/hparams.yaml': '{}\n', 'lightning_logs/version_0/metrics.csv': 'step,train/loss\n99,0.5\n'}
+
+    @pytest.mark.parametrize("name,logger", [
+        ("extra version", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "LOSS", "lightning_logs/version_1/hparams.yaml": "{}\n"}),
+        ("extra file", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "LOSS", V0 + "events.out.tfevents.1": "x"}),
+        ("missing csv", {V0 + "hparams.yaml": "{}\n"}),
+        ("no logger dir", {}),
+        ("short csv", {V0 + "hparams.yaml": "{}\n", V0 + "metrics.csv": "step,train/loss\n99,0.5\n"}),
+    ])
+    def test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit(tmp_path, monkeypatch, name, logger):
+        import exp46_fixtures as fx
+        logger = {k: (fx.loss_csv(sv.reg).decode() if v == "LOSS" else v) for k, v in logger.items()}
+        code, rec, rd, calls = _campaign(tmp_path, monkeypatch, logger=logger)
+        assert code == sv.EXIT_END and rec["status"].startswith("end audit failed") and "loss_record" not in rec
+>       assert calls == [("commits", [])] and (rd / ".exp46_lock").is_dir()             # no receipt; crash marker kept
+E       AssertionError: assert ([('commits', [])] == [('commits', [])]
+E         
+E         Use -v to get more diff and False)
+E        +  where False = is_dir()
+E        +    where is_dir = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa4/nas/exp46_RFf025_l40_2x32') / '.exp46_lock').is_dir
+
+src/tests/test_exp46_supervise.py:558: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_RFf025_l40_2x32",
+ "mode": "FULL",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-17_23-28-52",
+ "launched_at": "2026-11-17T23:28:52-0500",
+ "host": "neu309.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": {
+  "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "head": "ffffffffffffffffffffffffffffffffffffffff"
+ },
+ "smoke": {
+  "smoke_receipt": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa4/smoke_receipt.json",
+  "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+ },
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs",
+  "reservation": {
+   "free_bytes": 1000000000000000,
+   "outstanding_bytes": 13731483648,
+   "reserved_bytes": 13731483648
+  }
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa4/nas/exp46_RFf025_l40_2x32",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa4/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-52",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa4/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-52",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa4/nas/exp46_RFf025_l40_2x32"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_ID": "4268886",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOB_NODELIST": "neu309",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NAME": "exp46-pytest-B2a_paths_red",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_NODEID": "0",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_NNODES": "1",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_NODELIST": "neu309",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_TOPOLOGY_ADDR": "neu309",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_PROCID": "0",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_JOBID": "4268886",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_END_TIME": "1794977849",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_START_TIME": "1794976049",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_LOCALID": "0",
+  "SLURM_TASK_PID": "1022510",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_USER": "yh4742"
+ },
+ "supervisor_sha256": "bda9edbf5cd715e1cb53119b3b887a5d8248c609b1b17a4f72ed133bb406402e",
+ "supervisor_pid": 1022528,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa4/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-17_23-28-52_exp46_RFf025_l40_2x32_a6000_FULL_train.log",
+ "status": "launching"
+}
+EXP38 exp46_RFf025_l40_2x32 FULL END AUDIT FAILED: /tmp/pytest-of-yh4742/pytest-0/test_the_full_branch_moves_exa4/nas/exp46_RFf025_l40_2x32/lightning_logs/version_0/metrics.csv: columns ['step', 'train/loss'] != ['epoch', 'step', 'train/loss', 'train/lr', 'train/mse_loss', 'train/std_data']
+___________ test_ar_content_changed_during_the_run_publishes_nothing ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_ar_content_changed_during0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f0711cab700>
+
+    def test_ar_content_changed_during_the_run_publishes_nothing(tmp_path, monkeypatch):
+        """Codex code r3 BLOCKING 1 (defense in depth): the post-run re-hash refuses the terminal receipt."""
+        code, rec, rd, calls = _campaign(tmp_path, monkeypatch, content_after_ok=False)
+        assert code == sv.EXIT_END and "AR content changed during the run" in rec["status"]
+>       assert calls == [("commits", [])] and (rd / ".exp46_lock").is_dir()
+E       AssertionError: assert ([('commits', [])] == [('commits', [])]
+E         
+E         Use -v to get more diff and False)
+E        +  where False = is_dir()
+E        +    where is_dir = (PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_ar_content_changed_during0/nas/exp46_RFf025_l40_2x32') / '.exp46_lock').is_dir
+
+src/tests/test_exp46_supervise.py:602: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{
+ "run": "exp46_RFf025_l40_2x32",
+ "mode": "FULL",
+ "platform": "a6000",
+ "backend": "flash",
+ "ts": "2026-11-17_23-28-54",
+ "launched_at": "2026-11-17T23:28:54-0500",
+ "host": "neu309.neuronic.cs.princeton.edu",
+ "head": "ffffffffffffffffffffffffffffffffffffffff",
+ "closure_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+ "env_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+ "python": "/n/fs/gatrdp/envs/flac/bin/python",
+ "pins": {},
+ "describe": {},
+ "e0": {
+  "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "head": "ffffffffffffffffffffffffffffffffffffffff"
+ },
+ "smoke": {
+  "smoke_receipt": "/tmp/pytest-of-yh4742/pytest-0/test_ar_content_changed_during0/smoke_receipt.json",
+  "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+ },
+ "owner": null,
+ "gpus": [
+  [
+   "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+   "NVIDIA RTX A6000"
+  ],
+  [
+   "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "NVIDIA RTX A6000"
+  ]
+ ],
+ "driver": [
+  "570.86"
+ ],
+ "gpu_policy": "idle",
+ "storage": {
+  "fstype": "cifs",
+  "reservation": {
+   "free_bytes": 1000000000000000,
+   "outstanding_bytes": 13731483648,
+   "reserved_bytes": 13731483648
+  }
+ },
+ "run_dir": "/tmp/pytest-of-yh4742/pytest-0/test_ar_content_changed_during0/nas/exp46_RFf025_l40_2x32",
+ "snapshot": {
+  "snapshot": "/tmp/pytest-of-yh4742/pytest-0/test_ar_content_changed_during0/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-54",
+  "files": 1,
+  "snapshot_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+ },
+ "cwd": "/tmp/pytest-of-yh4742/pytest-0/test_ar_content_changed_during0/snaps/exp46_RFf025_l40_2x32_FULL_2026-11-17_23-28-54",
+ "cmd": [
+  "/n/fs/gatrdp/envs/flac/bin/python",
+  "train.py",
+  "/tmp/pytest-of-yh4742/pytest-0/test_ar_content_changed_during0/nas/exp46_RFf025_l40_2x32"
+ ],
+ "cuda_visible_devices": "0,1",
+ "slurm": {
+  "SLURM_JOB_ID": "4268886",
+  "SLURM_JOB_NUM_NODES": "1",
+  "SLURM_JOB_NODELIST": "neu309",
+  "SLURM_JOB_GID": "1001513",
+  "SLURM_JOB_NAME": "exp46-pytest-B2a_paths_red",
+  "SLURM_CONF": "/etc/slurm/slurm.conf",
+  "SLURM_NODEID": "0",
+  "SLURM_SUBMIT_HOST": "neuronic.cs.princeton.edu",
+  "SLURM_NNODES": "1",
+  "SLURM_PRIO_PROCESS": "0",
+  "SLURM_JOB_ACCOUNT": "seas",
+  "SLURM_NODELIST": "neu309",
+  "SLURM_MEM_PER_NODE": "16384",
+  "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+  "SLURM_TOPOLOGY_ADDR": "neu309",
+  "SLURM_CPUS_PER_TASK": "4",
+  "SLURM_PROCID": "0",
+  "SLURM_JOB_QOS": "normal",
+  "SLURM_JOBID": "4268886",
+  "SLURM_OOM_KILL_STEP": "0",
+  "SLURM_TRES_PER_TASK": "cpu=4",
+  "SLURM_JOB_PARTITION": "all",
+  "SLURM_GTIDS": "0",
+  "SLURM_JOB_CPUS_PER_NODE": "4",
+  "SLURM_CPUS_ON_NODE": "4",
+  "SLURM_JOB_END_TIME": "1794977849",
+  "SLURM_CLUSTER_NAME": "neuronic",
+  "SLURM_JOB_START_TIME": "1794976049",
+  "SLURM_SUBMIT_DIR": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve",
+  "SLURM_LOCALID": "0",
+  "SLURM_TASK_PID": "1022510",
+  "SLURM_JOB_UID": "374349",
+  "SLURM_TASKS_PER_NODE": "1",
+  "SLURM_JOB_USER": "yh4742"
+ },
+ "supervisor_sha256": "bda9edbf5cd715e1cb53119b3b887a5d8248c609b1b17a4f72ed133bb406402e",
+ "supervisor_pid": 1022528,
+ "log": "/tmp/pytest-of-yh4742/pytest-0/test_ar_content_changed_during0/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/c4flip_data_curve_2026-11-17_23-28-54_exp46_RFf025_l40_2x32_a6000_FULL_train.log",
+ "status": "launching"
+}
+EXP38 exp46_RFf025_l40_2x32 FULL END AUDIT FAILED: AR content changed during the run: 1 group(s) differ
+_________________ test_run_dir_fresh_and_complete_states_only __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_run_dir_fresh_and_complet0')
+
+    def test_run_dir_fresh_and_complete_states_only(tmp_path):
+        """No resume state exists (Codex code r1 HIGH 2): a run dir is fresh (0) or complete (40,000)."""
+        run = RF["025"]
+        assert reg.check_run_dir(str(tmp_path / "absent"), run, 0)["state"] == "fresh"
+        d = tmp_path / "rd"
+        _touch(d, [f"at_launch_{run}_x.json"])
+        assert reg.check_run_dir(str(d), run, 0)["state"] == "fresh"
+        _touch(d, ["epoch=2-step=2500.ckpt"])
+        with pytest.raises(reg.GateError):
+            reg.check_run_dir(str(d), run, 0)                       # fresh start refuses a checkpoint
+        for bad in (2500, 10000, 37500, -1):
+            with pytest.raises(reg.GateError):
+                reg.check_run_dir(str(d), run, bad)                 # there is no resume boundary
+        full = tmp_path / "full"
+        _touch(full, [reg.ckpt_name(s, "025") for s in reg.cadence_steps()])
+        assert reg.check_run_dir(str(full), run, 40000)["state"] == "complete"
+        (full / ".exp46_lock").mkdir()
+        with pytest.raises(reg.GateError):
+            reg.check_run_dir(str(full), run, 40000)                # a live / crashed run
+>       assert reg.check_run_dir(str(full), run, 40000, allow_lock=True)["state"] == "complete"
+
+src/tests/test_exp46_registry.py:177: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yh4742/pytest-0/test_run_dir_fresh_and_complet0/full'
+run = 'exp46_RFf025_l40_2x32', upto = 40000, allow_lock = True
+
+    def check_run_dir(path, run, upto, allow_lock=False):
+        """``upto`` 0: a fresh run dir (no checkpoint, nothing foreign, no lock). ``upto`` 40000: a
+        finished run's dir -- exactly the 16 cadence checkpoints. There is no resume state (plan §6)."""
+        if upto not in (0, MAX_STEPS):
+            raise GateError(f"run-dir state {upto}: only 0 (fresh) or {MAX_STEPS} (complete) exist")
+        _, tag, _ = parse_run_id(run)
+        present = sorted(os.path.basename(p) for p in glob.glob(os.path.join(path, "*.ckpt")))
+        want = sorted(ckpt_name(s, tag) for s in cadence_steps(upto)) if upto else []
+        if present != want:
+            raise GateError(f"{path}: checkpoints {present} != expected {want} for state {upto}")
+        if os.path.isdir(path):
+            names = os.listdir(path)
+            stray = sorted(n for n in names if not _own_entry(n))
+            if stray:
+>               raise GateError(f"{path}: foreign entries {stray}")
+E               exp46_registry.GateError: /tmp/pytest-of-yh4742/pytest-0/test_run_dir_fresh_and_complet0/full: foreign entries ['.exp46_lock']
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:340: GateError
+=============================== warnings summary ===============================
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    from pkg_resources import packaging
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_paths.py::test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition
+FAILED src/tests/test_exp46_paths.py::test_no_exp46_write_path_names_another_experiments_namespace
+FAILED src/tests/test_exp46_paths.py::test_the_run_dir_internals_and_probes_are_exp46_names
+FAILED src/tests/test_exp46_paths.py::test_the_snapshot_roots_are_exp46s - As...
+FAILED src/tests/test_exp46_paths.py::test_the_a6000_smoke_destination_is_refused_before_any_gate_or_write
+FAILED src/tests/test_exp46_paths.py::test_the_dry_run_names_no_a6000_smoke_destination
+FAILED src/tests/test_exp46_supervise.py::test_a_full_run_launches_from_the_snapshot_gates_and_publishes
+FAILED src/tests/test_exp46_supervise.py::test_a_failed_full_run_keeps_its_crash_marker[crash-True-1]
+FAILED src/tests/test_exp46_supervise.py::test_a_failed_full_run_keeps_its_crash_marker[badstart-True-4]
+FAILED src/tests/test_exp46_supervise.py::test_a_failed_full_run_keeps_its_crash_marker[ok-False-5]
+FAILED src/tests/test_exp46_supervise.py::test_a_neuronic_smoke_seals_its_receipt_from_the_snapshot[True-0]
+FAILED src/tests/test_exp46_supervise.py::test_a_neuronic_smoke_seals_its_receipt_from_the_snapshot[False-5]
+FAILED src/tests/test_exp46_supervise.py::test_the_a6000_smoke_ddp_is_refused_before_any_gate_or_directory
+FAILED src/tests/test_exp46_supervise.py::test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit[extra version-logger0]
+FAILED src/tests/test_exp46_supervise.py::test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit[extra file-logger1]
+FAILED src/tests/test_exp46_supervise.py::test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit[missing csv-logger2]
+FAILED src/tests/test_exp46_supervise.py::test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit[no logger dir-logger3]
+FAILED src/tests/test_exp46_supervise.py::test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_audit[short csv-logger4]
+FAILED src/tests/test_exp46_supervise.py::test_ar_content_changed_during_the_run_publishes_nothing
+FAILED src/tests/test_exp46_registry.py::test_run_dir_fresh_and_complete_states_only
+20 failed, 118 passed, 7 warnings in 134.18s (0:02:14)
+EXIT 1 end 2026-11-17T23:29:46-05:00

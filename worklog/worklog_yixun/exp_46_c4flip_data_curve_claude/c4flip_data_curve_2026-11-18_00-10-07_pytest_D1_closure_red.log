@@ -1,0 +1,17 @@
+HEAD 2ca672ae1ce65b763e071ed3d6001f90e93e940a tracked-clean=yes host neu308.neuronic.cs.princeton.edu start 2026-11-18T00:10:38-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_closure.py 
+F..                                                                      [100%]
+=================================== FAILURES ===================================
+_____ test_the_c4f_config_and_the_f100_manifest_are_admitted_by_exact_path _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe27a8d5510>
+
+    def test_the_c4f_config_and_the_f100_manifest_are_admitted_by_exact_path(monkeypatch):
+>       assert reg.ARMS["c4f"]["config"] == C4F and reg.F100_DELTA_MANIFEST == MANIFEST
+E       AttributeError: module 'exp46_registry' has no attribute 'F100_DELTA_MANIFEST'
+
+src/tests/test_exp46_closure.py:28: AttributeError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_closure.py::test_the_c4f_config_and_the_f100_manifest_are_admitted_by_exact_path
+1 failed, 2 passed in 31.30s
+EXIT 1 end 2026-11-18T00:11:14-05:00

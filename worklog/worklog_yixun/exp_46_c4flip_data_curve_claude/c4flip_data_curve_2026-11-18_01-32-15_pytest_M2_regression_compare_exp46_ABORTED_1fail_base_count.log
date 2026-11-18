@@ -1,0 +1,22 @@
+HEAD 26d644d06282775bbc0c22a1960e3a04e82b7b39 tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-18T01:32:51-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_regression_compare.py src/tests/test_exp46_paths.py 
+.F.....................                                                  [100%]
+=================================== FAILURES ===================================
+_____________________ test_an_identical_merged_tree_passes _____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_identical_merged_tree_0')
+
+    def test_an_identical_merged_tree_passes(tmp_path):
+        problems, report = _run(tmp_path, dict(BASE))
+>       assert problems == [] and report["verdict"] == "PASS" and report["counts"]["merged"]["passed"] == 5
+E       AssertionError: assert ([] == []
+E         
+E         Use -v to get more diff and 'PASS' == 'PASS'
+E         
+E           PASS and 12 == 5)
+
+src/tests/test_exp46_regression_compare.py:69: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_regression_compare.py::test_an_identical_merged_tree_passes
+1 failed, 22 passed in 4.20s
+EXIT 1 end 2026-11-18T01:32:56-05:00

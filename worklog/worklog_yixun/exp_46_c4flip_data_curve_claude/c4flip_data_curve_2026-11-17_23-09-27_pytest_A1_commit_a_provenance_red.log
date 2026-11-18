@@ -1,0 +1,26 @@
+HEAD f796fe812c9d76c4d920f64cd0ba10e7896c845f tracked-clean=yes host neu321.neuronic.cs.princeton.edu start 2026-11-17T23:09:28-05:00
+cmd: pytest -q -rA src/tests/test_exp46_provenance.py 
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+_______ test_commit_a_is_the_x45f_sources_under_the_declared_rename_map ________
+
+    def test_commit_a_is_the_x45f_sources_under_the_declared_rename_map():
+>       a = commit_a()
+
+src/tests/test_exp46_provenance.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def commit_a():
+        hits = [sha for sha, subject in exp46_commits() if subject == COMMIT_A_SUBJECT]
+>       assert len(hits) == 1, f"exactly one commit A expected after X45f, found {hits}"
+E       AssertionError: exactly one commit A expected after X45f, found []
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+src/tests/test_exp46_provenance.py:54: AssertionError
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp46_provenance.py::test_the_rename_map_covers_the_nine_kit_files_and_every_kit_behaviour_test_file
+FAILED src/tests/test_exp46_provenance.py::test_commit_a_is_the_x45f_sources_under_the_declared_rename_map
+1 failed, 1 passed in 7.27s
+EXIT 1 end 2026-11-17T23:09:37-05:00

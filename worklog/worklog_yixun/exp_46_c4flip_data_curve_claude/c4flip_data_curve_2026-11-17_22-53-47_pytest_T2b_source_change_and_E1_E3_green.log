@@ -1,0 +1,2425 @@
+HEAD f796fe812c9d76c4d920f64cd0ba10e7896c845f tracked-clean=yes host neu318.neuronic.cs.princeton.edu start 2026-11-17T22:53:48-05:00
+cmd: pytest -q -rfEs src/tests/test_exp46_c4flip_factory.py src/tests/test_exp46_c4flip_wrapper.py src/tests/test_yaw_aug_flip.py src/tests/test_yaw_aug_flip_factory.py src/tests/test_exp43_kit.py src/tests/test_yaw_aug_arm_config.py src/tests/test_yaw_aug_c16_config.py src/tests/test_yaw_aug_c16.py src/tests/test_yaw_aug_collect.py src/tests/test_yaw_aug_flip_config.py src/tests/test_yaw_aug_record_control.py src/tests/test_yaw_aug_training.py src/tests/test_yaw_mirror.py src/tests/test_yaw_symmetry.py src/tests/test_yaw_random_eval.py src/tests/test_yaw_gen_collect.py src/tests/test_exp43_yaw_aug_flip_golden.py src/tests/test_exp43_train_history.py src/tests/test_exp40_kit.py src/tests/test_are_launch_schedule.py src/tests/test_are_lambda_config.py src/tests/test_depth_canon_arm_config.py src/tests/test_depth_canon_cond_probe.py src/tests/test_cond_dispatch.py src/tests/test_depth_canon_training.py src/tests/test_frame_avg_cap_config.py src/tests/test_finetune_cond.py src/tests/test_run_evidence.py 
+........................................................................ [  3%]
+........................................................................ [  7%]
+........................................................................ [ 11%]
+........................................................................ [ 15%]
+....................EEEEEEEEEEEEEEEEEEEEEEEE............................ [ 19%]
+..............................ss..s...s.EEEEEEEEEEEEE............EE.F..s [ 23%]
+..E..................................................................... [ 27%]
+........................................................................ [ 31%]
+..........................................s............................. [ 35%]
+........................................................................ [ 39%]
+........................................................................ [ 42%]
+........................................................................ [ 46%]
+........................................................................ [ 50%]
+........................................................................ [ 54%]
+........................................................................ [ 58%]
+........................................................................ [ 62%]
+FFFFFF.........F...............FF.Fs.................................... [ 66%]
+........................................................................ [ 70%]
+........................................................ss..s.....s..... [ 74%]
+........................................................................ [ 78%]
+........................................................................ [ 81%]
+........................................................................ [ 85%]
+........................................................................ [ 89%]
+......................................................s................. [ 93%]
+........................................................................ [ 97%]
+.............................................                            [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_admission_validator_accepts_the_exact_record_and_rehashes _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+------------------------------ Captured log setup ------------------------------
+INFO     wandb.sdk.internal.datastore:datastore.py:77 open: /tmp/pytest-of-yh4742/pytest-0/wandb_fx0/tmpdir/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+INFO     wandb.sdk.internal.datastore:datastore.py:282 close: /tmp/pytest-of-yh4742/pytest-0/wandb_fx0/tmpdir/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[admitted-1] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[arm-YAW] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[kind-admission] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[run_id-exp43_RF_neuronic_2x32] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[platform-neuronic] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[rung-8x8] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[train_sha-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[sha256-0000000000000000000000000000000000000000000000000000000000000000] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[ckpt_path-/elsewhere/epoch=8-step=40000.ckpt] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[global_step-40000.0] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[global_step-True] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[bytes-0] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[model_config-x.json] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[strict_load-False] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[audit_sha256-ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[trajectory_equivalence_claim_allowed-None] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[note-None] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[t-True] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[arm-C16] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[kind-exp40_admission] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[wandb_archive-None] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_every_field_mutation[train_history-None] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_rejects_schema_and_nas_mutations __
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_checks_provenance_fields[historical-val0-historical] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_checks_provenance_fields[historical-val1-historical] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_checks_provenance_fields[current_assets-val2-current_assets keys] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_checks_provenance_fields[dinov3_revision-0000000000000000000000000000000000000000-dinov3_revision] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_checks_provenance_fields[dinov3_config_sha256-0000000000000000000000000000000000000000000000000000000000000000-dinov3_config_sha256] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_checks_provenance_fields[dinov3_weights_sha256-0000000000000000000000000000000000000000000000000000000000000000-dinov3_weights_sha256] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_checks_provenance_fields[vae_sha256-0000000000000000000000000000000000000000000000000000000000000000-vae_sha256] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_checks_provenance_fields[acousticrooms_manifest_digest-0000000000000000000000000000000000000000000000000000000000000000-acousticrooms_manifest_digest] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_checks_provenance_fields[hf_sealed_hub-relative/hub-hf_sealed_hub] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_checks_provenance_fields[dinov3_resolved-val9-dinov3_resolved] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_checks_provenance_fields[t-1794977687.067065-non-future] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_checks_provenance_fields[t-nan-non-future] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_ ERROR at setup of test_admission_validator_checks_provenance_fields[t-0-non-future] _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+__ ERROR at setup of test_the_history_tool_is_pinned_and_bound_by_its_sidecar __
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+_____ ERROR at setup of test_history_csv_and_sidecar_mutations_are_refused _____
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+__ ERROR at setup of test_smoke_evidence_cli_requires_the_preserved_wandb_run __
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f5f834851b0>, _basetemp=PosixPath('/tmp/pytest-of-yh4742/pytest-0'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def wandb_fx(tmp_path_factory):
+        """ONE real chain, built once: a 400-row offline run in a fake ``$TMPDIR/wandb``, preserved,
+        archived to a scratch NAS root, and extracted by the PINNED history tool (a subprocess)."""
+        base = tmp_path_factory.mktemp("wandb_fx")
+        stage = base / "tmpdir" / "wandb"
+        stage.mkdir(parents=True)
+        _write_wandb_run(stage)
+        (base / "train.log").write_text(f"wandb: Starting a new run with run id {W_ID}.\n")
+        pre_path, arc_path = str(base / "preserved.json"), str(base / "archive.json")
+        pre = kit.wandb_preserve([str(stage)], str(base / "keep"), str(base / "train.log"))
+        kit.atomic_write_json(pre_path, pre)
+        arc = kit.wandb_archive(RID, pre_path, nas_root=str(base / "nas"))
+        kit.atomic_write_json(arc_path, arc)
+        (base / "history").mkdir()
+>       hist = kit.train_history_subprocess(os.path.join(arc["dest_dir"], arc["run_dir_name"]), str(base / "history"), RID)
+
+src/tests/test_exp43_kit.py:2123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_dir = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/nas/exp43_RF_a6000_2x32__wandb/offline-run-20261113_010000-abc12345'
+history_parent = '/tmp/pytest-of-yh4742/pytest-0/wandb_fx0/history'
+run_id = 'exp43_RF_a6000_2x32', python = None, tool_root = None
+
+    def train_history_subprocess(run_dir, history_parent, run_id, python=None, tool_root=None):
+        """Run the PINNED ``exp43_train_history.py extract`` (sha256-verified first) on the archived
+        offline run ``run_dir``, writing into a FRESH ``history_parent/train_history_<RUN_ID>__<stamp>/``
+        (``exp43_train_history.csv`` + ``.json``; nothing is overwritten). The tool must exit 0 (written,
+        cadence check passed). Returns the binding record (paths + sha256s)."""
+        tool = os.path.join(tool_root or ROOT, TRAIN_HISTORY_TOOL)
+        if not os.path.isfile(tool) or sha256_file(tool) != TRAIN_HISTORY_TOOL_SHA256:
+            raise Refused(f"{tool} is not the pinned history extractor {TRAIN_HISTORY_TOOL_SHA256}")
+        out_dir = os.path.join(history_parent, f"train_history_{run_id}__{time.strftime('%Y-%m-%d_%H-%M-%S')}_"
+                                               f"{uuid.uuid4().hex[:6]}")
+        os.makedirs(out_dir)
+        csv_path = os.path.join(out_dir, "exp43_train_history.csv")
+        side_path = os.path.join(out_dir, "exp43_train_history.json")
+        cmd = [python or sys.executable, "-I", "-B", tool, "extract", "--run-dir", run_dir, "--out-csv", csv_path,
+               "--out-json", side_path, "--expected-max-steps", str(ENDPOINT)]
+        rc, out, err = run(cmd, env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
+        if rc != 0:
+>           raise Refused(f"the history extractor exited {rc} (0 = written with a clean cadence): "
+                          f"{(err or out).strip()[-600:]}")
+E           exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+
+worklog/worklog_yixun/exp_43_std_aug_claude/exp43_kit.py:2137: Refused
+=================================== FAILURES ===================================
+______ test_train_history_subprocess_is_fail_closed[cadence_gap-exited 3] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_train_history_subprocess_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f5e00d23340>
+case = 'cadence_gap', needle = 'exited 3'
+
+    @pytest.mark.parametrize("case,needle", [
+        ("pin", "pinned history extractor"), ("cadence_gap", "exited 3"), ("no_exit_record", "exited 2"),
+        ("stub_rc0_bogus", None)])
+    def test_train_history_subprocess_is_fail_closed(tmp_path, monkeypatch, case, needle):
+        parent = tmp_path / "run"
+        parent.mkdir()
+        steps = [s for s in range(99, 40000, 100) if s != 20099] if case == "cadence_gap" else range(99, 40000, 100)
+        run_dir = _write_wandb_run(parent, steps=steps, exit_record=case != "no_exit_record")
+        (tmp_path / "out").mkdir()
+        if case == "pin":
+            monkeypatch.setattr(kit, "TRAIN_HISTORY_TOOL_SHA256", "0" * 64)
+        if case == "stub_rc0_bogus":                                   # a stub tool (pinned to ITS bytes) exit 0
+            root = tmp_path / "stubroot"
+            stub = root / kit.TRAIN_HISTORY_TOOL
+            stub.parent.mkdir(parents=True)
+            stub.write_text("import sys, json\na = sys.argv\n"
+                            "open(a[a.index('--out-csv') + 1], 'w').write('step,train/loss,lr\\n99,1.0,5e-05\\n')\n"
+                            "json.dump({'run_file_sha256': 'x', 'row_count': 400}, open(a[a.index('--out-json') + 1], 'w'))\n")
+            monkeypatch.setattr(kit, "TRAIN_HISTORY_TOOL_SHA256", hashlib.sha256(stub.read_bytes()).hexdigest())
+            h = kit.train_history_subprocess(str(run_dir), str(tmp_path / "out"), RID, tool_root=str(root))
+            assert kit.train_history_reasons(h, "0" * 64), h                       # the binding catches the stub
+            return
+>       with pytest.raises(kit.Refused, match=needle):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'exited 3'
+E         Actual message: 'the history extractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)'
+
+src/tests/test_exp43_kit.py:2352: AssertionError
+------------------------------ Captured log call -------------------------------
+INFO     wandb.sdk.internal.datastore:datastore.py:77 open: /tmp/pytest-of-yh4742/pytest-0/test_train_history_subprocess_1/run/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+INFO     wandb.sdk.internal.datastore:datastore.py:282 close: /tmp/pytest-of-yh4742/pytest-0/test_train_history_subprocess_1/run/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+_______ test_extracts_every_loss_row_with_the_logged_trainer_global_step _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_extracts_every_loss_row_w0')
+
+    def test_extracts_every_loss_row_with_the_logged_trainer_global_step(tmp_path):
+        body = default_rows() + [_rec("history", items=[("gradients/x", {"_type": "histogram"}), ("_step", 50)])]
+        d, f = write_run(tmp_path, body)
+        rc, oc, oj = _run(d, tmp_path)
+>       assert rc == 0
+E       assert 2 == 0
+
+src/tests/test_exp43_train_history.py:130: AssertionError
+----------------------------- Captured stderr call -----------------------------
+REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+------------------------------ Captured log call -------------------------------
+INFO     wandb.sdk.internal.datastore:datastore.py:77 open: /tmp/pytest-of-yh4742/pytest-0/test_extracts_every_loss_row_w0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+INFO     wandb.sdk.internal.datastore:datastore.py:282 close: /tmp/pytest-of-yh4742/pytest-0/test_extracts_every_loss_row_w0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+_________________ test_cadence_problems_are_reported_not_fixed _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_cadence_problems_are_repo0')
+
+    def test_cadence_problems_are_reported_not_fixed(tmp_path):
+        steps = [99, 199, 399, 399, 450, 499, 299]
+        d, _ = write_run(tmp_path, [row(s, num=i) for i, s in enumerate(steps)])
+        rc, oc, oj = _run(d, tmp_path)
+>       assert rc == 3
+E       assert 2 == 3
+
+src/tests/test_exp43_train_history.py:163: AssertionError
+----------------------------- Captured stderr call -----------------------------
+REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+------------------------------ Captured log call -------------------------------
+INFO     wandb.sdk.internal.datastore:datastore.py:77 open: /tmp/pytest-of-yh4742/pytest-0/test_cadence_problems_are_repo0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+INFO     wandb.sdk.internal.datastore:datastore.py:282 close: /tmp/pytest-of-yh4742/pytest-0/test_cadence_problems_are_repo0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+_____________________ test_gaps_against_expected_max_steps _____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_gaps_against_expected_max0')
+
+    def test_gaps_against_expected_max_steps(tmp_path):
+        d, _ = write_run(tmp_path, [row(s, num=i) for i, s in enumerate([99, 199, 399, 499])])
+        rc, _oc, oj = _run(d, tmp_path, "--expected-max-steps", "700")
+>       assert rc == 3
+E       assert 2 == 3
+
+src/tests/test_exp43_train_history.py:178: AssertionError
+----------------------------- Captured stderr call -----------------------------
+REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+------------------------------ Captured log call -------------------------------
+INFO     wandb.sdk.internal.datastore:datastore.py:77 open: /tmp/pytest-of-yh4742/pytest-0/test_gaps_against_expected_max0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+INFO     wandb.sdk.internal.datastore:datastore.py:282 close: /tmp/pytest-of-yh4742/pytest-0/test_gaps_against_expected_max0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+________________________ test_first_row_must_be_step_99 ________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_first_row_must_be_step_990')
+
+    def test_first_row_must_be_step_99(tmp_path):
+        d, _ = write_run(tmp_path, [row(s, num=i) for i, s in enumerate([199, 299])])
+        rc, _oc, oj = _run(d, tmp_path)
+>       cad = json.loads(oj.read_text())["cadence"]
+
+src/tests/test_exp43_train_history.py:189: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../envs/flac/lib/python3.10/pathlib.py:1134: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_first_row_must_be_step_990/h.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return self._accessor.open(self, mode, buffering, encoding, errors,
+                                   newline)
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yh4742/pytest-0/test_first_row_must_be_step_990/h.json'
+
+../../envs/flac/lib/python3.10/pathlib.py:1119: FileNotFoundError
+----------------------------- Captured stderr call -----------------------------
+REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+------------------------------ Captured log call -------------------------------
+INFO     wandb.sdk.internal.datastore:datastore.py:77 open: /tmp/pytest-of-yh4742/pytest-0/test_first_row_must_be_step_990/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+INFO     wandb.sdk.internal.datastore:datastore.py:282 close: /tmp/pytest-of-yh4742/pytest-0/test_first_row_must_be_step_990/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+_________________ test_nonfinite_values_are_kept_and_reported __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_nonfinite_values_are_kept0')
+
+    def test_nonfinite_values_are_kept_and_reported(tmp_path):
+        d, _ = write_run(tmp_path, [row(99, loss=float("nan")), row(199, num=1)])
+        rc, oc, oj = _run(d, tmp_path)
+>       assert rc == 0 and oc.read_text().split("\n")[1] == "99,nan,5e-05"
+E       assert (2 == 0)
+
+src/tests/test_exp43_train_history.py:196: AssertionError
+----------------------------- Captured stderr call -----------------------------
+REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+------------------------------ Captured log call -------------------------------
+INFO     wandb.sdk.internal.datastore:datastore.py:77 open: /tmp/pytest-of-yh4742/pytest-0/test_nonfinite_values_are_kept0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+INFO     wandb.sdk.internal.datastore:datastore.py:282 close: /tmp/pytest-of-yh4742/pytest-0/test_nonfinite_values_are_kept0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+__________ test_record_ending_within_six_bytes_of_a_block_end_parses ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_record_ending_within_six_0')
+
+    def test_record_ending_within_six_bytes_of_a_block_end_parses(tmp_path):
+        """wandb's naive ``while scan_data()`` would read the next 'padding' and assert at a clean EOF."""
+        pre = [_rec("header"), _rec("run")] + [row(s, num=i) for i, s in enumerate(range(99, 600, 100))]
+        tail = [_rec("exit"), _rec("footer")]
+        used = 7 + sum(7 + r.ByteSize() for r in pre + tail)
+        target = th.BLOCK - 3 - used - 7
+        filler = next(r for r in (_rec("output", line="x" * n) for n in range(target - 8, target + 1))
+                      if r.ByteSize() == target)
+        d, f = write_run(tmp_path, pre + [filler] + tail, head=False, tail=False)
+        assert f.stat().st_size == th.BLOCK - 3
+        rc, _oc, oj = _run(d, tmp_path)
+>       assert rc == 0 and json.loads(oj.read_text())["row_count"] == 6
+E       assert (2 == 0)
+
+src/tests/test_exp43_train_history.py:211: AssertionError
+----------------------------- Captured stderr call -----------------------------
+REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+------------------------------ Captured log call -------------------------------
+INFO     wandb.sdk.internal.datastore:datastore.py:77 open: /tmp/pytest-of-yh4742/pytest-0/test_record_ending_within_six_0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+INFO     wandb.sdk.internal.datastore:datastore.py:282 close: /tmp/pytest-of-yh4742/pytest-0/test_record_ending_within_six_0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+______________ test_missing_exit_record_is_refused_unless_allowed ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_missing_exit_record_is_re0')
+
+    def test_missing_exit_record_is_refused_unless_allowed(tmp_path):
+        d, _ = write_run(tmp_path, tail=False)
+        _refused(d, tmp_path)
+        rc, _oc, oj = _run(d, tmp_path, "--allow-no-exit-record")
+>       side = json.loads(oj.read_text())
+
+src/tests/test_exp43_train_history.py:264: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../envs/flac/lib/python3.10/pathlib.py:1134: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_missing_exit_record_is_re0/h.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return self._accessor.open(self, mode, buffering, encoding, errors,
+                                   newline)
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yh4742/pytest-0/test_missing_exit_record_is_re0/h.json'
+
+../../envs/flac/lib/python3.10/pathlib.py:1119: FileNotFoundError
+----------------------------- Captured stderr call -----------------------------
+REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+------------------------------ Captured log call -------------------------------
+INFO     wandb.sdk.internal.datastore:datastore.py:77 open: /tmp/pytest-of-yh4742/pytest-0/test_missing_exit_record_is_re0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+INFO     wandb.sdk.internal.datastore:datastore.py:282 close: /tmp/pytest-of-yh4742/pytest-0/test_missing_exit_record_is_re0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+_______________________ test_run_directory_is_only_read ________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_run_directory_is_only_rea0')
+
+    def test_run_directory_is_only_read(tmp_path):
+        d, f = write_run(tmp_path)
+        before = (f.read_bytes(), f.stat().st_mtime_ns, sorted(os.listdir(d)))
+        os.chmod(f, 0o444)
+        os.chmod(d, 0o555)
+        try:
+            rc, _oc, _oj = _run(d, tmp_path)
+        finally:
+            os.chmod(d, 0o755)
+            os.chmod(f, 0o644)
+>       assert rc == 0
+E       assert 2 == 0
+
+src/tests/test_exp43_train_history.py:335: AssertionError
+----------------------------- Captured stderr call -----------------------------
+REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+------------------------------ Captured log call -------------------------------
+INFO     wandb.sdk.internal.datastore:datastore.py:77 open: /tmp/pytest-of-yh4742/pytest-0/test_run_directory_is_only_rea0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+INFO     wandb.sdk.internal.datastore:datastore.py:282 close: /tmp/pytest-of-yh4742/pytest-0/test_run_directory_is_only_rea0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+_______________________ test_tool_uses_no_wandb_run_api ________________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f5e004bcb80>
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_tool_uses_no_wandb_run_ap0')
+
+    def test_tool_uses_no_wandb_run_api(monkeypatch, tmp_path):
+        import wandb
+        tree = ast.parse(_TOOL.read_text())
+        attrs = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+        names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+        forbidden = {"init", "sync", "login", "Api", "_attach", "open_for_scan", "open_for_write", "open_for_append"}
+        assert not (attrs | names) & forbidden
+        for name in ("init", "login"):
+            monkeypatch.setattr(wandb, name, lambda *a, **k: (_ for _ in ()).throw(AssertionError(name)))
+        d, _ = write_run(tmp_path)
+>       assert _run(d, tmp_path)[0] == 0
+E       assert 2 == 0
+
+src/tests/test_exp43_train_history.py:349: AssertionError
+----------------------------- Captured stderr call -----------------------------
+REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+------------------------------ Captured log call -------------------------------
+INFO     wandb.sdk.internal.datastore:datastore.py:77 open: /tmp/pytest-of-yh4742/pytest-0/test_tool_uses_no_wandb_run_ap0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+INFO     wandb.sdk.internal.datastore:datastore.py:282 close: /tmp/pytest-of-yh4742/pytest-0/test_tool_uses_no_wandb_run_ap0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+________________________ test_cli_end_to_end_subprocess ________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_cli_end_to_end_subprocess0')
+
+    def test_cli_end_to_end_subprocess(tmp_path):
+        d, _ = write_run(tmp_path)
+        out = subprocess.run([sys.executable, "-I", str(_TOOL), "extract", "--run-dir", str(d), "--out-csv",
+                              str(tmp_path / "o.csv"), "--out-json", str(tmp_path / "o.json")],
+                             capture_output=True, text=True, env=dict(os.environ, CUDA_VISIBLE_DEVICES=""))
+>       assert out.returncode == 0, out.stderr
+E       AssertionError: REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/n/fs/gatrdp/envs/flac/bin/python', '-I', '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/wor...process0/o.json'], returncode=2, stdout='', stderr='REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)\n').returncode
+
+src/tests/test_exp43_train_history.py:365: AssertionError
+------------------------------ Captured log call -------------------------------
+INFO     wandb.sdk.internal.datastore:datastore.py:77 open: /tmp/pytest-of-yh4742/pytest-0/test_cli_end_to_end_subprocess0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+INFO     wandb.sdk.internal.datastore:datastore.py:282 close: /tmp/pytest-of-yh4742/pytest-0/test_cli_end_to_end_subprocess0/wandb/offline-run-20261113_010000-abc12345/run-abc12345.wandb
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp46_c4flip_wrapper.py: 2 warnings
+src/tests/test_yaw_aug_flip.py: 2 warnings
+src/tests/test_yaw_aug_c16.py: 2 warnings
+src/tests/test_yaw_aug_training.py: 1 warning
+src/tests/test_are_lambda_config.py: 18 warnings
+src/tests/test_cond_dispatch.py: 1 warning
+src/tests/test_depth_canon_training.py: 4 warnings
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/amp/autocast_mode.py:266: UserWarning: User provided device_type of 'cuda', but CUDA is not available. Disabling
+    warnings.warn(
+
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_depth_canon_training.py::test_lightning_fit_transfers_then_canonicalizes_then_conditions
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/plugins/environments/slurm.py:191: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/ ...
+
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_depth_canon_training.py::test_lightning_fit_transfers_then_canonicalizes_then_conditions
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:268: DeprecationWarning: Read the `app_url` setting from the appropriate Settings object.
+    app_url = wandb.util.app_url(tags["base_url"])  # type: ignore[index]
+
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py:54: Detected KeyboardInterrupt, attempting graceful shutdown...
+
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loggers/wandb.py:389: There is a wandb run already in progress and newly created instances of `WandbLogger` will reuse this run. If this is not desired, call `wandb.finish()` before instantiating `WandbLogger`.
+
+src/tests/test_depth_canon_training.py::test_lightning_fit_transfers_then_canonicalizes_then_conditions
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/data_connector.py:441: The 'train_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=7` in the `DataLoader` to improve performance.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp43_kit.py::test_train_history_subprocess_is_fail_closed[cadence_gap-exited 3]
+FAILED src/tests/test_exp43_train_history.py::test_extracts_every_loss_row_with_the_logged_trainer_global_step
+FAILED src/tests/test_exp43_train_history.py::test_cadence_problems_are_reported_not_fixed
+FAILED src/tests/test_exp43_train_history.py::test_gaps_against_expected_max_steps
+FAILED src/tests/test_exp43_train_history.py::test_first_row_must_be_step_99
+FAILED src/tests/test_exp43_train_history.py::test_nonfinite_values_are_kept_and_reported
+FAILED src/tests/test_exp43_train_history.py::test_record_ending_within_six_bytes_of_a_block_end_parses
+FAILED src/tests/test_exp43_train_history.py::test_missing_exit_record_is_refused_unless_allowed
+FAILED src/tests/test_exp43_train_history.py::test_run_directory_is_only_read
+FAILED src/tests/test_exp43_train_history.py::test_tool_uses_no_wandb_run_api
+FAILED src/tests/test_exp43_train_history.py::test_cli_end_to_end_subprocess
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_accepts_the_exact_record_and_rehashes
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[admitted-1]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[arm-YAW]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[kind-admission]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[run_id-exp43_RF_neuronic_2x32]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[platform-neuronic]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[rung-8x8]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[train_sha-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[sha256-0000000000000000000000000000000000000000000000000000000000000000]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[ckpt_path-/elsewhere/epoch=8-step=40000.ckpt]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[global_step-40000.0]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[global_step-True]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[bytes-0]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[model_config-x.json]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[strict_load-False]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[audit_sha256-ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[trajectory_equivalence_claim_allowed-None]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[note-None]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[t-True]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[arm-C16]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[kind-exp40_admission]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[wandb_archive-None]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation[train_history-None]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_rejects_schema_and_nas_mutations
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[historical-val0-historical]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[historical-val1-historical]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[current_assets-val2-current_assets keys]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[dinov3_revision-0000000000000000000000000000000000000000-dinov3_revision]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[dinov3_config_sha256-0000000000000000000000000000000000000000000000000000000000000000-dinov3_config_sha256]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[dinov3_weights_sha256-0000000000000000000000000000000000000000000000000000000000000000-dinov3_weights_sha256]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[vae_sha256-0000000000000000000000000000000000000000000000000000000000000000-vae_sha256]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[acousticrooms_manifest_digest-0000000000000000000000000000000000000000000000000000000000000000-acousticrooms_manifest_digest]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[hf_sealed_hub-relative/hub-hf_sealed_hub]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[dinov3_resolved-val9-dinov3_resolved]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[t-1794977687.067065-non-future]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[t-nan-non-future]
+ERROR src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[t-0-non-future]
+ERROR src/tests/test_exp43_kit.py::test_the_history_tool_is_pinned_and_bound_by_its_sidecar
+ERROR src/tests/test_exp43_kit.py::test_history_csv_and_sidecar_mutations_are_refused
+ERROR src/tests/test_exp43_kit.py::test_smoke_evidence_cli_requires_the_preserved_wandb_run
+SKIPPED [1] src/tests/test_exp43_kit.py:1815: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp43_kit.py:1865: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp43_kit.py:1933: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp43_kit.py:2008: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp43_kit.py:2356: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_yaw_aug_collect.py:944: exp_14 campaign artifacts not present in this tree
+SKIPPED [1] src/tests/test_exp43_train_history.py:398: exp_40 FULL offline W&B run absent (searched the exp_40 worktree wandb/ + outputs_FLAC/ and the NAS exp_40 root); set EXP43_REAL_WANDB_RUN_DIR to a 40k offline-run directory
+SKIPPED [1] src/tests/test_exp40_kit.py:1650: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp40_kit.py:1681: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp40_kit.py:1750: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp40_kit.py:1931: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_depth_canon_training.py:615: needs a CUDA device
+11 failed, 1782 passed, 12 skipped, 53 warnings, 40 errors in 878.33s (0:14:38)
+EXIT 1 end 2026-11-17T23:08:30-05:00

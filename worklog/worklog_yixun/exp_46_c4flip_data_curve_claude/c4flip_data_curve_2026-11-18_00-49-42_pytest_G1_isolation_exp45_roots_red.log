@@ -1,0 +1,13 @@
+HEAD 1775f0f01100da703e71889f3801137c3e6887fc tracked-clean=no host neu301.neuronic.cs.princeton.edu start 2026-11-18T00:49:44-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_isolation.py src/tests/test_exp46_paths.py 
+
+==================================== ERRORS ====================================
+______________ ERROR collecting src/tests/test_exp46_isolation.py ______________
+src/tests/test_exp46_isolation.py:250: in <module>
+    IN_TREE = {"exp38 farm": reg.EXP38_FARM, "exp38 worklog": reg.EXP38_DIR, "exp38 SMOKE folder": reg.EXP38_SMOKE_DIR,
+E   AttributeError: module 'exp46_registry' has no attribute 'EXP38_SMOKE_DIR'
+=========================== short test summary info ============================
+ERROR src/tests/test_exp46_isolation.py - AttributeError: module 'exp46_regis...
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.46s
+EXIT 2 end 2026-11-18T00:49:45-05:00

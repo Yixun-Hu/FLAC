@@ -1,0 +1,5 @@
+HEAD ce39a91d57d2779afa67141cecb8a51f4e012a3d tracked-clean=no host neu311.neuronic.cs.princeton.edu start 2026-11-18T00:36:43-05:00
+cmd: pytest -q -rfE src/tests/test_exp45_merge_provenance.py 
+...........                                                              [100%]
+11 passed in 147.38s (0:02:27)
+EXIT 0 end 2026-11-18T00:39:38-05:00

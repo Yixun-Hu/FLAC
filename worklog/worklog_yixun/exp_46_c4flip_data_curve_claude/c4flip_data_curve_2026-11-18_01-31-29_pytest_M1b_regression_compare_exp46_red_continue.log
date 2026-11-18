@@ -1,0 +1,29 @@
+HEAD 26d644d06282775bbc0c22a1960e3a04e82b7b39 tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-18T01:31:51-05:00
+cmd: pytest -q -rfE --continue-on-collection-errors src/tests/test_exp46_regression_compare.py src/tests/test_exp46_paths.py 
+F.......                                                                 [100%]
+==================================== ERRORS ====================================
+_________ ERROR collecting src/tests/test_exp46_regression_compare.py __________
+src/tests/test_exp46_regression_compare.py:45: in <module>
+    DECLARED = sorted(rc.DECLARED_EDITED)
+E   AttributeError: module 'exp46_regression_compare' has no attribute 'DECLARED_EDITED'
+=================================== FAILURES ===================================
+___ test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition ___
+
+    def test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition():
+        got = set(foreign_literals())
+        unregistered = sorted(got - set(REGISTERED))
+        stale = sorted(set(REGISTERED) - got)
+>       assert not unregistered and not stale, "\n" + "\n".join(f"{kind} {f} {s!r}" for kind, items in
+                                                           (("UNREGISTERED", unregistered), ("STALE", stale)) for f, s in items)
+E       AssertionError: 
+E         UNREGISTERED exp46_regression_compare.py '^src/tests/(test_exp45_[^/]+|test_gen_model_comparison_exp45)\\.py::'
+E         UNREGISTERED exp46_regression_compare.py 'new_exp45_skips'
+E         STALE exp46_regression_compare.py 'src/tests/test_exp45_merge_provenance.py::test_later_exp45_commits_touch_only_the_allowed_paths'
+E       assert (not [('exp46_regression_compare.py', '^src/tests/(test_exp45_[^/]+|test_gen_model_comparison_exp45)\\.py::'), ('exp46_regression_compare.py', 'new_exp45_skips')])
+
+src/tests/test_exp46_paths.py:77: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_paths.py::test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition
+ERROR src/tests/test_exp46_regression_compare.py - AttributeError: module 'ex...
+1 failed, 7 passed, 1 error in 4.55s
+EXIT 1 end 2026-11-18T01:31:56-05:00

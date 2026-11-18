@@ -1,0 +1,27 @@
+HEAD ce39a91d57d2779afa67141cecb8a51f4e012a3d tracked-clean=no host neu318.neuronic.cs.princeton.edu start 2026-11-18T00:33:42-05:00
+cmd: pytest -q -rfE src/tests/test_exp45_merge_provenance.py 
+.....F.....                                                              [100%]
+=================================== FAILURES ===================================
+____________ test_later_exp45_commits_touch_only_the_allowed_paths _____________
+
+    def test_later_exp45_commits_touch_only_the_allowed_paths():
+        m = merge_commit()
+        assert git("rev-list", "--merges", f"{m}..HEAD").strip() == "", "no merge after the provenance merge"
+        problems = []
+        for commit in git("rev-list", f"{m}..HEAD").split():
+            subject = git("log", "-1", "--format=%s", commit).strip()
+            for path in git("diff-tree", "--no-commit-id", "-r", "--name-only", commit).split("\n"):
+                if path and not path_allowed(path, subject):
+                    problems.append(f"{commit[:10]} ({subject[:40]}): {path}")
+        for path in git("diff", "--name-only", "HEAD").split("\n"):      # uncommitted tracked edits too
+            if path and not matches(path, ALLOWED_AFTER_MERGE):
+                problems.append(f"working tree: {path}")
+>       assert not problems, problems[:10]
+E       AssertionError: ['ce39a91d57 (exp_46 L0 E: FRACS "100" and the four ru): src/tests/test_exp46_eval.py', 'ce39a91d57 (exp_46 L0 E: FRAC...ts/test_exp46_sampler.py', 'ce39a91d57 (exp_46 L0 E: FRACS "100" and the four ru): src/tests/test_exp46_table.py', ...]
+E       assert not ['ce39a91d57 (exp_46 L0 E: FRACS "100" and the four ru): src/tests/test_exp46_eval.py', 'ce39a91d57 (exp_46 L0 E: FRAC...ts/test_exp46_sampler.py', 'ce39a91d57 (exp_46 L0 E: FRACS "100" and the four ru): src/tests/test_exp46_table.py', ...]
+
+src/tests/test_exp45_merge_provenance.py:232: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_merge_provenance.py::test_later_exp45_commits_touch_only_the_allowed_paths
+1 failed, 10 passed in 12.09s
+EXIT 1 end 2026-11-18T00:33:55-05:00

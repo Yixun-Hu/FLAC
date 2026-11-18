@@ -1,0 +1,369 @@
+HEAD 1771258bbdb0adae1bbb486f2a0a3341e8c1000b tracked-clean=no host neu306.neuronic.cs.princeton.edu start 2026-11-18T00:15:38-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_registry.py src/tests/test_exp46_sampler.py src/tests/test_exp46_g7_loader_length.py src/tests/test_exp46_eval.py -k not\ validate_cell\ and\ not\ e0_receipt 
+F.......................F.FFFFFFFFFFFF..F....F...F......F............... [ 44%]
+.........................F...FF......................................... [ 88%]
+...................                                                      [100%]
+=================================== FAILURES ===================================
+_________ test_the_registry_imports_and_registers_exactly_the_c4f_runs _________
+
+    def test_the_registry_imports_and_registers_exactly_the_c4f_runs():
+        """plan r3 §3.2: exactly three runs; no P1 bridge, no 8x8 rung, no _r suffix (import-time construction)."""
+        assert reg.required_runs() == reg.all_runs() == reg.campaign_runs() == [C4F["025"], C4F["050"], C4F["075"]]
+>       assert reg.REGISTERED_RUNS == frozenset(C4F.values()) and reg.OPTIONAL_RUNS == ()
+E       AssertionError: assert (frozenset({'e...75_l40_2x32'}) == frozenset({'e...00_l40_2x32'})
+E         
+E         Extra items in the right set:
+E         'exp46_C4Ff100_l40_2x32'
+E         Use -v to get more diff)
+
+src/tests/test_exp46_registry.py:54: AssertionError
+___________ test_check_subset_reads_the_registered_split[100-291210] ___________
+
+tag = '100', n = 291210
+
+    @pytest.mark.parametrize("tag,n", [("025", 73473), ("050", 145665), ("075", 218463), ("100", 291210)])
+    def test_check_subset_reads_the_registered_split(tag, n):
+>       out = reg.check_subset(tag)
+
+src/tests/test_exp46_registry.py:151: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tag = '100', repo = None
+
+    def check_subset(tag, repo=None):
+>       f = FRACS[tag]
+E       KeyError: '100'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:252: KeyError
+_ test_f100_is_the_unmodified_full_config_and_split_with_the_g7_loader_length __
+
+    def test_f100_is_the_unmodified_full_config_and_split_with_the_g7_loader_length():
+>       f = reg.FRACS["100"]
+E       KeyError: '100'
+
+src/tests/test_exp46_registry.py:170: KeyError
+____________ test_the_audit_bound_set_stays_exp38s_three_fractions _____________
+
+    def test_the_audit_bound_set_stays_exp38s_three_fractions():
+        """exp_38's audit schema is unchanged: its bound set is the three subset fractions' files; f100's config is pinned
+        by sha in FRACS and the full split is bound through the audit's full_split entry."""
+        res = json.load(open(os.path.join(REPO, reg.SUBSET_AUDIT)))
+>       assert set(res["bound"]) == reg.SUBSET_AUDIT_BOUND and sorted(res["fractions"]) == list(reg.SUBSET_TAGS)
+E       AttributeError: module 'exp46_registry' has no attribute 'SUBSET_TAGS'
+
+src/tests/test_exp46_registry.py:188: AttributeError
+_ test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[on_disk_candidates_outside_split-1] _
+
+key = 'on_disk_candidates_outside_split', value = 1
+
+    @pytest.mark.parametrize("key,value", [("on_disk_candidates_outside_split", 1), ("candidates_removed_by_restriction", 1),
+                                           ("restricted", True), ("n_targets", 291209), ("rooms", 242),
+                                           ("split_sha256", "0" * 64), ("split", "data/AR/train_frac075_s2026.json"),
+                                           ("empty_restricted_pools", 1), ("n_targets", None)])
+    def test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent(key, value):
+        import copy
+        res = json.load(open(os.path.join(REPO, reg.SUBSET_AUDIT)))
+>       assert reg.full_split_problems(res)["n_targets"] == 291210
+E       AttributeError: module 'exp46_registry' has no attribute 'full_split_problems'
+
+src/tests/test_exp46_registry.py:200: AttributeError
+_ test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[candidates_removed_by_restriction-1] _
+
+key = 'candidates_removed_by_restriction', value = 1
+
+    @pytest.mark.parametrize("key,value", [("on_disk_candidates_outside_split", 1), ("candidates_removed_by_restriction", 1),
+                                           ("restricted", True), ("n_targets", 291209), ("rooms", 242),
+                                           ("split_sha256", "0" * 64), ("split", "data/AR/train_frac075_s2026.json"),
+                                           ("empty_restricted_pools", 1), ("n_targets", None)])
+    def test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent(key, value):
+        import copy
+        res = json.load(open(os.path.join(REPO, reg.SUBSET_AUDIT)))
+>       assert reg.full_split_problems(res)["n_targets"] == 291210
+E       AttributeError: module 'exp46_registry' has no attribute 'full_split_problems'
+
+src/tests/test_exp46_registry.py:200: AttributeError
+_ test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[restricted-True] _
+
+key = 'restricted', value = True
+
+    @pytest.mark.parametrize("key,value", [("on_disk_candidates_outside_split", 1), ("candidates_removed_by_restriction", 1),
+                                           ("restricted", True), ("n_targets", 291209), ("rooms", 242),
+                                           ("split_sha256", "0" * 64), ("split", "data/AR/train_frac075_s2026.json"),
+                                           ("empty_restricted_pools", 1), ("n_targets", None)])
+    def test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent(key, value):
+        import copy
+        res = json.load(open(os.path.join(REPO, reg.SUBSET_AUDIT)))
+>       assert reg.full_split_problems(res)["n_targets"] == 291210
+E       AttributeError: module 'exp46_registry' has no attribute 'full_split_problems'
+
+src/tests/test_exp46_registry.py:200: AttributeError
+_ test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[n_targets-291209] _
+
+key = 'n_targets', value = 291209
+
+    @pytest.mark.parametrize("key,value", [("on_disk_candidates_outside_split", 1), ("candidates_removed_by_restriction", 1),
+                                           ("restricted", True), ("n_targets", 291209), ("rooms", 242),
+                                           ("split_sha256", "0" * 64), ("split", "data/AR/train_frac075_s2026.json"),
+                                           ("empty_restricted_pools", 1), ("n_targets", None)])
+    def test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent(key, value):
+        import copy
+        res = json.load(open(os.path.join(REPO, reg.SUBSET_AUDIT)))
+>       assert reg.full_split_problems(res)["n_targets"] == 291210
+E       AttributeError: module 'exp46_registry' has no attribute 'full_split_problems'
+
+src/tests/test_exp46_registry.py:200: AttributeError
+_ test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[rooms-242] _
+
+key = 'rooms', value = 242
+
+    @pytest.mark.parametrize("key,value", [("on_disk_candidates_outside_split", 1), ("candidates_removed_by_restriction", 1),
+                                           ("restricted", True), ("n_targets", 291209), ("rooms", 242),
+                                           ("split_sha256", "0" * 64), ("split", "data/AR/train_frac075_s2026.json"),
+                                           ("empty_restricted_pools", 1), ("n_targets", None)])
+    def test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent(key, value):
+        import copy
+        res = json.load(open(os.path.join(REPO, reg.SUBSET_AUDIT)))
+>       assert reg.full_split_problems(res)["n_targets"] == 291210
+E       AttributeError: module 'exp46_registry' has no attribute 'full_split_problems'
+
+src/tests/test_exp46_registry.py:200: AttributeError
+_ test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[split_sha256-0000000000000000000000000000000000000000000000000000000000000000] _
+
+key = 'split_sha256'
+value = '0000000000000000000000000000000000000000000000000000000000000000'
+
+    @pytest.mark.parametrize("key,value", [("on_disk_candidates_outside_split", 1), ("candidates_removed_by_restriction", 1),
+                                           ("restricted", True), ("n_targets", 291209), ("rooms", 242),
+                                           ("split_sha256", "0" * 64), ("split", "data/AR/train_frac075_s2026.json"),
+                                           ("empty_restricted_pools", 1), ("n_targets", None)])
+    def test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent(key, value):
+        import copy
+        res = json.load(open(os.path.join(REPO, reg.SUBSET_AUDIT)))
+>       assert reg.full_split_problems(res)["n_targets"] == 291210
+E       AttributeError: module 'exp46_registry' has no attribute 'full_split_problems'
+
+src/tests/test_exp46_registry.py:200: AttributeError
+_ test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[split-data/AR/train_frac075_s2026.json] _
+
+key = 'split', value = 'data/AR/train_frac075_s2026.json'
+
+    @pytest.mark.parametrize("key,value", [("on_disk_candidates_outside_split", 1), ("candidates_removed_by_restriction", 1),
+                                           ("restricted", True), ("n_targets", 291209), ("rooms", 242),
+                                           ("split_sha256", "0" * 64), ("split", "data/AR/train_frac075_s2026.json"),
+                                           ("empty_restricted_pools", 1), ("n_targets", None)])
+    def test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent(key, value):
+        import copy
+        res = json.load(open(os.path.join(REPO, reg.SUBSET_AUDIT)))
+>       assert reg.full_split_problems(res)["n_targets"] == 291210
+E       AttributeError: module 'exp46_registry' has no attribute 'full_split_problems'
+
+src/tests/test_exp46_registry.py:200: AttributeError
+_ test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[empty_restricted_pools-1] _
+
+key = 'empty_restricted_pools', value = 1
+
+    @pytest.mark.parametrize("key,value", [("on_disk_candidates_outside_split", 1), ("candidates_removed_by_restriction", 1),
+                                           ("restricted", True), ("n_targets", 291209), ("rooms", 242),
+                                           ("split_sha256", "0" * 64), ("split", "data/AR/train_frac075_s2026.json"),
+                                           ("empty_restricted_pools", 1), ("n_targets", None)])
+    def test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent(key, value):
+        import copy
+        res = json.load(open(os.path.join(REPO, reg.SUBSET_AUDIT)))
+>       assert reg.full_split_problems(res)["n_targets"] == 291210
+E       AttributeError: module 'exp46_registry' has no attribute 'full_split_problems'
+
+src/tests/test_exp46_registry.py:200: AttributeError
+_ test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[n_targets-None] _
+
+key = 'n_targets', value = None
+
+    @pytest.mark.parametrize("key,value", [("on_disk_candidates_outside_split", 1), ("candidates_removed_by_restriction", 1),
+                                           ("restricted", True), ("n_targets", 291209), ("rooms", 242),
+                                           ("split_sha256", "0" * 64), ("split", "data/AR/train_frac075_s2026.json"),
+                                           ("empty_restricted_pools", 1), ("n_targets", None)])
+    def test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent(key, value):
+        import copy
+        res = json.load(open(os.path.join(REPO, reg.SUBSET_AUDIT)))
+>       assert reg.full_split_problems(res)["n_targets"] == 291210
+E       AttributeError: module 'exp46_registry' has no attribute 'full_split_problems'
+
+src/tests/test_exp46_registry.py:200: AttributeError
+_ test_f100_binds_the_unrestricted_policy_and_refuses_a_restricted_or_changed_full_config _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_f100_binds_the_unrestrict0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f99989d64d0>
+
+    def test_f100_binds_the_unrestricted_policy_and_refuses_a_restricted_or_changed_full_config(tmp_path, monkeypatch):
+>       f = reg.FRACS["100"]
+E       KeyError: '100'
+
+src/tests/test_exp46_registry.py:211: KeyError
+____________________ test_d2_campaign_is_the_three_rf_runs _____________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9998d563b0>
+
+    def test_d2_campaign_is_the_three_rf_runs(monkeypatch):
+        assert reg.TRAINING_PLATFORM == "neuronic"
+>       assert reg.campaign_runs() == list(C4F.values()) and all(r in reg.REGISTERED_RUNS for r in reg.campaign_runs())
+E       AssertionError: assert (['exp46_C4Ff0...075_l40_2x32'] == ['exp46_C4Ff0...100_l40_2x32']
+E         
+E         Right contains one more item: 'exp46_C4Ff100_l40_2x32'
+E         Use -v to get more diff)
+
+src/tests/test_exp46_registry.py:294: AssertionError
+_ test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions[100] _
+
+tag = '100'
+
+    @pytest.mark.parametrize("tag", ["025", "050", "075", "100"])
+    def test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions(tag):
+        """plan r3 §2 argv rule: F2 with exactly --model-config (RF), the fraction's dataset config, --name /
+        --experiment-name = run id, --save-dir / --evidence-json under the exp_46 save root -- nothing else."""
+        run = C4F[tag]
+        rd = f"/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/{run}"
+        want = list(DE_YAW_F025_ARGV)
+>       for flag, value in (("--model-config", reg.ARMS["c4f"]["config"]), ("--dataset-config", reg.FRACS[tag]["dataset_config"]),
+                            ("--name", run), ("--experiment-name", run), ("--save-dir", rd),
+                            ("--evidence-json", rd + "/evidence/run_evidence.json")):
+E                           KeyError: '100'
+
+src/tests/test_exp46_registry.py:316: KeyError
+__________________ test_argv_per_run[exp46_C4Ff100_l40_2x32] ___________________
+
+run = 'exp46_C4Ff100_l40_2x32'
+
+    @pytest.mark.parametrize("run", sorted(C4F.values()))
+    def test_argv_per_run(run):
+>       arm, tag, _ = reg.parse_run_id(run)
+
+src/tests/test_exp46_registry.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_C4Ff100_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_46 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_46 run id: 'exp46_C4Ff100_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:193: GateError
+___________________________ test_log_gate_start_pass ___________________________
+
+    def test_log_gate_start_pass():
+        assert reg.log_gate(_log(), C4F["025"], "start", "flash", 2) == []
+        assert reg.log_gate(_log(flash_missing=2), C4F["025"], "start", "sdpa", 2) == []
+        assert reg.log_gate(_log(C4F["075"], n=218463), C4F["075"], "start", "flash", 2) == []
+>       assert reg.log_gate(_log(C4F["100"], n=291210), C4F["100"], "start", "flash", 2) == []          # f100: 4,550 / epoch
+
+src/tests/test_exp46_registry.py:594: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_registry.py:573: in _log
+    arm, tag, _ = reg.parse_run_id(run)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = 'exp46_C4Ff100_l40_2x32'
+
+    def parse_run_id(run):
+        m = _RUN_RE.match(run if isinstance(run, str) else "")
+        if not m or run not in REGISTERED_RUNS:
+>           raise GateError(f"not a registered exp_46 run id: {run!r}")
+E           exp46_registry.GateError: not a registered exp_46 run id: 'exp46_C4Ff100_l40_2x32'
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py:193: GateError
+____________ test_the_registered_fractions_are_the_four_c4f_points _____________
+
+    def test_the_registered_fractions_are_the_four_c4f_points():
+>       assert sorted(reg.FRACS) == sorted(STEPS) and {t: f["steps_per_epoch"] for t, f in reg.FRACS.items()} == STEPS
+E       AssertionError: assert (['025', '050', '075'] == ['025', '050', '075', '100']
+E         
+E         Right contains one more item: '100'
+E         Use -v to get more diff)
+
+src/tests/test_exp46_g7_loader_length.py:42: AssertionError
+_ test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[100] _
+
+tag = '100'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9902d6c760>
+
+    @pytest.mark.parametrize("tag", sorted(STEPS))
+    def test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length(tag, monkeypatch):
+        from pytorch_lightning.trainer.connectors.data_connector import _get_distributed_sampler
+        from pytorch_lightning.trainer.states import RunningStage
+        from pytorch_lightning.utilities.data import _update_dataloader
+        from src.data.dataset import create_dataloader_from_config
+>       f = reg.FRACS[tag]
+E       KeyError: '100'
+
+src/tests/test_exp46_g7_loader_length.py:52: KeyError
+__ test_plan_has_8_e0_and_the_campaign_runs_result_cells_with_unique_outputs ___
+
+    def test_plan_has_8_e0_and_the_campaign_runs_result_cells_with_unique_outputs():
+        cells = ev.all_cells()                      # E0 + the campaign runs' cells (exp_46: no bridge, plan r3 §3.2)
+        n = 8 + 10 * len(ev.reg.campaign_runs())
+>       assert ev.reg.TRAINING_PLATFORM == "neuronic" and len(cells) == n == 48
+E       AssertionError: assert ('neuronic' == 'neuronic'
+E         
+E           neuronic and 38 == 48)
+
+src/tests/test_exp46_eval.py:52: AssertionError
+=============================== warnings summary ===============================
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    from pkg_resources import packaging
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[025]
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[050]
+src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[075]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py:626: UserWarning: This DataLoader will create 6 worker processes in total. Our suggested max number of worker in current system is 4, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_registry.py::test_the_registry_imports_and_registers_exactly_the_c4f_runs
+FAILED src/tests/test_exp46_registry.py::test_check_subset_reads_the_registered_split[100-291210]
+FAILED src/tests/test_exp46_registry.py::test_f100_is_the_unmodified_full_config_and_split_with_the_g7_loader_length
+FAILED src/tests/test_exp46_registry.py::test_the_audit_bound_set_stays_exp38s_three_fractions
+FAILED src/tests/test_exp46_registry.py::test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[on_disk_candidates_outside_split-1]
+FAILED src/tests/test_exp46_registry.py::test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[candidates_removed_by_restriction-1]
+FAILED src/tests/test_exp46_registry.py::test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[restricted-True]
+FAILED src/tests/test_exp46_registry.py::test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[n_targets-291209]
+FAILED src/tests/test_exp46_registry.py::test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[rooms-242]
+FAILED src/tests/test_exp46_registry.py::test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[split_sha256-0000000000000000000000000000000000000000000000000000000000000000]
+FAILED src/tests/test_exp46_registry.py::test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[split-data/AR/train_frac075_s2026.json]
+FAILED src/tests/test_exp46_registry.py::test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[empty_restricted_pools-1]
+FAILED src/tests/test_exp46_registry.py::test_f100_refuses_an_audit_full_split_entry_that_is_not_the_audited_equivalent[n_targets-None]
+FAILED src/tests/test_exp46_registry.py::test_f100_binds_the_unrestricted_policy_and_refuses_a_restricted_or_changed_full_config
+FAILED src/tests/test_exp46_registry.py::test_d2_campaign_is_the_three_rf_runs
+FAILED src/tests/test_exp46_registry.py::test_the_argv_is_exp38s_de_yaw_argv_with_exactly_the_registered_substitutions[100]
+FAILED src/tests/test_exp46_registry.py::test_argv_per_run[exp46_C4Ff100_l40_2x32]
+FAILED src/tests/test_exp46_registry.py::test_log_gate_start_pass - exp46_reg...
+FAILED src/tests/test_exp46_g7_loader_length.py::test_the_registered_fractions_are_the_four_c4f_points
+FAILED src/tests/test_exp46_g7_loader_length.py::test_the_production_loader_on_each_of_the_two_ranks_has_the_registered_length[100]
+FAILED src/tests/test_exp46_eval.py::test_plan_has_8_e0_and_the_campaign_runs_result_cells_with_unique_outputs
+21 failed, 142 passed, 129 deselected, 10 warnings in 107.55s (0:01:47)
+EXIT 1 end 2026-11-18T00:17:29-05:00

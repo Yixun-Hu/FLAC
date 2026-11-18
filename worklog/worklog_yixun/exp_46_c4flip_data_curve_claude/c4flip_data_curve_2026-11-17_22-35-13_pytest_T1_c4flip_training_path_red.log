@@ -1,0 +1,2988 @@
+HEAD 01b10973b8612519572f6380daa17e68f3ffdc62 tracked-clean=yes host neu301.neuronic.cs.princeton.edu start 2026-11-17T22:35:14-05:00
+cmd: pytest -q -rA src/tests/test_exp46_c4flip_factory.py src/tests/test_exp46_c4flip_wrapper.py 
+FFF...........................F........................FFFF............. [ 75%]
+FFFF.FFFFFFFFFFFFF....F                                                  [100%]
+=================================== FAILURES ===================================
+_____________ test_the_c4f_block_parses_to_exactly_the_five_kwargs _____________
+
+    def test_the_c4f_block_parses_to_exactly_the_five_kwargs():
+>       got = _parse_yaw_aug_config(_training(dict(C4F_BLOCK)))
+
+src/tests/test_exp46_c4flip_factory.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'yaw_aug': {'enabled': True, 'img_w': 512, 'seed': 42, 'offset_step': 128, ...}}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_____________ test_the_c4f_block_in_any_key_order_parses_the_same ______________
+
+    def test_the_c4f_block_in_any_key_order_parses_the_same():
+        block = {"flip": True, "offset_step": 128, "seed": 42, "img_w": 512, "enabled": True}
+>       assert _parse_yaw_aug_config(_training(block)) == C4F_KWARGS
+
+src/tests/test_exp46_c4flip_factory.py:106: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'yaw_aug': {'flip': True, 'offset_step': 128, 'seed': 42, 'img_w': 512, ...}}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_ test_the_c4f_block_reaches_the_real_wrapper_call_with_exactly_the_two_added_kwargs _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3bb2c4b610>
+
+    def test_the_c4f_block_reaches_the_real_wrapper_call_with_exactly_the_two_added_kwargs(monkeypatch):
+        plain = _wrapper_kwargs(monkeypatch, {})
+        yaw = _wrapper_kwargs(monkeypatch, _training({"enabled": True, "img_w": 512, "seed": 42}))
+>       c4f = _wrapper_kwargs(monkeypatch, _training(dict(C4F_BLOCK)))
+
+src/tests/test_exp46_c4flip_factory.py:112: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_c4flip_factory.py:86: in _wrapper_kwargs
+    create_training_wrapper_from_config(
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'yaw_aug': {'enabled': True, 'img_w': 512, 'seed': 42, 'offset_step': 128, ...}}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+___________ test_the_existing_exclusions_still_refuse_the_c4f_block ____________
+
+    def test_the_existing_exclusions_still_refuse_the_c4f_block():
+        with pytest.raises(ValueError, match="yaw_aug.enabled=true with cond_method='fa_invariant'"):
+            _parse_yaw_aug_config(_training(dict(C4F_BLOCK), cond_method="fa_invariant"))
+        t = _training(dict(C4F_BLOCK), canonicalize={"enabled": True, "img_w": 512})
+>       with pytest.raises(ValueError, match="canonicalize.enabled=true with training.yaw_aug.enabled=true"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'canonicalize.enabled=true with training.yaw_aug.enabled=true'
+E         Actual message: 'training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll'
+
+src/tests/test_exp46_c4flip_factory.py:135: AssertionError
+_______ test_the_constructor_accepts_flip_with_a_valid_offset_step[128] ________
+
+grid = 128
+
+    @pytest.mark.parametrize("grid", [128, 32, 4, 1])
+    def test_the_constructor_accepts_flip_with_a_valid_offset_step(grid):
+>       w = _construct(**_ENABLED_KW, yaw_aug_offset_step=grid, yaw_aug_flip=True)
+
+src/tests/test_exp46_c4flip_wrapper.py:197: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_c4flip_wrapper.py:135: in _construct
+    return tdiff.DiffusionCondTrainingWrapper(model, lr=5e-6, use_ema=False, **kw)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper()
+model = namespace(diffusion_objective='rectified_flow'), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+frame_avg_max_fwd_samples = None, yaw_aug_enabled = True, yaw_aug_img_w = 512
+yaw_aug_seed = 42, canonicalize_enabled = False, canonicalize_img_w = 512
+are_lambda = None, are_anchor = None, yaw_aug_offset_step = 128
+yaw_aug_flip = True
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            frame_avg_max_fwd_samples: tp.Optional[int] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0,
+            canonicalize_enabled: bool = False,
+            canonicalize_img_w: int = 512,
+            are_lambda: tp.Optional[float] = None,
+            are_anchor: tp.Optional[dict] = None,
+            yaw_aug_offset_step: tp.Optional[int] = None,
+            *,
+            yaw_aug_flip: bool = False
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+        # exp_14: the frame-average chunk plan as a declared arm property
+        # (plan §3.1). None means "the yaw_rotation module default (64)", which is
+        # what every recipe already in the record ran under; the value is PASSED to
+        # invariant_conditioning, never assigned to the module global. Validated
+        # raw here so direct construction is as fail-closed as the config path
+        # (the exp_15 yaw_aug precedent).
+        if frame_avg_max_fwd_samples is not None:
+            if (isinstance(frame_avg_max_fwd_samples, bool)
+                    or not isinstance(frame_avg_max_fwd_samples, int)):
+                raise ValueError(
+                    "frame_avg_max_fwd_samples must be an int or None, got "
+                    f"{frame_avg_max_fwd_samples!r}"
+                )
+            if frame_avg_max_fwd_samples < 1:
+                raise ValueError(
+                    f"frame_avg_max_fwd_samples must be >= 1, got {frame_avg_max_fwd_samples}"
+                )
+        self.frame_avg_max_fwd_samples = frame_avg_max_fwd_samples
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        # The RAW arguments are validated — never coerced — with the same rules
+        # the factory applies, so direct construction is as fail-closed as the
+        # config path (round-1 review, finding 4): bool("false") is True and
+        # int("512") is 512, and either would have armed or disarmed the
+        # treatment on a typo without a word of complaint.
+        if not isinstance(yaw_aug_enabled, bool):
+            raise ValueError(
+                f"yaw_aug_enabled must be a bool, got {yaw_aug_enabled!r}"
+            )
+        if isinstance(yaw_aug_img_w, bool) or not isinstance(yaw_aug_img_w, int):
+            raise ValueError(f"yaw_aug_img_w must be an int, got {yaw_aug_img_w!r}")
+        if yaw_aug_img_w <= 0:
+            raise ValueError(f"yaw_aug_img_w must be > 0, got {yaw_aug_img_w}")
+        if isinstance(yaw_aug_seed, bool) or not isinstance(yaw_aug_seed, int):
+            raise ValueError(f"yaw_aug_seed must be an int, got {yaw_aug_seed!r}")
+        if yaw_aug_enabled and cond_method == "fa_invariant":
+            raise ValueError(
+                "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15."
+            )
+    
+        self.yaw_aug_enabled = yaw_aug_enabled
+        self.yaw_aug_img_w = yaw_aug_img_w
+        self.yaw_aug_seed = yaw_aug_seed
+        # exp_40: optional discrete grid for the drawn offsets (appended LAST to the
+        # signature so no positional caller shifts). None -- the default, and what
+        # the factory leaves when the config has no offset_step -- is the exp_15
+        # behaviour. Anything else is validated with the factory's rule and refused
+        # unless the treatment is on: an offset_step on a disabled arm would be a
+        # silent no-op.
+        if yaw_aug_offset_step is not None:
+            if not yaw_aug_enabled:
+                raise ValueError(
+                    "yaw_aug_offset_step requires yaw_aug_enabled=True (got "
+                    f"yaw_aug_offset_step={yaw_aug_offset_step!r} on a disabled arm)")
+            try:
+                check_yaw_offset_step(yaw_aug_offset_step, yaw_aug_img_w)
+            except ValueError as err:
+                raise ValueError(f"yaw_aug_offset_step: {err}") from None
+        self.yaw_aug_offset_step = yaw_aug_offset_step
+        # exp_43: the horizontal mirror flip (p = 1/2) after the roll. KEYWORD-ONLY, so no
+        # positional caller can ever reach it. Literal bool only (1 / "true" refused); True is
+        # refused on a disabled arm (a silent no-op) and with an offset_step (out of scope:
+        # the flip arm is the continuous roll). The fa_invariant / canonicalize exclusions
+        # above cover it through yaw_aug_enabled.
+        if not isinstance(yaw_aug_flip, bool):
+            raise ValueError(f"yaw_aug_flip must be a bool, got {yaw_aug_flip!r}")
+        if yaw_aug_flip and not yaw_aug_enabled:
+            raise ValueError(
+                "yaw_aug_flip=True requires yaw_aug_enabled=True (a flip on a disabled arm "
+                "would be a silent no-op)")
+        if yaw_aug_flip and yaw_aug_offset_step is not None:
+>           raise ValueError(
+                f"yaw_aug_flip=True with yaw_aug_offset_step={yaw_aug_offset_step!r} is out of "
+                "scope for exp_43 (the flip arm is the continuous full-circle roll)")
+E           ValueError: yaw_aug_flip=True with yaw_aug_offset_step=128 is out of scope for exp_43 (the flip arm is the continuous full-circle roll)
+
+src/training/diffusion.py:306: ValueError
+________ test_the_constructor_accepts_flip_with_a_valid_offset_step[32] ________
+
+grid = 32
+
+    @pytest.mark.parametrize("grid", [128, 32, 4, 1])
+    def test_the_constructor_accepts_flip_with_a_valid_offset_step(grid):
+>       w = _construct(**_ENABLED_KW, yaw_aug_offset_step=grid, yaw_aug_flip=True)
+
+src/tests/test_exp46_c4flip_wrapper.py:197: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_c4flip_wrapper.py:135: in _construct
+    return tdiff.DiffusionCondTrainingWrapper(model, lr=5e-6, use_ema=False, **kw)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper()
+model = namespace(diffusion_objective='rectified_flow'), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+frame_avg_max_fwd_samples = None, yaw_aug_enabled = True, yaw_aug_img_w = 512
+yaw_aug_seed = 42, canonicalize_enabled = False, canonicalize_img_w = 512
+are_lambda = None, are_anchor = None, yaw_aug_offset_step = 32
+yaw_aug_flip = True
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            frame_avg_max_fwd_samples: tp.Optional[int] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0,
+            canonicalize_enabled: bool = False,
+            canonicalize_img_w: int = 512,
+            are_lambda: tp.Optional[float] = None,
+            are_anchor: tp.Optional[dict] = None,
+            yaw_aug_offset_step: tp.Optional[int] = None,
+            *,
+            yaw_aug_flip: bool = False
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+        # exp_14: the frame-average chunk plan as a declared arm property
+        # (plan §3.1). None means "the yaw_rotation module default (64)", which is
+        # what every recipe already in the record ran under; the value is PASSED to
+        # invariant_conditioning, never assigned to the module global. Validated
+        # raw here so direct construction is as fail-closed as the config path
+        # (the exp_15 yaw_aug precedent).
+        if frame_avg_max_fwd_samples is not None:
+            if (isinstance(frame_avg_max_fwd_samples, bool)
+                    or not isinstance(frame_avg_max_fwd_samples, int)):
+                raise ValueError(
+                    "frame_avg_max_fwd_samples must be an int or None, got "
+                    f"{frame_avg_max_fwd_samples!r}"
+                )
+            if frame_avg_max_fwd_samples < 1:
+                raise ValueError(
+                    f"frame_avg_max_fwd_samples must be >= 1, got {frame_avg_max_fwd_samples}"
+                )
+        self.frame_avg_max_fwd_samples = frame_avg_max_fwd_samples
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        # The RAW arguments are validated — never coerced — with the same rules
+        # the factory applies, so direct construction is as fail-closed as the
+        # config path (round-1 review, finding 4): bool("false") is True and
+        # int("512") is 512, and either would have armed or disarmed the
+        # treatment on a typo without a word of complaint.
+        if not isinstance(yaw_aug_enabled, bool):
+            raise ValueError(
+                f"yaw_aug_enabled must be a bool, got {yaw_aug_enabled!r}"
+            )
+        if isinstance(yaw_aug_img_w, bool) or not isinstance(yaw_aug_img_w, int):
+            raise ValueError(f"yaw_aug_img_w must be an int, got {yaw_aug_img_w!r}")
+        if yaw_aug_img_w <= 0:
+            raise ValueError(f"yaw_aug_img_w must be > 0, got {yaw_aug_img_w}")
+        if isinstance(yaw_aug_seed, bool) or not isinstance(yaw_aug_seed, int):
+            raise ValueError(f"yaw_aug_seed must be an int, got {yaw_aug_seed!r}")
+        if yaw_aug_enabled and cond_method == "fa_invariant":
+            raise ValueError(
+                "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15."
+            )
+    
+        self.yaw_aug_enabled = yaw_aug_enabled
+        self.yaw_aug_img_w = yaw_aug_img_w
+        self.yaw_aug_seed = yaw_aug_seed
+        # exp_40: optional discrete grid for the drawn offsets (appended LAST to the
+        # signature so no positional caller shifts). None -- the default, and what
+        # the factory leaves when the config has no offset_step -- is the exp_15
+        # behaviour. Anything else is validated with the factory's rule and refused
+        # unless the treatment is on: an offset_step on a disabled arm would be a
+        # silent no-op.
+        if yaw_aug_offset_step is not None:
+            if not yaw_aug_enabled:
+                raise ValueError(
+                    "yaw_aug_offset_step requires yaw_aug_enabled=True (got "
+                    f"yaw_aug_offset_step={yaw_aug_offset_step!r} on a disabled arm)")
+            try:
+                check_yaw_offset_step(yaw_aug_offset_step, yaw_aug_img_w)
+            except ValueError as err:
+                raise ValueError(f"yaw_aug_offset_step: {err}") from None
+        self.yaw_aug_offset_step = yaw_aug_offset_step
+        # exp_43: the horizontal mirror flip (p = 1/2) after the roll. KEYWORD-ONLY, so no
+        # positional caller can ever reach it. Literal bool only (1 / "true" refused); True is
+        # refused on a disabled arm (a silent no-op) and with an offset_step (out of scope:
+        # the flip arm is the continuous roll). The fa_invariant / canonicalize exclusions
+        # above cover it through yaw_aug_enabled.
+        if not isinstance(yaw_aug_flip, bool):
+            raise ValueError(f"yaw_aug_flip must be a bool, got {yaw_aug_flip!r}")
+        if yaw_aug_flip and not yaw_aug_enabled:
+            raise ValueError(
+                "yaw_aug_flip=True requires yaw_aug_enabled=True (a flip on a disabled arm "
+                "would be a silent no-op)")
+        if yaw_aug_flip and yaw_aug_offset_step is not None:
+>           raise ValueError(
+                f"yaw_aug_flip=True with yaw_aug_offset_step={yaw_aug_offset_step!r} is out of "
+                "scope for exp_43 (the flip arm is the continuous full-circle roll)")
+E           ValueError: yaw_aug_flip=True with yaw_aug_offset_step=32 is out of scope for exp_43 (the flip arm is the continuous full-circle roll)
+
+src/training/diffusion.py:306: ValueError
+________ test_the_constructor_accepts_flip_with_a_valid_offset_step[4] _________
+
+grid = 4
+
+    @pytest.mark.parametrize("grid", [128, 32, 4, 1])
+    def test_the_constructor_accepts_flip_with_a_valid_offset_step(grid):
+>       w = _construct(**_ENABLED_KW, yaw_aug_offset_step=grid, yaw_aug_flip=True)
+
+src/tests/test_exp46_c4flip_wrapper.py:197: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_c4flip_wrapper.py:135: in _construct
+    return tdiff.DiffusionCondTrainingWrapper(model, lr=5e-6, use_ema=False, **kw)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper()
+model = namespace(diffusion_objective='rectified_flow'), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+frame_avg_max_fwd_samples = None, yaw_aug_enabled = True, yaw_aug_img_w = 512
+yaw_aug_seed = 42, canonicalize_enabled = False, canonicalize_img_w = 512
+are_lambda = None, are_anchor = None, yaw_aug_offset_step = 4
+yaw_aug_flip = True
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            frame_avg_max_fwd_samples: tp.Optional[int] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0,
+            canonicalize_enabled: bool = False,
+            canonicalize_img_w: int = 512,
+            are_lambda: tp.Optional[float] = None,
+            are_anchor: tp.Optional[dict] = None,
+            yaw_aug_offset_step: tp.Optional[int] = None,
+            *,
+            yaw_aug_flip: bool = False
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+        # exp_14: the frame-average chunk plan as a declared arm property
+        # (plan §3.1). None means "the yaw_rotation module default (64)", which is
+        # what every recipe already in the record ran under; the value is PASSED to
+        # invariant_conditioning, never assigned to the module global. Validated
+        # raw here so direct construction is as fail-closed as the config path
+        # (the exp_15 yaw_aug precedent).
+        if frame_avg_max_fwd_samples is not None:
+            if (isinstance(frame_avg_max_fwd_samples, bool)
+                    or not isinstance(frame_avg_max_fwd_samples, int)):
+                raise ValueError(
+                    "frame_avg_max_fwd_samples must be an int or None, got "
+                    f"{frame_avg_max_fwd_samples!r}"
+                )
+            if frame_avg_max_fwd_samples < 1:
+                raise ValueError(
+                    f"frame_avg_max_fwd_samples must be >= 1, got {frame_avg_max_fwd_samples}"
+                )
+        self.frame_avg_max_fwd_samples = frame_avg_max_fwd_samples
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        # The RAW arguments are validated — never coerced — with the same rules
+        # the factory applies, so direct construction is as fail-closed as the
+        # config path (round-1 review, finding 4): bool("false") is True and
+        # int("512") is 512, and either would have armed or disarmed the
+        # treatment on a typo without a word of complaint.
+        if not isinstance(yaw_aug_enabled, bool):
+            raise ValueError(
+                f"yaw_aug_enabled must be a bool, got {yaw_aug_enabled!r}"
+            )
+        if isinstance(yaw_aug_img_w, bool) or not isinstance(yaw_aug_img_w, int):
+            raise ValueError(f"yaw_aug_img_w must be an int, got {yaw_aug_img_w!r}")
+        if yaw_aug_img_w <= 0:
+            raise ValueError(f"yaw_aug_img_w must be > 0, got {yaw_aug_img_w}")
+        if isinstance(yaw_aug_seed, bool) or not isinstance(yaw_aug_seed, int):
+            raise ValueError(f"yaw_aug_seed must be an int, got {yaw_aug_seed!r}")
+        if yaw_aug_enabled and cond_method == "fa_invariant":
+            raise ValueError(
+                "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15."
+            )
+    
+        self.yaw_aug_enabled = yaw_aug_enabled
+        self.yaw_aug_img_w = yaw_aug_img_w
+        self.yaw_aug_seed = yaw_aug_seed
+        # exp_40: optional discrete grid for the drawn offsets (appended LAST to the
+        # signature so no positional caller shifts). None -- the default, and what
+        # the factory leaves when the config has no offset_step -- is the exp_15
+        # behaviour. Anything else is validated with the factory's rule and refused
+        # unless the treatment is on: an offset_step on a disabled arm would be a
+        # silent no-op.
+        if yaw_aug_offset_step is not None:
+            if not yaw_aug_enabled:
+                raise ValueError(
+                    "yaw_aug_offset_step requires yaw_aug_enabled=True (got "
+                    f"yaw_aug_offset_step={yaw_aug_offset_step!r} on a disabled arm)")
+            try:
+                check_yaw_offset_step(yaw_aug_offset_step, yaw_aug_img_w)
+            except ValueError as err:
+                raise ValueError(f"yaw_aug_offset_step: {err}") from None
+        self.yaw_aug_offset_step = yaw_aug_offset_step
+        # exp_43: the horizontal mirror flip (p = 1/2) after the roll. KEYWORD-ONLY, so no
+        # positional caller can ever reach it. Literal bool only (1 / "true" refused); True is
+        # refused on a disabled arm (a silent no-op) and with an offset_step (out of scope:
+        # the flip arm is the continuous roll). The fa_invariant / canonicalize exclusions
+        # above cover it through yaw_aug_enabled.
+        if not isinstance(yaw_aug_flip, bool):
+            raise ValueError(f"yaw_aug_flip must be a bool, got {yaw_aug_flip!r}")
+        if yaw_aug_flip and not yaw_aug_enabled:
+            raise ValueError(
+                "yaw_aug_flip=True requires yaw_aug_enabled=True (a flip on a disabled arm "
+                "would be a silent no-op)")
+        if yaw_aug_flip and yaw_aug_offset_step is not None:
+>           raise ValueError(
+                f"yaw_aug_flip=True with yaw_aug_offset_step={yaw_aug_offset_step!r} is out of "
+                "scope for exp_43 (the flip arm is the continuous full-circle roll)")
+E           ValueError: yaw_aug_flip=True with yaw_aug_offset_step=4 is out of scope for exp_43 (the flip arm is the continuous full-circle roll)
+
+src/training/diffusion.py:306: ValueError
+________ test_the_constructor_accepts_flip_with_a_valid_offset_step[1] _________
+
+grid = 1
+
+    @pytest.mark.parametrize("grid", [128, 32, 4, 1])
+    def test_the_constructor_accepts_flip_with_a_valid_offset_step(grid):
+>       w = _construct(**_ENABLED_KW, yaw_aug_offset_step=grid, yaw_aug_flip=True)
+
+src/tests/test_exp46_c4flip_wrapper.py:197: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_c4flip_wrapper.py:135: in _construct
+    return tdiff.DiffusionCondTrainingWrapper(model, lr=5e-6, use_ema=False, **kw)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DiffusionCondTrainingWrapper()
+model = namespace(diffusion_objective='rectified_flow'), lr = 5e-06
+mask_padding = False, mask_padding_dropout = 0.0, use_ema = False
+log_loss_info = False, optimizer_configs = None, pre_encoded = False
+cfg_dropout_prob = 0.1, timestep_sampler = 'log_snr'
+timestep_sampler_options = None
+validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9], p_one_shot = 0.0
+test_param = None, cond_method = 'vanilla', frame_avg_angles = None
+frame_avg_max_fwd_samples = None, yaw_aug_enabled = True, yaw_aug_img_w = 512
+yaw_aug_seed = 42, canonicalize_enabled = False, canonicalize_img_w = 512
+are_lambda = None, are_anchor = None, yaw_aug_offset_step = 1
+yaw_aug_flip = True
+
+    def __init__(
+            self,
+            model: ConditionedDiffusionModelWrapper,
+            lr: float = None,
+            mask_padding: bool = False,
+            mask_padding_dropout: float = 0.0,
+            use_ema: bool = True,
+            log_loss_info: bool = False,
+            optimizer_configs: dict = None,
+            pre_encoded: bool = False,
+            cfg_dropout_prob = 0.1,
+            timestep_sampler: tp.Literal["uniform", "logit_normal", "trunc_logit_normal", "log_snr"] = "log_snr",
+            timestep_sampler_options: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            validation_timesteps = [0.1, 0.3, 0.5, 0.7, 0.9],
+            p_one_shot: float = 0.0,
+            test_param: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            cond_method: str = "vanilla",
+            frame_avg_angles: tp.Optional[tp.List[float]] = None,
+            frame_avg_max_fwd_samples: tp.Optional[int] = None,
+            yaw_aug_enabled: bool = False,
+            yaw_aug_img_w: int = 512,
+            yaw_aug_seed: int = 0,
+            canonicalize_enabled: bool = False,
+            canonicalize_img_w: int = 512,
+            are_lambda: tp.Optional[float] = None,
+            are_anchor: tp.Optional[dict] = None,
+            yaw_aug_offset_step: tp.Optional[int] = None,
+            *,
+            yaw_aug_flip: bool = False
+    ):
+        super().__init__()
+    
+        self.diffusion = model
+    
+        # Conditioning symmetrization method (exp_03 Route 1). Validated at
+        # construction so an unknown value fails fast rather than at first step;
+        # _compute_conditioning keeps the same raise as a backstop.
+        if cond_method not in ("vanilla", "fa_invariant"):
+            raise ValueError(
+                f"Unknown cond_method: {cond_method!r}. "
+                "Valid options: 'vanilla', 'fa_invariant'."
+            )
+        self.cond_method = cond_method
+        self.frame_avg_angles = (
+            tuple(frame_avg_angles) if frame_avg_angles is not None else DEFAULT_FRAME_ANGLES
+        )
+        # exp_14: the frame-average chunk plan as a declared arm property
+        # (plan §3.1). None means "the yaw_rotation module default (64)", which is
+        # what every recipe already in the record ran under; the value is PASSED to
+        # invariant_conditioning, never assigned to the module global. Validated
+        # raw here so direct construction is as fail-closed as the config path
+        # (the exp_15 yaw_aug precedent).
+        if frame_avg_max_fwd_samples is not None:
+            if (isinstance(frame_avg_max_fwd_samples, bool)
+                    or not isinstance(frame_avg_max_fwd_samples, int)):
+                raise ValueError(
+                    "frame_avg_max_fwd_samples must be an int or None, got "
+                    f"{frame_avg_max_fwd_samples!r}"
+                )
+            if frame_avg_max_fwd_samples < 1:
+                raise ValueError(
+                    f"frame_avg_max_fwd_samples must be >= 1, got {frame_avg_max_fwd_samples}"
+                )
+        self.frame_avg_max_fwd_samples = frame_avg_max_fwd_samples
+    
+        # exp_15: random-yaw TRAINING augmentation (plan §§3.1, 6.3). Off by
+        # default and read only by training_step; validation/test are untouched.
+        # The RAW arguments are validated — never coerced — with the same rules
+        # the factory applies, so direct construction is as fail-closed as the
+        # config path (round-1 review, finding 4): bool("false") is True and
+        # int("512") is 512, and either would have armed or disarmed the
+        # treatment on a typo without a word of complaint.
+        if not isinstance(yaw_aug_enabled, bool):
+            raise ValueError(
+                f"yaw_aug_enabled must be a bool, got {yaw_aug_enabled!r}"
+            )
+        if isinstance(yaw_aug_img_w, bool) or not isinstance(yaw_aug_img_w, int):
+            raise ValueError(f"yaw_aug_img_w must be an int, got {yaw_aug_img_w!r}")
+        if yaw_aug_img_w <= 0:
+            raise ValueError(f"yaw_aug_img_w must be > 0, got {yaw_aug_img_w}")
+        if isinstance(yaw_aug_seed, bool) or not isinstance(yaw_aug_seed, int):
+            raise ValueError(f"yaw_aug_seed must be an int, got {yaw_aug_seed!r}")
+        if yaw_aug_enabled and cond_method == "fa_invariant":
+            raise ValueError(
+                "yaw_aug_enabled=True with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15."
+            )
+    
+        self.yaw_aug_enabled = yaw_aug_enabled
+        self.yaw_aug_img_w = yaw_aug_img_w
+        self.yaw_aug_seed = yaw_aug_seed
+        # exp_40: optional discrete grid for the drawn offsets (appended LAST to the
+        # signature so no positional caller shifts). None -- the default, and what
+        # the factory leaves when the config has no offset_step -- is the exp_15
+        # behaviour. Anything else is validated with the factory's rule and refused
+        # unless the treatment is on: an offset_step on a disabled arm would be a
+        # silent no-op.
+        if yaw_aug_offset_step is not None:
+            if not yaw_aug_enabled:
+                raise ValueError(
+                    "yaw_aug_offset_step requires yaw_aug_enabled=True (got "
+                    f"yaw_aug_offset_step={yaw_aug_offset_step!r} on a disabled arm)")
+            try:
+                check_yaw_offset_step(yaw_aug_offset_step, yaw_aug_img_w)
+            except ValueError as err:
+                raise ValueError(f"yaw_aug_offset_step: {err}") from None
+        self.yaw_aug_offset_step = yaw_aug_offset_step
+        # exp_43: the horizontal mirror flip (p = 1/2) after the roll. KEYWORD-ONLY, so no
+        # positional caller can ever reach it. Literal bool only (1 / "true" refused); True is
+        # refused on a disabled arm (a silent no-op) and with an offset_step (out of scope:
+        # the flip arm is the continuous roll). The fa_invariant / canonicalize exclusions
+        # above cover it through yaw_aug_enabled.
+        if not isinstance(yaw_aug_flip, bool):
+            raise ValueError(f"yaw_aug_flip must be a bool, got {yaw_aug_flip!r}")
+        if yaw_aug_flip and not yaw_aug_enabled:
+            raise ValueError(
+                "yaw_aug_flip=True requires yaw_aug_enabled=True (a flip on a disabled arm "
+                "would be a silent no-op)")
+        if yaw_aug_flip and yaw_aug_offset_step is not None:
+>           raise ValueError(
+                f"yaw_aug_flip=True with yaw_aug_offset_step={yaw_aug_offset_step!r} is out of "
+                "scope for exp_43 (the flip arm is the continuous full-circle roll)")
+E           ValueError: yaw_aug_flip=True with yaw_aug_offset_step=1 is out of scope for exp_43 (the flip arm is the continuous full-circle roll)
+
+src/training/diffusion.py:306: ValueError
+_______________ test_the_existing_guards_still_refuse_a_c4f_arm ________________
+
+    def test_the_existing_guards_still_refuse_a_c4f_arm():
+        with pytest.raises(ValueError, match="cond_method='fa_invariant'"):
+            _construct(**_ENABLED_KW, cond_method="fa_invariant", yaw_aug_offset_step=128, yaw_aug_flip=True)
+>       with pytest.raises(ValueError, match="canonicalize_enabled=True with yaw_aug_enabled=True"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'canonicalize_enabled=True with yaw_aug_enabled=True'
+E         Actual message: 'yaw_aug_flip=True with yaw_aug_offset_step=128 is out of scope for exp_43 (the flip arm is the continuous full-circle roll)'
+
+src/tests/test_exp46_c4flip_wrapper.py:224: AssertionError
+____________________ test_the_factory_builds_a_c4f_wrapper _____________________
+
+    def test_the_factory_builds_a_c4f_wrapper():
+        m = cap._mods()
+>       w = cap.build_wrapper(m, cap.tiny_config(W, C4F))
+
+src/tests/test_exp46_c4flip_wrapper.py:230: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_ test_the_c4f_offsets_are_the_snapped_oracle_and_its_bits_are_the_rf_bits[32] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3a30a8e200>
+micro = 32
+
+    @pytest.mark.parametrize("micro", [32, 8])
+    def test_the_c4f_offsets_are_the_snapped_oracle_and_its_bits_are_the_rf_bits(monkeypatch, micro):
+        m = cap._mods()
+        spies = _Spies(monkeypatch)
+>       c4f = cap.build_wrapper(m, cap.tiny_config(W, C4F))
+
+src/tests/test_exp46_c4flip_wrapper.py:241: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_ test_the_c4f_offsets_are_the_snapped_oracle_and_its_bits_are_the_rf_bits[8] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3a30747ee0>
+micro = 8
+
+    @pytest.mark.parametrize("micro", [32, 8])
+    def test_the_c4f_offsets_are_the_snapped_oracle_and_its_bits_are_the_rf_bits(monkeypatch, micro):
+        m = cap._mods()
+        spies = _Spies(monkeypatch)
+>       c4f = cap.build_wrapper(m, cap.tiny_config(W, C4F))
+
+src/tests/test_exp46_c4flip_wrapper.py:241: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+__ test_the_c4f_draws_leave_the_global_rng_untouched_and_the_batch_unmutated ___
+
+    def test_the_c4f_draws_leave_the_global_rng_untouched_and_the_batch_unmutated():
+        m = cap._mods()
+>       w = cap.build_wrapper(m, cap.tiny_config(W, C4F))
+
+src/tests/test_exp46_c4flip_wrapper.py:273: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_____________________ test_the_c4f_draws_are_resume_exact ______________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3a30827f70>
+
+    def test_the_c4f_draws_are_resume_exact(monkeypatch):
+        m = cap._mods()
+        spies = _Spies(monkeypatch)
+        md = [cap.make_md(m, 200 + i, W, height=2) for i in range(32)]
+>       sequential = cap.build_wrapper(m, cap.tiny_config(W, C4F))
+
+src/tests/test_exp46_c4flip_wrapper.py:292: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_____ test_all_eight_offset_bit_combinations_occur_with_the_oracles_counts _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3a306d86d0>
+
+    def test_all_eight_offset_bit_combinations_occur_with_the_oracles_counts(monkeypatch):
+        m = cap._mods()
+        spies = _Spies(monkeypatch)
+>       w = cap.build_wrapper(m, cap.tiny_config(W, C4F))
+
+src/tests/test_exp46_c4flip_wrapper.py:308: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_ test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs[0-0-512-128] _
+
+img_w = 512, grid = 128, step = 0, rank = 0
+
+    @pytest.mark.parametrize("img_w,grid", [(512, 128), (16, 4)])
+    @pytest.mark.parametrize("step,rank", [(0, 0), (7, 1), (2500, 3)])
+    def test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs(img_w, grid, step, rank):
+        m = cap._mods()
+        _seed_all(cap.GOLDEN_SEED)
+>       c4f = cap.build_wrapper(m, cap.tiny_config(img_w, {"offset_step": grid, "flip": True}))
+
+src/tests/test_exp46_c4flip_wrapper.py:351: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_ test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs[0-0-16-4] _
+
+img_w = 16, grid = 4, step = 0, rank = 0
+
+    @pytest.mark.parametrize("img_w,grid", [(512, 128), (16, 4)])
+    @pytest.mark.parametrize("step,rank", [(0, 0), (7, 1), (2500, 3)])
+    def test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs(img_w, grid, step, rank):
+        m = cap._mods()
+        _seed_all(cap.GOLDEN_SEED)
+>       c4f = cap.build_wrapper(m, cap.tiny_config(img_w, {"offset_step": grid, "flip": True}))
+
+src/tests/test_exp46_c4flip_wrapper.py:351: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_ test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs[7-1-512-128] _
+
+img_w = 512, grid = 128, step = 7, rank = 1
+
+    @pytest.mark.parametrize("img_w,grid", [(512, 128), (16, 4)])
+    @pytest.mark.parametrize("step,rank", [(0, 0), (7, 1), (2500, 3)])
+    def test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs(img_w, grid, step, rank):
+        m = cap._mods()
+        _seed_all(cap.GOLDEN_SEED)
+>       c4f = cap.build_wrapper(m, cap.tiny_config(img_w, {"offset_step": grid, "flip": True}))
+
+src/tests/test_exp46_c4flip_wrapper.py:351: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_ test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs[7-1-16-4] _
+
+img_w = 16, grid = 4, step = 7, rank = 1
+
+    @pytest.mark.parametrize("img_w,grid", [(512, 128), (16, 4)])
+    @pytest.mark.parametrize("step,rank", [(0, 0), (7, 1), (2500, 3)])
+    def test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs(img_w, grid, step, rank):
+        m = cap._mods()
+        _seed_all(cap.GOLDEN_SEED)
+>       c4f = cap.build_wrapper(m, cap.tiny_config(img_w, {"offset_step": grid, "flip": True}))
+
+src/tests/test_exp46_c4flip_wrapper.py:351: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_ test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs[2500-3-512-128] _
+
+img_w = 512, grid = 128, step = 2500, rank = 3
+
+    @pytest.mark.parametrize("img_w,grid", [(512, 128), (16, 4)])
+    @pytest.mark.parametrize("step,rank", [(0, 0), (7, 1), (2500, 3)])
+    def test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs(img_w, grid, step, rank):
+        m = cap._mods()
+        _seed_all(cap.GOLDEN_SEED)
+>       c4f = cap.build_wrapper(m, cap.tiny_config(img_w, {"offset_step": grid, "flip": True}))
+
+src/tests/test_exp46_c4flip_wrapper.py:351: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_ test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs[2500-3-16-4] _
+
+img_w = 16, grid = 4, step = 2500, rank = 3
+
+    @pytest.mark.parametrize("img_w,grid", [(512, 128), (16, 4)])
+    @pytest.mark.parametrize("step,rank", [(0, 0), (7, 1), (2500, 3)])
+    def test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs(img_w, grid, step, rank):
+        m = cap._mods()
+        _seed_all(cap.GOLDEN_SEED)
+>       c4f = cap.build_wrapper(m, cap.tiny_config(img_w, {"offset_step": grid, "flip": True}))
+
+src/tests/test_exp46_c4flip_wrapper.py:351: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_______________ test_a_c4f_step_leaves_the_target_rir_untouched ________________
+
+    def test_a_c4f_step_leaves_the_target_rir_untouched():
+        m = cap._mods()
+>       w = cap.build_wrapper(m, cap.tiny_config(W, C4F))
+
+src/tests/test_exp46_c4flip_wrapper.py:402: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+______________ test_the_validation_step_never_augments_a_c4f_arm _______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3a30639e70>
+
+    def test_the_validation_step_never_augments_a_c4f_arm(monkeypatch):
+        m = cap._mods()
+>       w = cap.build_wrapper(m, cap.tiny_config(W, C4F))
+
+src/tests/test_exp46_c4flip_wrapper.py:419: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_________________ test_the_test_step_never_augments_a_c4f_arm __________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3a308d2140>
+
+    def test_the_test_step_never_augments_a_c4f_arm(monkeypatch):
+        m = cap._mods()
+>       w = cap.build_wrapper(m, cap.tiny_config(W, C4F))
+
+src/tests/test_exp46_c4flip_wrapper.py:439: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_________ test_the_c4f_banner_is_one_flushed_line_from_rank_zero_only __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3a307706a0>
+
+    def test_the_c4f_banner_is_one_flushed_line_from_rank_zero_only(monkeypatch):
+        m = cap._mods()
+>       w = cap.build_wrapper(m, cap.tiny_config(W, C4F))
+
+src/tests/test_exp46_c4flip_wrapper.py:459: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+_ test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra4-yaw_aug ENABLED img_w=512 seed=42 offset_step=128 flip=0.5] _
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f3bb2a785e0>
+extra = {'offset_step': 128, 'flip': True}
+line = 'yaw_aug ENABLED img_w=512 seed=42 offset_step=128 flip=0.5'
+
+    @pytest.mark.parametrize("extra,line", [
+        ({}, "yaw_aug ENABLED img_w=512 seed=42"),
+        ({"offset_step": 32}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=32"),
+        ({"offset_step": 128}, "yaw_aug ENABLED img_w=512 seed=42 offset_step=128"),
+        (RF, "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"),
+        (C4F, C4F_BANNER),
+    ])
+    def test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm(capsys, extra, line):
+        m = cap._mods()
+>       w = cap.build_wrapper(m, cap.tiny_config(W, extra))
+
+src/tests/test_exp46_c4flip_wrapper.py:482: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/exp40_yaw_aug_golden_capture.py:126: in build_wrapper
+    return m.create_wrapper(cfg, m.create_model(cfg))
+src/training/factory.py:353: in create_training_wrapper_from_config
+    yaw_aug_kwargs = _parse_yaw_aug_config(training_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+training_config = {'timestep_sampler': 'uniform', 'cfg_dropout_prob': 0.0, 'use_ema': False, 'optimizer_configs': {'diffusion': {'optimizer': {'type': 'AdamW', 'config': {'lr': 5e-06, 'betas': [0.9, 0.999], 'weight_decay': 0.001}}}}, ...}
+
+    def _parse_yaw_aug_config(training_config):
+        """Validate ``training.yaw_aug`` and return the wrapper kwargs it implies.
+    
+        exp_15's training-side random-yaw augmentation (plan §§3.1, 6.2). Every
+        failure mode here is fail-closed: a malformed block must stop the launch, not
+        quietly train the wrong arm — the whole experiment is one treatment against
+        one historical control, so a silently-off (or silently-on) augmentation is
+        unrecoverable after the fact.
+    
+        Returns ``{}`` unless the block is present *and* enabled, so the disabled
+        path's construction call stays literally the pre-change call (plan §3.3-4:
+        the control was trained through that call).
+        """
+        if "yaw_aug" not in training_config:
+            return {}
+    
+        block = training_config["yaw_aug"]
+        if not isinstance(block, dict):
+            raise ValueError(
+                f"training.yaw_aug must be an object with keys {list(YAW_AUG_KEYS)}, "
+                f"got {type(block).__name__}"
+            )
+    
+        unknown = [k for k in block if k not in YAW_AUG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"training.yaw_aug has unknown key(s) {sorted(unknown)}; "
+                f"allowed keys are {list(YAW_AUG_KEYS)}"
+            )
+    
+        enabled = block.get("enabled", None)
+        if not isinstance(enabled, bool):
+            raise ValueError(
+                "training.yaw_aug.enabled must be a literal boolean (true/false), got "
+                f"{enabled!r}"
+            )
+    
+        if not enabled:
+            return {}
+    
+        if training_config.get("cond_method", "vanilla") == "fa_invariant":
+            raise ValueError(
+                "training.yaw_aug.enabled=true with cond_method='fa_invariant' is an "
+                "untested combination and out of scope for exp_15: frame averaging "
+                "already symmetrises over the yaw subgroup."
+            )
+    
+        for key in ("img_w", "seed"):
+            if key not in block:
+                raise ValueError(
+                    f"training.yaw_aug.enabled=true requires '{key}' (no default is "
+                    "assumed: the applied rotation must be stated by the config)"
+                )
+            if isinstance(block[key], bool) or not isinstance(block[key], int):
+                raise ValueError(
+                    f"training.yaw_aug.{key} must be an int, got {block[key]!r}"
+                )
+    
+        if block["img_w"] <= 0:
+            raise ValueError(
+                f"training.yaw_aug.img_w must be > 0, got {block['img_w']}"
+            )
+    
+        kwargs = {
+            "yaw_aug_enabled": True,
+            "yaw_aug_img_w": int(block["img_w"]),
+            "yaw_aug_seed": int(block["seed"]),
+        }
+        # exp_40: the optional discrete grid. ABSENT -> exactly the three exp_15 kwargs
+        # above, so the wrapper call of every existing config is literally unchanged.
+        if "offset_step" in block:
+            try:
+                kwargs["yaw_aug_offset_step"] = check_yaw_offset_step(
+                    block["offset_step"], block["img_w"])
+            except ValueError as err:
+                raise ValueError(f"training.yaw_aug.offset_step: {err}") from None
+        # exp_43: the optional mirror flip. ABSENT or false -> NO kwarg, so the wrapper call of
+        # every existing config (and of an explicit false) is literally the exp_15 / exp_40 one;
+        # only a literal true adds yaw_aug_flip=True. Never coerced: 1 or "true" is an error.
+        if "flip" in block:
+            flip = block["flip"]
+            if not isinstance(flip, bool):
+                raise ValueError(
+                    "training.yaw_aug.flip must be a literal boolean (true/false), got "
+                    f"{flip!r}")
+            if flip:
+                if "offset_step" in block:
+>                   raise ValueError(
+                        "training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of "
+                        "scope for exp_43: the flip arm is the continuous full-circle roll")
+E                   ValueError: training.yaw_aug.flip=true with training.yaw_aug.offset_step is out of scope for exp_43: the flip arm is the continuous full-circle roll
+
+src/training/factory.py:99: ValueError
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[True-30]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[True-0]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[True--128]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[True-512]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[True-1024]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[True-100]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[True-True]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[True-128.0]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[True-128]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[True-None]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[False-30]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[False-0]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[False--128]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[False-512]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[False-1024]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[False-100]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[False-True]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[False-128.0]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[False-128]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_invalid_offset_step_is_still_refused_by_the_step_check[False-None]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_a_non_literal_bool_flip_with_the_grid_is_still_refused[1]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_a_non_literal_bool_flip_with_the_grid_is_still_refused[0]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_a_non_literal_bool_flip_with_the_grid_is_still_refused[1.0]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_a_non_literal_bool_flip_with_the_grid_is_still_refused[true]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_a_non_literal_bool_flip_with_the_grid_is_still_refused[None]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_a_non_literal_bool_flip_with_the_grid_is_still_refused[flip5]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_a_non_literal_bool_flip_with_the_grid_is_still_refused[flip6]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_the_factory_at_x45f_refused_the_c4f_block
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_parses_exactly_as_at_x45f[c16]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_parses_exactly_as_at_x45f[c16_flip_false]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_parses_exactly_as_at_x45f[c4_flip_false]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_parses_exactly_as_at_x45f[c4_no_flip]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_parses_exactly_as_at_x45f[disabled]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_parses_exactly_as_at_x45f[disabled_with_c4f_values]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_parses_exactly_as_at_x45f[disabled_with_junk]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_parses_exactly_as_at_x45f[rf]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_parses_exactly_as_at_x45f[rf_any_order]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_parses_exactly_as_at_x45f[yaw]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_parses_exactly_as_at_x45f[yaw_flip_false]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_an_absent_block_parses_to_nothing_as_at_x45f
+PASSED src/tests/test_exp46_c4flip_factory.py::test_the_committed_arm_configs_parse_exactly_as_at_x45f[c16]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_the_committed_arm_configs_parse_exactly_as_at_x45f[disabled]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_the_committed_arm_configs_parse_exactly_as_at_x45f[rf]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_the_committed_arm_configs_parse_exactly_as_at_x45f[yaw]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_reaches_the_wrapper_call_as_at_x45f[c16]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_reaches_the_wrapper_call_as_at_x45f[c4_no_flip]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_reaches_the_wrapper_call_as_at_x45f[rf]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_every_other_block_reaches_the_wrapper_call_as_at_x45f[yaw]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_the_rotation_mirror_and_grid_modules_are_byte_identical_to_x45f[src/data/yaw_rotation.py]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_the_rotation_mirror_and_grid_modules_are_byte_identical_to_x45f[src/data/yaw_mirror.py]
+PASSED src/tests/test_exp46_c4flip_factory.py::test_the_rotation_mirror_and_grid_modules_are_byte_identical_to_x45f[src/data/yaw_offset_step.py]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_still_refuses_flip_on_a_disabled_arm
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_still_refuses_an_invalid_offset_step_with_flip[30]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_still_refuses_an_invalid_offset_step_with_flip[0]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_still_refuses_an_invalid_offset_step_with_flip[512]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_still_refuses_an_invalid_offset_step_with_flip[100]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_still_refuses_an_invalid_offset_step_with_flip[True]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_still_refuses_an_invalid_offset_step_with_flip[128.0]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_still_refuses_an_invalid_offset_step_with_flip[128]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_still_refuses_a_non_literal_bool_flip_with_the_grid[1]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_still_refuses_a_non_literal_bool_flip_with_the_grid[0]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_still_refuses_a_non_literal_bool_flip_with_the_grid[true]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_still_refuses_a_non_literal_bool_flip_with_the_grid[None]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_still_refuses_a_non_literal_bool_flip_with_the_grid[flip4]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_bits_depend_on_the_micro_batch_length
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra0-yaw_aug ENABLED img_w=512 seed=42]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra1-yaw_aug ENABLED img_w=512 seed=42 offset_step=32]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra2-yaw_aug ENABLED img_w=512 seed=42 offset_step=128]
+PASSED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra3-yaw_aug ENABLED img_w=512 seed=42 flip=0.5]
+FAILED src/tests/test_exp46_c4flip_factory.py::test_the_c4f_block_parses_to_exactly_the_five_kwargs
+FAILED src/tests/test_exp46_c4flip_factory.py::test_the_c4f_block_in_any_key_order_parses_the_same
+FAILED src/tests/test_exp46_c4flip_factory.py::test_the_c4f_block_reaches_the_real_wrapper_call_with_exactly_the_two_added_kwargs
+FAILED src/tests/test_exp46_c4flip_factory.py::test_the_existing_exclusions_still_refuse_the_c4f_block
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_accepts_flip_with_a_valid_offset_step[128]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_accepts_flip_with_a_valid_offset_step[32]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_accepts_flip_with_a_valid_offset_step[4]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_constructor_accepts_flip_with_a_valid_offset_step[1]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_existing_guards_still_refuse_a_c4f_arm
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_factory_builds_a_c4f_wrapper
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_offsets_are_the_snapped_oracle_and_its_bits_are_the_rf_bits[32]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_offsets_are_the_snapped_oracle_and_its_bits_are_the_rf_bits[8]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_draws_leave_the_global_rng_untouched_and_the_batch_unmutated
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_draws_are_resume_exact
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_all_eight_offset_bit_combinations_occur_with_the_oracles_counts
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs[0-0-512-128]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs[0-0-16-4]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs[7-1-512-128]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs[7-1-16-4]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs[2500-3-512-128]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_a_c4f_step_equals_a_vanilla_step_on_oracle_transformed_inputs[2500-3-16-4]
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_a_c4f_step_leaves_the_target_rir_untouched
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_validation_step_never_augments_a_c4f_arm
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_test_step_never_augments_a_c4f_arm
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_banner_is_one_flushed_line_from_rank_zero_only
+FAILED src/tests/test_exp46_c4flip_wrapper.py::test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm[extra4-yaw_aug ENABLED img_w=512 seed=42 offset_step=128 flip=0.5]
+26 failed, 69 passed, 4 warnings in 82.93s (0:01:22)
+EXIT 1 end 2026-11-17T22:36:40-05:00

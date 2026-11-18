@@ -52,3 +52,127 @@
   (kit fork with the node-level test disposition), then the §3.2 deltas. Tests run only in CPU Slurm jobs
   (`TMPDIR=/tmp`), logs `c4flip_data_curve_<ts>_pytest_*.log`. No push, no `main`, no stash; exp_45 / exp_38 /
   exp_40 / exp_43 folders untouched except the declared edits E1–E5.
+
+## 2026-11-17 22:28 → 2026-11-18 01:40 EST — L0 code and unit tests (exp_46 Coder, Claude Opus 5.5, max effort)
+
+Every test ran in a CPU Slurm job through the session's helper (`JOBTMP=/tmp pyt46.sh <label> <pytest args>`, header
+line: HEAD, tracked-clean, host); logs `c4flip_data_curve_<ts>_pytest_<label>.log` in this folder; commits and sizes in
+`commits_c4flip_data_curve.md`. The login node ran only git, file reads / edits and grep. Untracked data links created
+(never committed): `AcousticRooms -> /n/fs/gatrdp/datasets/AcousticRooms`,
+`weights/FLAC/VAE.safetensors -> /n/fs/gatrdp/codespace/FLAC/weights/FLAC/VAE.safetensors`.
+
+### 22:28–22:53 — §3.1 training path (T1 `01b10973`, T2 `f796fe81`)
+- Change: six new tests (`test_exp46_c4flip_factory.py`, `test_exp46_c4flip_wrapper.py`): the C4F block parses to the
+  five kwargs, the X45f factory (executed from git) refuses it, every committed / inline yaw-aug block parses as at
+  X45f; the wrapper stream oracle (offset snap to {0,128,256,384}, flip bits = RF's for the same (seed, step, rank)
+  and micro length), RNG isolation, resume-exactness, coverage of all 8 combinations, step equivalence with exact
+  z-channel column permutations, validation / test never augment, the banner once on rank 0; the three yaw operator
+  files byte-identical to X45f. Then the two refusals removed (`factory.py` X45f 98–101 + a 2-line comment;
+  `diffusion.py` X45f 305–308, comment 296–298, docstring 758) and E1–E3 replaced (assertions in the T2 message).
+- Command: `pyt46.sh T1_…_red`, `T2a_…_red`, `T2b_…_green` over the C4F tests, E1–E3 and 28 training-path files.
+- Validation / Result: T1 red (C4F refused); T2b 1,782 passed, 12 skipped, 11 failed + 40 errors — every failure is
+  `wandb 0.26.1 != the pinned 0.15.4` in `test_exp43_kit.py` (41) / `test_exp43_train_history.py` (10): the neuronic
+  `flac` env carries wandb 0.26.1 (dist-info dated 2026-08-05); exp_43's history extractor refuses it. Environmental,
+  pre-existing, independent of exp_46 (not an E6 candidate). G5: the source change breaks exactly E1, E2 ×3 and E3.
+- Analysis: the C4F path is the composition the plan predicted; no other training-path node changed.
+
+### 22:30 — node-level disposition of every test_exp45_* node (D0 / D0b; table in commit A's message)
+Collected at X45f (D0b log): 732 nodes in 271 functions over the 13 `src/tests/test_exp45_*.py` files.
+K = kit-behaviour (copied + renamed into `test_exp46_*`, with `exp46_fixtures.py`); H = exp_45-history (not copied);
+B = exp_45's RF-100 bridge (RF-specific endpoint, not copied: exp_46 has no bridge).
+
+| file | K functions / nodes | H functions / nodes | B functions / nodes |
+|---|---|---|---|
+| test_exp45_command_sheets.py | 0 / 0 | 6 / 8 | 0 / 0 |
+| test_exp45_ddp_evidence.py | 1 / 1 | 0 / 0 | 0 / 0 |
+| test_exp45_eval.py | 50 / 189 | 0 / 0 | 20 / 70 |
+| test_exp45_isolation.py | 8 / 8 | 0 / 0 | 0 / 0 |
+| test_exp45_launchers.py | 22 / 43 | 0 / 0 | 0 / 0 |
+| test_exp45_merge_provenance.py | 0 / 0 | 8 / 11 | 0 / 0 |
+| test_exp45_receipts.py | 41 / 206 | 0 / 0 | 0 / 0 |
+| test_exp45_registry.py | 33 / 66 | 1 / 1 | 0 / 0 |
+| test_exp45_regression_compare.py | 11 / 11 | 0 / 0 | 0 / 0 |
+| test_exp45_sampler.py | 5 / 7 | 0 / 0 | 0 / 0 |
+| test_exp45_storage.py | 16 / 27 | 0 / 0 | 0 / 0 |
+| test_exp45_supervise.py | 34 / 63 | 0 / 0 | 0 / 0 |
+| test_exp45_table.py | 12 / 14 | 0 / 0 | 3 / 7 |
+| total | 233 / 635 | 15 / 20 | 23 / 77 |
+
+Not copied, by name: H — `test_exp45_merge_provenance.py` (whole file: exp_45's merge provenance, its ledger and E0
+subject; E4 fixes its endpoints), `test_exp45_command_sheets.py` (whole file: exp_45's own command sheets),
+`test_exp45_registry.py::test_the_real_rf_100_percent_endpoint_satisfies_the_exact_schema` (the RF-100 checkpoint).
+B — `test_exp45_eval.py`: test_a_bridge_stream_changed_after_the_seal_refuses_collection,
+test_a_bundle_file_changed_after_its_capture_cannot_steer_the_comparison,
+test_an_evaluator_discrepancy_is_published_as_a_discrepancy_never_as_equality,
+test_a_numeric_difference_is_an_evaluator_discrepancy_not_a_failure, test_an_unadmitted_bridge_cell_refuses_the_comparison,
+test_a_run_cell_receipt_may_not_carry_the_bridge_keys, test_cmd_run_accepts_bridge_names,
+test_collect_requires_the_sealed_bridge_comparison_of_this_campaign_and_these_cells,
+test_each_bridge_bundle_file_is_read_exactly_once, test_every_bridge_integrity_failure_refuses,
+test_incomplete_or_inconsistent_stream_preimages_are_integrity_failures,
+test_one_checkpoint_dispatcher_for_run_one_and_validate_cell, test_prepare_bridge_verifies_sha_bytes_and_the_embedded_config,
+test_the_admission_record_is_exp43s_exact_admission_of_the_descriptors_checkpoint, test_the_bridge_descriptor_and_its_ten_cells,
+test_the_bridge_seals_equal_cells_and_records_the_bundle_hashes, test_the_bundle_itself_is_integrity_checked,
+test_the_fixture_admission_record_passes_exp43s_own_validator, test_validate_cell_admits_a_bridge_cell_online_and_offline,
+test_validate_cell_refuses_each_bridge_receipt_mutation; `test_exp45_table.py`:
+test_build_carries_the_bridge_comparisons_verdict_and_discrepancies,
+test_build_refuses_rf_rows_without_their_admissible_bridge_comparison,
+test_one_bridge_gate_and_one_renderer_serve_every_exp45_writer.
+Commit A copies the 11 files that hold K nodes verbatim (blob + mode equal under the rename map, tested); B1 then
+removes the H / B nodes from the copies (the three mixed files: eval, registry, table).
+
+### 23:09–01:37 — commit A and the §3.2 deltas (A, B1, B2, H, C, D, E, F, E4, G, P, S, J, K, M, N, O)
+- Change: one area per commit (contents, replacement assertions and red / green logs in each message and in the
+  ledger): A verbatim fork; B1 renames + node split; B2 names / paths (exp_46 snapshot roots, the A6000 SMOKE_DDP path
+  refused, `.exp46_*` run-dir internals, the AST path-literal sweep with a registered disposition per literal); H the
+  bridge removed; C the C4F arm (config `exp46_FLAC_AR_YAWAUG_C4FLIP.json`, sha `4b854bcd…`, = exp_43's RF bytes +
+  `offset_step: 128`; ARMS / check_config / banner gate / run ids; disclosures); D closure by exact path (C4F config,
+  f100 delta manifest; RF config out); E FRACS "100" and the four runs, f100's audit `full_split` / context-policy
+  binding, every fraction-keyed function with its f100 branch, the G7 test; F the new `exp46_content_manifest.py`
+  (build / verify, sequential reads) and the in-job f100 re-verification before sealing; E4; G isolation from exp_38's
+  and exp_45's roots (14 roots × direct / nested / symlinked × every mutating entry point, zero writes; exp_45's r2-6
+  exp_38 materialisation exception unchanged); P the storage tests' four-run arithmetic (missed in E's green set);
+  S C3 (exp_45's ledger read read-only at submission and FULL start; SMOKE and FULL submissions refused while exp_45
+  holds); J the 20-row table; K the generator's exp_46 contract (8 rows; exp_45 dormant) and E5; M the L1 policy
+  extension; N the provenance audit; O the init-digest prediction.
+- Command: the red / green labels in the ledger (each a CPU Slurm job); Q1 = every `test_exp45_*` at the exp_46 head.
+- Validation / Result: every delta red before and green after (or an audit with synthetic negatives: N, O); no E6
+  candidate (K2: every generator test file green; G5: E1–E3 only).
+- Analysis: see "Open for the coordinator" below for every deviation and judgement call.
+
+### 00:29 — G7 confirmation (CPU job, light on I/O)
+- Command: `pyt46.sh G7_f100_loader_length_confirmation src/tests/test_exp46_g7_loader_length.py` at `ce39a91d`
+  (tracked-clean = yes, neu306).
+- Result: 5 passed in 9.61 s. The production loader (`create_dataloader_from_config`, as `train.py`) re-instantiated by
+  PL 2.1's own sampler injection (`_get_distributed_sampler` + `_update_dataloader`, 2 ranks, seed 42) has
+  **4,550** steps per epoch on both ranks for f100 (N = 291,210 → floor(ceil(N / 2) / 32)), and the controls
+  1,148 / 2,276 / 3,413 for f025 / f050 / f075; an audit hook showed only the split JSON was opened (no AcousticRooms
+  file). G7 holds: the f100 final checkpoint is `epoch=8-step=40000.ckpt`.
+
+### Open for the coordinator (decisions / records outside this Coder's allowed set; recommendation for each)
+1. **wandb on neuronic** — the `flac` env has wandb 0.26.1 (≠ the exp_43 kit's pinned 0.15.4): 41 nodes of
+   `test_exp43_kit.py` (the E3 file) and 10 of `test_exp43_train_history.py` fail in every neuronic job, independent of
+   exp_46. The final L0 job deselects exactly those 41 E3-file nodes (8 node-id prefixes, listed in its command line);
+   every other node of the file runs, E3's node included. Recommend: accept; at L1 they are inherited failures (the
+   exp_43 pin fails them identically on neuronic). exp_46 itself trains with `--logger none` (no wandb).
+2. **C3 part (b)** (exp_45 resumes only after every exp_46 reservation cleared; read-only on exp_46's ledger) must be
+   recorded in exp_45's worklog, which is byte-frozen in this tree. Recommend: record it on exp_45's branch.
+3. **E4 working-tree sub-check**: E4 also removed exp_45's uncommitted-edit check (`git diff HEAD` against exp_45's
+   after-merge allowance — it has no fixed endpoint); the same check now lives in `test_exp46_provenance.py` with
+   exp_46's allowed paths. Recommend: accept.
+4. **E1 / E2 node ids kept** although they now assert acceptance (plan: parent ids preserved). Recommend: keep.
+5. **Commit A copied mixed files whole** (verbatim-equality test), B1 removed their H / B nodes. Recommend: accept.
+6. **Commits above 200 lines not flagged in their messages**: T1 (710), A (12,945), B2 (331), E (267), N (259) —
+   flagged in the ledger instead (no amend allowed).
+7. **exp_46 command sheets** were not written (exp_45's sheet tests were classified H). Recommend: write the L1–L8
+   sheets before L4, giving each f100 FULL ≈ +1 h TLIM for the in-job sequential re-verification of 145,494 files
+   (measure its wall time at L2, where the build reads the same files).
+8. **f100 SMOKE** requires the pinned manifest (`check_f100_delta_pinned`) but no L2 verification record; the in-job
+   re-verification runs in the FULL branch only. Recommend: accept (L2 verifies once).
+9. **Disclosure applicability**: collector items 1–6, 8–11; table 1–12; generator 1–11 (items 7 and 12 concern the
+   YAW-Aug / OrbitRIR rows of the 20-row table). Recommend: Codex checks it at code review.
+10. **E's green set missed `test_exp46_storage.py`**: two storage tests failed from `ce39a91d` until P `ced65850`
+    (seen in G2). Fixed; the final L0 run covers every file.
+11. **`F100_DELTA_SHA256 = None`** until L2: every f100 SMOKE / FULL refuses until the manifest is built and pinned —
+    a code commit at L2 (closure change) before X46 is frozen.
+12. Minor: a few trivial `python3` invocations on the login node (a string replacement in a test file, no-op
+    imports) before switching to the Edit tool — no test code ran there.

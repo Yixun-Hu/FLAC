@@ -1,0 +1,18 @@
+HEAD ce39a91d57d2779afa67141cecb8a51f4e012a3d tracked-clean=no host neu306.neuronic.cs.princeton.edu start 2026-11-18T00:31:41-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_f100_delta.py src/tests/test_exp46_supervise.py -k f100\ or\ full_run\ or\ neuronic_smoke\ or\ delta 
+
+==================================== ERRORS ====================================
+_____________ ERROR collecting src/tests/test_exp46_f100_delta.py ______________
+ImportError while importing test module '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/src/tests/test_exp46_f100_delta.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../envs/flac/lib/python3.10/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+src/tests/test_exp46_f100_delta.py:31: in <module>
+    import exp46_content_manifest as cm46  # noqa: E402
+E   ModuleNotFoundError: No module named 'exp46_content_manifest'
+=========================== short test summary info ============================
+ERROR src/tests/test_exp46_f100_delta.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+54 deselected, 1 error in 0.48s
+EXIT 2 end 2026-11-18T00:31:42-05:00

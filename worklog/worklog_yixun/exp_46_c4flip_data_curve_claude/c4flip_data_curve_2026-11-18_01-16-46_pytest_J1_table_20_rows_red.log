@@ -1,0 +1,138 @@
+HEAD d858b53b111bc4b9e6c29afcb2247dadfeec0c3f tracked-clean=no host neu303.neuronic.cs.princeton.edu start 2026-11-18T01:16:48-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_table.py 
+.....EEEE...EEF                                                          [100%]
+==================================== ERRORS ====================================
+___ ERROR at setup of test_build_renders_all_twenty_rows_and_the_disclosures ___
+
+imp = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '6d861368962ddbfcc2a1ba5969d7458c4ba4b89a', '15696838cb79b3a0246210b6013782b9cea0a27f')
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_build_renders_all_twenty_0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f37dabadb70>
+
+    @pytest.fixture
+    def built(imp, world, monkeypatch):
+        """A sealed import record + the exp_46 side: a REAL E0 receipt (test_exp46_eval's world; exp_46 has no bridge),
+        the fraction rows' offline admission patched, a published collector JSON."""
+        repo, root, sha = imp
+        assert TE.ev is tbl.ev
+        tbl.import_exp38(sha, repo=repo)
+>       rows = {f"c4f|{t}|{K}": {k: [2.0, 0.1, 5] for k in tbl.ev.METRIC_KEYS} for t in tbl.METHOD_FRACS["c4f"]
+                for K in (8, 1)}
+E       AttributeError: module 'exp46_table' has no attribute 'METHOD_FRACS'
+
+src/tests/test_exp46_table.py:203: AttributeError
+_ ERROR at setup of test_build_refuses_a_wrong_commit_a_resealed_record_or_a_changed_value _
+
+imp = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '6d861368962ddbfcc2a1ba5969d7458c4ba4b89a', '15696838cb79b3a0246210b6013782b9cea0a27f')
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_build_refuses_a_wrong_com0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f37da633f10>
+
+    @pytest.fixture
+    def built(imp, world, monkeypatch):
+        """A sealed import record + the exp_46 side: a REAL E0 receipt (test_exp46_eval's world; exp_46 has no bridge),
+        the fraction rows' offline admission patched, a published collector JSON."""
+        repo, root, sha = imp
+        assert TE.ev is tbl.ev
+        tbl.import_exp38(sha, repo=repo)
+>       rows = {f"c4f|{t}|{K}": {k: [2.0, 0.1, 5] for k in tbl.ev.METRIC_KEYS} for t in tbl.METHOD_FRACS["c4f"]
+                for K in (8, 1)}
+E       AttributeError: module 'exp46_table' has no attribute 'METHOD_FRACS'
+
+src/tests/test_exp46_table.py:203: AttributeError
+_ ERROR at setup of test_build_reopens_the_bundle_blobs_at_the_requested_commit _
+
+imp = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '6d861368962ddbfcc2a1ba5969d7458c4ba4b89a', '15696838cb79b3a0246210b6013782b9cea0a27f')
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_build_reopens_the_bundle_0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f37dabae320>
+
+    @pytest.fixture
+    def built(imp, world, monkeypatch):
+        """A sealed import record + the exp_46 side: a REAL E0 receipt (test_exp46_eval's world; exp_46 has no bridge),
+        the fraction rows' offline admission patched, a published collector JSON."""
+        repo, root, sha = imp
+        assert TE.ev is tbl.ev
+        tbl.import_exp38(sha, repo=repo)
+>       rows = {f"c4f|{t}|{K}": {k: [2.0, 0.1, 5] for k in tbl.ev.METRIC_KEYS} for t in tbl.METHOD_FRACS["c4f"]
+                for K in (8, 1)}
+E       AttributeError: module 'exp46_table' has no attribute 'METHOD_FRACS'
+
+src/tests/test_exp46_table.py:203: AttributeError
+_ ERROR at setup of test_the_disclosures_have_one_source_and_appear_under_every_exp46_table _
+
+imp = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '6d861368962ddbfcc2a1ba5969d7458c4ba4b89a', '15696838cb79b3a0246210b6013782b9cea0a27f')
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_disclosures_have_one_0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f37da6324d0>
+
+    @pytest.fixture
+    def built(imp, world, monkeypatch):
+        """A sealed import record + the exp_46 side: a REAL E0 receipt (test_exp46_eval's world; exp_46 has no bridge),
+        the fraction rows' offline admission patched, a published collector JSON."""
+        repo, root, sha = imp
+        assert TE.ev is tbl.ev
+        tbl.import_exp38(sha, repo=repo)
+>       rows = {f"c4f|{t}|{K}": {k: [2.0, 0.1, 5] for k in tbl.ev.METRIC_KEYS} for t in tbl.METHOD_FRACS["c4f"]
+                for K in (8, 1)}
+E       AttributeError: module 'exp46_table' has no attribute 'METHOD_FRACS'
+
+src/tests/test_exp46_table.py:203: AttributeError
+_____________ ERROR at setup of test_build_refuses_a_missing_cell ______________
+
+imp = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '6d861368962ddbfcc2a1ba5969d7458c4ba4b89a', '15696838cb79b3a0246210b6013782b9cea0a27f')
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_build_refuses_a_missing_c0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f37dabadf60>
+
+    @pytest.fixture
+    def built(imp, world, monkeypatch):
+        """A sealed import record + the exp_46 side: a REAL E0 receipt (test_exp46_eval's world; exp_46 has no bridge),
+        the fraction rows' offline admission patched, a published collector JSON."""
+        repo, root, sha = imp
+        assert TE.ev is tbl.ev
+        tbl.import_exp38(sha, repo=repo)
+>       rows = {f"c4f|{t}|{K}": {k: [2.0, 0.1, 5] for k in tbl.ev.METRIC_KEYS} for t in tbl.METHOD_FRACS["c4f"]
+                for K in (8, 1)}
+E       AttributeError: module 'exp46_table' has no attribute 'METHOD_FRACS'
+
+src/tests/test_exp46_table.py:203: AttributeError
+________ ERROR at setup of test_build_never_reads_the_preliminary_files ________
+
+imp = ('/tmp/pytest-of-yh4742/pytest-0/exp38_bundle0/repo', '6d861368962ddbfcc2a1ba5969d7458c4ba4b89a', '15696838cb79b3a0246210b6013782b9cea0a27f')
+world = {'tmp': PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_build_never_reads_the_pre0'), 'campaign': {'head': 'fffffffffff...ddddddddddddddddddd', 'eval_snapshot_sha256': '5555555555555555555555555555555555555555555555555555555555555555', ...}}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f37da631d80>
+
+    @pytest.fixture
+    def built(imp, world, monkeypatch):
+        """A sealed import record + the exp_46 side: a REAL E0 receipt (test_exp46_eval's world; exp_46 has no bridge),
+        the fraction rows' offline admission patched, a published collector JSON."""
+        repo, root, sha = imp
+        assert TE.ev is tbl.ev
+        tbl.import_exp38(sha, repo=repo)
+>       rows = {f"c4f|{t}|{K}": {k: [2.0, 0.1, 5] for k in tbl.ev.METRIC_KEYS} for t in tbl.METHOD_FRACS["c4f"]
+                for K in (8, 1)}
+E       AttributeError: module 'exp46_table' has no attribute 'METHOD_FRACS'
+
+src/tests/test_exp46_table.py:203: AttributeError
+=================================== FAILURES ===================================
+____________ test_the_row_set_is_exactly_the_twenty_registered_rows ____________
+
+    def test_the_row_set_is_exactly_the_twenty_registered_rows():
+        """plan r3 §3.2 "exp46_table.py": build and the renderer refuse any missing row of the 20 and any extra row."""
+>       want = {f"{m}|{t}|{K}" for m in tbl.METHODS for t in tbl.METHOD_FRACS[m] for K in (8, 1)}
+
+src/tests/test_exp46_table.py:401: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <dict_keyiterator object at 0x7f37db66acf0>
+
+>   want = {f"{m}|{t}|{K}" for m in tbl.METHODS for t in tbl.METHOD_FRACS[m] for K in (8, 1)}
+E   AttributeError: module 'exp46_table' has no attribute 'METHOD_FRACS'
+
+src/tests/test_exp46_table.py:401: AttributeError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_table.py::test_the_row_set_is_exactly_the_twenty_registered_rows
+ERROR src/tests/test_exp46_table.py::test_build_renders_all_twenty_rows_and_the_disclosures
+ERROR src/tests/test_exp46_table.py::test_build_refuses_a_wrong_commit_a_resealed_record_or_a_changed_value
+ERROR src/tests/test_exp46_table.py::test_build_reopens_the_bundle_blobs_at_the_requested_commit
+ERROR src/tests/test_exp46_table.py::test_the_disclosures_have_one_source_and_appear_under_every_exp46_table
+ERROR src/tests/test_exp46_table.py::test_build_refuses_a_missing_cell - Attr...
+ERROR src/tests/test_exp46_table.py::test_build_never_reads_the_preliminary_files
+1 failed, 8 passed, 6 errors in 23.17s
+EXIT 1 end 2026-11-18T01:17:13-05:00

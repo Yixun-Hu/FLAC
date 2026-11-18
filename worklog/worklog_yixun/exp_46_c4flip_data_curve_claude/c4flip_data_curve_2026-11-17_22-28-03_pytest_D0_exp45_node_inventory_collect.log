@@ -1,0 +1,18 @@
+HEAD 73cbe2680920a653ec9fc1d109fac22526f3da5a tracked-clean=yes host neu322.neuronic.cs.princeton.edu start 2026-11-17T22:28:20-05:00
+cmd: pytest -q --collect-only -q src/tests/test_exp45_command_sheets.py src/tests/test_exp45_ddp_evidence.py src/tests/test_exp45_eval.py src/tests/test_exp45_isolation.py src/tests/test_exp45_launchers.py src/tests/test_exp45_merge_provenance.py src/tests/test_exp45_receipts.py src/tests/test_exp45_registry.py src/tests/test_exp45_regression_compare.py src/tests/test_exp45_sampler.py src/tests/test_exp45_storage.py src/tests/test_exp45_supervise.py src/tests/test_exp45_table.py src/tests/test_gen_model_comparison_exp45.py 
+src/tests/test_exp45_command_sheets.py: 8
+src/tests/test_exp45_ddp_evidence.py: 1
+src/tests/test_exp45_eval.py: 259
+src/tests/test_exp45_isolation.py: 8
+src/tests/test_exp45_launchers.py: 43
+src/tests/test_exp45_merge_provenance.py: 11
+src/tests/test_exp45_receipts.py: 206
+src/tests/test_exp45_registry.py: 67
+src/tests/test_exp45_regression_compare.py: 11
+src/tests/test_exp45_sampler.py: 7
+src/tests/test_exp45_storage.py: 27
+src/tests/test_exp45_supervise.py: 63
+src/tests/test_exp45_table.py: 21
+src/tests/test_gen_model_comparison_exp45.py: 13
+
+EXIT 0 end 2026-11-17T22:29:11-05:00
