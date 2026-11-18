@@ -10,6 +10,7 @@ differs from the prediction refuses (both topologies).
 Written by the exp_46 Coder (Claude Opus 5.5).
 """
 import ast
+import json
 import os
 import subprocess
 import sys
@@ -78,3 +79,59 @@ def test_a_c4f_rank_off_the_prediction_is_refused_by_the_evidence_gate(ngpu, fie
             bad[ngpu - 1][field] = reg.N_STATE_TENSORS + 1
         probs = reg.evidence_problems(bad, run, ngpu, "flash", 20)
         assert len(probs) == 1 and probs[0].startswith(f"rank {ngpu - 1}: {field} "), (run, probs)
+
+
+# ------------------------------------------------------------------ fix round 1, Codex code r1 finding 5: L3 enforces it
+import exp46_init_digest as idg  # noqa: E402
+
+
+def _measured(run_id, **over):
+    """What init_digest() measures on the CPU when the prediction holds (the shape of exp_38's recorded L3 output:
+    rng_after_build = the single-topology fit-start python / numpy / torch_cpu digests); ``over`` replaces fields."""
+    out = {"run": run_id, "state_dict_sha256": reg.INIT_STATE_SHA256, "n_state_tensors": reg.N_STATE_TENSORS,
+           "sobol": dict(reg.INIT_SOBOL),
+           "rng_after_build": {k: reg.RNG_AT_FIT_START["single"][k] for k in ("python", "numpy", "torch_cpu")}}
+    out.update(over)
+    return out
+
+
+def test_l3_passes_exactly_the_registered_prediction(tmp_path, monkeypatch, capsys):
+    """The L3 command compares the measurement with exp_38's registered values and exits 0 only when every one
+    agrees; its --json record carries the measurement and the verdict."""
+    for run in reg.required_runs():
+        monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r))
+        out = tmp_path / f"{run}.json"
+        assert idg.main(["--run", run, "--json", str(out)]) == 0
+        rec = json.load(open(out))
+        assert rec["prediction"] == "PASS" and rec["prediction_problems"] == [] and rec["run"] == run
+        assert "INIT DIGEST PREDICTION PASS" in capsys.readouterr().out
+    cuda = _measured(RUN_C4F)
+    cuda["rng_after_build"]["torch_cuda"] = reg.RNG_AT_FIT_START["single"]["torch_cuda"]      # CUDA initialised
+    assert idg.prediction_problems(cuda, RUN_C4F) == [] and idg.prediction_problems(_measured(RUN_C4F), RUN_C4F) == []
+
+
+RUN_C4F = "exp46_C4Ff025_l40_2x32"
+_RNG = {k: reg.RNG_AT_FIT_START["single"][k] for k in ("python", "numpy", "torch_cpu")}
+OFF = {"state digest": ("state_dict_sha256", "0" * 64), "tensor count": ("n_state_tensors", reg.N_STATE_TENSORS + 1),
+       "tensor count as a float": ("n_state_tensors", float(reg.N_STATE_TENSORS)),
+       "sobol state": ("sobol", dict(reg.INIT_SOBOL, state_sha256="1" * 64)),
+       "sobol drawn": ("sobol", dict(reg.INIT_SOBOL, num_generated=1)),
+       "cpu rng": ("rng_after_build", dict(_RNG, torch_cpu="2" * 64)),
+       "the ddp cpu rng": ("rng_after_build", dict(_RNG, torch_cpu=reg.RNG_AT_FIT_START["ddp"]["torch_cpu"])),
+       "python rng": ("rng_after_build", dict(_RNG, python="3" * 64)),
+       "a missing rng": ("rng_after_build", {k: v for k, v in _RNG.items() if k != "numpy"}),
+       "a wrong cuda rng": ("rng_after_build", dict(_RNG, torch_cuda="4" * 64)),
+       "another run": ("run", "exp46_C4Ff050_l40_2x32")}
+
+
+@pytest.mark.parametrize("case", sorted(OFF))
+def test_l3_exits_nonzero_on_any_disagreement_with_the_prediction(tmp_path, monkeypatch, case):
+    field, value = OFF[case]
+    monkeypatch.setattr(idg, "init_digest", lambda r, repo=None: _measured(r, **{field: value}))
+    out = tmp_path / "init_digest.json"
+    assert idg.main(["--run", RUN_C4F, "--json", str(out)]) == 1
+    rec = json.load(open(out))                                     # the measurement is still recorded, with its verdict
+    assert rec["prediction"] == "FAIL" and rec["prediction_problems"], case
+    assert idg.prediction_problems(_measured(RUN_C4F, **{field: value}), RUN_C4F), case
+    extra = _measured(RUN_C4F, extra_key=1)
+    assert idg.prediction_problems(extra, RUN_C4F)                 # the measured schema is exact

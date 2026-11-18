@@ -8,7 +8,9 @@ Builds the training wrapper on the CPU in train.py's exact order (float32 matmul
 ``src.training.run_evidence.state_dict_digest`` of the wrapper plus the Sobol and RNG digests.
 The in-process evidence of every training rank must report the same state digest (the start
 gate); YAW, B-F and P1 share it because their ``.model`` sections are canonically identical -- and C4F, the
-registered exp_46 prediction (plan r3 §3.2 "Init digest": exp_38's values), verified at L3.
+registered exp_46 prediction (plan r3 §3.2 "Init digest": exp_38's values), verified at L3: the command compares
+the measurement with the prediction (prediction_problems) and exits 0 only when every value agrees, 1 on any
+disagreement (Codex code r1 finding 5), 2 when it refuses its --json destination.
 
     python exp46_init_digest.py --run exp46_C4Ff025_l40_2x32 [--json out.json]
 
@@ -52,6 +54,32 @@ def init_digest(run, repo=None):
             "sobol": rev.sobol_state(wrapper.rng), "rng_after_build": rev.rng_digests()}
 
 
+def prediction(run):
+    """exp_46's REGISTERED prediction for what init_digest() measures on the CPU (plan r3 §3.2 "Init digest": exp_38's
+    values): the wrapper's state digest and tensor count, the untouched Sobol engine, and the RNG digests after the build
+    = exp_38's single-topology fit-start python / numpy / torch_cpu digests (exp_38's recorded L3 measurement)."""
+    return {"run": run, "state_dict_sha256": reg.INIT_STATE_SHA256, "n_state_tensors": reg.N_STATE_TENSORS,
+            "sobol": reg.INIT_SOBOL,
+            "rng_after_build": {k: reg.RNG_AT_FIT_START["single"][k] for k in ("python", "numpy", "torch_cpu")}}
+
+
+def prediction_problems(measured, run):
+    """Every disagreement of a measurement with the prediction for ``run`` (exact keys, values and types); a
+    torch_cuda digest (present only when CUDA was initialised) must be the registered one."""
+    want = prediction(run)
+    if not isinstance(measured, dict) or set(measured) != set(want):
+        return [f"measured keys {sorted(measured) if isinstance(measured, dict) else measured!r} != {sorted(want)}"]
+    p = [f"{k}: measured {measured[k]!r} != predicted {want[k]!r}" for k in ("run", "state_dict_sha256",
+                                                                               "n_state_tensors", "sobol")
+         if reg.canonical(measured[k]) != reg.canonical(want[k]) or type(measured[k]) is not type(want[k])]
+    rng = dict(want["rng_after_build"])
+    if isinstance(measured["rng_after_build"], dict) and "torch_cuda" in measured["rng_after_build"]:
+        rng["torch_cuda"] = reg.RNG_AT_FIT_START["single"]["torch_cuda"]
+    if measured["rng_after_build"] != rng:
+        p.append(f"rng_after_build: measured {measured['rng_after_build']!r} != predicted {rng!r}")
+    return p
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--run", required=True)
@@ -67,12 +95,15 @@ def main(argv=None):
             print(f"refusing to overwrite {a.json}", file=sys.stderr)
             return 2
     out = init_digest(a.run)
-    text = json.dumps(out, indent=1, sort_keys=True)
+    problems = prediction_problems(out, a.run)            # L3 is fail-closed (Codex code r1 finding 5)
+    rec = dict(out, prediction="PASS" if not problems else "FAIL", prediction_problems=problems)
+    text = json.dumps(rec, indent=1, sort_keys=True)
     print(text)
+    print("INIT DIGEST PREDICTION " + ("PASS" if not problems else "FAIL: " + " | ".join(problems)))
     if a.json:
         with open(a.json, "x") as fh:                     # exclusive: a file created meanwhile is never overwritten
             fh.write(text + "\n")
-    return 0
+    return 0 if not problems else 1
 
 
 if __name__ == "__main__":
