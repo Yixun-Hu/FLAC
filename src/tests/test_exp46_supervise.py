@@ -462,9 +462,21 @@ def _campaign(tmp_path, monkeypatch, mode="ok", audit_ok=True, smode="FULL", e0_
         calls.append(args)
         return {"verdict": "PASS" if audit_ok else "FAIL"}
     monkeypatch.setattr(reg, "write_smoke_receipt", fake_smoke)
-    a = sv.parse(["--platform", "a6000", "--mode", smode, "--run", run, "--expect-sha", "f" * 40, "--grace", "2",
-                  "--token", "a" * 32])
-    code = sv.mode_campaign(a, "a6000")
+    platform = "neuronic" if smode == "SMOKE" else "a6000"
+    argv = ["--platform", platform, "--mode", smode, "--run", run, "--expect-sha", "f" * 40, "--grace", "2",
+            "--token", "a" * 32]
+    if platform == "neuronic":          # exp_46: the SMOKE lifecycle runs the neuronic branch (no A6000 SMOKE path)
+        import importlib.metadata
+        import exp46_submit_neuronic as sub
+        monkeypatch.setitem(reg.PLATFORMS["neuronic"], "save_root", str(tmp_path / "nas"))
+        monkeypatch.setattr(importlib.metadata, "version", lambda name: reg.FLASH_VERSION)
+        monkeypatch.setattr(sub, "claim_attempt", lambda *x: str(tmp_path / "owner"))
+        monkeypatch.setattr(sub, "finish_attempt", lambda owner, code: None)
+        monkeypatch.setattr(sv, "neuronic_allocation_gate", lambda ngpu, env: gpus)
+        monkeypatch.setattr(sv, "launch_cmd", lambda platform_, ngpu, argv_: [PY, *argv_])
+        argv += ["--save-dir", str(tmp_path / "nas" / f"{run}_smoke"), "--expect-flash-version", reg.FLASH_VERSION]
+    a = sv.parse(argv)
+    code = sv.mode_campaign(a, platform)
     copies = [f for f in os.listdir(tmp_path / reg.EXP_DIR) if f.startswith("at_launch_")]
     assert len(copies) == 1
     rec = json.load(open(tmp_path / reg.EXP_DIR / copies[0]))
@@ -478,8 +490,8 @@ def test_a_full_run_launches_from_the_snapshot_gates_and_publishes(tmp_path, mon
     code, rec, rd, calls = _campaign(tmp_path, monkeypatch)
     assert code == 0 and rec["status"] == "COMPLETE" and rec["start_gate"] == "PASS" and rec["evidence_gate"] == "PASS"
     assert rec["cwd"].startswith(str(tmp_path / "snaps")) and rec["child_rc"] == 0 and rec["supervisor_pid"] == os.getpid()
-    assert len(calls) == 2 and calls[-1] == ("commits", [("COMPLETE", True)]) and not (rd / ".exp38_lock").exists()
-    assert [n for n in os.listdir(rd) if n.startswith(".exp38_lock.released_")]
+    assert len(calls) == 2 and calls[-1] == ("commits", [("COMPLETE", True)]) and not (rd / ".exp46_lock").exists()
+    assert [n for n in os.listdir(rd) if n.startswith(".exp46_lock.released_")]
     # the FULL branch moved PL's CSV loss record into receipts/ before the end audit (plan r3 §3.2)
     assert not (rd / "lightning_logs").exists() and rec["loss_record"]["loss_record_rows"] == 400
     assert sorted(os.listdir(rd / "receipts")) == ["loss_record.csv", "loss_record_hparams.yaml"]
@@ -496,7 +508,7 @@ def test_a_full_run_launches_from_the_snapshot_gates_and_publishes(tmp_path, mon
                                                 ("ok", False, sv.EXIT_END)])
 def test_a_failed_full_run_keeps_its_crash_marker(tmp_path, monkeypatch, mode, audit_ok, want):
     code, rec, rd, calls = _campaign(tmp_path, monkeypatch, mode, audit_ok)
-    assert code == want and (rd / ".exp38_lock").is_dir() and "finished_at" in rec
+    assert code == want and (rd / ".exp46_lock").is_dir() and "finished_at" in rec
     assert rec["status"] != "COMPLETE" and len(calls) == (2 if mode == "ok" else 1) and calls[-1] == ("commits", [])
     with pytest.raises(sv.reg.GateError):
         sv.reg.check_run_dir(str(rd), "exp46_RFf025_l40_2x32", 0)          # never relaunched into: archive first
@@ -511,14 +523,22 @@ def test_a_full_run_without_its_reservation_is_refused_before_any_child(tmp_path
 
 
 @pytest.mark.parametrize("audit_ok,want", [(True, 0), (False, sv.EXIT_END)])
-def test_a_smoke_ddp_seals_its_receipt_from_the_snapshot(tmp_path, monkeypatch, audit_ok, want):
-    code, rec, rd, calls = _campaign(tmp_path, monkeypatch, audit_ok=audit_ok, smode="SMOKE_DDP")
-    assert code == want and len(calls) == 2 and str(rd).startswith(str(tmp_path / "outputs_FLAC" / "exp38_smoke"))
-    assert "start_gate" not in rec and rec["mode"] == "SMOKE_DDP"
+def test_a_neuronic_smoke_seals_its_receipt_from_the_snapshot(tmp_path, monkeypatch, audit_ok, want):
+    """exp_46: the SMOKE lifecycle is the neuronic one (exp_45's A6000 SMOKE_DDP path is refused, test below)."""
+    code, rec, rd, calls = _campaign(tmp_path, monkeypatch, audit_ok=audit_ok, smode="SMOKE")
+    assert code == want and len(calls) == 2 and rd == tmp_path / "nas" / "exp46_RFf025_l40_2x32_smoke"
+    assert "start_gate" not in rec and rec["mode"] == "SMOKE" and rec["cwd"] == str(rd / ".exp46_tools")
     # the SMOKE branch moves nothing: its logger dir stays where PL wrote it (the SMOKE gate checks it)
     assert sv.reg.logger_entries(str(rd)) == ["version_0", "version_0/hparams.yaml"] and "loss_record" not in rec
-    assert not (rd / "receipts").exists()
+    assert not (rd / "receipts").exists() and not (tmp_path / "outputs_FLAC").exists()
 
+
+def test_the_a6000_smoke_ddp_is_refused_before_any_gate_or_directory(tmp_path, monkeypatch):
+    """exp_46 plan r3 §3.2 (Codex plan r2 finding 1): the inherited A6000 training-SMOKE destination
+    outputs_FLAC/exp38_smoke is refused; nothing is gated, claimed, locked or created."""
+    with pytest.raises(sv.Refused, match="no A6000 training path"):
+        _campaign(tmp_path, monkeypatch, smode="SMOKE_DDP")
+    assert not (tmp_path / "outputs_FLAC").exists() and os.listdir(str(tmp_path / "nas")) == []
 
 V0 = "lightning_logs/version_0/"
 
@@ -535,7 +555,7 @@ def test_the_full_branch_moves_exactly_one_csv_logger_version_or_fails_its_end_a
     logger = {k: (fx.loss_csv(sv.reg).decode() if v == "LOSS" else v) for k, v in logger.items()}
     code, rec, rd, calls = _campaign(tmp_path, monkeypatch, logger=logger)
     assert code == sv.EXIT_END and rec["status"].startswith("end audit failed") and "loss_record" not in rec
-    assert calls == [("commits", [])] and (rd / ".exp38_lock").is_dir()             # no receipt; crash marker kept
+    assert calls == [("commits", [])] and (rd / ".exp46_lock").is_dir()             # no receipt; crash marker kept
     assert sorted(sv.reg.logger_entries(str(rd))) == sorted({os.path.normpath(os.path.relpath(k, "lightning_logs"))
                                                             for k in logger} | ({os.path.dirname(os.path.relpath(k, "lightning_logs"))
                                                                                 for k in logger} - {""}))
@@ -579,7 +599,7 @@ def test_ar_content_changed_during_the_run_publishes_nothing(tmp_path, monkeypat
     """Codex code r3 BLOCKING 1 (defense in depth): the post-run re-hash refuses the terminal receipt."""
     code, rec, rd, calls = _campaign(tmp_path, monkeypatch, content_after_ok=False)
     assert code == sv.EXIT_END and "AR content changed during the run" in rec["status"]
-    assert calls == [("commits", [])] and (rd / ".exp38_lock").is_dir()
+    assert calls == [("commits", [])] and (rd / ".exp46_lock").is_dir()
 
 
 @pytest.mark.parametrize("where", ["holder", "record"])

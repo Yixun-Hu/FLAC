@@ -19,7 +19,7 @@ passed down (``pass_fds``), so the locks live as long as ANY process of the run 
 supervisor cannot release a card under a running trainer. TERM / INT / HUP are forwarded to that
 group only while the leader is unreaped (its pid -- and so the group id -- cannot be reused) and
 its /proc start time is the one recorded at spawn; after GRACE_S the group gets SIGKILL. Every exit
-path rewrites the launch record atomically; a failed run keeps its ``.exp38_lock`` crash marker.
+path rewrites the launch record atomically; a failed run keeps its ``.exp46_lock`` crash marker.
 
 Exit: 0 ok · 2 a gate refused · 3 environment / launch error · 4 the start gate failed (our group
 terminated) · 5 an end gate / audit failed · 128+N terminated by signal N · else the child's status.
@@ -46,8 +46,8 @@ EXIT_GATE, EXIT_ENV, EXIT_START, EXIT_END = 2, 3, 4, 5
 GRACE_S = 120
 START_TIMEOUT_S = 5400
 EVIDENCE_TIMEOUT_S = 1800
-SNAPSHOT_ROOT = {"a6000": "/home/yixunhu/codespace/exp-38-snapshots"}
-LOCKDIR = "/home/yixunhu/codespace"              # .exp38_card<i>.lock, shared with exp38_eval.py
+SNAPSHOT_ROOT = {"a6000": "/home/yixunhu/codespace/exp-46-snapshots"}
+LOCKDIR = "/home/yixunhu/codespace"              # .exp38_card<i>.lock, shared with exp38_eval.py + exp46_eval.py
 SLURM_RANK_VARS = ("SLURM_NTASKS", "SLURM_JOB_NAME", "SLURM_PROCID", "SLURM_LOCALID", "SLURM_NODEID",
                    "SLURM_NTASKS_PER_NODE", "SLURM_NPROCS")
 A6000_PY = re.compile(r".*/envs/flac/bin/python[0-9.]*$")
@@ -475,11 +475,13 @@ def mode_dry_run(a, platform):
     full = launch_cmd(platform, ngpu, reg.build_train_argv(a.run, platform, a.dry_save_root, a.allow_nonmatched_rung))
     # the isolated --dry-save-root, when given, for the SMOKE dir too (Codex code r1 finding 10): the dry run then
     # names and checks nothing of the live save root
-    smoke_dir = (os.path.join(a.dry_save_root or reg.PLATFORMS[platform]["save_root"], f"{a.run}_smoke")
-                 if platform == "neuronic" else f"outputs_FLAC/exp38_smoke/{a.run}_ddp_<ts>")
-    smoke = launch_cmd(platform, ngpu, reg.build_smoke_argv(a.run, reg.SMOKE_STEPS_DDP, smoke_dir, True, platform))
     print("FULL (cwd = the closure snapshot): " + " ".join(full))
-    print(f"{'SMOKE' if platform == 'neuronic' else 'SMOKE_DDP'} (cwd = the closure snapshot): " + " ".join(smoke))
+    if platform == "neuronic":
+        smoke_dir = os.path.join(a.dry_save_root or reg.PLATFORMS[platform]["save_root"], f"{a.run}_smoke")
+        smoke = launch_cmd(platform, ngpu, reg.build_smoke_argv(a.run, reg.SMOKE_STEPS_DDP, smoke_dir, True, platform))
+        print("SMOKE (cwd = the closure snapshot): " + " ".join(smoke))
+    else:                            # exp_46 plan r3 §3.2: no A6000 training path (never outputs_FLAC/exp38_smoke)
+        print("SMOKE_DDP: refused (exp_46 has no A6000 training path; SMOKE runs on neuronic only)")
     head = git("rev-parse", "HEAD")
     for label, fn in (("E0 receipt (FULL needs it)", lambda: reg.check_e0_receipt(platform)),
                       ("SMOKE_DDP receipt (FULL needs it)", lambda: reg.check_smoke_receipt(a.run, platform, a.backend, head)),
@@ -502,7 +504,12 @@ def mode_smoke_single(a):
 
 
 def mode_campaign(a, platform):
-    """SMOKE_DDP / FULL on a6000, SMOKE / FULL on neuronic."""
+    """SMOKE / FULL on neuronic (exp_46 has no A6000 training path: SMOKE_DDP refuses first)."""
+    if a.mode == "SMOKE_DDP":
+        # exp_46 plan r3 §3.2 (Names / paths; Codex plan r2 finding 1): the inherited A6000 SMOKE destination
+        # outputs_FLAC/exp38_smoke is refused -- before any gate, claim, lock, probe or directory
+        raise Refused(f"exp_46 has no A6000 training path: {a.mode} on {platform} is refused (the inherited SMOKE "
+                      "destination outputs_FLAC/exp38_smoke is never written); SMOKE runs on neuronic only")
     arm, tag, rung, exe, d, pins = common_gates(a, platform)
     # the save root (owner claim, run dir, ledger, probe all live under it) is isolated from exp_38's roots before any
     # mutation (Codex code r2 finding 6)
@@ -560,16 +567,15 @@ def mode_campaign(a, platform):
         if a.save_dir != rd:
             raise Refused(f"SAVE_DIR {a.save_dir} != the registry's smoke dir {rd}")
         storage = reg.storage_gate(platform, os.path.dirname(rd), 2**30)
-    else:
-        rd = os.path.join(reg.REPO, "outputs_FLAC", "exp38_smoke", f"{a.run}_ddp_{ts}")
-        storage = None
+    else:                            # unreachable (refused first above): no A6000 SMOKE destination exists in exp_46
+        raise Refused(f"exp_46 has no A6000 training path: no {a.mode} run dir on {platform}")
     reg.check_run_dir(rd, a.run, 0)
     os.makedirs(rd, exist_ok=True)
     try:
-        os.mkdir(os.path.join(rd, ".exp38_lock"))
+        os.mkdir(os.path.join(rd, ".exp46_lock"))
     except FileExistsError:
-        raise Refused(f"run lock {rd}/.exp38_lock exists (a live or crashed run: archive it first)")
-    reg.atomic_write_bytes(os.path.join(rd, ".exp38_lock", "holder"), json.dumps(
+        raise Refused(f"run lock {rd}/.exp46_lock exists (a live or crashed run: archive it first)")
+    reg.atomic_write_bytes(os.path.join(rd, ".exp46_lock", "holder"), json.dumps(
         {"pid": os.getpid(), "host": os.uname().nodename, "ts": ts, "head": head,
          "job": os.environ.get("SLURM_JOB_ID")}).encode())
     retained = None
@@ -579,7 +585,7 @@ def mode_campaign(a, platform):
                                        plain={"smoke_log": json.load(open(smoke["smoke_receipt"]))["log"]})
     # ---- snapshot (launch root)
     snap = (os.path.join(SNAPSHOT_ROOT["a6000"], f"{a.run}_{a.mode}_{ts}") if platform == "a6000"
-            else os.path.join(rd, ".exp38_tools"))
+            else os.path.join(rd, ".exp46_tools"))
     os.makedirs(os.path.dirname(snap), exist_ok=True)
     snapshot = reg.snapshot_tools(a.run, snap, reg.REPO)
     if reg.closure_digest(snap)["closure_sha256"] != closure:
@@ -629,7 +635,7 @@ def mode_campaign(a, platform):
         if rc != 0:
             rec.update(strict=True, status=rec.data.get("status", "running") if rc in (EXIT_START,) or rc >= 128
                        else f"train exited {rc}", finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
-            print(f"EXP38 {a.run} {a.mode} FAILED rc={rc}; the run lock stays as the crash marker", flush=True)
+            print(f"EXP46 {a.run} {a.mode} FAILED rc={rc}; the run lock stays as the crash marker", flush=True)
             return rc
         # ---- end audits, all from the snapshot
         if snap not in sys.path:
@@ -658,9 +664,9 @@ def mode_campaign(a, platform):
                 rec.update(smoke_receipt=out)
         except (reg.GateError, OSError, ValueError, KeyError) as err:
             rec.update(strict=True, status=f"end audit failed: {err}", finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
-            print(f"EXP38 {a.run} {a.mode} END AUDIT FAILED: {err}", flush=True)
+            print(f"EXP46 {a.run} {a.mode} END AUDIT FAILED: {err}", flush=True)
             return EXIT_END
-        os.rename(os.path.join(rd, ".exp38_lock"), os.path.join(rd, f".exp38_lock.released_{ts}"))
+        os.rename(os.path.join(rd, ".exp46_lock"), os.path.join(rd, f".exp46_lock.released_{ts}"))
         if full:
             tr_sha = reg.sha256_file(os.path.join(rd, reg.TRAINING_RECEIPT))
             rec.update(strict=True, status=verdict, training_receipt_sha256=tr_sha,
@@ -679,7 +685,7 @@ def mode_campaign(a, platform):
                 print(f"storage reservation of {a.run} not released: {err}", flush=True)
         else:
             rec.update(strict=True, status=verdict, finished_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
-        print(f"EXP38 {a.run} {a.mode} {verdict}", flush=True)
+        print(f"EXP46 {a.run} {a.mode} {verdict}", flush=True)
         return 0 if verdict in ("COMPLETE", "PASS") else EXIT_END
 
 
@@ -752,16 +758,16 @@ def _dispatch(a):
             return mode_smoke_single(a)
         return mode_campaign(a, a.platform)
     except Refused as err:
-        print(f"EXP38 LAUNCH REFUSED: {err}", file=sys.stderr, flush=True)
+        print(f"EXP46 LAUNCH REFUSED: {err}", file=sys.stderr, flush=True)
         return err.code
     except Stopped as st:
-        print(f"EXP38 stopped by signal {st.signum} before any child started", file=sys.stderr, flush=True)
+        print(f"EXP46 stopped by signal {st.signum} before any child started", file=sys.stderr, flush=True)
         return 128 + st.signum
     except (reg.GateError, KeyError, ValueError) as err:
-        print(f"EXP38 LAUNCH REFUSED: {err}", file=sys.stderr, flush=True)
+        print(f"EXP46 LAUNCH REFUSED: {err}", file=sys.stderr, flush=True)
         return EXIT_GATE
     except (OSError, subprocess.SubprocessError) as err:
-        print(f"EXP38 LAUNCH ERROR: {err}", file=sys.stderr, flush=True)
+        print(f"EXP46 LAUNCH ERROR: {err}", file=sys.stderr, flush=True)
         return EXIT_ENV
 
 

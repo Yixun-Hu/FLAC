@@ -171,7 +171,7 @@ def test_run_dir_fresh_and_complete_states_only(tmp_path):
     full = tmp_path / "full"
     _touch(full, [reg.ckpt_name(s, "025") for s in reg.cadence_steps()])
     assert reg.check_run_dir(str(full), run, 40000)["state"] == "complete"
-    (full / ".exp38_lock").mkdir()
+    (full / ".exp46_lock").mkdir()
     with pytest.raises(reg.GateError):
         reg.check_run_dir(str(full), run, 40000)                # a live / crashed run
     assert reg.check_run_dir(str(full), run, 40000, allow_lock=True)["state"] == "complete"

@@ -3,13 +3,13 @@
 plan_c4flip_data_curve.md r3 §3.2; exp_38: plan_data_efficiency.md r2 §9, §10 B8).
 
     exp46_eval.py plan                            the 8 E0, 30 RF result and 10 RF-100 bridge cells, full argv
-    exp38_eval.py env-receipt --write | --check   the campaign environment receipt (registry)
-    exp38_eval.py prepare <run>                   admit a run's final checkpoint + create its farm link
-    exp38_eval.py prepare-e0                      verify + link the four E0 reference checkpoints
-    exp38_eval.py run --gpu G --cells <name>...   run cells sequentially (card lock; idle card unless --shared)
-    exp38_eval.py e0                              E0 verdict -> the sealed data_efficiency_e0_receipt.json
-    exp38_eval.py e0-check                        validate the sealed E0 receipt against this tree
-    exp38_eval.py validate [--offline] <name>...  admission check of finished cells
+    exp46_eval.py env-receipt --write | --check   the campaign environment receipt (registry)
+    exp46_eval.py prepare <run>                   admit a run's final checkpoint + create its farm link
+    exp46_eval.py prepare-e0                      verify + link the four E0 reference checkpoints
+    exp46_eval.py run --gpu G --cells <name>...   run cells sequentially (card lock; idle card unless --shared)
+    exp46_eval.py e0                              E0 verdict -> the sealed data_efficiency_e0_receipt.json
+    exp46_eval.py e0-check                        validate the sealed E0 receipt against this tree
+    exp46_eval.py validate [--offline] <name>...  admission check of finished cells
     exp46_eval.py prepare-bridge                  verify + link the RF-100 checkpoint (RF100_BRIDGE)
     exp46_eval.py bridge --bundle <dir>           compare the 10 bridge cells with exp_43's reference bundle
 
@@ -233,7 +233,7 @@ DECISION_KEYS = frozenset({"schema", "decision", "gate", "decided_by", "decided_
 E0_RECEIPT = reg.E0_RECEIPT
 # every cell runs FROM a sealed closure snapshot of the campaign tree (Codex code r2 BLOCKING 2); its links:
 # the dataset, AGREE + the AGREE audio tower's VAE.ckpt, and outputs_FLAC (the farm links + cell outputs)
-SNAPSHOT_ROOT = "/home/yixunhu/codespace/exp-38-snapshots"
+SNAPSHOT_ROOT = "/home/yixunhu/codespace/exp-46-snapshots"
 EVAL_LINKS = ("AcousticRooms", "weights/AGREE", reg.VAE_CKPT_REL, "outputs_FLAC")
 _LIVE_PINS = {}
 
@@ -980,7 +980,7 @@ def cmd_run(gpu, names, shared=False, lockdir=LOCKDIR):
             raise EvalError(f"HEAD {git_head()} != the E0 campaign's {campaign['head']}")
     n_dump = sum(1 for n in names if cells[n]["dump"])
     if n_dump:
-        reg.storage_gate("a6000", DUMP_ROOT, int(n_dump * reg.DUMP_CELL_BYTES * 1.25), tag="exp38_dump")
+        reg.storage_gate("a6000", DUMP_ROOT, int(n_dump * reg.DUMP_CELL_BYTES * 1.25), tag="exp46_dump")
     lockfile = os.path.join(lockdir, f".exp38_card{gpu}.lock")
     lock = open(lockfile, "a")
     try:
@@ -1426,7 +1426,7 @@ def main(argv=None):
             print("\n".join(probs) or "VALID")
             return 0 if not probs else 1
     except (EvalError, reg.GateError, OSError, KeyError, ValueError, subprocess.CalledProcessError) as err:
-        print(f"EXP38 EVAL REFUSED: {err}", file=sys.stderr)
+        print(f"EXP46 EVAL REFUSED: {err}", file=sys.stderr)
         return 2
     return 0
 

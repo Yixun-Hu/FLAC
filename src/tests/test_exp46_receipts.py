@@ -420,7 +420,7 @@ def _full_run(tree, monkeypatch, run="exp46_RFf050_l40_2x32", losses=60, rc=0, d
     for s_ in reg.cadence_steps():
         if s_ != drop:
             (rd / reg.ckpt_name(s_, tag)).write_bytes(f"ckpt {s_}".encode())
-    (rd / ".exp38_lock").mkdir()
+    (rd / ".exp46_lock").mkdir()
     write_evidence(str(rd / "evidence"), records(run, max_steps=40000, backend=backend))
     log = tree / f"{run}.log"
     log.write_text(smoke_log(run, steps=40000, losses=losses, backend=backend))

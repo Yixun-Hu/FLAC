@@ -2,19 +2,19 @@
 # ============================================================================
 # exp46_train.sbatch — ONE monolithic exp_46 job on neuronic (forked from exp_45's exp45_train.sbatch at X45f, from exp_38's;
 # plan_c4flip_data_curve.md r3 §3.2; exp_38: plan_data_efficiency.md r2 §10 B7;
-# sensitivity platform, D2). Submit ONLY through exp38_submit_neuronic.py, which derives the Slurm
+# sensitivity platform, D2). Submit ONLY through exp46_submit_neuronic.py, which derives the Slurm
 # resources, owns (run, mode) with a stable intent record, names the job with its intent token and
 # exports:
 #   RUN  MODE (SMOKE | FULL)  EXPECT_SHA  EXP38_TOKEN  ATTN_BACKEND (flash|sdpa)
 #   EXPECT_FLASH_VERSION (flash only)  ALLOW_NONMATCHED_RUNG (1 for an _r8x8 run)  SAVE_DIR
 # SMOKE = the production-topology 30-step pilot that FULL requires (sealed SMOKE_DDP receipt); the
 # first SMOKE also writes this platform's sealed environment receipt.
-# This script only sanitises the environment and execs exp38_supervise.py, which exact-compares the
+# This script only sanitises the environment and execs exp46_supervise.py, which exact-compares the
 # allocation and the environment with the owner intent, launches torchrun FROM a closure snapshot
 # in the run dir, owns its process group (TERM/INT/HUP forwarded, bounded KILL) and publishes the
 # receipts. Test hook (refused under a real allocation): EXP38_SBATCH_DRYRUN=1 -> MODE=DRY_RUN, on the isolated
 # save root EXP38_DRY_SAVE_ROOT when set (--dry-save-root; Codex code r1 finding 10).
-# Exit codes: see exp38_supervise.py.
+# Exit codes: see exp46_supervise.py.
 # ============================================================================
 #SBATCH --partition=all
 #SBATCH --nodes=1
@@ -26,7 +26,7 @@ main() {
   cd "$REPO" || exit 3
   local EXP="worklog/worklog_yixun/exp_46_c4flip_data_curve_claude"
   local DRY="${EXP38_SBATCH_DRYRUN:-0}"
-  die() { echo "EXP38 JOB REFUSED: $1" >&2; exit "${2:-2}"; }
+  die() { echo "EXP46 JOB REFUSED: $1" >&2; exit "${2:-2}"; }
   if [ "$DRY" = 1 ] && [ -n "${SLURM_JOB_ID:-}" ]; then die "EXP38_SBATCH_DRYRUN is a test hook, never under a real allocation"; fi
   if [ "$DRY" != 1 ] && [ -z "${SLURM_JOB_ID:-}" ]; then die "a real job must run under sbatch"; fi
 

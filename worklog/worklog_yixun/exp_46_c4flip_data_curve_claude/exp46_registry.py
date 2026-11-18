@@ -314,13 +314,13 @@ def cadence_steps(upto=MAX_STEPS):
     return list(range(CADENCE, upto + 1, CADENCE))
 
 
-RUN_DIR_OWN = (".exp38_lock", ".exp38_tools", "CHECKPOINTS.sha256", "evidence", "receipts", "TRAINING_COMPLETE.json",
+RUN_DIR_OWN = (".exp46_lock", ".exp46_tools", "CHECKPOINTS.sha256", "evidence", "receipts", "TRAINING_COMPLETE.json",
                "TRAINING_COMPLETE.json.sha256", "TRAINING_COMMITTED.json", "TRAINING_COMMITTED.json.sha256")
 
 
 def _own_entry(name):
-    return (name.endswith(".ckpt") or name.startswith("at_launch_") or name.startswith(".exp38_lock.released_")
-            or name.startswith(".exp38_probe_") or name in RUN_DIR_OWN)
+    return (name.endswith(".ckpt") or name.startswith("at_launch_") or name.startswith(".exp46_lock.released_")
+            or name.startswith(".exp46_probe_") or name in RUN_DIR_OWN)
 
 
 def check_run_dir(path, run, upto, allow_lock=False):
@@ -338,8 +338,8 @@ def check_run_dir(path, run, upto, allow_lock=False):
         stray = sorted(n for n in names if not _own_entry(n))
         if stray:
             raise GateError(f"{path}: foreign entries {stray}")
-        if ".exp38_lock" in names and not allow_lock:
-            raise GateError(f"{path}: run lock .exp38_lock present (a run is live or crashed; archive first)")
+        if ".exp46_lock" in names and not allow_lock:
+            raise GateError(f"{path}: run lock .exp46_lock present (a run is live or crashed; archive first)")
         if upto == 0 and any(n in names for n in ("TRAINING_COMPLETE.json", "CHECKPOINTS.sha256", "TRAINING_COMMITTED.json")):
             raise GateError(f"{path}: a completed run's records are present")
     return {"run_dir": path, "state": "fresh" if not upto else "complete", "checkpoints": present}
@@ -972,7 +972,7 @@ def publish_no_clobber(target, data):
     _fsync_dir(d)
 
 
-def storage_gate(platform, path, need_bytes, tag="exp38"):
+def storage_gate(platform, path, need_bytes, tag="exp46"):
     """``path`` must exist on a registered filesystem, have ``need_bytes`` free and pass a
     write / read-back / delete probe. Returns the observed facts. Isolated from exp_38's roots first (r2 finding 6)."""
     check_isolation(path, "the storage root")
@@ -2434,7 +2434,7 @@ def _cli(argv=None):
                 print("    argv: " + " ".join(d["argv"]))
             print(f"DRY-RUN OK: {len(runs)} run(s) on {a.platform}")
     except (GateError, OSError, KeyError, ValueError) as err:
-        print(f"EXP38 GATE REFUSED: {err}", file=sys.stderr)
+        print(f"EXP46 GATE REFUSED: {err}", file=sys.stderr)
         return 2
     return 0
 
