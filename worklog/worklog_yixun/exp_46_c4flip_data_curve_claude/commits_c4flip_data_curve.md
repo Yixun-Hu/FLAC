@@ -49,4 +49,5 @@ CPU Slurm job; a failed attempt keeps its log, renamed `..._ABORTED_<reason>.log
 | `e2003dc2` | 2026-11-18 04:30 | fix r1 F12 (NIT): the supervisor documents no A6000 training mode; an A6000 SMOKE is refused first | 31 | AB1 red, AB2 green |
 | `86425120` | 2026-11-18 04:35 | fix r1 F10: both command sheets (neuronic; A6000 evaluation and publication only) + `test_exp46_command_sheets.py` | 492 **>200** (230 lines of sheets + the 262-line test; not flagged in the message) | AC1 red (sheets held aside), AC2 green |
 | `5286f6a6` | 2026-11-18 04:35 | fix r1 open item 1: the wandb-environment failures are inherited only as the parent's exact node / outcome / signature; no deselection carried forward (test; the policy already did it) | 22 | AC2 green (audit: no red) |
-| (this commit) | 2026-11-18 | records: fix round 1 -- ledger, worklog entry, every fix-round log | records | — (the final targeted run follows in the next records commit) |
+| `c8a04475` | 2026-11-18 04:36 | records: fix round 1 -- ledger, worklog entry, every fix-round log | records | — |
+| (this commit) | 2026-11-18 05:21 | records: the fix round's final targeted run | records | **FR1: 2,579 passed, 15 skipped, 41 deselected, 0 failed at `c8a04475`, tracked-clean** |

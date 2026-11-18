@@ -305,3 +305,14 @@ registry without `closure_digest_at` (F9), the sheets held aside (F10).
 - **Analysis:** no finding needed a plan change. Open for the coordinator: F6 / item 13 (Yixun's D1); the campaign order
   (D2) is written into the neuronic sheet as pending. Minor: one more trivial `python3 -` no-op ran on the login node
   (an empty stdin, by mistake) before a file edit; no test code ran there.
+
+### 04:37–05:20 — the fix round's final targeted run: GREEN
+- Command: `JOBTMP=/tmp TLIM=02:00:00 pyt46.sh FR1_final_targeted_yawaug_first_exp45_last -rfEs <the same 8 --deselect>
+  <51 files>` at `c8a04475` (header: tracked-clean=yes, neu306): the L0 final run's 50 files plus the new
+  `test_exp46_command_sheets.py`, in the same leak-safe order (yaw-aug / E1–E3 files first, exp_45's files last; item 13
+  still open).
+- Result: **2,579 passed, 15 skipped, 41 deselected, 0 failed** (EXIT 0) in 42 min 24 s, log
+  `c4flip_data_curve_2026-11-18_04-36-46_pytest_FR1_final_targeted_yawaug_first_exp45_last.log`. +57 passing nodes over
+  L0's final run (the round's new tests). The 15 skips are L0's environmental ones; the 41 deselected are the same
+  wandb-environment nodes of `test_exp43_kit.py` (open item 1; the definitive L1 keeps them, as inherited failures).
+- Analysis: every fix-round finding except F6 is closed and tested; ready for Codex code round 2 (the coordinator's call).
