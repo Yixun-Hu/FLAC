@@ -10,8 +10,9 @@ the f100 delta manifest build (CPU Slurm, sequential reads) → L2b the pin comm
 definitive regression comparison (three full suites, every node, no deselection) → L2c the union verification
 (recorded) before any f100 SMOKE → L3 the init-digest prediction → L4 the four launch-path dry-runs, then freeze `X46` (Yixun's go) → the A6000 E0 at
 `X46` and its records commit `Y46` → L5 SMOKEs → L6 FULLs → L7 NAS publication → L8 evaluation, results, the 20-row
-table, both regenerations. The definitive L1 also waits for Yixun's D1 (open item 13: exp_45's sampler test leaks
-lightning's global rank; L1 runs the suite in one process).
+table, both regenerations. The definitive L1 also needed Yixun's D1 (open item 13: exp_45's and exp_38's sampler tests
+leak lightning's global rank; L1 runs the suite in one process) -- decided 2026-11-18 as (a′): the declared edits E7 / E8
+restore the rank at teardown (`6c223854`, `12aa8805`).
 
 **Rules that hold throughout.** Every SMOKE / FULL launches from a clean launch checkout at `Y46`, through
 `exp46_train.sbatch` → `exec exp46_supervise.py --platform neuronic` (torchrun FROM a closure snapshot in
