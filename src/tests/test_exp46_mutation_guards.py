@@ -8,6 +8,7 @@ mutation of the kit goes through a guarded primitive that calls it first (the au
 
 Written by the exp_46 Coder (Claude Opus 5.5).
 """
+import ast
 import os
 import sys
 
@@ -409,3 +410,100 @@ def test_the_publication_lock_and_the_aux_writers_refuse_an_alias_before_any_wri
     assert rc.main(["--merged", "x", "--exp38", "x", "--exp43", "x", "--merged-root", "/m", "--exp38-root", "/p",
                     "--exp43-root", "/q", "--out", str(tmp_path / "report.json")]) == 2
     assert listing(prot) == before
+
+
+# ------------------------------------------------------------------ the audit: every mutating call of the kit
+AUDIT_KIT = ("exp46_registry.py", "exp46_submit_neuronic.py", "exp46_supervise.py", "exp46_eval.py", "exp46_collect.py",
+             "exp46_table.py", "exp46_content_manifest.py", "exp46_regression_compare.py", "exp46_init_digest.py",
+             "exp46_nas_publish.py")
+RAW = {"os.mkdir", "os.makedirs", "os.rename", "os.replace", "os.symlink", "os.link", "os.unlink", "os.remove",
+       "os.rmdir", "os.open", "os.truncate", "os.chmod", "shutil.copyfile", "shutil.copy", "shutil.copy2",
+       "shutil.copytree", "shutil.move", "shutil.rmtree", "tempfile.mkstemp", "tempfile.mkdtemp", "tar.extractall"}
+NEEDS_ROOT = ("atomic_write_bytes", "write_sealed", "publish_no_clobber")     # the root: 3rd positional or root=
+PRIMITIVE = "a guarded primitive itself: check_destination first"
+# Codex code r2 finding 1: every raw mutation left in the kit, (file, function, call) -> why it cannot leave a checked
+# place. Everything else goes through a guarded primitive naming its checked root (the worklog lists every site).
+AUDITED = {
+    ("exp46_registry.py", "_fsync_dir", "os.open"): "O_RDONLY | O_DIRECTORY: opens a directory to fsync it (a read)",
+    ("exp46_registry.py", "atomic_write_bytes", "os.open"): "the temp name after check_destination: O_EXCL | O_NOFOLLOW",
+    ("exp46_registry.py", "atomic_write_bytes", "os.replace"): "the validated temp entry onto the validated destination",
+    ("exp46_registry.py", "publish_no_clobber", "tempfile.mkstemp"): "a random O_EXCL | O_NOFOLLOW name, validated dir",
+    ("exp46_registry.py", "publish_no_clobber", "os.link"): "the temp file hard-linked to the validated target",
+    ("exp46_registry.py", "publish_no_clobber", "os.unlink"): "its own temp name",
+    ("exp46_registry.py", "storage_gate", "os.unlink"): "its own exclusive probe (unlink never follows a link)",
+    ("exp46_registry.py", "open_below", "os.open"): PRIMITIVE + "; O_NOFOLLOW",
+    ("exp46_registry.py", "makedirs_below", "os.makedirs"): PRIMITIVE,
+    ("exp46_registry.py", "mkdir_below", "os.mkdir"): PRIMITIVE,
+    ("exp46_registry.py", "rename_below", "os.rename"): PRIMITIVE + " (source and destination)",
+    ("exp46_registry.py", "symlink_below", "os.symlink"): PRIMITIVE,
+    ("exp46_supervise.py", "move_loss_record", "os.rmdir"): "the emptied logger folders below the validated run dir",
+    ("exp46_eval.py", "shutil_rmtree", "shutil.rmtree"): "a cell claim after check_destination (rmtree refuses links)",
+    ("exp46_table.py", "import_exp38", "tempfile.mkdtemp"): "a private 0700 dir in the isolation-checked temp dir",
+    ("exp46_table.py", "import_exp38", "shutil.rmtree"): "that private directory",
+    ("exp46_table.py", "verify_record_at_commit", "tempfile.mkdtemp"): "a private 0700 dir in the checked temp dir",
+    ("exp46_table.py", "verify_record_at_commit", "shutil.rmtree"): "that private directory",
+    ("exp46_table.py", "extract_bundle", "tar.extractall"): "into the private dir; every member a plain relative file",
+    ("exp46_nas_publish.py", "stage", "os.mkdir"): "the staging dir after check_destination: exclusive (EEXIST)",
+    ("exp46_nas_publish.py", "_rename_noreplace", "os.rename"): "the no-RENAME_NOREPLACE fallback after a fresh lexists "
+                                                                 "check: a directory rename never nests or replaces",
+}
+
+
+def _dotted(node):
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        inner = _dotted(node.value)
+        return f"{inner}.{node.attr}" if inner else None
+    return None
+
+
+class _Calls(ast.NodeVisitor):
+    """Every call of a module with its innermost enclosing function."""
+
+    def __init__(self):
+        self.stack, self.out = ["<module>"], []
+
+    def visit_FunctionDef(self, node):
+        self.stack.append(node.name)
+        self.generic_visit(node)
+        self.stack.pop()
+
+    visit_AsyncFunctionDef = visit_FunctionDef
+
+    def visit_Call(self, node):
+        self.out.append((self.stack[-1], node))
+        self.generic_visit(node)
+
+
+def mutation_calls():
+    """(file, enclosing function, call) of every raw mutation, every write-mode open() and every root-less writer
+    call in the kit."""
+    raw, opens, rootless = set(), [], []
+    for name in AUDIT_KIT:
+        visitor = _Calls()
+        visitor.visit(ast.parse(open(os.path.join(EXP, name)).read(), name))
+        for where, node in visitor.out:
+            call = _dotted(node.func) or ""
+            if call in RAW or call.endswith(".extractall"):
+                raw.add((name, where, "tar.extractall" if call.endswith(".extractall") else call))
+            if call == "open":
+                mode = node.args[1] if len(node.args) > 1 else next(
+                    (k.value for k in node.keywords if k.arg == "mode"), None)
+                if mode is not None and not (isinstance(mode, ast.Constant) and set(str(mode.value)) <= set("rbt")):
+                    opens.append((name, where, ast.unparse(node)[:80]))
+            if call.split(".")[-1] in NEEDS_ROOT and not (len(node.args) > 2 or any(k.arg == "root" for k in node.keywords)):
+                rootless.append((name, where, ast.unparse(node)[:80]))
+    return raw, opens, rootless
+
+
+def test_every_mutating_call_of_the_kit_is_guarded_or_audited():
+    """Codex code r2 finding 1: the kit's mutating paths have no unguarded open() / mkdir / rename / symlink / copy.
+    Every write-mode open is open_below; every atomic / sealed / no-clobber write names its checked root; the only raw
+    mutation calls left are the AUDITED ones (the primitives' own implementations and mutations that cannot leave a
+    checked place) -- a new raw call, or a stale audit entry, fails here."""
+    raw, opens, rootless = mutation_calls()
+    assert opens == [], opens
+    assert rootless == [], rootless
+    assert sorted(raw - set(AUDITED)) == [] and sorted(set(AUDITED) - raw) == [], (sorted(raw - set(AUDITED)),
+                                                                                  sorted(set(AUDITED) - raw))
