@@ -53,6 +53,27 @@ def _load_exp40_capture():
 
 
 cap = _load_exp40_capture()
+X45F = "1e37ead2a352bd78d50cdda9ed02e95738a4ad04"            # exp_45's frozen tip, exp_46's base
+
+
+def _x45f_step_seed():
+    """X45f's OWN _yaw_aug_step_seed -- the function, its helpers (_splitmix64, _fmix32) and their constants, executed
+    from the frozen X45f source of src/training/diffusion.py, not the production module (fix round 1, Codex code r1
+    finding 11): a changed production seed derivation can no longer move the oracle with it."""
+    import ast
+    import subprocess
+    src = subprocess.run(["git", "-C", str(_HERE.parent.parent), "show", f"{X45F}:src/training/diffusion.py"],
+                         capture_output=True, text=True, check=True).stdout
+    keep = [n for n in ast.parse(src).body
+            if (isinstance(n, ast.FunctionDef) and n.name in ("_splitmix64", "_fmix32", "_yaw_aug_step_seed"))
+            or (isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name)
+                and n.targets[0].id.startswith(("_MASK", "_SPLITMIX64_", "_FMIX32_", "_YAW_AUG_")))]
+    ns = {}
+    exec(compile(ast.Module(body=keep, type_ignores=[]), f"{X45F}:src/training/diffusion.py", "exec"), ns)
+    return ns["_yaw_aug_step_seed"]
+
+
+_X45F_STEP_SEED = _x45f_step_seed()
 
 
 @pytest.fixture(autouse=True)
@@ -63,13 +84,13 @@ def _no_flash(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
-# independent references (no call into the code under test except the seed counter)
+# independent references (no call into the code under test: the seed counter is X45f's own)
 # --------------------------------------------------------------------------- #
 def _oracle_stream(seed, step, rank, n, img_w=W, grid=GRID):
     """``n`` raw offsets ``randint(0, img_w)`` FIRST, then ``n`` bits ``randint(0, 2)``, from one generator per
-    ``(seed, step, rank)``; the offsets snapped down to the grid by integer arithmetic."""
+    ``(seed, step, rank)`` seeded by X45f's counter; the offsets snapped down to the grid by integer arithmetic."""
     gen = torch.Generator()
-    gen.manual_seed(tdiff._yaw_aug_step_seed(seed, step, rank))
+    gen.manual_seed(_X45F_STEP_SEED(seed, step, rank))
     raw = torch.randint(0, img_w, (n,), generator=gen, dtype=torch.long).tolist()
     bits = torch.randint(0, 2, (n,), generator=gen, dtype=torch.long).tolist()
     return [grid * (d // grid) for d in raw], bits
@@ -302,6 +323,26 @@ def test_the_c4f_draws_are_resume_exact(monkeypatch):
 # --------------------------------------------------------------------------- #
 # 4. coverage
 # --------------------------------------------------------------------------- #
+def test_the_oracle_seed_is_x45fs_and_independent_of_the_production_derivation(monkeypatch):
+    """Fix round 1 (Codex code r1 finding 11, NIT): the oracle's step seed is X45f's own counter, executed from the
+    frozen X45f source. Production still derives exactly X45f's seeds on every (seed, step, rank) these tests use
+    (distinct streams), and a drifted production derivation is caught -- the oracle no longer moves with it."""
+    points = [(s, r) for s in range(16) for r in (0, 1)] + [(2499, 0), (2500, 1), (2500, 3), (39999, 1)]
+    assert _X45F_STEP_SEED is not tdiff._yaw_aug_step_seed
+    for seed in (SEED, 0, 7):
+        assert [_X45F_STEP_SEED(seed, s, r) for s, r in points] == [tdiff._yaw_aug_step_seed(seed, s, r)
+                                                                   for s, r in points], seed
+    assert len({_X45F_STEP_SEED(SEED, s, r) for s, r in points}) == len(points)
+    m = cap._mods()
+    spies = _Spies(monkeypatch)
+    md = [cap.make_md(m, 600 + i, W, height=2) for i in range(32)]
+    w = cap.build_wrapper(m, cap.tiny_config(W, C4F))
+    assert tuple(_production_stream(w, spies, md, 3, 1)[:2]) == _oracle_stream(SEED, 3, 1, 32)
+    real = tdiff._yaw_aug_step_seed
+    monkeypatch.setattr(tdiff, "_yaw_aug_step_seed", lambda s, st, r: real(s, st, r) ^ 1)      # a drifted derivation
+    assert tuple(_production_stream(w, spies, md, 3, 1)[:2]) != _oracle_stream(SEED, 3, 1, 32)
+
+
 def test_all_eight_offset_bit_combinations_occur_with_the_oracles_counts(monkeypatch):
     m = cap._mods()
     spies = _Spies(monkeypatch)
