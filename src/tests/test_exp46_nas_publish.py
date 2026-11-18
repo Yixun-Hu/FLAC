@@ -7,6 +7,8 @@ the NAS is never touched.
 
 Written by the exp_46 Coder (Claude Opus 5.5).
 """
+import ctypes
+import errno
 import os
 import sys
 
@@ -81,7 +83,7 @@ def test_stage_never_creates_or_follows_its_root(tmp_path, monkeypatch):
     assert _listing(tmp_path / "real") == [] and _listing(prot) == []
 
 
-@pytest.mark.parametrize("noreplace", [True, False], ids=["renameat2", "rename fallback"])
+@pytest.mark.parametrize("noreplace", [True, False], ids=["renameat2", "raw syscall"])
 @pytest.mark.parametrize("final", ["a published run", "an empty directory", "a file", "a link"])
 def test_publish_refuses_a_final_path_created_meanwhile_never_replacing_or_nesting(tmp_path, monkeypatch, final,
                                                                                 noreplace):
@@ -103,8 +105,9 @@ def test_publish_refuses_a_final_path_created_meanwhile_never_replacing_or_nesti
             dst.write_text("theirs")
         else:
             dst.symlink_to(tmp_path / "absent")
-    if not noreplace:                                   # a libc / filesystem without renameat2
-        monkeypatch.setattr(nas.ctypes, "CDLL", lambda *a, **k: object())
+    if not noreplace:                                   # a libc without the renameat2 wrapper: the raw syscall
+        real_libc = ctypes.CDLL(None, use_errno=True)
+        monkeypatch.setattr(nas.ctypes, "CDLL", lambda *a, **k: _OnlySyscall(real_libc))
     real, moves = nas._rename_noreplace, []
 
     def meanwhile(src, dst_):
@@ -137,3 +140,62 @@ def test_publish_refuses_anything_but_a_real_sealed_staging_directory(tmp_path, 
         nas.publish(str(root), RUN)
     assert _listing(root) == before
     assert nas.main(["publish", "--dest-root", str(root), "--run", RUN]) == 2
+
+
+# ------------------------------------------------------------------ fix round 3, Codex code r3 finding 4: no fallback
+class _OnlySyscall:
+    """A libc WITHOUT the renameat2 wrapper (glibc < 2.28): only the real syscall(), so the raw renameat2 runs."""
+
+    def __init__(self, real):
+        self.syscall = real.syscall
+
+
+class _Unsupported:
+    """A box / filesystem without RENAME_NOREPLACE: renameat2 fails with ``err``."""
+
+    def __init__(self, err):
+        self.err = err
+
+    def renameat2(self, *args):
+        ctypes.set_errno(self.err)
+        return -1
+
+
+def test_the_raw_syscall_publishes_when_libc_has_no_wrapper(tmp_path, monkeypatch):
+    """No wrapper (glibc < 2.28): the RAW renameat2 syscall moves the admitted staging dir -- the real kernel call;
+    the race test above runs the same path against a final created meanwhile (EEXIST, nothing replaced)."""
+    real = ctypes.CDLL(None, use_errno=True)
+    monkeypatch.setattr(nas.ctypes, "CDLL", lambda *a, **k: _OnlySyscall(real))
+    root = tmp_path / "nas"
+    root.mkdir()
+    _staged(root)
+    assert nas.publish(str(root), RUN) == (str(root / RUN), "renameat2")
+    assert sorted(os.listdir(root / RUN)) == sorted([reg.TRAINING_RECEIPT, reg.COMMIT_MARKER, "CHECKPOINTS.sha256"])
+
+
+@pytest.mark.parametrize("err", [errno.EINVAL, errno.ENOSYS, errno.EOPNOTSUPP])
+def test_an_unsupported_no_replace_rename_refuses_and_a_competitor_is_never_replaced(tmp_path, monkeypatch, err):
+    """Codex code r3 finding 4: the old fallback (a lexists check, then os.rename) let a competitor's empty directory,
+    created between the check and the rename, be replaced. renameat2 now reports ``err`` (no RENAME_NOREPLACE here) and
+    a competitor creates the final directory immediately before any rename could run: publish REFUSES, no rename
+    happens at all, the competitor's directory is untouched (empty) and the staging dir is kept."""
+    root = tmp_path / "nas"
+    root.mkdir()
+    incoming = _staged(root)
+    dst = root / RUN
+    renamed, real_rename = [], os.rename
+
+    def competitor_then_rename(src, dst_):
+        renamed.append((src, dst_))
+        os.mkdir(dst_)                    # another publisher's empty dir, immediately before the fallback rename
+        return real_rename(src, dst_)
+    monkeypatch.setattr(nas.os, "rename", competitor_then_rename)
+    monkeypatch.setattr(nas.ctypes, "CDLL", lambda *a, **k: _Unsupported(err))
+    with pytest.raises(reg.GateError, match="RENAME_NOREPLACE unsupported"):
+        nas.publish(str(root), RUN)
+    assert renamed == [] and not os.path.lexists(dst)                 # no fallback rename ever runs
+    assert sorted(os.listdir(incoming)) == sorted([reg.TRAINING_RECEIPT, reg.COMMIT_MARKER, "CHECKPOINTS.sha256"])
+    monkeypatch.setattr(nas.ctypes, "CDLL", lambda *a, **k: object())        # no wrapper and no syscall(): ENOSYS
+    with pytest.raises(reg.GateError, match="RENAME_NOREPLACE unsupported"):
+        nas.publish(str(root), RUN)
+    assert renamed == [] and not os.path.lexists(dst)

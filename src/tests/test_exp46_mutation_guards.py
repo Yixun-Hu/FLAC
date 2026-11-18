@@ -444,8 +444,6 @@ AUDITED = {
     ("exp46_table.py", "verify_record_at_commit", "shutil.rmtree"): "that private directory",
     ("exp46_table.py", "extract_bundle", "tar.extractall"): "into the private dir; every member a plain relative file",
     ("exp46_nas_publish.py", "stage", "os.mkdir"): "the staging dir after check_destination: exclusive (EEXIST)",
-    ("exp46_nas_publish.py", "_rename_noreplace", "os.rename"): "the no-RENAME_NOREPLACE fallback after a fresh lexists "
-                                                                 "check: a directory rename never nests or replaces",
 }
 
 

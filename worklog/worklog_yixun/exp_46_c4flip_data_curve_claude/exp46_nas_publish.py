@@ -8,9 +8,12 @@ the staging directory and exp_46's own admission (sha256sum -c, ``exp46_registry
 ``publish`` re-validates the staging directory (a real directory below the dest root, never a link, holding the
 sealed run's TRAINING_COMPLETE.json and TRAINING_COMMITTED.json) and moves it to ``<dest root>/<run>`` through a
 NO-REPLACE rename (renameat2 RENAME_NOREPLACE): a final path created meanwhile refuses -- it is never replaced and
-the staging directory is never nested inside it (as ``mv`` would). A filesystem without RENAME_NOREPLACE falls back
-to os.rename after a fresh lexists check: a directory rename never nests and never replaces a file, a link or a
-non-empty directory.
+the staging directory is never nested inside it (as ``mv`` would). There is NO fallback (Codex code r3 finding 4): a
+box or filesystem without RENAME_NOREPLACE refuses (a lexists check followed by os.rename would let a competitor's
+empty directory, created in between, be replaced). Where it runs: L7 publishes from the A6000 box into its NAS mount
+(/media/diskstation/..., registered as cifs in STORAGE_FS["a6000"]); the Linux CIFS client implements
+RENAME_NOREPLACE (cifs_rename2: no-replace is its natural behaviour), so refusing costs no publication there; a libc
+without the renameat2 wrapper (glibc < 2.28) gets the raw syscall.
 
     python -B exp46_nas_publish.py stage   --dest-root <dir> --run <run id>
     python -B exp46_nas_publish.py publish --dest-root <dir> --run <run id>
@@ -21,6 +24,7 @@ import argparse
 import ctypes
 import errno
 import os
+import platform
 import sys
 
 sys.dont_write_bytecode = True
@@ -30,6 +34,7 @@ import exp46_registry as reg  # noqa: E402
 
 RENAME_NOREPLACE = 1             # <linux/fs.h>
 AT_FDCWD = -100
+SYS_RENAMEAT2 = {"x86_64": 316, "aarch64": 276}       # the raw syscall number, for a libc without the wrapper
 
 
 def _paths(dest_root, run):
@@ -52,21 +57,39 @@ def stage(dest_root, run):
     return incoming
 
 
-def _rename_noreplace(src, dst):
+class NoReplaceUnsupported(OSError):
+    """renameat2(RENAME_NOREPLACE) is not available on this box or filesystem."""
+
+
+def _renameat2(src, dst):
+    """renameat2(AT_FDCWD, src, AT_FDCWD, dst, RENAME_NOREPLACE): libc's wrapper (glibc >= 2.28), else the raw syscall
+    (an older libc). 0 on success, else the errno."""
     libc = ctypes.CDLL(None, use_errno=True)
+    s, d = os.fsencode(src), os.fsencode(dst)
     fn = getattr(libc, "renameat2", None)
     if fn is not None:
-        if fn(AT_FDCWD, os.fsencode(src), AT_FDCWD, os.fsencode(dst), RENAME_NOREPLACE) == 0:
-            return "renameat2"
-        err = ctypes.get_errno()
-        if err == errno.EEXIST:
-            raise FileExistsError(errno.EEXIST, "the published path exists", dst)
-        if err not in (errno.EINVAL, errno.ENOSYS, errno.EOPNOTSUPP):
-            raise OSError(err, os.strerror(err), src)
-    if os.path.lexists(dst):            # no RENAME_NOREPLACE here: a fresh check, then a directory rename (it never
-        raise FileExistsError(errno.EEXIST, "the published path exists", dst)    # nests, never replaces a file / link /
-    os.rename(src, dst)                                                          # non-empty directory)
-    return "rename"
+        rc = fn(AT_FDCWD, s, AT_FDCWD, d, RENAME_NOREPLACE)
+    else:
+        nr, sc = SYS_RENAMEAT2.get(platform.machine()), getattr(libc, "syscall", None)
+        if nr is None or sc is None:
+            return errno.ENOSYS
+        rc = sc(ctypes.c_long(nr), ctypes.c_long(AT_FDCWD), ctypes.c_char_p(s), ctypes.c_long(AT_FDCWD),
+                ctypes.c_char_p(d), ctypes.c_long(RENAME_NOREPLACE))
+    return 0 if rc == 0 else ctypes.get_errno()
+
+
+def _rename_noreplace(src, dst):
+    """The no-replace move, or a refusal -- never a plain rename (Codex code r3 finding 4: a lexists check followed by
+    os.rename lets a competitor's empty directory, created in between, be replaced). EEXIST -> FileExistsError;
+    EINVAL / ENOSYS / EOPNOTSUPP (no RENAME_NOREPLACE here) -> NoReplaceUnsupported."""
+    err = _renameat2(src, dst)
+    if err == 0:
+        return "renameat2"
+    if err == errno.EEXIST:
+        raise FileExistsError(errno.EEXIST, "the published path exists", dst)
+    if err in (errno.EINVAL, errno.ENOSYS, errno.EOPNOTSUPP):
+        raise NoReplaceUnsupported(err, f"renameat2 RENAME_NOREPLACE unsupported here ({os.strerror(err)})", dst)
+    raise OSError(err, os.strerror(err), src)
 
 
 def publish(dest_root, run):
@@ -85,6 +108,9 @@ def publish(dest_root, run):
         how = _rename_noreplace(incoming, final)
     except FileExistsError:
         raise reg.GateError(f"{final} exists (created meanwhile): refused, never replaced or nested; {incoming} kept")
+    except NoReplaceUnsupported as err:
+        raise reg.GateError(f"{err.strerror}: refused -- no fallback rename (it could replace a competitor's directory); "
+                            f"{incoming} kept; tell Yixun")
     reg._fsync_dir(root)
     return final, how
 
