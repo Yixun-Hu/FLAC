@@ -1183,7 +1183,7 @@ DISCLOSURES = (
     "2. Nominal fractions; the effective item fractions are 25.2302 / 50.0206 / 75.0191 %.",
     "3. Fixed 40,000 updates, not matched epochs (≈ 34.84 / 17.57 / 11.72 epochs vs 8.79 at 100 %).",
     "4. RF 25 / 50 / 75 % trained on 2 x L40 (neuronic); RF 100 % on 2 x A6000 with the unrestricted 100 % config "
-    "(exp_38's subset audit: removed = 0, outside = 0 at 100 %); the curve is cross-platform at 100 % -- see the bridge.",
+    "(exp_38's subset audit: removed = 0, outside = 0 at 100 %); the curve is cross-platform at 100 %.",
     "5. The RF frame audit passed under gate A2, adopted after the originally registered gate failed.",
     "6. Item-weighted aggregation over the 6,337 unseen items, not the paper's per-scene protocol.",
     "7. OrbitRIR rows use their own fa_invariant inference protocol: the comparison is descriptive, not an "
@@ -1192,7 +1192,7 @@ DISCLOSURES = (
     "9. RF's loss record comes from PL's CSV logger (exp_43's from W&B offline); same quantity and cadence.",
     "10. Launcher difference vs RF 100 % (torchrun vs PL spawn), as between exp_38's fraction and 100 % rows.",
     "11. E0 cells carry no waveform dumps (N10), as exp_38's registered E0.")
-# where each applies: the collector's table (RF 25 / 50 / 75 % + the RF-100 bridge) has no OrbitRIR row, so item 7
+# where each applies: the collector's table (RF 25 / 50 / 75 % only) has no OrbitRIR row, so item 7
 # does not apply there; the comparison table and the shared generator table carry OrbitRIR rows
 DISCLOSURE_ITEMS = {"collect": (1, 2, 3, 4, 5, 6, 8, 9, 10, 11), "table": tuple(range(1, 12)),
                     "generator": tuple(range(1, 12))}
@@ -1230,12 +1230,8 @@ EXP38_READONLY = (f"{EXP38_DIR}/exp38_registry.py", f"{EXP38_DIR}/exp38_subset_a
                   f"{EXP38_DIR}/exp38_content_manifest.py", SUBSET_AUDIT, SUBSET_AUDIT + ".sha256",
                   AR_CONTENT_MANIFEST, REF_MANIFEST, *(f"{REF_DIR}/{r}" for r in ref_set()),
                   E0A_DECISION, E0A_DECISION + ".sha256")
-# exp_43's own admission validator (exp43_kit.admission_reasons) and the AR manifest it reads: the bridge comparison
-# validates exp_43's admission record with it (Codex code r1 finding 2), so both enter the closure read-only
-EXP43_DIR = "worklog/worklog_yixun/exp_43_std_aug_claude"
-EXP43_KIT = f"{EXP43_DIR}/exp43_kit.py"
-EXP43_READONLY = (EXP43_KIT, f"{EXP43_DIR}/exp43_ar_manifest.json")
-EXTERNAL_CONFIGS = EXTERNAL_CONFIGS + EXP38_READONLY + EXP43_READONLY
+# exp_46 has no bridge (plan r3 §3.2), so exp_43's admission validator (exp_45's EXP43_READONLY) is not in the closure
+EXTERNAL_CONFIGS = EXTERNAL_CONFIGS + EXP38_READONLY
 
 
 def _git_out(repo, *args):

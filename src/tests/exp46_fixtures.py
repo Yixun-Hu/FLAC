@@ -229,40 +229,6 @@ def commit(reg, rd, run, digest, status="COMPLETE"):
     return reg.write_commit_marker(rd, run, digest, lr)
 
 
-def exp43_admission(kit, ckpt_sha256, ckpt_bytes, **over):
-    """An exact exp_43 RF admission record (exp43_kit.admit's ADMISSION_KEYS, record-only valid under
-    admission_reasons(rehash=None)) of the 40k checkpoint ``ckpt_sha256`` / ``ckpt_bytes``, at exp_43's NAS paths;
-    ``over`` replaces any field afterwards."""
-    run_id = "exp43_RF_a6000_2x32"
-    nas = os.path.join(kit.NAS_ROOT, run_id)
-    final = kit.ckpt_name(kit.ENDPOINT)
-    ck = {name: sha(name.encode()) for name in kit.EXPECTED_CKPTS}
-    ck[final] = ckpt_sha256
-    run_dir = "offline-run-20261110_120000-abc123xy"
-    hub = "/sealed_hub"
-    snap = os.path.join(hub, "hub", kit.DINO_REPO_DIR, "snapshots", kit.DINO_REVISION)
-    rec = {"kind": "exp43_admission", "admitted": True, "arm": "RF", "run_id": run_id, "platform": "a6000",
-           "rung": "2x32", "train_sha": "a" * 40, "runtree_digest": "1" * 64, "env_digest": "2" * 64, "nas_dir": nas,
-           "checkpoints": ck, "manifest_sha256": "3" * 64, "ckpt_path": os.path.join(nas, final),
-           "sha256": ckpt_sha256, "bytes": ckpt_bytes, "global_step": 40000, "model_config": kit.ARM_CONFIG,
-           "model_config_sha256": kit.PINS[kit.ARM_CONFIG], "embedded_config_sha256": "4" * 64,
-           "ema_inventory_sha256": "5" * 64, "strict_load": True, "full_evidence_sha256": "6" * 64,
-           "check_sha256": "7" * 64, "audit_sha256": "8" * 64, "historical": dict(kit.HISTORICAL),
-           "current_assets": kit.current_assets(hub, [os.path.join(snap, "model.safetensors"),
-                                                      os.path.join(snap, "config.json")]),
-           "trajectory_equivalence_claim_allowed": False, "note": "", "t": 1762000000.0,
-           "wandb_archive": {"receipt_sha256": "9" * 64, "preserved_receipt_sha256": "a" * 64,
-                             "preserved_dir": f"/home/yixunhu/exp43/wandb_preserved/{run_dir}",
-                             "dest_dir": kit.wandb_dest(run_id), "run_dir_name": run_dir, "files_digest": "b" * 64,
-                             "n_files": 7, "manifest_sha256": "c" * 64, "run_file_sha256": "d" * 64},
-           "train_history": {"tool": kit.TRAIN_HISTORY_TOOL, "tool_sha256": kit.TRAIN_HISTORY_TOOL_SHA256,
-                             "csv": "/home/yixunhu/exp43/history.csv", "csv_sha256": "e" * 64,
-                             "sidecar": "/home/yixunhu/exp43/history.json", "sidecar_sha256": "f" * 64,
-                             "run_file_sha256": "d" * 64, "rows": 400}}
-    rec.update(over)
-    return rec
-
-
 def synthetic_e0(ev, closure):
     """An E0 receipt that passes e0_static_problems (for retained copies of a synthetic campaign)."""
     reg = ev.reg
@@ -405,76 +371,5 @@ def make_cell(ev, cell, campaign, ckpt, log_dir, dump=True, metrics=None, by_sce
                "metrics_sha256": msha, "stream_sha256": ssha, "dump_manifest_sha256": man_sha,
                "ckpt_sha256": ckpt[0], "ckpt_bytes": ckpt[1], "training_receipt_sha256": ckpt[2],
                "started_at": "2026-11-09T05:00:00-0500", "finished_at": "2026-11-09T05:30:00-0500"}
-    if cell.get("bridge"):                                       # exp_46: an RF-100 bridge cell's receipt
-        receipt.update(checkpoint_source="exp43_external", bridge_descriptor_sha256=ev.BRIDGE_DESCRIPTOR_SHA256)
     json.dump(receipt, open(ev._abs(cell["receipt"]), "w"))
-    return cell
-
-
-def bridge_bundle(ev, dest, kit, mutate=None, admission=None):
-    """exp_43's reference bundle for ``ev``'s ten EXISTING RF-100 bridge cells, as exp46_eval.cmd_bridge reads it:
-    references = our metrics with exp_43's metadata (not compared) + exp_43's own pristine stream, the admission
-    record = exp_43's exact admission of the RF100_BRIDGE checkpoint (``kit``: exp_43's kit) unless ``admission`` is
-    given, and the BRIDGE_MANIFEST over all of it; ``mutate(cell, metrics, stream)`` may edit a reference first."""
-    import pathlib
-    b = pathlib.Path(dest)
-    (b / "cells").mkdir(parents=True)
-    (b / "admission").mkdir()
-    for c in ev.bridge_cells():
-        stem = ev.bridge_ref_stem(ev.RF100_BRIDGE["cells"][c["name"]])
-        m, s = json.load(open(ev._abs(c["metrics"]))), stream_sidecar(c["K"], c["seed"])
-        m.update(eval_name=ev.RF100_BRIDGE["cells"][c["name"]], ckpt_path="/home/yixunhu/x/farm/RF/epoch=8-step=40000.ckpt",
-                 source_sha="5f5b493a8ac1" + "0" * 28)                             # metadata only: not compared
-        if mutate:
-            mutate(c, m, s)
-        json.dump(m, open(b / "cells" / f"{stem}.json", "w"))
-        json.dump(s, open(b / "cells" / f"{stem}.stream.json", "w"))
-    if admission is None:
-        admission = exp43_admission(kit, ev.RF100_BRIDGE["sha256"], ev.RF100_BRIDGE["bytes"])
-    json.dump(admission, open(b / "admission" / "exp43_admission_RF.json", "w"))
-    rels = sorted(os.path.relpath(os.path.join(d, f), b) for d, _, fs in os.walk(b) for f in fs)
-    (b / ev.BRIDGE_MANIFEST).write_text("".join(f"{ev.reg.sha256_file(str(b / r))}  {r}\n" for r in rels))
-    return b
-
-
-def rebind_cell(ev, cell):
-    """Re-bind a cell's receipt and dump-manifest copy to its CURRENT metrics / stream bytes -- what an editor who
-    wants the edited cell to keep passing its own offline admission would do."""
-    sha = ev.reg.sha256_file
-    copy = ev.dump_manifest_copy(cell)
-    man = json.load(open(copy))
-    man.update(stream_sidecar_sha256=sha(ev._abs(cell["stream"])), metrics_sha256=sha(ev._abs(cell["metrics"])))
-    json.dump(man, open(copy, "w"), indent=2)
-    rec = json.load(open(ev._abs(cell["receipt"])))
-    rec.update(stream_sha256=sha(ev._abs(cell["stream"])), metrics_sha256=sha(ev._abs(cell["metrics"])),
-               dump_manifest_sha256=sha(copy))
-    json.dump(rec, open(ev._abs(cell["receipt"]), "w"))
-
-
-BRIDGE_BREAKS = ("absent comparison", "unreadable comparison", "missing bridge artifact", "changed bridge artifact")
-
-
-def break_bridge(ev, what, name="exp46_RF100bridge_K8_s44"):
-    """Take the sealed RF-100 bridge comparison away from the CURRENT bridge artifacts (Codex code r3 finding 1):
-    remove it, make it unreadable (its sidecar no longer matches), remove one compared bridge stream, or change that
-    stream after the seal with the cell's receipt / dump-manifest links re-bound, so that the cell alone still admits
-    offline and only the comparison names the old bytes. Returns the bridge cell."""
-    path = ev._abs(ev.BRIDGE_RESULT)
-    cell = [c for c in ev.bridge_cells() if c["name"] == name][0]
-    if what == "absent comparison":
-        for p in (path, path + ".sha256"):
-            os.remove(p)
-    elif what == "unreadable comparison":
-        with open(path, "ab") as fh:
-            fh.write(b" ")
-    elif what == "missing bridge artifact":
-        os.remove(ev._abs(cell["stream"]))
-    elif what == "changed bridge artifact":
-        stream = json.load(open(ev._abs(cell["stream"])))
-        for k in ev.STREAM_ITEMS:
-            stream.pop(k)
-        json.dump(stream, open(ev._abs(cell["stream"]), "w"))
-        rebind_cell(ev, cell)
-    else:
-        raise ValueError(what)
     return cell

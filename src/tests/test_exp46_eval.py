@@ -46,12 +46,13 @@ def _opt(argv, flag):
     return argv[argv.index(flag) + 1]
 
 
-def test_plan_has_8_e0_30_result_and_10_bridge_cells_with_unique_outputs():
-    cells = ev.all_cells()                      # E0 + the three RF runs + the RF-100 bridge (no P1 bridge run)
-    assert ev.reg.TRAINING_PLATFORM == "neuronic" and len(cells) == 48
-    assert len({c["name"] for c in cells}) == 48 and len({c["metrics"] for c in cells}) == 48
-    assert sum(c["e0"] is not None for c in cells) == 8 and sum(bool(c["bridge"]) for c in cells) == 10
-    assert {c["run"] for c in cells if not c["e0"]} == set(ev.reg.campaign_runs()) | {ev.BRIDGE_RUN}
+def test_plan_has_8_e0_and_the_campaign_runs_result_cells_with_unique_outputs():
+    cells = ev.all_cells()                      # E0 + the campaign runs' cells (exp_46: no bridge, plan r3 §3.2)
+    n = 8 + 10 * len(ev.reg.campaign_runs())
+    assert ev.reg.TRAINING_PLATFORM == "neuronic" and len(cells) == n == 38
+    assert len({c["name"] for c in cells}) == n and len({c["metrics"] for c in cells}) == n
+    assert sum(c["e0"] is not None for c in cells) == 8 and not any("bridge" in c for c in cells)
+    assert {c["run"] for c in cells if not c["e0"]} == set(ev.reg.campaign_runs())
     assert all(c["dump"] == (c["e0"] is None) for c in cells)
 
 
@@ -567,13 +568,14 @@ def test_aggregate_and_seed_set():
 def _rows():
     """Synthetic rf_rows() output (the publication order test needs no admitted cells)."""
     st = {k: (1.0, 0.1, 5) for k in ev.METRIC_KEYS}
-    return {(m, f, K): {"stats": st, "source": "x"} for m, f in [("rf", t) for t in ("025", "050", "075")] + [("rf_bridge", "100")]
+    return {(m, f, K): {"stats": st, "source": "x"} for m, f in [("rf", ev.reg.parse_run_id(r)[1]) for r in ev.reg.campaign_runs()]
             for K in (8, 1)}
 
 
-def test_render_shows_the_three_fractions_and_the_bridge():
+def test_render_shows_every_campaign_fraction_and_no_bridge_row():
     md = col.render(_rows(), [])
-    assert md.count("| Roll + Flip (RF) | ") == 6 and md.count("(bridge) | 100 % |") == 2 and "PENDING" not in md
+    assert md.count("| Roll + Flip (RF) | ") == 2 * len(ev.reg.campaign_runs()) and "PENDING" not in md
+    assert "(bridge)" not in md and "RF-100" not in md
 
 
 def test_publish_order_markdown_first_json_last(tmp_path, e0, monkeypatch):
@@ -583,7 +585,7 @@ def test_publish_order_markdown_first_json_last(tmp_path, e0, monkeypatch):
     sha = col.publish(rows, [], {"m": 1}, repo=str(tmp_path))
     j = (tmp_path / col.OUT_JSON).read_bytes()
     assert hashlib.sha256(j).hexdigest() == sha and sha in (tmp_path / col.OUT_MD).read_text()
-    assert json.loads(j)["manifest"] == {"m": 1} and len(json.loads(j)["rows"]) == 8
+    assert json.loads(j)["manifest"] == {"m": 1} and len(json.loads(j)["rows"]) == 2 * len(ev.reg.campaign_runs())
     assert not [p for p in exp.iterdir() if ".tmp" in p.name]
     order, real = [], col.reg.atomic_write_bytes
 
@@ -654,23 +656,16 @@ def _cmd_run_world(world, monkeypatch, tmp_path):
     return names
 
 
-def _seal_bridge(world, monkeypatch, mutate=None):
-    """The sealed c4flip_data_curve_bridge.json of the cmd_run world's ten bridge cells (exp_43's references = ours)."""
-    monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "c4flip_data_curve_bridge.json"))
-    return ev.cmd_bridge(str(_bundle(world, mutate, make=False)))
-
-
-def test_collect_admits_all_30_run_and_10_bridge_cells_produced_by_cmd_run(world, monkeypatch, tmp_path):
-    """plan r3 §3.2 (Codex plan r2 finding 3): the 40 cells come from cmd_run(); collect() admits every one OFFLINE
-    and lists {path: sha256} of every file that admission consumed -- the sealed bridge comparison included."""
+def test_collect_admits_every_run_cell_produced_by_cmd_run(world, monkeypatch, tmp_path):
+    """plan r3 §3.2 (Codex plan r2 finding 3): the run cells come from cmd_run(); collect() admits every one OFFLINE
+    and lists {path: sha256} of every file that admission consumed (exp_46 has no bridge: plan r3 §3.2)."""
     names = _cmd_run_world(world, monkeypatch, tmp_path)
-    assert len(names) == 40
-    _seal_bridge(world, monkeypatch)
+    assert len(names) == 10 * len(ev.reg.campaign_runs())
     rows, pending, manifest = col.collect()
-    assert pending == [] and sorted(rows) == sorted((m, f, K) for m, f in [("rf", t) for t in ("025", "050", "075")]
-                                                    + [("rf_bridge", "100")] for K in (8, 1))
+    assert pending == [] and sorted(rows) == sorted(("rf", ev.reg.parse_run_id(r)[1], K) for r in ev.reg.campaign_runs()
+                                                    for K in (8, 1))
     assert all(rows[k]["stats"]["T60"][2] == 5 for k in rows)
-    assert sorted(manifest["runs"]) == sorted(ev.reg.campaign_runs() + [ev.BRIDGE_RUN])
+    assert sorted(manifest["runs"]) == sorted(ev.reg.campaign_runs()) and "bridge" not in manifest
     for run in ev.reg.campaign_runs():
         arts = manifest["runs"][run]
         for c in ev.run_cells(run):
@@ -680,60 +675,21 @@ def test_collect_admits_all_30_run_and_10_bridge_cells_produced_by_cmd_run(world
         for f in ("CHECKPOINTS.sha256", ev.reg.TRAINING_RECEIPT, "receipts/loss_record.csv", "evidence/run_evidence.json.rank1.json"):
             assert os.path.join(farm, f) in arts, f
         assert not [k for k in arts if k.startswith("/media") or k.endswith(".ckpt") or k.endswith(".npy")]
-    assert len(manifest["runs"][ev.BRIDGE_RUN]) == 42                     # 10 cells x 4 + the bridge result + sidecar
-    assert manifest["bridge"]["verdict"] == "equal" and manifest["bridge"]["discrepancies"] == {}
-    assert manifest["bridge"]["sha256"] == ev.reg.sha256_file(ev.BRIDGE_RESULT)
     assert len(manifest["artifacts"]) == 3 + 24
     (tmp_path / col.reg.EXP_DIR).mkdir(parents=True, exist_ok=True)
     sha = col.publish(rows, pending, manifest, repo=str(tmp_path))
     assert json.load(open(tmp_path / col.OUT_JSON))["manifest"] == json.loads(json.dumps(manifest)) and len(sha) == 64
 
 
-def _reseal_bridge(fn):
-    rec = json.load(open(ev.BRIDGE_RESULT))
-    fn(rec)
-    for p in (ev.BRIDGE_RESULT, ev.BRIDGE_RESULT + ".sha256"):
-        os.remove(p)
-    ev.reg.write_sealed(ev.BRIDGE_RESULT, rec)
-
-
-BRIDGE_RESULT_MUTATIONS = {
-    "another campaign": lambda r: r["campaign"].update(head="e" * 40),
-    "another descriptor": lambda r: r.update(descriptor_sha256="0" * 64),
-    "a changed descriptor": lambda r: r["descriptor"].update(bytes=1),
-    "a stale cell binding": lambda r: r["cells"]["exp46_RF100bridge_K1_s45"].update(metrics_sha256="0" * 64),
-    "a missing cell": lambda r: r["cells"].pop("exp46_RF100bridge_K8_s46"),
-    "an equal verdict over a difference": lambda r: r["cells"]["exp46_RF100bridge_K8_s42"].update(
-        differences={"metrics.T60": {"ours": 1.0, "reference": 1.1}}),
-    "an equal overall verdict over a discrepancy": lambda r: r["cells"]["exp46_RF100bridge_K8_s42"].update(
-        verdict="evaluator discrepancy", differences={"metrics.T60": {"ours": 1.0, "reference": 1.1}}),
-    "another admitted checkpoint": lambda r: r["admission_record"].update(ckpt_sha256="0" * 64),
-    "an unbundled admission record": lambda r: r["admission_record"].update(sha256="0" * 64),
-    "an unbundled reference": lambda r: r["cells"]["exp46_RF100bridge_K1_s42"].update(reference_metrics_sha256="0" * 64),
-}
-
-
-def _refresh_cell_links(c):
-    """Re-bind a cell's receipt and dump-manifest copy to its CURRENT metrics / stream bytes (what an attacker who
-    edits a cell after the bridge seal would do, so that the cell still passes its own offline admission)."""
-    copy = ev.dump_manifest_copy(c)
-    _mut(copy, lambda m: m.update(stream_sidecar_sha256=ev.reg.sha256_file(c["stream"]),
-                                  metrics_sha256=ev.reg.sha256_file(c["metrics"])))
-    _mut(c["receipt"], lambda r: r.update(stream_sha256=ev.reg.sha256_file(c["stream"]),
-                                          metrics_sha256=ev.reg.sha256_file(c["metrics"]),
-                                          dump_manifest_sha256=ev.reg.sha256_file(copy)))
-
-
-@pytest.mark.parametrize("what", ["missing run cell", "missing bridge cell", "unadmitted bridge cell", "e0 cell"])
+@pytest.mark.parametrize("what", ["missing run cell", "missing run metrics", "unadmitted run cell", "e0 cell"])
 def test_collect_refuses_any_missing_or_unadmitted_cell(world, monkeypatch, tmp_path, what):
     _cmd_run_world(world, monkeypatch, tmp_path)
-    _seal_bridge(world, monkeypatch)
     if what == "missing run cell":
         os.remove(ev.run_cells(ev.reg.campaign_runs()[1])[7]["stream"])
-    elif what == "missing bridge cell":
-        os.remove(ev.bridge_cells()[9]["metrics"])
-    elif what == "unadmitted bridge cell":
-        _mut(ev.bridge_cells()[2]["receipt"], lambda r: r.update(bridge_descriptor_sha256="0" * 64))
+    elif what == "missing run metrics":
+        os.remove(ev.run_cells(ev.reg.campaign_runs()[-1])[9]["metrics"])
+    elif what == "unadmitted run cell":
+        _mut(ev.run_cells(ev.reg.campaign_runs()[0])[2]["receipt"], lambda r: r.update(ckpt_sha256="0" * 64))
     else:
         _mut(ev.e0_cells()[1]["metrics"], lambda r: r["metrics"].update(T60=r["metrics"]["T60"] + 1e-9))
     with pytest.raises((ev.EvalError, ev.reg.GateError)):
@@ -746,7 +702,7 @@ def _publication(tmp_path):
     root = tmp_path / "published"
     (root / col.reg.EXP_DIR).mkdir(parents=True)
     ev_files = {f"{ev.FARM}/E0a/x_metrics.json": b"e0 cell", f"{ev.FARM}/exp46_RFf025_l40_2x32/y.stream.json": b"stream",
-                f"{col.reg.EXP_DIR}/c4flip_data_curve_bridge.json": b"bridge"}
+                f"{ev.FARM}/exp46_RFf025_l40_2x32/y.receipt.json": b"receipt"}
     for rel, data in list(ev_files.items()) + [(rel, b"static " + rel.encode()) for rel in col.generator_static()]:
         os.makedirs(root / os.path.dirname(rel), exist_ok=True)
         (root / rel).write_bytes(data)
@@ -1148,91 +1104,38 @@ def test_d2_neuronic_campaign_runs_and_admission(world, monkeypatch):
         ev.prepare("exp46_RFf050_l40_2x32")                                        # trained on the wrong platform
 
 
-# ------------------------------------------------------------------ the RF-100 bridge (plan r3 §3.2, N5)
-def _bridge_cell(world, K=8, seed=42, dump=True, stream_fn=None):
-    cell = [c for c in ev.bridge_cells() if c["K"] == K and c["seed"] == seed][0]
-    return fx.make_cell(ev, cell, world["campaign"], ev.bridge_checkpoint(), str(world["tmp"] / "logs"), dump=dump,
-                        stream_fn=stream_fn)
+def _code_tokens(path):
+    """Every identifier (names, attributes, defs, args) and every non-docstring string constant of a module."""
+    import ast
+    tree = ast.parse(open(path).read(), path)
+    docs = {id(n.body[0].value) for n in ast.walk(tree)
+            if isinstance(n, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and n.body
+            and isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant)}
+    names, strings = set(), set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Name):
+            names.add(n.id)
+        elif isinstance(n, ast.Attribute):
+            names.add(n.attr)
+        elif isinstance(n, (ast.FunctionDef, ast.ClassDef)):
+            names.add(n.name)
+        elif isinstance(n, ast.arg):
+            names.add(n.arg)
+        elif isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in docs:
+            strings.add(n.value)
+    return names, strings
 
 
-def _exp43_kit():
-    """exp_43's own kit (its admission validator), loaded independently of the module under test."""
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("exp43_kit_eval_test", os.path.join(
-        REPO, "worklog", "worklog_yixun", "exp_43_std_aug_claude", "exp43_kit.py"))
-    kit = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(kit)
-    return kit
-
-
-KIT43 = _exp43_kit()
-
-
-@pytest.mark.parametrize("name,fn", [
-    ("source", lambda r: r.update(checkpoint_source="exp45_training")),
-    ("descriptor", lambda r: r.update(bridge_descriptor_sha256="0" * 64)),
-    ("no source", lambda r: r.pop("checkpoint_source")), ("no descriptor", lambda r: r.pop("bridge_descriptor_sha256")),
-    ("training receipt", lambda r: r.update(training_receipt_sha256="0" * 64)),
-    ("ckpt sha", lambda r: r.update(ckpt_sha256="0" * 64)), ("ckpt bytes", lambda r: r.update(ckpt_bytes=1)),
-])
-def _bundle(world, mutate=None, admission=None, stream_fn=None, make=True):
-    """Our ten admitted bridge cells (``make``; else the existing ones) + exp_43's reference bundle
-    (exp46_fixtures.bridge_bundle: references = our values with exp_43's metadata; the admission record = exp_43's
-    exact admission of the RF100_BRIDGE checkpoint unless ``admission`` is given)."""
-    if make:
-        for c in ev.bridge_cells():
-            _bridge_cell(world, c["K"], c["seed"], stream_fn=(lambda s, c=c: stream_fn(c, s)) if stream_fn else None)
-    return fx.bridge_bundle(ev, world["tmp"] / "bundle", KIT43, mutate, admission)
-
-
-@pytest.fixture
-def bridge_world(world, monkeypatch):
-    monkeypatch.setattr(ev, "BRIDGE_RESULT", str(world["tmp"] / "c4flip_data_curve_bridge.json"))
-    return world
-
-
-def _adm(**over):
-    return fx.exp43_admission(KIT43, ev.RF100_BRIDGE["sha256"], ev.RF100_BRIDGE["bytes"], **over)
-
-
-def _drop(key):
-    rec = _adm()
-    rec.pop(key)
-    return rec
-
-
-@pytest.mark.parametrize("name,admission", [
-    ("only names the checkpoint", {"run": "exp43_RF_a6000_2x32", "note": "ckpt " + "ae62977e6a446c696f4b8f34e9393d335406bc8cd6404e7cc9caceaf55d1b6f6"}),
-    ("not admitted", _adm(admitted=False)), ("another arm", _adm(arm="YAW")), ("another kind", _adm(kind="exp40_admission")),
-    ("another config sha", _adm(model_config_sha256="0" * 64)), ("another config", _adm(model_config="x.json")),
-    ("another checkpoint", _adm(sha256="0" * 64)),
-    ("another checkpoint, consistent", dict(_adm(sha256="0" * 64), checkpoints=dict(_adm()["checkpoints"],
-                                                                                   **{"epoch=8-step=40000.ckpt": "0" * 64}))),
-    ("other bytes", _adm(bytes=723922730)), ("another step", _adm(global_step=39999)),
-    ("another run", _adm(run_id="exp43_RF_a6000_2x32_r1")), ("not a strict load", _adm(strict_load=False)),
-    ("a missing key", _drop("audit_sha256")), ("an extra key", dict(_adm(), extra=1)), ("no history", _adm(train_history=None)),
-])
-def _strip(s):
-    for k in ev.STREAM_ITEMS:
-        s.pop(k)
-
-
-def _short(s):
-    for k in ev.STREAM_ITEMS:
-        s[k] = s[k][:-1]
-
-
-def _retarget(s):                                     # a changed item, input AND assignment tuple alike
-    s["input_tuples"][7][1] = "Cafe/Cafe_idx_0/S000_R999_hybrid_IR.wav"
-    s["assignment_tuples"][7][1] = "Cafe/Cafe_idx_0/S000_R999_hybrid_IR.wav"
-
-
-def _offsets(s):
-    s["offsets"][3] = 1
-
-
-def _position(s):
-    s["input_tuples"][0][0] = 1
-    s["assignment_tuples"][0][0] = 1
-
-
+def test_no_exp46_file_imports_or_reads_a_bridge_artifact():
+    """exp_46 plan r3 §3.2 "Bridge": no RF100_BRIDGE, no bridge cells, no c4flip_data_curve_bridge.json, no bridge
+    publication gate; exp_43's admission validator (the bridge's) is out of the closure."""
+    for name in sorted(os.listdir(EXP)):
+        if not (name.startswith("exp46_") and name.endswith(".py")):
+            continue
+        names, strings = _code_tokens(os.path.join(EXP, name))
+        assert not [n for n in names if "bridge" in n.lower() or "rf100" in n.lower() or "exp43_kit" in n.lower()], name
+        assert not [s for s in strings if "bridge" in s.lower() or "exp_43_std_aug_claude/exp43_" in s
+                    or "exp43_kit_for" in s or "exp43_std_aug/exp43_RF" in s], name
+    assert not any("bridge" in a.lower() or "rf100" in a.lower() for a in dir(ev))
+    assert not any("exp_43_std_aug_claude/exp43_" in r for r in ev.reg.EXTERNAL_CONFIGS)
+    assert not any("bridge" in c for c in ev.all_cells())

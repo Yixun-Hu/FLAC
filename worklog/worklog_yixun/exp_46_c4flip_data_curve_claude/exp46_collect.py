@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
-"""exp_46 collector (forked from exp_45's exp45_collect.py at X45f, from exp_38's; plan_c4flip_data_curve.md r3 §3.2): the 30 RF result cells,
-the 10 RF-100 bridge cells and the E0 receipt -> c4flip_data_curve_results.{json,md}.
+"""exp_46 collector (forked from exp_45's exp45_collect.py at X45f, from exp_38's; plan_c4flip_data_curve.md r3 §3.2): the 30 RF result cells
+and the E0 receipt -> c4flip_data_curve_results.{json,md} (exp_46 has no bridge: plan r3 §3.2).
 
 rf_rows() replaces exp_38's reference_rows() / EXP14_ROWS / P1-bridge path (Codex plan r2 finding 3): every cell
 goes through exp46_eval's OFFLINE admission (validate_cell(..., offline=True): exact metrics / by-scene /
-receipt schemas, protocol, the run's TRAINING_COMPLETE copy in the farm -- or, for a bridge cell, the
-RF100_BRIDGE descriptor --, the stream's input AND assignment hashes, the dump-manifest copy) under the sealed
+receipt schemas, protocol, the run's TRAINING_COMPLETE copy in the farm, the stream's input AND assignment hashes, the dump-manifest copy) under the sealed
 E0 receipt (validate_e0_receipt(offline=True)), so the results re-derive from the tracked evidence alone; NAS
 payloads (checkpoints, waveforms) are attested by the hashes the receipts carry, never opened. Any missing or
-unadmitted cell refuses: nothing publishes partially. The RF-100 bridge rows publish only with the sealed bridge
-comparison c4flip_data_curve_bridge.json of THIS campaign and these ten cells (exp46_eval.bridge_gate, the publication
-gate every exp_46 writer shares; Codex code r1 finding 4, r3 finding 1); its verdict -- equal, or an evaluator
-discrepancy per cell -- is carried into the rows' source, the Markdown and the JSON manifest, never turned into an
-equality. Publication (exp_38 Codex code r1 HIGH 10): Markdown first,
+unadmitted cell refuses: nothing publishes partially. Publication (exp_38 Codex code r1 HIGH 10): Markdown first,
 the JSON LAST (the commit point; the Markdown carries the JSON's sha256), each temp -> fsync -> rename, under the
 collector lock; the JSON carries {path: sha256} of every file the admission consumed.
 
@@ -84,42 +79,30 @@ def farm_files(run):
 
 
 def rf_rows(campaign):
-    """(rows, manifest runs, bridge) of the three RF runs and the RF-100 bridge, every cell through exp46_eval's OFFLINE
-    admission under ``campaign`` and the bridge rows through the sealed bridge comparison; refuses (EvalError) if any
-    cell is missing or not admitted, or the comparison is absent / not this campaign's (plan r3 §3.2, finding 4)."""
+    """(rows, manifest runs) of the campaign runs, every cell through exp46_eval's OFFLINE admission under ``campaign``;
+    refuses (EvalError) if any cell is missing or not admitted (plan r3 §3.2; no bridge in exp_46)."""
     blocks = [(run, "rf", reg.parse_run_id(run)[1], ev.run_cells(run)) for run in reg.campaign_runs()]
-    blocks.append((ev.BRIDGE_RUN, "rf_bridge", "100", ev.bridge_cells()))
-    rows, runs, problems, bridge = {}, {}, [], None
+    rows, runs, problems = {}, {}, []
     for run, model, frac, cells in blocks:
         probs = [x for c in cells for x in ev.validate_cell(c, campaign, offline=True)]
         if probs:
             problems += probs
             continue
         files = [f for c in cells for f in cell_files(c)]
-        if model == "rf_bridge":
-            bridge, bfiles = ev.bridge_gate(campaign)     # THE shared publication gate (Codex code r3 finding 1)
-            files += bfiles
-        if model == "rf":
-            farm = os.path.dirname(ev._abs(cells[0]["ckpt_link"]))
-            platform = json.load(open(os.path.join(farm, reg.TRAINING_RECEIPT)))["platform"]
-            if platform != reg.TRAINING_PLATFORM:
-                problems.append(f"{run}: trained on {platform}, not {reg.TRAINING_PLATFORM}")
-                continue
-            files += farm_files(run)
-            source = f"exp_46 {run}, trained on {platform} (eval pin {campaign['head'][:12]})"
-        else:
-            verdict = ("equal on all ten cells" if bridge["verdict"] == "equal" else
-                       f"EVALUATOR DISCREPANCY in {len(bridge['discrepancies'])} of 10 cells (an evaluator discrepancy "
-                       "until explained, never an equality)")
-            source = (f"exp_43's RF 100 % checkpoint {ev.RF100_BRIDGE['sha256'][:12]} re-evaluated at the exp_46 pin "
-                      f"{campaign['head'][:12]} (RF100_BRIDGE); bridge comparison: {verdict}")
+        farm = os.path.dirname(ev._abs(cells[0]["ckpt_link"]))
+        platform = json.load(open(os.path.join(farm, reg.TRAINING_RECEIPT)))["platform"]
+        if platform != reg.TRAINING_PLATFORM:
+            problems.append(f"{run}: trained on {platform}, not {reg.TRAINING_PLATFORM}")
+            continue
+        files += farm_files(run)
+        source = f"exp_46 {run}, trained on {platform} (eval pin {campaign['head'][:12]})"
         for K in (8, 1):
             recs = {c["seed"]: json.load(open(ev._abs(c["metrics"])))["metrics"] for c in cells if c["K"] == K}
             rows[(model, frac, K)] = {"stats": aggregate(recs), "source": source}
         runs[run] = _sha_map(files)
     if problems:
         raise ev.EvalError(f"{len(problems)} cell problem(s), nothing published: " + "; ".join(problems[:5]))
-    return rows, runs, bridge
+    return rows, runs
 
 
 def e0_files(campaign):
@@ -128,23 +111,21 @@ def e0_files(campaign):
         [f for c in ev.e0_cells() for f in (c["metrics"], c["stream"], c["receipt"])]
 
 
-MODELS = {"rf": "Roll + Flip (RF)", "rf_bridge": "Roll + Flip (RF), exp_43's 100 % checkpoint (bridge)"}
+MODELS = {"rf": "Roll + Flip (RF)"}
 
 
-def render(rows, pending, bridge=None):
+def render(rows, pending):
     out = ["# exp_46 c4flip_data_curve — results (generated by exp46_collect.py; never hand-edited)", "",
            "Full unseen split (6,337 items / 17 rooms), split-level item-weighted, mean ± sample SD over eval "
            "seeds 42–46, 40k-step EMA endpoints, one training seed (42) per run. EDT ms, C50 dB, T60 %, FD, R@1 %.", ""]
     for K in (8, 1):
         out += [f"## K = {K}" + (" (headline)" if K == 8 else ""), "",
                 "| model | data | " + " | ".join(SHOW) + " | source |", "|---|---|" + "---|" * len(SHOW) + "---|"]
-        for model, frac in [("rf", t) for t in ("025", "050", "075")] + [("rf_bridge", "100")]:
+        for model, frac in [("rf", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()]:
             st = rows[(model, frac, K)]["stats"]
             cells = [f"{st[m][0]:.3f} ± {st[m][1]:.3f}" for m in SHOW]
             out.append(f"| {MODELS[model]} | {FRAC_LABEL[frac]} | " + " | ".join(cells) + f" | {rows[(model, frac, K)]['source']} |")
         out.append("")
-    if bridge is not None:                               # the sealed bridge comparison, as recorded (finding 4)
-        out += ev.bridge_lines(bridge) + [""]
     return "\n".join(out + reg.disclosure_block("collect")) + "\n"            # plan r3 §8 (finding 15)
 
 
@@ -154,7 +135,7 @@ def publish(rows, pending, manifest, repo=None):
                          "stats": {m: {"mean": s[0], "sd": s[1], "n": s[2]} for m, s in v["stats"].items()}}
                         for k, v in sorted(rows.items())], "pending": pending, "manifest": manifest}
     jtext = (json.dumps(payload, indent=1, sort_keys=True) + "\n").encode()
-    mtext = (render(rows, pending, manifest.get("bridge")) +
+    mtext = (render(rows, pending) +
              f"\nresults JSON sha256: `{hashlib.sha256(jtext).hexdigest()}`\n").encode()
     lock = open(os.path.join(repo, LOCK), "a")
     fcntl.flock(lock, fcntl.LOCK_EX)
@@ -169,10 +150,10 @@ def publish(rows, pending, manifest, repo=None):
 
 def collect():
     campaign = ev.validate_e0_receipt(offline=True)
-    rows, runs, bridge = rf_rows(campaign)
+    rows, runs = rf_rows(campaign)
     manifest = {"campaign": {k: campaign[k] for k in ("head", "closure_sha256", "env_receipt_sha256",
                                                       "eval_snapshot_sha256", "sha256")},
-                "artifacts": _sha_map(e0_files(campaign)), "runs": runs, "bridge": bridge}
+                "artifacts": _sha_map(e0_files(campaign)), "runs": runs}
     return rows, [], manifest
 
 
@@ -187,7 +168,7 @@ def generator_static():
 
 def verify(root=None):
     """sha256-verify the published exp_46 results in ``root`` (finding 12): the Markdown names the JSON's sha256 and
-    every file of the JSON's manifest (the E0 artifacts, every run's cells and farm records, the bridge comparison)
+    every file of the JSON's manifest (the E0 artifacts, every run's cells and farm records)
     re-hashes to its recorded value. Returns {relative path: sha256} of every verified file, the JSON and Markdown
     included; raises EvalError."""
     root = os.path.realpath(root or reg.REPO)

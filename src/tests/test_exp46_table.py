@@ -6,8 +6,8 @@ copied to the farm and the 60 offline-admissible fraction cells, in a SEPARATE p
 through the isolated adapter; with the fake NAS gone (no /media path anywhere), a missing or changed file of
 EXP38_IMPORT_FILES, a commit not descending from the base, an adapter opening anything outside the list -- each
 refuses. ``build`` refuses a missing cell, a value differing from its source, a wrong commit or a resealed
-record, and never reads exp_38's preliminary files. Its RF rows pass THE shared publication gate (exp46_eval.bridge_gate)
-over a real sealed RF-100 bridge comparison (test_exp46_eval's bridge world; Codex code r3 finding 1).
+record, and never reads exp_38's preliminary files. exp_46 has no bridge (plan r3 §3.2): the RF rows need no bridge
+comparison.
 
 Written by the exp_46 Coder (Claude Opus 5.5).
 """
@@ -25,8 +25,8 @@ EXP = os.path.join(REPO, "worklog", "worklog_yixun", "exp_46_c4flip_data_curve_c
 sys.path.insert(0, EXP)
 import exp46_fixtures as fx  # noqa: E402
 import exp46_table as tbl  # noqa: E402
-import test_exp46_eval as TE  # noqa: E402  (its RF-100 bridge world: Codex code r3 finding 1)
-from test_exp46_eval import bridge_world, e0, world  # noqa: E402,F401  (that world's pytest fixtures)
+import test_exp46_eval as TE  # noqa: E402  (its world: a real E0 receipt)
+from test_exp46_eval import e0, world  # noqa: E402,F401  (that world's pytest fixtures)
 
 E38 = "worklog/worklog_yixun/exp_38_data_efficiency_claude"
 COPY = [f"{E38}/exp38_eval.py", f"{E38}/exp38_registry.py", f"{E38}/ref_cells", f"{E38}/FLAC_AR_BF_cap32.json",
@@ -194,14 +194,12 @@ def test_materialisation_copies_the_verified_bytes_to_their_exact_paths(imp, tmp
 
 # ------------------------------------------------------------------ build
 @pytest.fixture
-def built(imp, bridge_world, monkeypatch):
-    """A sealed import record + the exp_46 side: a REAL E0 receipt and sealed RF-100 bridge comparison over the ten
-    admitted bridge cells (test_exp46_eval's bridge world + cmd_bridge: the shared publication gate runs unpatched,
-    Codex code r3 finding 1), the fraction rows' offline admission patched, a published collector JSON."""
+def built(imp, world, monkeypatch):
+    """A sealed import record + the exp_46 side: a REAL E0 receipt (test_exp46_eval's world; exp_46 has no bridge),
+    the fraction rows' offline admission patched, a published collector JSON."""
     repo, root, sha = imp
     assert TE.ev is tbl.ev
     tbl.import_exp38(sha, repo=repo)
-    tbl.ev.cmd_bridge(str(TE._bundle(bridge_world)))
     rows = {f"rf|{t}|{K}": {k: [2.0, 0.1, 5] for k in tbl.ev.METRIC_KEYS} for t in tbl.FRACS for K in (8, 1)}
     monkeypatch.setattr(tbl, "rf_rows", lambda campaign: json.loads(json.dumps(rows)))
     res = {"rows": [{"model": "rf", "fraction": k.split("|")[1], "K": int(k.split("|")[2]),
@@ -225,7 +223,7 @@ def test_build_renders_all_eighteen_cells_and_the_disclosures(built):
     assert ev_rec["exp38_commit"] == sha and len(ev_rec["rows"]) == 18
 
 
-EVIDENCE_KEYS = {"schema", "exp38_commit", "exp38_import_sha256", "exp46_campaign", "rf_results_sha256", "bridge", "rows",
+EVIDENCE_KEYS = {"schema", "exp38_commit", "exp38_import_sha256", "exp46_campaign", "rf_results_sha256", "rows",
                  "written_at"}
 
 
@@ -327,7 +325,7 @@ def test_the_disclosures_have_one_source_and_appear_under_every_exp46_table(buil
     assert all(d in md for d in reg.disclosures("table"))
     import exp46_collect as col
     rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in tbl.ev.METRIC_KEYS}, "source": "s"}
-            for m, f in [("rf", t) for t in tbl.FRACS] + [("rf_bridge", "100")] for K in (8, 1)}
+            for m, f in [("rf", t) for t in tbl.FRACS] for K in (8, 1)}
     cmd = col.render(rows, [])
     assert all(d in cmd for d in reg.disclosures("collect")) and reg.DISCLOSURES[6] not in cmd
 

@@ -145,7 +145,7 @@ def _publication(root, col):
         (root / rel).write_bytes(data)
     manifest = {"artifacts": {ev_rel: hashlib.sha256(b"e0 cell").hexdigest()}, "runs": {}}
     rows = {(m, f, K): {"stats": {k: (1.0, 0.1, 5) for k in col.ev.METRIC_KEYS}, "source": "s"}
-            for m, f in [("rf", t) for t in ("025", "050", "075")] + [("rf_bridge", "100")] for K in (8, 1)}
+            for m, f in [("rf", reg.parse_run_id(r)[1]) for r in reg.campaign_runs()] for K in (8, 1)}
     col.publish(rows, [], manifest, repo=str(root))
 
 
