@@ -226,3 +226,36 @@ removes the H / B nodes from the copies (the three mixed files: eval, registry, 
     `test_exp45_sampler.py` — the same 3-line, assertion-preserving monkeypatch restore as exp_46's copy; (b) a registered
     L1 allowance for exactly these nodes with this reason; (c) run L1 so the exp_45 file runs last or in its own process.
     Recommendation: (a), with the coordinator's / Yixun's approval (it touches a frozen exp_45 file).
+
+## 2026-11-18 03:30 EST — coordinator: L0 verified; Codex code round 1 → REVISE (1 HIGH, 9 MEDIUM, 2 NIT) (coordinating session)
+
+- **Verification of the Coder's hand-back:** at `e0cdea5a` the tracked tree is clean (untracked: the two data links);
+  29 commits on `X45f = 1e37ead2`; `git diff X45f..HEAD` is 0 lines for the exp_38 / exp_40 / exp_43 / exp_45 folders and
+  `yaw_rotation.py` / `yaw_mirror.py` / `yaw_offset_step.py`; outside `EXPREL46` only `src/tests/test_exp46_*`,
+  `exp46_fixtures.py`, `test_gen_model_comparison_exp46.py`, the five E1–E5 files, `gen_model_comparison.py` and the two
+  training files (+7 / −12 lines) changed; nothing pushed. Final L0 log header and tail confirmed (2,522 passed,
+  15 skipped, 41 deselected, EXIT 0, `e6920ace`, tracked-clean, neu318). Open item 2 needs no action: exp_45's worklog at
+  `X45f` already records the C3 resumption rule.
+- **Codex code r1** (`c4flip_data_curve_codex_code_r1_review.md`, prompt `…_r1_prompt.md`, log
+  `c4flip_data_curve_2026-11-18_03-11-59_codex_code_r1.log.gz`, e-mails redacted): REVISE. It confirms the copy proof
+  (21 mapped files, identical blobs and modes), the training-path diff (exactly the two refusals + permitted comment /
+  docstring lines), the step oracle's independence of transform and order, and found no `main`-modifying operation.
+- **Dispositions (all go to the Coder's fix round 1, one batch for Codex code r2):**
+  F1 HIGH bytecode writes into `EXPREL38/__pycache__` from standalone `exp46_content_manifest.py` → fix + isolation test;
+  F2 isolation guard on the auxiliary writers (manifest `--build` output, `exp46_init_digest.py --json`,
+  `exp46_regression_compare.py --out`, `snapshot_tools()`) → fix + matrix rows;
+  F3 a pending TERM after the last verified read must leave the run unsealed → check before receipt / commit marker + test;
+  F4 the two tests that pin `F100_DELTA_SHA256 is None` → injected `None`, campaign-independent;
+  F5 L3 must compare with the registered prediction and exit non-zero on disagreement;
+  F6 = open item 13 → **awaiting Yixun** (Codex prefers (a), rejects (b));
+  F7 C3 ledger: distinguish genuine absence from stat errors, validate the full foreign schema, two negative tests;
+  F8 the 20-row contract enforced in `build()` and at the renderer boundary, tested at the entry points;
+  F9 the Y46 audit checks the complete added-file set and closure equality per E0 commit;
+  F10 = open item 7 → write both command sheets with Codex's listed contents (A6000 part: evaluation / publication only);
+  F11 NIT pin the step seeds independently from `X45f`; F12 NIT supervisor help text.
+- **Codex on the open items:** 1 accept as inherited only when the parent junits match node, outcome and normalised
+  signature — L1 keeps those nodes, no deselection; 3 accept; 8 accept, provided the command sheet requires and records
+  the union verification before f100 SMOKE; 9 accept (applicability split); 10 commit the manifest + pin **before** the
+  definitive L1 (or repeat L1 after it); 13 prefer (a), (c) sound if every node still reaches the compared junit, reject (b).
+- **Decisions sent to Yixun:** D1 item 13 (a) as a declared edit E7; D2 the order — final code round → L2 manifest build →
+  pin commit → definitive L1 → L2 union verify → L3 → L4; D3 accept item 3.
