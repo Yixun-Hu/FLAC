@@ -928,11 +928,17 @@ def _fsync_dir(d):
         os.close(fd)
 
 
-def atomic_write_bytes(path, data):
-    """temp file -> fsync -> os.replace -> directory fsync."""
+def atomic_write_bytes(path, data, root=None, allow=()):
+    """temp file -> fsync -> os.replace -> directory fsync, below the checked ``root`` (Codex code r2 finding 1: the
+    destination AND the temp name pass check_destination first; the kit's production callers name their root, the
+    default is the destination's own directory). The temp file is created exclusively, never through a link
+    (O_EXCL | O_NOFOLLOW); os.replace then moves that entry itself."""
     d = os.path.dirname(os.path.abspath(path))
     tmp = os.path.join(d, f".{os.path.basename(path)}.tmp.{os.getpid()}")
-    with open(tmp, "wb") as fh:
+    for p in (path, tmp):
+        check_destination(p, d if root is None else root, f"the write of {os.path.basename(path)}", allow)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o666)
+    with os.fdopen(fd, "wb") as fh:
         fh.write(data)
         fh.flush()
         os.fsync(fh.fileno())
@@ -940,14 +946,17 @@ def atomic_write_bytes(path, data):
     _fsync_dir(d)
 
 
-def write_sealed(path, rec):
+def write_sealed(path, rec, root=None, allow=()):
     """A JSON receipt + its ``.sha256`` sidecar; refuses an existing receipt. The sidecar is written
-    first, the JSON last (the JSON is the commit point: a sidecar alone is never admitted)."""
+    first, the JSON last (the JSON is the commit point: a sidecar alone is never admitted). Both below ``root``
+    (atomic_write_bytes)."""
+    check_destination(path, os.path.dirname(os.path.abspath(path)) if root is None else root, "a sealed receipt", allow)
     if os.path.exists(path):
         raise GateError(f"{path} exists (receipts are written once)")
     text = (json.dumps(rec, indent=1, sort_keys=True) + "\n").encode()
-    atomic_write_bytes(path + ".sha256", f"{hashlib.sha256(text).hexdigest()}  {os.path.basename(path)}\n".encode())
-    atomic_write_bytes(path, text)
+    atomic_write_bytes(path + ".sha256", f"{hashlib.sha256(text).hexdigest()}  {os.path.basename(path)}\n".encode(),
+                       root, allow)
+    atomic_write_bytes(path, text, root, allow)
     return hashlib.sha256(text).hexdigest()
 
 
@@ -1024,24 +1033,28 @@ PROTECTED_ABSOLUTE = (*EXP38_SAVE_ROOTS, EXP38_DUMP_ROOT, EXP38_SNAPSHOT_ROOT, *
 PROTECTED_IN_TREE = (EXP38_FARM, EXP38_DIR, EXP38_SMOKE_DIR, EXP45_FARM, EXP45_DIR)
 
 
-def _foreign_namespace():
-    return re.compile(r"/(" + "|".join(re.escape(rel) for rel in PROTECTED_IN_TREE) + r")(/|$)")
+def _foreign_namespace(allow=()):
+    return re.compile(r"/(" + "|".join(re.escape(rel) for rel in PROTECTED_IN_TREE if rel not in allow) + r")(/|$)")
 
 
-def protected_roots(trees=None):
-    """realpaths of every protected root: the absolute ones and, in each tree, the per-tree ones."""
+def protected_roots(trees=None, allow=()):
+    """realpaths of every protected root: the absolute ones and, in each tree, the per-tree ones (but ``allow``)."""
     trees = [REPO] if trees is None else list(trees)
-    roots = list(PROTECTED_ABSOLUTE) + [os.path.join(t, rel) for t in trees for rel in PROTECTED_IN_TREE]
+    roots = list(PROTECTED_ABSOLUTE) + [os.path.join(t, rel) for t in trees for rel in PROTECTED_IN_TREE
+                                        if rel not in allow]
     return sorted({os.path.realpath(r) for r in roots})
 
 
-def isolation_problems(path, what, trees=None, contains=True):
+def isolation_problems(path, what, trees=None, contains=True, allow=()):
     """Problems if ``path`` (its realpath) equals or lies inside a protected exp_38 / exp_45 root -- or inside ANY tree's
-    exp_38 / exp_45 farm, worklog or SMOKE folder -- or, with ``contains``, contains one."""
+    exp_38 / exp_45 farm, worklog or SMOKE folder -- or, with ``contains``, contains one. ``allow``: the per-tree
+    namespaces of exp46_table.materialise's registered exception only (exp_38's worklog and farm, see check_destination)."""
+    if set(allow) - {EXP38_DIR, EXP38_FARM}:
+        raise GateError(f"only exp_38's worklog and farm namespaces are ever admitted, not {sorted(allow)}")
     real = os.path.realpath(path)
-    out = [f"{what} {path} (-> {real}) aliases a protected exp_38 / exp_45 root {r}" for r in protected_roots(trees)
+    out = [f"{what} {path} (-> {real}) aliases a protected exp_38 / exp_45 root {r}" for r in protected_roots(trees, allow)
            if real == r or real.startswith(r + os.sep) or (contains and r.startswith(real + os.sep))]
-    if not out and _foreign_namespace().search(real):
+    if not out and _foreign_namespace(allow).search(real):
         out.append(f"{what} {path} (-> {real}) lies inside an exp_38 / exp_45 farm, worklog or SMOKE folder")
     return out
 
@@ -1063,6 +1076,76 @@ def alias_problem(base, rel):
     return None if got == want else f"{os.path.join(base, rel)}: an alias ({os.path.relpath(anc, base)} -> {got})"
 
 
+# ---------------------------------------------------------------- the actual destination of every mutation
+# Codex code r2 finding 1 (HIGH): an isolated ROOT is not enough -- a symlinked child below it (the storage lock, the
+# owner directory, a submit lock, a ledger temp file, a run-dir child; a DANGLING link included: open() / mkdir()
+# create its absent target) routes the write into another namespace. Every mutation of the kit below a checked root
+# validates its own destination first (check_destination), through the primitives below; production code names that
+# root at every call (src/tests/test_exp46_mutation_guards.py audits every mutating call of the kit).
+def destination_problems(path, root, what, allow=()):
+    """Problems of ``path``, the destination of a mutation below its checked ``root``: it must lie lexically at or below
+    the root; the root may not equal or lie inside a protected root; no existing component from the root down to
+    ``path`` may be a symlink (alias_problem: the deepest existing one resolves to its lexical place -- a dangling link
+    included); and the resolved destination is isolated (``allow``: exp46_table.materialise's exception only)."""
+    p, r = os.path.abspath(path), os.path.abspath(root)
+    if p != r and not p.startswith(r.rstrip(os.sep) + os.sep):
+        return [f"{what} {path} lies outside its checked root {root}"]
+    out = isolation_problems(r, f"the root of {what}", contains=False, allow=allow)
+    problem = alias_problem(r, os.path.relpath(p, r)) if p != r else None
+    return out + ([f"{what} {problem}"] if problem else []) + isolation_problems(p, what, allow=allow)
+
+
+def check_destination(path, root, what, allow=()):
+    """GateError on any destination_problems (before anything is written); the absolute path otherwise."""
+    probs = destination_problems(path, root, what, allow)
+    if probs:
+        raise GateError("isolation from exp_38 / exp_45 (exp_46 plan r3 §3.2): " + "; ".join(probs)
+                        + ": refused, nothing written")
+    return os.path.abspath(path)
+
+
+_WRITE_FLAGS = {"a": os.O_WRONLY | os.O_CREAT | os.O_APPEND, "w": os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+                "x": os.O_WRONLY | os.O_CREAT | os.O_EXCL}
+
+
+def open_below(path, mode, root, what, allow=()):
+    """open(path, mode) for writing ("a", "w" or "x", optionally "b") after check_destination, never through a final
+    link (O_NOFOLLOW: a link planted after the check fails instead of being written through)."""
+    check_destination(path, root, what, allow)
+    fd = os.open(path, _WRITE_FLAGS[mode[0]] | os.O_NOFOLLOW, 0o666)
+    return os.fdopen(fd, mode.replace("x", "w"))
+
+
+def makedirs_below(path, root, what, exist_ok=True, allow=()):
+    check_destination(path, root, what, allow)
+    os.makedirs(path, exist_ok=exist_ok)
+
+
+def mkdir_below(path, root, what):
+    check_destination(path, root, what)
+    os.mkdir(path)
+
+
+def rename_below(src, dst, root, what):
+    """os.rename inside one checked root: the source and the destination are both validated (rename moves the entry
+    itself and never follows a final link)."""
+    check_destination(src, root, f"{what} (its source)")
+    check_destination(dst, root, what)
+    os.rename(src, dst)
+
+
+def symlink_below(target, path, root, what):
+    check_destination(path, root, what)
+    os.symlink(target, path)
+
+
+def copyfile_below(src, dst, root, what, allow=()):
+    """shutil.copyfile's bytes into a checked root through open_below (copyfile itself writes through a link)."""
+    import shutil
+    with open(src, "rb") as fin, open_below(dst, "wb", root, what, allow) as fout:
+        shutil.copyfileobj(fin, fout)
+
+
 def tracked_in_index(repo_root, rel):
     """Is ``rel`` tracked in the index of the git work tree at ``repo_root``? (git ls-files --error-unmatch, read-only;
     not a work tree -> False)"""
@@ -1071,11 +1154,13 @@ def tracked_in_index(repo_root, rel):
     return out.returncode == 0
 
 
-def publish_no_clobber(target, data):
+def publish_no_clobber(target, data, root=None, allow=()):
     """Publish ``data`` at ``target`` only if nothing is there: a private temp file is written and fsynced, then
     HARD-LINKED to the target (os.link refuses an existing entry, a dangling symlink included); FileExistsError
-    otherwise, the existing entry untouched (Codex code r2 finding 9)."""
+    otherwise, the existing entry untouched (Codex code r2 finding 9). The target passes check_destination below
+    ``root`` first (default: its own directory; mkstemp's temp name is exclusive and never follows a link)."""
     d = os.path.dirname(os.path.abspath(target))
+    check_destination(target, d if root is None else root, f"the publication of {os.path.basename(target)}", allow)
     fd, tmp = tempfile.mkstemp(prefix=f".{os.path.basename(target)}.publish.", dir=d)
     try:
         with os.fdopen(fd, "wb") as fh:

@@ -51,6 +51,9 @@ import exp46_registry as reg  # noqa: E402
 EXP38_BASE = "3593f34cad4e6e4415a572e93d16ee83465f8ae8"     # the merged exp_38 tip: the bundle must descend from it
 EXP38_RUNS = tuple(f"de_{a}_f{t}" for a in ("yaw", "bf") for t in ("025", "050", "075"))
 EXP38_FARM = "outputs_FLAC/exp38_data_efficiency/eval"
+# the in-tree namespaces materialise() writes below a generator root (exp_45's r2-6 exception, unchanged): exp_38's
+# worklog folder and farm -- never exp_45's, never exp_38's SMOKE folder, never an absolute protected root
+EXP38_ALLOW = (reg.EXP38_DIR, EXP38_FARM)
 # what exp_38's offline admission reads from git (the bundle's own tracked files)
 EXP38_SOURCE_PATHS = (reg.EXP38_DIR, EXP38_FARM, "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json",
                       "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json",
@@ -310,14 +313,17 @@ def materialise(src_root, hashes, generator_root):
             continue
         if reg.tracked_in_index(generator_root, rel):
             raise TableError(f"{dest} is tracked in the generator root's index but missing: refused, never written")
-        os.makedirs(os.path.dirname(dest), exist_ok=True)
         data = open(os.path.join(src_root, rel), "rb").read()
         if hashlib.sha256(data).hexdigest() != digest:
             raise TableError(f"{rel} changed during the import")
-        try:
-            reg.publish_no_clobber(dest, data)         # no replacing rename: an entry created meanwhile is kept
-        except FileExistsError:
+        try:            # each destination re-validated below the generator root (Codex code r2 finding 1); exp_38's
+            # worklog / farm namespaces are admitted there for exactly this registered exception
+            reg.makedirs_below(os.path.dirname(dest), generator_root, "an exp_38 import directory", allow=EXP38_ALLOW)
+            reg.publish_no_clobber(dest, data, root=generator_root, allow=EXP38_ALLOW)   # an entry created meanwhile
+        except FileExistsError:                                                         # is kept
             raise TableError(f"{dest} appeared during the copy: refused, never overwritten")
+        except reg.GateError as err:
+            raise TableError(str(err))
         if reg.sha256_file(dest) != digest:
             raise TableError(f"{dest}: the copy does not re-hash to {digest[:12]}")
 
