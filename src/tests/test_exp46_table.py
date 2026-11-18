@@ -462,3 +462,55 @@ def test_the_renderer_refuses_any_row_set_but_the_twenty_and_malformed_values(bu
                 {**rows, "c4f|025|8": {**rows["c4f|025|8"], "T60": [float("nan"), 0.1, 5]}}):
         with pytest.raises(tbl.TableError):
             tbl.render(bad, rec, rec_sha, campaign)
+
+
+# ------------------------------------------------------------------ fix round 2, Codex code r2 finding 4: the values
+# (row, metric, index in [mean, sd, n], a FINITE replacement): each differs from its admitted source
+FINITE_MUTATIONS = {"a C4F mean": ("c4f|025|8", "T60", 0, 999.0), "a C4F sd": ("c4f|100|1", "C50", 1, 0.5),
+                    "a C4F seed count": ("c4f|050|8", "EDT", 2, 6), "a C4F unprinted metric": ("c4f|075|1", "FD", 0, 3.0),
+                    "a YAW-Aug mean": ("yaw|025|8", "T60", 0, 999.0), "a YAW-Aug sd": ("yaw|075|1", "EDT", 1, 1e-9),
+                    "an OrbitRIR R@1 mean": ("bf|050|8", "RIR_to_GT_RIR_R@1", 0, 0.0),
+                    "an OrbitRIR seed count": ("bf|025|1", "C50", 2, 4)}
+
+
+def _render_inputs(built):
+    repo, sha, _ = built
+    tbl.build(sha, repo=repo)
+    ev_rec, _ = tbl.reg.read_sealed(os.path.join(repo, tbl.TABLE_EVIDENCE), EVIDENCE_KEYS)
+    rec, rec_sha = tbl.reg.read_sealed(os.path.join(repo, tbl.IMPORT_RECORD), tbl.IMPORT_KEYS)
+    return ev_rec["rows"], rec, rec_sha, ev_rec["exp46_campaign"]
+
+
+@pytest.mark.parametrize("case", sorted(FINITE_MUTATIONS))
+def test_the_renderer_refuses_a_finite_value_that_differs_from_its_admitted_source(built, case):
+    """render() -- the rendering boundary -- re-derives every row from its admitted source (C4F: exp_46's offline-
+    admitted cells; YAW-Aug / OrbitRIR: the sealed import record's own per-cell values) and refuses any supplied value
+    that differs, finite or not (the r2 probe: source T60 mean 1.0 rendered as 999.0)."""
+    import re
+    rows, rec, rec_sha, campaign = _render_inputs(built)
+    assert tbl.render(rows, rec, rec_sha, campaign)                  # the admitted values themselves render
+    key, metric, i, value = FINITE_MUTATIONS[case]
+    assert rows[key][metric][i] != value
+    bad = json.loads(json.dumps(rows))
+    bad[key][metric][i] = value
+    with pytest.raises(tbl.TableError, match=re.escape(key)):
+        tbl.render(bad, rec, rec_sha, campaign)
+
+
+def test_the_renderer_refuses_an_import_record_or_campaign_other_than_the_sealed_ones(built):
+    """The exp_38 source is the sealed record its digest names (a record edited consistently -- cells, rows and the
+    supplied rows together -- refuses), and the C4F source is the campaign of exp_46's own E0 receipt."""
+    rows, rec, rec_sha, campaign = _render_inputs(built)
+    rec2, rows2 = json.loads(json.dumps(rec)), json.loads(json.dumps(rows))
+    for v in rec2["cells"].values():
+        if v["run"] == "de_yaw_f025" and v["K"] == 8:
+            v["metrics"]["T60"] = 999.0
+    rec2["rows"] = tbl.exp38_rows(rec2["cells"])
+    rows2["yaw|025|8"] = rec2["rows"]["yaw|025|8"]
+    assert rows2["yaw|025|8"]["T60"][0] == 999.0
+    with pytest.raises(tbl.TableError, match="import record"):
+        tbl.render(rows2, rec2, rec_sha, campaign)
+    for k in ("head", "closure_sha256", "sha256"):
+        with pytest.raises(tbl.TableError, match="campaign"):
+            tbl.render(rows, rec, rec_sha, dict(campaign, **{k: "0" * len(campaign[k])}))
+    assert tbl.render(rows, rec, rec_sha, campaign)
