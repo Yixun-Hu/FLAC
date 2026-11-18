@@ -36,6 +36,10 @@ import subprocess
 import sys
 import time
 
+# Codex code r1 finding 1: exp_38's tools are imported from exp_38's own folder; the sbatch runs this process with
+# -B, a standalone invocation (DRY_RUN from a command sheet) does not -- no import of this process caches bytecode
+sys.dont_write_bytecode = True
+
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
 import exp46_registry as reg  # noqa: E402

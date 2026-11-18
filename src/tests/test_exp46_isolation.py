@@ -352,3 +352,53 @@ def test_the_exp38_materialisation_exception_is_kept_exactly_and_never_reaches_e
     assert not [r for r in static if r.startswith(exp45) or "exp_45" in r or "exp45" in r]
     assert tbl.EXP38_FARM == reg.EXP38_FARM and not [c for c in tbl.EXP38_CONFIGS if c.startswith(exp45)]
     assert all(v[3].startswith(reg.EXP38_FARM + "/") for v in tbl.exp38_cell_stems().values())
+
+
+# ------------------------------------------------------------------ fix round 1, Codex code r1 finding 1: no bytecode
+def _copied_tree(tmp_path):
+    """A throw-away checkout (a .git marker) holding the exp_46 kit and exp_38's tools, copied without bytecode."""
+    import shutil
+    root = tmp_path / "tree"
+    (root / ".git").mkdir(parents=True)
+    for rel in (reg.EXP_DIR, reg.EXP38_DIR):
+        (root / rel).mkdir(parents=True)
+        for name in sorted(os.listdir(os.path.join(REPO, rel))):
+            if name.endswith(".py"):
+                shutil.copyfile(os.path.join(REPO, rel, name), root / rel / name)
+    return root
+
+
+def _bytecode(root):
+    """Every __pycache__ directory and .pyc file under ``root``, relative."""
+    return sorted(os.path.relpath(os.path.join(a, n), str(root)) for a, ds, fs in os.walk(str(root))
+                  for n in ds + fs if n == "__pycache__" or n.endswith(".pyc"))
+
+
+@pytest.mark.parametrize("argv", [["--verify", "x.txt.gz"], ["--build", "out/x.txt.gz"]], ids=["verify", "build"])
+def test_the_standalone_manifest_tool_writes_no_bytecode_into_exp38s_folder(tmp_path, argv):
+    """Codex code r1 finding 1 (HIGH): the documented plain invocation `python exp46_content_manifest.py --build /
+    --verify` (no -B, PYTHONDONTWRITEBYTECODE ignored by -I) imports exp_38's tools from exp_38's folder; it disables
+    bytecode writes before those imports, so no __pycache__ appears there -- nor anywhere else in the tree."""
+    import subprocess
+    root = _copied_tree(tmp_path)
+    assert _bytecode(root) == []
+    res = subprocess.run([sys.executable, "-I", str(root / reg.EXP_DIR / "exp46_content_manifest.py"), *argv],
+                         cwd=str(root), capture_output=True, text=True, timeout=300)
+    assert res.returncode in (1, 2), res.stderr[-2000:]                 # refused or FAIL: the imports did happen
+    assert "Traceback" not in res.stderr, res.stderr[-2000:]
+    assert _bytecode(root) == [], _bytecode(root)
+
+
+def test_a_supervisor_process_writes_no_bytecode_into_exp38s_folder(tmp_path):
+    """The supervisor imports exp_38's subset audit and content manifest from exp_38's folder (the sbatch runs it with
+    -B; a standalone DRY_RUN does not): importing it disables bytecode writes for the process first."""
+    import subprocess
+    root = _copied_tree(tmp_path)
+    code = ("import sys; sys.path.insert(0, sys.argv[1]); import exp46_supervise; import exp38_subset_audit; "
+            "import exp38_content_manifest; import exp46_content_manifest; print(sys.dont_write_bytecode)")
+    res = subprocess.run([sys.executable, "-I", "-c", code, str(root / reg.EXP_DIR)], cwd=str(root),
+                         capture_output=True, text=True, timeout=300)
+    assert res.returncode == 0 and res.stdout.strip().endswith("True"), res.stderr[-2000:]
+    # the supervisor module's own bytecode (written while it is imported, inside exp_46's folder) is exp_46's; nothing
+    # may appear anywhere else
+    assert [p for p in _bytecode(root) if not p.startswith(reg.EXP_DIR + "/")] == [], _bytecode(root)

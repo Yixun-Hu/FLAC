@@ -29,6 +29,10 @@ import socket
 import sys
 import time
 
+# Codex code r1 finding 1 (HIGH): exp_38's tools are imported from exp_38's own folder below; the plain standalone
+# invocation (no -B) must write no bytecode there -- nor anywhere: no import of this process caches bytecode
+sys.dont_write_bytecode = True
+
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
 import exp46_registry as reg  # noqa: E402
