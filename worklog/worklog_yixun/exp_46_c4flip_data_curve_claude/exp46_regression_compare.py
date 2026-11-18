@@ -44,7 +44,12 @@ DECLARED_EDITED = frozenset({
     *(f"src/tests/test_yaw_aug_flip_factory.py::test_true_flip_with_offset_step_is_refused[{s}]" for s in (32, 1, 4)),
     "src/tests/test_exp43_kit.py::test_config_contract_through_the_real_factory",                            # E3
     "src/tests/test_exp45_merge_provenance.py::test_later_exp45_commits_touch_only_the_allowed_paths",       # E4
-    "src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically"})  # E5
+    "src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically",  # E5
+    # D1 (open item 13 / Codex code r3 finding 3; PREPARED, applied with E7 + E8 once Yixun approves): the two upstream
+    # sampler copies restore lightning's global rank at teardown -- each node must be present and PASS, also when absent
+    # from both parents; a failure, error, skip or inherited failure is never admitted (must_pass: no inheritance)
+    "src/tests/test_exp45_sampler.py::test_both_launch_environments_give_the_same_rank_and_world",           # E7
+    "src/tests/test_exp38_sampler.py::test_both_launch_environments_give_the_same_rank_and_world"})          # E8
 EDITED = COMPAT_EDITED | DECLARED_EDITED
 REPLACED = {}          # {a parent node id: its registered replacement in the merged tree} -- none (E1-E5 keep ids)
 # the registered environment skips of new nodes in the L1 environment (a neuronic CPU Slurm job; reasons exactly as

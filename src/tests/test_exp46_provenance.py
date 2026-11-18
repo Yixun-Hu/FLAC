@@ -59,8 +59,25 @@ E_EDITS = {
     "src/tests/test_gen_model_comparison_depth_canon.py": (("test_every_pre_exp25_row_renders_byte_identically",),
                                                            ()),                                              # E5
 }
-ALWAYS = (f"{EXPREL46}/*", "src/tests/test_exp46_*.py", "src/tests/exp46_fixtures.py",
-          "src/tests/test_gen_model_comparison_exp46.py", *E_EDITS, GEN, FACTORY, DIFFUSION)
+# D1 (open item 13 / Codex code r3 finding 3) -- PREPARED, applied only once Yixun approves E7 + E8: the two upstream
+# sampler copies may differ from X45f ONLY by exactly these four lines, inserted after the unique anchor (the first body
+# line of test_both_launch_environments_give_the_same_rank_and_world), the file mode unchanged (content-checked below)
+RANK_ANCHOR = "    from lightning_fabric.plugins.environments import LightningEnvironment, TorchElasticEnvironment\n"
+RANK_TEST = "test_both_launch_environments_give_the_same_rank_and_world"
+E_INSERTIONS = {"src/tests/test_exp45_sampler.py": "E7", "src/tests/test_exp38_sampler.py": "E8"}
+
+
+def rank_restore(tag):
+    """The four lines of E7 / E8, verbatim (Codex code r3 pre-reviewed E7; E8 is the same edit with its own tag)."""
+    return ("    from lightning_fabric.utilities.rank_zero import rank_zero_only\n"
+            f"    # exp_46 {tag}: LightningEnvironment.set_global_rank also sets lightning's GLOBAL rank_zero_only.rank; "
+            "restored at\n"
+            "    # teardown so no later test in the process inherits rank 1 (silencing rank-0 banners)\n"
+            '    monkeypatch.setattr(rank_zero_only, "rank", rank_zero_only.rank)\n')
+
+
+ALWAYS = (f"{EXPREL46}/*", "src/tests/test_exp46_*.py", "src/tests/exp46_fixtures.py", "src/tests/exp46_rank_probe.py",
+          "src/tests/test_gen_model_comparison_exp46.py", *E_EDITS, *E_INSERTIONS, GEN, FACTORY, DIFFUSION)
 RESULTS_ONLY = ("outputs_FLAC/exp46_c4flip_data_curve/eval/*", "worklog/worklog_yixun/model_comparison.md")
 RESULTS_SUBJECT = "exp_46 results publication"            # the subject prefix of a results-publication commit
 # the E0 publication commit Y46 (Codex plan r1 finding 6): ITS exact subject, and besides EXPREL46 ONLY the 24 files of
@@ -435,3 +452,44 @@ def test_closure_digest_at_a_commit_equals_the_checkout_digest(tmp_path):
     code = commit({"src/x.py": b"other code"}, "code")
     assert reg.closure_digest_at(code, str(repo)) != reg.closure_digest_at(x46, str(repo))
     assert reg.closure_digest_at(code, str(repo)) == reg.closure_digest(str(repo))
+
+
+# ------------------------------------------------------------------ D1: E7 / E8, exact (PREPARED; red until they land)
+def insertion_problems(old, new, tag):
+    """Problems of E7 / E8 under Codex code r3's provenance rule: ``new`` must be ``old`` -- the WHOLE X45f file -- with
+    exactly rank_restore(tag) inserted right after the unique anchor, which must be the first body line of the sampler
+    test; no other addition, deletion, assertion change or node rename."""
+    if old.count(RANK_ANCHOR) != 1:
+        return ["the anchor is not unique in the X45f file"]
+    fn = [n for n in ast.parse(old).body if isinstance(n, ast.FunctionDef) and n.name == RANK_TEST]
+    if len(fn) != 1 or old.split("\n")[fn[0].body[0].lineno - 1] + "\n" != RANK_ANCHOR:
+        return ["the anchor is not the first body line of the sampler test"]
+    want = old.replace(RANK_ANCHOR, RANK_ANCHOR + rank_restore(tag), 1)
+    return [] if new == want else ["not the X45f file plus exactly the four-line insertion at the anchor"]
+
+
+@pytest.mark.parametrize("path", sorted(E_INSERTIONS))
+def test_e7_e8_are_the_x45f_file_plus_exactly_the_four_line_insertion(path):
+    """The committed file (HEAD) AND the tracked working tree are the whole X45f file plus exactly the insertion, with
+    X45f's mode. RED until E7 + E8 land (Yixun's D1)."""
+    tag, old = E_INSERTIONS[path], _show(X45F, path)
+    assert insertion_problems(old, _show("HEAD", path), tag) == [], (path, "HEAD")
+    assert insertion_problems(old, open(os.path.join(REPO, path)).read(), tag) == [], (path, "working tree")
+    mode = tree_entry(X45F, path)[0]
+    assert tree_entry("HEAD", path)[0] == mode
+    assert bool(os.stat(os.path.join(REPO, path)).st_mode & 0o111) == (mode == "100755")
+
+
+def test_the_insertion_check_admits_exactly_the_four_lines_and_nothing_else():
+    old = _show(X45F, "src/tests/test_exp45_sampler.py")
+    ok = old.replace(RANK_ANCHOR, RANK_ANCHOR + rank_restore("E7"), 1)
+    assert insertion_problems(old, ok, "E7") == [] and ok.count("\n") == old.count("\n") + 4
+    other = "def test_worker_seeding_depends_only_on_seed_rank_and_worker(monkeypatch):\n"
+    bad = {"unchanged": old, "the E8 tag in E7": old.replace(RANK_ANCHOR, RANK_ANCHOR + rank_restore("E8"), 1),
+           "three of the four lines": ok.replace(rank_restore("E7").split("\n")[2] + "\n", "", 1),
+           "an extra line elsewhere": ok + "# x\n", "an assertion changed": ok.replace("== (2, rank)", "== (2, 1)"),
+           "the node renamed": ok.replace(f"def {RANK_TEST}(", "def test_renamed("),
+           "the lines in another test": old.replace(other, other + rank_restore("E7"), 1),
+           "a line removed": ok.replace("        # torchrun --standalone --nproc_per_node=2\n", "", 1)}
+    for name, new in bad.items():
+        assert insertion_problems(old, new, "E7"), name

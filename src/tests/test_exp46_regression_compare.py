@@ -196,7 +196,7 @@ def test_the_declared_edited_nodes_are_exactly_e1_to_e5_and_each_must_pass_and_b
         *(f"src/tests/test_yaw_aug_flip_factory.py::test_true_flip_with_offset_step_is_refused[{s}]" for s in (32, 1, 4)),
         "src/tests/test_exp43_kit.py::test_config_contract_through_the_real_factory",
         "src/tests/test_exp45_merge_provenance.py::test_later_exp45_commits_touch_only_the_allowed_paths",
-        "src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically"])
+        "src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically", *E7_E8])
     assert rc.EDITED == rc.COMPAT_EDITED | rc.DECLARED_EDITED and rc.REPLACED == {}
     problems, _ = _run(tmp_path, BASE)
     assert problems == []
@@ -273,3 +273,25 @@ def test_the_wandb_environment_failures_are_inherited_only_as_the_parents_exact_
     deselected = {k: v for k, v in BASE.items() if k != node}                       # L0's deselection, carried over
     problems, _ = _run(tmp_path, deselected, p43=same)
     assert problems == [f"{node}: present in 4a7e3b3a, missing in the merged tree"]
+
+
+# ------------------------------------------------------------------ D1 (PREPARED): E7 / E8 registered as declared edits
+E7_E8 = ["src/tests/test_exp45_sampler.py::test_both_launch_environments_give_the_same_rank_and_world",
+         "src/tests/test_exp38_sampler.py::test_both_launch_environments_give_the_same_rank_and_world"]
+
+
+def test_e7_e8_must_be_present_and_pass_even_if_absent_from_both_parents(tmp_path):
+    """Codex code r3's L1 rule for E7 / E8: each node must PASS in the merged tree, also when NEITHER parent has it; a
+    failure, an error or a skip refuses even when a parent has the identical outcome (no inherited-failure exception);
+    its absence refuses."""
+    for node in E7_E8:
+        assert node in rc.DECLARED_EDITED
+        parents = {k: v for k, v in BASE.items() if k != node}                    # absent from both parents
+        problems, _ = _run(tmp_path, BASE, p38=parents, p43=parents)
+        assert problems == [], (node, problems)
+        for outcome in ("failed", "error", "skipped"):
+            for p in (parents, dict(parents, **{node: outcome})):                 # absent / identical in the parents
+                problems, _ = _run(tmp_path, dict(BASE, **{node: outcome}), p38=p, p43=p)
+                assert len(problems) == 1 and problems[0].startswith(f"{node}: must pass"), (node, outcome, problems)
+        problems, _ = _run(tmp_path, parents, p38=parents, p43=parents)
+        assert problems == [f"{node}: the declared-edited / replacement node is missing"], (node, problems)
