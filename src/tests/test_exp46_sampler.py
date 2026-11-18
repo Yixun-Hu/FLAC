@@ -86,6 +86,10 @@ def test_set_epoch_reshuffles_and_is_seed_bound():
 
 def test_both_launch_environments_give_the_same_rank_and_world(monkeypatch):
     from lightning_fabric.plugins.environments import LightningEnvironment, TorchElasticEnvironment
+    from lightning_fabric.utilities.rank_zero import rank_zero_only
+    # exp_46: LightningEnvironment.set_global_rank also sets lightning's GLOBAL rank_zero_only.rank; restored at teardown
+    # so no later test in the process inherits rank 1 (exp_45's original leaves it at 1, silencing rank-0 banners)
+    monkeypatch.setattr(rank_zero_only, "rank", rank_zero_only.rank)
     for rank in (0, 1):
         for k in ("RANK", "WORLD_SIZE", "LOCAL_RANK", "GROUP_RANK", "NODE_RANK", "LOCAL_WORLD_SIZE"):
             monkeypatch.delenv(k, raising=False)

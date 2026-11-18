@@ -477,7 +477,10 @@ def test_the_c4f_banner_is_one_flushed_line_from_rank_zero_only(monkeypatch):
     (RF, "yaw_aug ENABLED img_w=512 seed=42 flip=0.5"),
     (C4F, C4F_BANNER),
 ])
-def test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm(capsys, extra, line):
+def test_the_c4f_banner_is_a_different_whole_line_from_every_other_arm(capsys, monkeypatch, extra, line):
+    # rank 0 explicitly (hermetic): lightning's global rank_zero_only.rank is process state that another test may have
+    # left at 1 (test_exp45_sampler.py's LightningEnvironment.set_global_rank), which would silence the banner
+    monkeypatch.setattr(tdiff.rank_zero_only, "rank", 0)
     m = cap._mods()
     w = cap.build_wrapper(m, cap.tiny_config(W, extra))
     cap.attach_stub_trainer(w, 0, 0)
