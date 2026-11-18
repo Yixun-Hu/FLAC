@@ -26,7 +26,8 @@ import exp46_submit_neuronic as sub  # noqa: E402
 import exp46_supervise as sv  # noqa: E402
 
 KIT = ("exp46_registry.py", "exp46_supervise.py", "exp46_submit_neuronic.py", "exp46_init_digest.py", "exp46_eval.py",
-       "exp46_collect.py", "exp46_table.py", "exp46_regression_compare.py", "exp46_content_manifest.py")
+       "exp46_collect.py", "exp46_table.py", "exp46_regression_compare.py", "exp46_content_manifest.py",
+       "exp46_nas_publish.py")
 # another experiment's name followed by a path / name character (prose like "exp_38's" is not a literal path)
 FOREIGN = re.compile(r"exp[-_]?(38|45)(?=[-_./a-zA-Z0-9]|$)")
 RUN = "exp46_C4Ff025_l40_2x32"
