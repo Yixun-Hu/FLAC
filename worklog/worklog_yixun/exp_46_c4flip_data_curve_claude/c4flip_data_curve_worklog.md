@@ -44,3 +44,11 @@
   The Codex plan prompts / reviews name the old SHAs; their content is unchanged (only the parent moved). The old tip
   stays reachable as the local tag `exp46-plan-r3-prerebase` (not pushed).
 - Plan r3 unchanged in substance; `X45f` filled in. Waiting for Yixun's approval of plan r3 and M1–M4.
+
+## 2026-11-17 22:20 EST — plan r3 APPROVED (M1–M4 as recommended); L0 starts (coordinating session)
+
+- Yixun: "按推荐批准" (Query 9). Plan status line updated; nothing else in the plan changed.
+- L0 handed to an Opus 5.5 max-effort Coder subagent in this worktree: §3.1 training path first (TDD), then commit A
+  (kit fork with the node-level test disposition), then the §3.2 deltas. Tests run only in CPU Slurm jobs
+  (`TMPDIR=/tmp`), logs `c4flip_data_curve_<ts>_pytest_*.log`. No push, no `main`, no stash; exp_45 / exp_38 /
+  exp_40 / exp_43 folders untouched except the declared edits E1–E5.

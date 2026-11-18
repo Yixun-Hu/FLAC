@@ -39,3 +39,19 @@ answers that list. It is not read as the go for anything else (e.g. the K3D reru
 **Assumptions recorded:** the experiment number 46 is free (no `exp-46*` branch on `origin` on 2026-11-17; the A6000
 session, which numbers exp_40–45, could not be asked directly from neuronic — if it already uses 46, exp_46 is
 renamed before any push).
+
+## Query 9 — 2026-11-17 ≈ 22:20 EST (answer to "Approve exp_46 plan r3 and M1–M4 as recommended?")
+
+> 按推荐批准
+
+**Read as:** plan r3 (`plan_c4flip_data_curve.md`) approved, with M1–M4 as recommended:
+- **M1** fork exp_45's fixed kit as `exp46_*` (§3.2); exp_45 stays frozen and isolated.
+- **M2** 20-row table: C4F at 25 / 50 / 75 / 100 % next to YAW-Aug and OrbitRIR at 25 / 50 / 75 % (exp_38 import).
+- **M3** all four FULLs at once (8 L40), after four passing SMOKEs.
+- **M4** each push of `exp-46-c4flip-data-curve` (`X46`, `Y46`, later records) on Yixun's go; this also publishes
+  exp_45's unpushed commits as ancestors.
+
+**Why this reading:** the open question was exactly "plan r3 and M1–M4 as recommended?"; it is not read as the go for
+anything else (the K3D warm-start rerun stays a separate decision; no push is authorised by it — M4 itself requires a
+go per push).
+**Next:** L0 by an Opus 5.5 max-effort Coder subagent (TDD), then ≤ 3 Codex code rounds.

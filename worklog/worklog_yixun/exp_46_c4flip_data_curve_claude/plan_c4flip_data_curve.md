@@ -1,7 +1,7 @@
 # exp_46 c4flip_data_curve — plan: C4 + flip yaw augmentation at 25 / 50 / 75 / 100 % of AR, trained on neuronic
 
-**Status:** r3 (final), 2026-11-17 ≈ 14:50 EST, by the neuronic coordinating session (Claude Opus 5.5). **NOT
-approved — awaiting Yixun.** Codex plan rounds used: 3 of 3 (round 1 on r0: REVISE, 11 findings, fixed in r1; round 2
+**Status:** r3 (final), 2026-11-17 ≈ 14:50 EST, by the neuronic coordinating session (Claude Opus 5.5). **APPROVED
+by Yixun 2026-11-17 ≈ 22:20 EST ("按推荐批准": plan r3 and M1–M4 as recommended; Query 9).** Codex plan rounds used: 3 of 3 (round 1 on r0: REVISE, 11 findings, fixed in r1; round 2
 on r1: REVISE, 6 new, fixed in r2; round 3 on r2: **APPROVE-WITH-CHANGES, no BLOCKING / HIGH**, every earlier finding
 RESOLVED, one NIT — fixed in r3 **without re-review**, per the review cap; §12); code rounds: 0 of 3.
 **Origin:** Yixun's queries 6–8 (`c4flip_data_curve_yixun_query.md`; decisions C1–C5 approved 2026-11-17, before 13:45 EST).
