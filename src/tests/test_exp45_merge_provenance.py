@@ -26,6 +26,7 @@ BASE = "2b42468c8f429b1d93da93b3e4ddb7bd6f8f1932"           # merge base of the 
 EXP38_TIP = "3593f34cad4e6e4415a572e93d16ee83465f8ae8"      # origin/exp-38-data-efficiency (the only commit merged)
 EXP43_PIN = "4a7e3b3a948388434bc102b8bd7e7aba94648d71"      # the exp_43 training pin (exp_45's base)
 FIRST_PARENT = "738a5de77809dd8c4fffbea22354060ce00f50db"   # exp-45-rf-data-curve before the merge (plan r3 approved)
+X45F = "1e37ead2a352bd78d50cdda9ed02e95738a4ad04"           # exp_45's frozen tip (exp_46 E4: every historical endpoint)
 EXPREL = "worklog/worklog_yixun/exp_45_rf_data_curve_claude"
 EXP38REL = "worklog/worklog_yixun/exp_38_data_efficiency_claude"
 EXP40REL = "worklog/worklog_yixun/exp_40_yaw_aug_c16_claude"
@@ -126,7 +127,7 @@ def path_allowed(path, subject):
 def merge_commit():
     """The single merge commit after FIRST_PARENT; its parents must be exactly (FIRST_PARENT, EXP38_TIP)."""
     rows = [ln.split() for ln in git("rev-list", "--merges", "--parents", "--ancestry-path",
-                                     f"{FIRST_PARENT}..HEAD").split("\n") if ln.strip()]
+                                     f"{FIRST_PARENT}..{X45F}").split("\n") if ln.strip()]
     assert len(rows) == 1, f"expected exactly one merge after {FIRST_PARENT[:8]}, found {len(rows)}"
     assert rows[0][1:] == [FIRST_PARENT, EXP38_TIP], f"merge parents {rows[0][1:]}"
     return rows[0][0]
@@ -218,23 +219,24 @@ def _function_free(src, name):
 
 
 def test_later_exp45_commits_touch_only_the_allowed_paths():
+    """exp_46 declared edit E4: every historical comparison has fixed endpoints -- the commits merge..X45f, the
+    generator and the compat files at X45f; exp_46's own commits (after X45f) are audited by
+    test_exp46_provenance.py."""
     m = merge_commit()
-    assert git("rev-list", "--merges", f"{m}..HEAD").strip() == "", "no merge after the provenance merge"
+    assert subprocess.run(["git", "-C", REPO, "merge-base", "--is-ancestor", X45F, "HEAD"]).returncode == 0
+    assert git("rev-list", "--merges", f"{m}..{X45F}").strip() == "", "no merge after the provenance merge"
     problems = []
-    for commit in git("rev-list", f"{m}..HEAD").split():
+    for commit in git("rev-list", f"{m}..{X45F}").split():
         subject = git("log", "-1", "--format=%s", commit).strip()
         for path in git("diff-tree", "--no-commit-id", "-r", "--name-only", commit).split("\n"):
             if path and not path_allowed(path, subject):
                 problems.append(f"{commit[:10]} ({subject[:40]}): {path}")
-    for path in git("diff", "--name-only", "HEAD").split("\n"):      # uncommitted tracked edits too
-        if path and not matches(path, ALLOWED_AFTER_MERGE):
-            problems.append(f"working tree: {path}")
     assert not problems, problems[:10]
-    # the generator gains the exp_45 contract only: additions, no line of the merged generator removed
-    num = git("diff", "--numstat", m, "--", GEN).split()
+    # the generator gains the exp_45 contract only: additions, no line of the merged generator removed (at X45f)
+    num = git("diff", "--numstat", m, X45F, "--", GEN).split()
     assert not num or num[1] == "0", f"{GEN}: {num[1]} merged line(s) removed after the merge"
     for path, fn in COMPAT_EDITS.items():                            # the compat edits stay inside their test
-        assert _function_free(blob("HEAD", path).decode(), fn) == _function_free(blob(m, path).decode(), fn)
+        assert _function_free(blob(X45F, path).decode(), fn) == _function_free(blob(m, path).decode(), fn)
 
 
 def _e0_cell_files():
