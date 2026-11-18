@@ -1,0 +1,127 @@
+HEAD 4f36ff94beac35f61989a8151628802bf27e2fd2 tracked-clean=yes host neu308.neuronic.cs.princeton.edu start 2026-11-18T09:13:11-05:00
+cmd: pytest -q -rfEs --deselect=src/tests/test_exp43_kit.py::test_admission_validator_accepts_the_exact_record_and_rehashes --deselect=src/tests/test_exp43_kit.py::test_admission_validator_rejects_every_field_mutation --deselect=src/tests/test_exp43_kit.py::test_admission_validator_rejects_schema_and_nas_mutations --deselect=src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields --deselect=src/tests/test_exp43_kit.py::test_the_history_tool_is_pinned_and_bound_by_its_sidecar --deselect=src/tests/test_exp43_kit.py::test_history_csv_and_sidecar_mutations_are_refused --deselect=src/tests/test_exp43_kit.py::test_smoke_evidence_cli_requires_the_preserved_wandb_run --deselect=src/tests/test_exp43_kit.py::test_train_history_subprocess_is_fail_closed\[cadence_gap src/tests/test_yaw_aug_arm_config.py src/tests/test_yaw_aug_c16_config.py src/tests/test_yaw_aug_c16.py src/tests/test_yaw_aug_collect.py src/tests/test_yaw_aug_flip_config.py src/tests/test_yaw_aug_flip_factory.py src/tests/test_yaw_aug_flip.py src/tests/test_yaw_aug_record_control.py src/tests/test_yaw_aug_training.py src/tests/test_exp43_kit.py src/tests/test_yaw_mirror.py src/tests/test_exp43_yaw_aug_flip_golden.py src/tests/test_exp46_c4flip_factory.py src/tests/test_exp46_c4flip_wrapper.py src/tests/test_exp46_closure.py src/tests/test_exp46_command_sheets.py src/tests/test_exp46_ddp_evidence.py src/tests/test_exp46_eval.py src/tests/test_exp46_f100_delta.py src/tests/test_exp46_g7_loader_length.py src/tests/test_exp46_init_digest.py src/tests/test_exp46_isolation.py src/tests/test_exp46_launchers.py src/tests/test_exp46_mutation_guards.py src/tests/test_exp46_nas_publish.py src/tests/test_exp46_paths.py src/tests/test_exp46_provenance.py src/tests/test_exp46_receipts.py src/tests/test_exp46_registry.py src/tests/test_exp46_regression_compare.py src/tests/test_exp46_sampler.py src/tests/test_exp46_storage.py src/tests/test_exp46_supervise.py src/tests/test_exp46_table.py src/tests/test_gen_model_comparison_exp46.py src/tests/test_gen_model_comparison_exp45.py src/tests/test_gen_model_comparison_exp38.py src/tests/test_gen_model_comparison_depth_canon.py src/tests/test_gen_model_comparison_data_curve.py src/tests/test_gen_model_comparison_gate.py src/tests/test_exp45_command_sheets.py src/tests/test_exp45_ddp_evidence.py src/tests/test_exp45_eval.py src/tests/test_exp45_isolation.py src/tests/test_exp45_launchers.py src/tests/test_exp45_merge_provenance.py src/tests/test_exp45_receipts.py src/tests/test_exp45_registry.py src/tests/test_exp45_regression_compare.py src/tests/test_exp45_sampler.py src/tests/test_exp45_storage.py src/tests/test_exp45_supervise.py src/tests/test_exp45_table.py 
+........................................................................ [  2%]
+........................................................................ [  4%]
+................................s....................................... [  7%]
+........................................................................ [  9%]
+........................................................................ [ 12%]
+........................................................................ [ 14%]
+........................................................................ [ 16%]
+........................................................................ [ 19%]
+......................................................ss..s...s......... [ 21%]
+.......s................................................................ [ 24%]
+........................................................................ [ 26%]
+........................................................................ [ 29%]
+........................................................................ [ 31%]
+........................................................................ [ 33%]
+........................................................................ [ 36%]
+........................................................................ [ 38%]
+........................................................................ [ 41%]
+........................................................................ [ 43%]
+........................................................................ [ 46%]
+........................................................................ [ 48%]
+........................................................................ [ 50%]
+........................................................................ [ 53%]
+.............................................s.......................... [ 55%]
+........................................................................ [ 58%]
+........................................................................ [ 60%]
+.....................s.....s.s.......................................... [ 63%]
+........................................................................ [ 65%]
+........................................................................ [ 67%]
+........................................................................ [ 70%]
+........................................................................ [ 72%]
+........................................................................ [ 75%]
+........................................................................ [ 77%]
+........................................................................ [ 80%]
+........................................................................ [ 82%]
+........................................................................ [ 84%]
+................................................s....................... [ 87%]
+........................................................................ [ 89%]
+........................................................................ [ 92%]
+.......................s.....s.s........................................ [ 94%]
+.s...................................................................... [ 96%]
+........................................................................ [ 99%]
+..................                                                       [100%]
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_yaw_aug_c16.py::test_validation_step_never_augments_with_offset_step
+src/tests/test_yaw_aug_c16.py::test_test_step_never_augments_with_offset_step
+src/tests/test_yaw_aug_flip.py::test_validation_step_never_flips
+src/tests/test_yaw_aug_flip.py::test_test_step_never_flips
+src/tests/test_yaw_aug_training.py::test_validation_step_never_augments
+src/tests/test_exp46_c4flip_wrapper.py::test_the_validation_step_never_augments_a_c4f_arm
+src/tests/test_exp46_c4flip_wrapper.py::test_the_test_step_never_augments_a_c4f_arm
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/amp/autocast_mode.py:266: UserWarning: User provided device_type of 'cuda', but CUDA is not available. Disabling
+    warnings.warn(
+
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/plugins/environments/slurm.py:191: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/ ...
+
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:268: DeprecationWarning: Read the `app_url` setting from the appropriate Settings object.
+    app_url = wandb.util.app_url(tags["base_url"])  # type: ignore[index]
+
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py:54: Detected KeyboardInterrupt, attempting graceful shutdown...
+
+src/tests/test_exp43_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loggers/wandb.py:389: There is a wandb run already in progress and newly created instances of `WandbLogger` will reuse this run. If this is not desired, call `wandb.finish()` before instantiating `WandbLogger`.
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_exp46_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[c4f-2x32]
+src/tests/test_exp45_registry.py::test_the_real_inventory_path_for_every_arm_and_rung[rf-2x32]
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] src/tests/test_yaw_aug_collect.py:944: exp_14 campaign artifacts not present in this tree
+SKIPPED [1] src/tests/test_exp43_kit.py:1815: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp43_kit.py:1865: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp43_kit.py:1933: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp43_kit.py:2008: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp43_kit.py:2356: the pinned DINOv3 snapshot is not in this box's HF cache
+SKIPPED [1] src/tests/test_exp46_receipts.py:72: the GPU-0 smoke evidence lives in this checkout's outputs_FLAC only
+SKIPPED [1] src/tests/test_exp46_receipts.py:716: A6000 box only (nvidia-smi, A6000s)
+SKIPPED [1] src/tests/test_exp46_receipts.py:892: A6000 box only
+SKIPPED [1] src/tests/test_exp46_receipts.py:922: NAS not mounted
+SKIPPED [1] src/tests/test_exp45_receipts.py:72: the GPU-0 smoke evidence lives in this checkout's outputs_FLAC only
+SKIPPED [1] src/tests/test_exp45_receipts.py:716: A6000 box only (nvidia-smi, A6000s)
+SKIPPED [1] src/tests/test_exp45_receipts.py:892: A6000 box only
+SKIPPED [1] src/tests/test_exp45_receipts.py:922: NAS not mounted
+SKIPPED [1] src/tests/test_exp45_registry.py:463: NAS not mounted
+2955 passed, 15 skipped, 41 deselected, 29 warnings in 2335.11s (0:38:55)
+EXIT 0 end 2026-11-18T09:52:09-05:00

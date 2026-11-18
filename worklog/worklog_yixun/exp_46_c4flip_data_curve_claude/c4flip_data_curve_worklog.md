@@ -565,3 +565,13 @@ X45f; the declared edits stay E1–E5; no pytest / python ran on the login node;
   registered as main-checkout forms; (3) the ledger corrects `6180d8ef`'s size (271 lines; its message says 238).
 - **Analysis:** every Codex code r3 finding except R3-3 (D1) is closed and tested; R2-1, R2-8, F2 and F10 are closed
   with them. Open for the coordinator / Yixun: D1 (E7 + E8, prepared), D2 (campaign order).
+
+### 09:12–09:52 — fix round 3's final targeted run: GREEN
+- Command: `JOBTMP=/tmp TLIM=02:00:00 pyt46.sh FR3_final_targeted_yawaug_first_exp45_last -rfEs <the same 8 --deselect>
+  <53 files>` at `4f36ff94` (header: tracked-clean=yes, neu308): FR2's 53 files in FR2's order (this round added no
+  test file on the branch; the D1 regression file is prepared off-branch).
+- Result: **2,955 passed, 15 skipped, 41 deselected, 0 failed** (EXIT 0) in 38 min 55 s, log
+  `c4flip_data_curve_2026-11-18_09-12-21_pytest_FR3_final_targeted_yawaug_first_exp45_last.log`. +27 passing nodes over
+  FR2 (this round's new tests); the 15 skips and 41 deselected nodes are FR2's.
+- Analysis: every open Codex code r3 finding (R3-1, R3-2, R3-4 … R3-7) and the PARTIAL R2-1 / R2-8 / F2 / F10 are fixed
+  without re-review (review cap) and tested; R3-3 waits for Yixun's D1 (E7 + E8 prepared on `wip-exp46-d1-e7-e8`).
