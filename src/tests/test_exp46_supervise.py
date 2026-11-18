@@ -584,6 +584,19 @@ def test_the_a6000_smoke_ddp_is_refused_before_any_gate_or_directory(tmp_path, m
         _campaign(tmp_path, monkeypatch, smode="SMOKE_DDP")
     assert not (tmp_path / "outputs_FLAC").exists() and os.listdir(str(tmp_path / "nas")) == []
 
+
+def test_an_a6000_smoke_is_refused_first_and_the_help_names_no_a6000_training(monkeypatch):
+    """Fix round 1 (Codex code r1 finding 12): the supervisor's documentation no longer advertises A6000 SMOKE /
+    SMOKE_DDP training, and an A6000 SMOKE is refused first, like SMOKE_DDP -- no gate (common_gates is a tripwire)."""
+    monkeypatch.setattr(sv, "common_gates", lambda a, p: (_ for _ in ()).throw(AssertionError("gated")))
+    for mode in ("SMOKE", "SMOKE_DDP"):
+        a = sv.parse(["--platform", "a6000", "--mode", mode, "--run", "exp46_C4Ff025_l40_2x32", "--expect-sha", "f" * 40])
+        with pytest.raises(sv.Refused, match="no A6000 training path"):
+            sv.mode_campaign(a, "a6000")
+    doc = sv.__doc__
+    assert "a6000: one rank" not in doc and "a6000: the production topology" not in doc
+    assert "NO A6000 training path" in doc and "SMOKE_DDP is refused on every platform" in doc
+
 V0 = "lightning_logs/version_0/"
 
 

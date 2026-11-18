@@ -9,10 +9,12 @@ closure snapshot, owns the child's process group, gates the first step, and publ
 sealed receipt only after every end audit passes:
 
     MODE=DRY_RUN    every CPU-side gate + the exact commands; spawns nothing
-    MODE=SMOKE      a6000: one rank on --smoke-gpu, preliminary (no DDP / SyncBN, no receipt)
-                    neuronic: the production-topology 30-step smoke -> sealed SMOKE_DDP receipt
-    MODE=SMOKE_DDP  a6000: the production topology (2 × 32 + SyncBN), 30 steps -> sealed receipt
-    MODE=FULL       the monolithic 0 -> 40,000 run -> sealed TRAINING_COMPLETE.json in the run dir
+    MODE=SMOKE      neuronic only: the production-topology 30-step smoke -> sealed SMOKE_DDP receipt
+    MODE=FULL       neuronic only: the monolithic 0 -> 40,000 run -> sealed TRAINING_COMPLETE.json in the run dir
+
+exp_46 has NO A6000 training path (plan r3 §3.2; Codex code r1 finding 12): SMOKE_DDP is refused on every platform
+and SMOKE on the A6000 box, both before any gate, claim, lock, probe or directory (the inherited A6000 SMOKE
+destination outputs_FLAC/exp38_smoke is never written); FULL refuses on any platform but neuronic (D1 / D2).
 
 Process ownership: the child is started in its own session (pgid == its pid) with the card locks
 passed down (``pass_fds``), so the locks live as long as ANY process of the run lives -- a killed
@@ -529,10 +531,12 @@ def mode_smoke_single(a):
 
 
 def mode_campaign(a, platform):
-    """SMOKE / FULL on neuronic (exp_46 has no A6000 training path: SMOKE_DDP refuses first)."""
-    if a.mode == "SMOKE_DDP":
+    """SMOKE / FULL on neuronic (exp_46 has no A6000 training path: SMOKE_DDP, and SMOKE on the A6000 box, refuse
+    first)."""
+    if a.mode == "SMOKE_DDP" or (a.mode == "SMOKE" and platform == "a6000"):
         # exp_46 plan r3 §3.2 (Names / paths; Codex plan r2 finding 1): the inherited A6000 SMOKE destination
-        # outputs_FLAC/exp38_smoke is refused -- before any gate, claim, lock, probe or directory
+        # outputs_FLAC/exp38_smoke is refused -- before any gate, claim, lock, probe or directory (fix round 1, with
+        # Codex code r1 finding 12: an A6000 SMOKE used to run every gate, nvidia-smi included, before refusing)
         raise Refused(f"exp_46 has no A6000 training path: {a.mode} on {platform} is refused (the inherited SMOKE "
                       "destination outputs_FLAC/exp38_smoke is never written); SMOKE runs on neuronic only")
     arm, tag, rung, exe, d, pins = common_gates(a, platform)
