@@ -1,0 +1,130 @@
+HEAD 4e518a99c2f0b6ad3321fbb7fdb17b462702cbc0 tracked-clean=yes host neu319.neuronic.cs.princeton.edu start 2026-11-19T18:23:46-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_regression_compare.py src/tests/test_exp46_paths.py 
+......................FFFFFF.......                                      [100%]
+=================================== FAILURES ===================================
+_ test_a_trees_own_root_in_a_parametrize_id_is_normalised_and_a_really_missing_node_still_refuses _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_trees_own_root_in_a_par0')
+
+    def test_a_trees_own_root_in_a_parametrize_id_is_normalised_and_a_really_missing_node_still_refuses(tmp_path):
+        """(a) the 34 test_exp35_phase_ii_cli.py ids: each tree's OWN root, at a parameter's start and before a path
+        boundary, becomes <checkout> in its node ids; nothing else in an id is touched."""
+        names = ("exp35_phase_ii_sandbox.py", "test_exp35_phase_ii.py")
+        trees = [dict(BASE, **_in_root(r, *names)) for r in ROOTS]
+>       problems, _ = _run_own(tmp_path, *trees)
+
+src/tests/test_exp46_regression_compare.py:476: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_regression_compare.py:464: in _run_own
+    return rc.compare(*(rc.load(f, roots=ROOTS, own_root=r) for f, r in zip(files, ROOTS)))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <zip object at 0x7fc9f740ad00>
+
+>   return rc.compare(*(rc.load(f, roots=ROOTS, own_root=r) for f, r in zip(files, ROOTS)))
+E   TypeError: load() got an unexpected keyword argument 'own_root'
+
+src/tests/test_exp46_regression_compare.py:464: TypeError
+_ test_time_valued_parametrize_ids_align_by_position_and_the_wandb_error_is_inherited _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_time_valued_parametrize_i0')
+
+    def test_time_valued_parametrize_ids_align_by_position_and_the_wandb_error_is_inherited(tmp_path):
+        """(b) [t-<unix time>-non-future] ids of one test align by position when every tree that has them has the same
+        number; then the merged tree's wandb error is the parent's identical error (inherited) and a passed one matches."""
+        t43 = lambda v: f"src/tests/test_exp43_kit.py::{PROV}[t-{v}-non-future]"   # noqa: E731
+        t40 = lambda v: f"src/tests/test_exp40_kit.py::{PROV}[t-{v}-non-future]"   # noqa: E731
+        merged = dict(BASE, **{t43("1795112610.504861"): WANDB, t40("1795112609.5210009"): "passed"})
+        p43 = dict(BASE, **{t43("1795099929.1330788"): WANDB, t40("1795099927.9082632"): "passed"})
+        problems, report = _run(tmp_path, merged, p43=p43)
+>       assert problems == [], problems
+E       AssertionError: ['src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[t-1795099927.9082632-non-future]: pre...: REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)"); parents {\'3593f34c\': None, \'4a7e3b3a\': None}']
+E       assert ['src/tests/t...3b3a': None}"] == []
+E         
+E         Left contains 3 more items, first extra item: 'src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[t-1795099927.9082632-non-future]: present in 4a7e3b3a, missing in the merged tree'
+E         Use -v to get more diff
+
+src/tests/test_exp46_regression_compare.py:505: AssertionError
+___ test_an_ambiguous_time_id_alignment_is_refused_and_reported_not_dropped ____
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_an_ambiguous_time_id_alig0')
+
+    def test_an_ambiguous_time_id_alignment_is_refused_and_reported_not_dropped(tmp_path):
+        t43 = lambda v: f"src/tests/test_exp43_kit.py::{PROV}[t-{v}-non-future]"   # noqa: E731
+        p43 = dict(BASE, **{t43("1795099929.1330788"): WANDB})
+        two = dict(BASE, **{t43("1795112610.504861"): WANDB, t43("1795112611.25"): WANDB})   # 2 ids vs the parent's 1
+        problems, report = _run(tmp_path, two, p43=p43)
+        template = f"src/tests/test_exp43_kit.py::{PROV}[t-<time>-non-future]"
+>       assert any(p.startswith(f"{template}: time-valued parametrize ids not aligned") for p in problems), problems
+E       AssertionError: ['src/tests/test_exp43_kit.py::test_admission_validator_checks_provenance_fields[t-1795099929.1330788-non-future]: pre...: REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)"); parents {\'3593f34c\': None, \'4a7e3b3a\': None}']
+E       assert False
+E        +  where False = any(<generator object test_an_ambiguous_time_id_alignment_is_refused_and_reported_not_dropped.<locals>.<genexpr> at 0x7fc9f6e74350>)
+
+src/tests/test_exp46_regression_compare.py:522: AssertionError
+_ test_a_campaign_timestamp_and_a_40_hex_head_are_normalised_in_signatures_only_and_another_assertion_refuses _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_campaign_timestamp_and_0')
+
+    def test_a_campaign_timestamp_and_a_40_hex_head_are_normalised_in_signatures_only_and_another_assertion_refuses(tmp_path):
+        """(c) the 33 test_depth_canon_eval_run.py nodes: all three trees fail with one assertion whose first line names
+        the campaign's timestamp and the sandbox HEAD; a YYYY-MM-DD_HH-MM-SS stamp and a 40-hex sha become placeholders."""
+        node = "src/tests/test_depth_canon_eval_run.py::test_a_no_dump_block_completes_without_a_dump"
+        m, p38, p43 = (("failed", CAMPAIGN.format(ts=ts, sha=sha)) for ts, sha in (
+            ("2026-11-19_12-27-22", "7e9685fbb31c20e9a9c45f142f701d8e81df2613"),
+            ("2026-11-19_08-55-32", "b1531da662cd2887b7c0d149f0946a26589a359c"),
+            ("2026-11-19_08-55-20", "f9e2aa3ff3236b81eba0ec56456dcf52cbbfdfa7")))
+        problems, report = _run(tmp_path, dict(BASE, **{node: m}), p38=dict(BASE, **{node: p38}), p43=dict(BASE, **{node: p43}))
+>       assert problems == [] and report["allowed_failures"] == [
+            f"{node}: inherited from 3593f34c, 4a7e3b3a (failed: {CAMPAIGN.format(ts='<time>', sha='<sha>')})"]
+E       assert (["src/tests/t...=true ===')}"] == []
+E         
+E         Left contains one more item: "src/tests/test_depth_canon_eval_run.py::test_a_no_dump_block_completes_without_a_dump: failed in the merged tree (fai...l campaign -- 2026-11-19_08-55-20 -- HEAD f9e2aa3ff3236b81eba0ec56456dcf52cbbfdfa7 -- dry_run=0 -- harness=true ===')}"
+E         Use -v to get more diff)
+
+src/tests/test_exp46_regression_compare.py:544: AssertionError
+___________ test_the_normalisations_never_admit_a_must_pass_failure ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_normalisations_never_0')
+
+    def test_the_normalisations_never_admit_a_must_pass_failure(tmp_path):
+        """A declared-edited node and a new exp_46 node must PASS: a failure whose signature matches the parents' only after
+        normalisation (timestamp / sha / a time-valued id) is still a must-pass problem."""
+        node = DECLARED[0]
+        fail = lambda ts, sha: ("failed", CAMPAIGN.format(ts=ts, sha=sha))           # noqa: E731
+        problems, _ = _run(tmp_path, dict(BASE, **{node: fail("2026-11-19_12-27-22", "a" * 40)}),
+                           p38=dict(BASE, **{node: fail("2026-11-19_08-55-32", "b" * 40)}),
+                           p43=dict(BASE, **{node: fail("2026-11-19_08-55-20", "c" * 40)}))
+        assert len(problems) == 1 and problems[0].startswith(f"{node}: must pass"), problems
+        new = lambda v: f"src/tests/test_exp46_registry.py::{PROV}[t-{v}-non-future]"  # noqa: E731
+        problems, _ = _run(tmp_path, dict(BASE, **{new("1795112610.5"): WANDB}), p43=dict(BASE, **{new("1795099929.1"): WANDB}))
+>       assert any(p.startswith(f"src/tests/test_exp46_registry.py::{PROV}[t-<time:0>-non-future]: must pass")
+                   for p in problems), problems
+E       AssertionError: ['src/tests/test_exp46_registry.py::test_admission_validator_checks_provenance_fields[t-1795099929.1-non-future]: pres...tractor exited 2 (0 = written with a clean cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)"']
+E       assert False
+E        +  where False = any(<generator object test_the_normalisations_never_admit_a_must_pass_failure.<locals>.<genexpr> at 0x7fc9f6e76dc0>)
+
+src/tests/test_exp46_regression_compare.py:568: AssertionError
+___ test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition ___
+
+    def test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition():
+        got = set(foreign_literals())
+        unregistered = sorted(got - set(REGISTERED))
+        stale = sorted(set(REGISTERED) - got)
+>       assert not unregistered and not stale, "\n" + "\n".join(f"{kind} {f} {s!r}" for kind, items in
+                                                           (("UNREGISTERED", unregistered), ("STALE", stale)) for f, s in items)
+E       AssertionError: 
+E         UNREGISTERED exp46_regression_compare.py 'src/tests/test_exp38_sampler.py::test_both_launch_environments_give_the_same_rank_and_world'
+E         UNREGISTERED exp46_regression_compare.py 'src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work'
+E         UNREGISTERED exp46_regression_compare.py 'src/tests/test_exp45_sampler.py::test_both_launch_environments_give_the_same_rank_and_world'
+E       assert (not [('exp46_regression_compare.py', 'src/tests/test_exp38_sampler.py::test_both_launch_environments_give_the_same_rank_an...regression_compare.py', 'src/tests/test_exp45_sampler.py::test_both_launch_environments_give_the_same_rank_and_world')])
+
+src/tests/test_exp46_paths.py:78: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_regression_compare.py::test_a_trees_own_root_in_a_parametrize_id_is_normalised_and_a_really_missing_node_still_refuses
+FAILED src/tests/test_exp46_regression_compare.py::test_time_valued_parametrize_ids_align_by_position_and_the_wandb_error_is_inherited
+FAILED src/tests/test_exp46_regression_compare.py::test_an_ambiguous_time_id_alignment_is_refused_and_reported_not_dropped
+FAILED src/tests/test_exp46_regression_compare.py::test_a_campaign_timestamp_and_a_40_hex_head_are_normalised_in_signatures_only_and_another_assertion_refuses
+FAILED src/tests/test_exp46_regression_compare.py::test_the_normalisations_never_admit_a_must_pass_failure
+FAILED src/tests/test_exp46_paths.py::test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition
+6 failed, 29 passed in 59.43s
+EXIT 1 end 2026-11-19T18:24:53-05:00

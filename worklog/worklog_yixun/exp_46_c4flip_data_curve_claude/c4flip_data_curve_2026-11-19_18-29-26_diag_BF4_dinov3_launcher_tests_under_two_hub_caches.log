@@ -1,0 +1,29 @@
+HEAD 8f4fbbd7e1f2d0ec2b73d2cf75690e3937a1aac0 tracked-clean=yes host neu323.neuronic.cs.princeton.edu start 2026-11-19T18:29:48-05:00
+
+=== ENV A: -u HF_HUB_CACHE HF_HOME=/n/fs/gatrdp/hf_cache HF_HUB_OFFLINE=1
+      1 11 failed, 117 deselected in 20.18s
+      5 E       AssertionError: EXP38 LAUNCH REFUSED: DINOv3 snapshot files ['.gitattributes', 'LICENSE.md', 'README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']
+      1 E       AssertionError: EXP38 LAUNCH REFUSED: /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_bf_f050: checkpoints ['epoch=1-step=2500.ckpt', 'epoch=10-step=25000.ckpt', 'epoch=12-step=27500.ckpt', 'epoch=13-step=30000.ckpt', 'epoch=14-step=32500.ckpt', 'epoch=15-step=35000.ckpt', 'epoch=16-step=37500.c
+      1 E       AssertionError: EXP38 LAUNCH REFUSED: /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f025: checkpoints ['epoch=10-step=12500.ckpt', 'epoch=13-step=15000.ckpt', 'epoch=15-step=17500.ckpt', 'epoch=17-step=20000.ckpt', 'epoch=19-step=22500.ckpt', 'epoch=2-step=2500.ckpt', 'epoch=21-step=25000.
+      4 E       AssertionError: EXP46 LAUNCH REFUSED: DINOv3 snapshot files ['.gitattributes', 'LICENSE.md', 'README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']
+      1 FAILED src/tests/test_exp38_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[de_bf_f025_r8x8-FULL]
+      1 FAILED src/tests/test_exp38_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[de_bf_f050-SMOKE]
+      1 FAILED src/tests/test_exp38_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[de_yaw_f025-FULL]
+      1 FAILED src/tests/test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf025_l40_2x32-FULL]
+      1 FAILED src/tests/test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf050_l40_2x32-SMOKE]
+      1 FAILED src/tests/test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf075_l40_2x32-FULL]
+      1 FAILED src/tests/test_exp45_launchers.py::test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools
+      1 FAILED src/tests/test_exp46_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp46_C4Ff025_l40_2x32-FULL]
+      1 FAILED src/tests/test_exp46_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp46_C4Ff050_l40_2x32-SMOKE]
+      1 FAILED src/tests/test_exp46_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp46_C4Ff075_l40_2x32-FULL]
+      1 FAILED src/tests/test_exp46_launchers.py::test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools
+=== ENV A rc 1
+
+=== ENV B:  HF_HOME=/n/fs/gatrdp/hf_cache HF_HUB_CACHE=/n/fs/gatrdp/exp38_hf_hub HF_HUB_OFFLINE=1
+      1 2 failed, 9 passed, 117 deselected in 173.07s (0:02:53)
+      1 E       AssertionError: EXP38 LAUNCH REFUSED: /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_bf_f050: checkpoints ['epoch=1-step=2500.ckpt', 'epoch=10-step=25000.ckpt', 'epoch=12-step=27500.ckpt', 'epoch=13-step=30000.ckpt', 'epoch=14-step=32500.ckpt', 'epoch=15-step=35000.ckpt', 'epoch=16-step=37500.c
+      1 E       AssertionError: EXP38 LAUNCH REFUSED: /n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_data_efficiency/de_yaw_f025: checkpoints ['epoch=10-step=12500.ckpt', 'epoch=13-step=15000.ckpt', 'epoch=15-step=17500.ckpt', 'epoch=17-step=20000.ckpt', 'epoch=19-step=22500.ckpt', 'epoch=2-step=2500.ckpt', 'epoch=21-step=25000.
+      1 FAILED src/tests/test_exp38_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[de_bf_f050-SMOKE]
+      1 FAILED src/tests/test_exp38_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[de_yaw_f025-FULL]
+=== ENV B rc 1
+EXIT 0 end 2026-11-19T18:33:04-05:00

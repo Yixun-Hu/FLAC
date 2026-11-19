@@ -959,3 +959,97 @@ and `..._pytest_BE*.log`; the diagnostic job scripts, the state tracker and the 
     only, or none once that is decided.
   - The DINOv3 options go to Yixun.
   - After the last code change: one merged-suite rerun (≈ 80 min), reusing the parent junit files, then the compare.
+
+## 2026-11-19 18:15 → 18:36 EST — L1 attempt 3's fixes: compare normalisation and the paths registry, plus the DINOv3 investigation (read-only) (exp_46 Coder, Claude Opus 5.5)
+
+Yixun's "Approve as recommended" (`5ee20743`). Every run was a CPU Slurm job; nothing under `l1/`, `hf_cache`, the env,
+main or the parent worktrees was written. The Codex cap is used up (3 / 3 code rounds), so both fixes are made, covered
+by tests and recorded here without re-review.
+
+- **Task 1, the compare's narrow normalisations** (`4e518a99` tests, then `c3ee29f9` the fix in
+  `exp46_regression_compare.py`):
+  - **(a) Roots in node ids:** each tree's OWN checkout root inside a parametrize id becomes `<checkout>`. It must sit
+    at a parameter's start, before '/' or ']'. Another tree's root, a longer path and a root not at a parameter start
+    stay as they are. Two ids that become one refuse (exit 2).
+  - **(b) Time-valued ids:** ids carrying a unix time align by position within their template. That needs every tree
+    that has the template to have the same number of them, with one time value each. Otherwise the template is
+    reported as a problem and its raw ids stay. The report lists the aligned templates.
+  - **(c) Signatures:** a `YYYY-MM-DD_HH-MM-SS` stamp and a 40-hex sha become placeholders. 64-hex digests and other
+    stamp shapes stay exact.
+  - **Tests:** a positive test for each of (a), (b) and (c), plus refusals for a different assertion, a really missing
+    node, an ambiguous alignment and a must-pass failure.
+  - **Changed expectation:** the earlier collection-record tests now expect `<sha>` for H35's 40-hex commit id, as (c)
+    requires.
+- **Task 2, the paths registry** (`8f4fbbd7`):
+  - `test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition` failed on three unregistered literals in
+    `exp46_regression_compare.py`: the DECLARED_EDITED node ids of E7 and E8 (unregistered since D1, `42cdb52f`) and
+    of E9 (`663fecc7`).
+  - All three are registered with their own disposition: a declared-edited node id of the L1 comparison (read-only
+    junit input names, never a path the kit opens or writes). The scan is unchanged.
+  - Task 1 added no foreign literal.
+- **Validation:**
+  - BF1 red (`4e518a99`): 6 failed (the 5 new compare tests and the paths sweep), 29 passed, EXIT 1.
+  - BF2 green (`8f4fbbd7`): compare, paths, provenance and sheet tests, 96 passed, EXIT 0.
+  - BF3 (diagnostic, read-only, no `--out`): the fixed compare over `l1/attempt3/merged.junit.xml` and both parents'
+    junit files, with the sheet's three roots, gave `REGRESSION POLICY FAIL: 9 problem(s), 399 allowed failure(s)`.
+    - The 9 are exactly the 8 DINOv3 launcher nodes plus the paths sweep. The paths sweep is in the attempt-3 junit;
+      it is fixed for the rerun by `8f4fbbd7`.
+    - The 34 exp35_phase_ii_cli ids now match.
+    - The 33 depth_canon_eval_run failures are inherited from both parents.
+    - The exp_43 wandb error is `inherited from 4a7e3b3a` (`[t-<time:0>-non-future]`).
+    - Allowed failures went from 365 to 399 (+33 depth_canon, +1 wandb). Nothing else is left over.
+- **Task 3, the DINOv3 snapshot refusal (read-only; nothing changed):**
+  - **The gate:** `vit_pin_check()`. In exp_38 it is `exp38_registry.py:686`, with the file-set check at `:697` and
+    VIT_FILES at `:52`. It is called by `exp38_supervise.py:409` (`common_gates`: every DRY_RUN / SMOKE / FULL), by
+    `:818` (`eval_pins`) and by `:1938` (the `pins` CLI).
+    - The exp_45 copy: `exp45_registry.py:671` / `:682` (VIT_FILES `:63`), called at `exp45_supervise.py:421`. Its
+      refusal still prints "EXP38 LAUNCH REFUSED" (`:755` / `:761`).
+    - The exp_46 copy: `exp46_registry.py:769` / `:780` (VIT_FILES `:65`), called at `exp46_supervise.py:429`, `:912`
+      (`eval_pins`) and `:2761`. Its refusal prints "EXP46 LAUNCH REFUSED" (`exp46_supervise.py:814` / `:820`).
+    - **What it protects:** the exp_07 / exp_25 DINOv3 initializer pin. There must be exactly one snapshot (VIT_REV
+      `114c1379…`) holding exactly `config.json` and `model.safetensors` at the pinned sha256: the bytes the training
+      loads offline (`AutoModel.from_pretrained`, `src/models/conditioners.py:458`), and nothing else in the snapshot.
+  - **The real neuronic SMOKE / FULL would refuse the same way.** The sheet exports `HF_HOME=/n/fs/gatrdp/hf_cache`
+    and no `HF_HUB_CACHE` (line 40); `exp46_train.sbatch:46` sets the same `HF_HOME`; the submitter passes the
+    environment with `--export=ALL`.
+    - `common_gates` then reads `/n/fs/gatrdp/hf_cache/hub`, which holds six files, and refuses before any training.
+    - L4's registry dry-run (`describe_run`) does not reach the gate, so the first SMOKE job is where it would stop.
+    - BF4 environment A (the sheet's) reproduces the refusal.
+  - **How exp_38 passed:** its neuronic launches ran with `HF_HUB_CACHE=/n/fs/gatrdp/exp38_hf_hub`.
+    - That is a curated hub made 2026-11-09 16:05:57–16:06:00, holding only `config.json` and `model.safetensors`
+      (`refs/main` = VIT_REV).
+    - Its launch records on `origin/exp-38-data-efficiency` (`e5a012fa`) pin it. For example,
+      `at_launch_de_bf_f025_neuronic_SMOKE_2026-11-09_17-47-04.json` and `..._FULL_2026-11-10_02-25-22.json` record
+      `"hub_cache": "/n/fs/gatrdp/exp38_hf_hub"`, as do its 15 neuronic slurm `.out` logs.
+    - Neither exp_38's sheet (`HF_HOME` only) nor its worklog records that export.
+    - The hf_cache snapshot never held two files: all six entries date from 2026-08-05 00:35:52–54, one download of
+      the full repo.
+    - **The pinned files are identical in both hubs:** `config.json` sha256 `9481247b…` (the pin);
+      `model.safetensors` → blob `4610ad75…` (the pin), 86,406,384 bytes. Only `.gitattributes`, `LICENSE.md`,
+      `README.md` and `preprocessor_config.json` differ, and the training's `AutoModel.from_pretrained` reads none of
+      them.
+  - **The tests are not hermetic:** `_env()` (`test_exp46_launchers.py:51`, `test_exp45_launchers.py:44`) copies
+    `os.environ` into the sbatch dry run, and the DRY branch sets no `HF_HOME`.
+    - BF4, same commit and tests: with the sheet's environment, all 8 exp_45 / exp_46 nodes fail with the refusal;
+      with `HF_HUB_CACHE=/n/fs/gatrdp/exp38_hf_hub`, all 8 pass.
+    - Two exp_38 launcher nodes fail in both environments for an unrelated reason. They refuse because exp_38's live
+      run dirs hold its finished checkpoints (not isolated from the live save root). They are inherited, not DINOv3.
+  - **Options, for Yixun:**
+    1. **A curated two-file hub via `HF_HUB_CACHE`, the way exp_38 ran.** The sheet's export line gains
+       `HF_HUB_CACHE=<hub>`. L1 and the real launches run from that shell, so both see it.
+       - Optionally, `exp46_train.sbatch` refuses a non-DRY run without it.
+       - **(1a)** reuse `/n/fs/gatrdp/exp38_hf_hub` read-only (no new write; a read-only exp_38 dependency, to be
+         registered), or **(1b)** build `/n/fs/gatrdp/exp46_hf_hub` with the same two pinned blobs (a new directory).
+       - The gate and the pinned bytes are unchanged, so there is no risk to the result.
+       - It touches the sheet and optionally the sbatch (both exp_46's own); no frozen file.
+    2. **The gate tolerates the four metadata files.** `config.json` and `model.safetensors` would still be checked by
+       name and hash, and no other file would be allowed.
+       - It changes `exp46_registry.py` (the closure) and loosens the exp_07 / exp_25 pin protocol (low risk: the
+         extra files are not read).
+       - The exp_45 copy (a frozen folder) would still refuse, so its 4 must-pass nodes keep failing. Alone, it does
+         not clear L1.
+    3. **A hermetic test fixture.** `_env()` sets `HF_HUB_CACHE` to a fixture hub.
+       - It clears the 8 L1 nodes without touching the environment.
+       - But `test_exp45_launchers.py` is an exp_45 file (a declared edit), and the real launch still needs 1 or 2.
+  - **Recommendation: 1a.** It is exactly what exp_38's neuronic campaign did and recorded in every launch record. No
+    gate change, no new write, no frozen file; L1 and the real launches then check the same two pinned files.
