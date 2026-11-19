@@ -813,3 +813,17 @@ and its test changed; nothing under `l1/` was touched (attempt 1's junit files w
 - **Next:** ask Yixun. The proposal is that the Coder reproduces it in CPU jobs, finds the leaking test, and fixes it as a
   D1-style declared edit (restore the leaked state at teardown), test-first. Then only the merged suite is rerun; the
   parent junit files are kept.
+
+## 2026-11-19 10:35 EST — Yixun approves the leak fix (coordinating session)
+
+- **Yixun, verbatim:** "Fix as recommended".
+- **What that approves:**
+  1. The Coder reproduces the merged-suite hang in CPU jobs and bisects the earlier test files to find the test that
+     leaks state into `test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir`.
+  2. The Coder fixes it as a D1-style declared edit: the leaking test restores the state at teardown. The fix is
+     test-first, with a rank-isolation-style regression test, admitted by the provenance check and registered as
+     declared edited (must pass) in the compare. The Codex cap is used up, so it is fixed, test-covered and recorded
+     without re-review.
+  3. Only the merged suite is rerun; the parent junit files are kept.
+- **Limit:** if the leak cannot be undone by a teardown restore (for example, CUDA initialised in the process), the
+  Coder stops and reports, and Yixun is asked again.
