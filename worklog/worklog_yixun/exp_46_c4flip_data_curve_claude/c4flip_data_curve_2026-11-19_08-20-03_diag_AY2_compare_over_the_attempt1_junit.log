@@ -1,0 +1,14 @@
+HEAD c850426e86702e5a57e368406c47adcc35df2d1a tracked-clean=yes host neu306.neuronic.cs.princeton.edu start 2026-11-19T08:20:04-05:00
+input sha256:
+c8263f49c399cc52acb10be9936ca11b5bfa6d018eb50fbd901a88d86e1ce785  worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/l1/attempt1/merged.junit.xml
+63e70b330066f61f0fc70e3ba2300aed5067cec038b9f7025d96fb06bcac7097  worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/l1/attempt1/parent_3593f34c.junit.xml
+3a4d7d4dfbb5e881f3ba2da3460df53c4499b9020b2a5f378181c5704712ac96  worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/l1/attempt1/parent_4a7e3b3a.junit.xml
+testcase records of the merged junit:
+<testcase classname="" name="src.tests.test_exp35_phase_ii_checks" time="0.000">
+<testcase classname="" name="src.tests.test_exp35_phase_ii_schema" time="0.000">
+<testcase classname="" name="src.tests.test_raf_publish" time="0.000">
+<testcase classname="" name="src.tests.test_raf_readback" time="0.000">
+<testcase classname="" name="src.tests.test_raf_render_depth" time="0.000">
+cmd: env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 /n/fs/gatrdp/envs/flac/bin/python -B worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_regression_compare.py --merged worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/l1/attempt1/merged.junit.xml --exp38 worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/l1/attempt1/parent_3593f34c.junit.xml --exp43 worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/l1/attempt1/parent_4a7e3b3a.junit.xml --merged-root /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve --exp38-root /n/fs/gatrdp/codespace/exp-46-l1-parent-3593f34c --exp43-root /n/fs/gatrdp/codespace/exp-46-l1-parent-4a7e3b3a
+EXP46 REGRESSION COMPARE: unreadable input: testcase classname '' names no test module
+EXIT 2 end 2026-11-19T08:20:04-05:00

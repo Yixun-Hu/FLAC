@@ -79,4 +79,12 @@ CPU Slurm job; a failed attempt keeps its log, renamed `..._ABORTED_<reason>.log
 | `6c223854` | 2026-11-18 18:50 | E7: `src/tests/test_exp45_sampler.py` restores lightning's global rank at teardown (the four pre-reviewed lines) | 4 | AT1 red, AT2 + AT3 green |
 | `12aa8805` | 2026-11-18 18:51 | E8: `src/tests/test_exp38_sampler.py` -- the same four lines with its own tag | 4 | AT1 red, AT2 + AT3 green |
 | `bc3a35b6` | 2026-11-18 18:55 | D2 decided: the sheets' "pending Yixun D2" markers read "approved by Yixun 2026-11-18 (D2)"; the order test updated (order and commands unchanged) | 20 | AW1 red, AW2 green |
-| (this commit) | 2026-11-18 18:58 | records: D1 / D2 landed -- ledger rows, the Coder entry, the AT / AW logs | records | — |
+| `296ae826` | 2026-11-18 18:56 | records: D1 / D2 landed -- ledger rows, the Coder entry, the AT / AW logs | records | — |
+| `74914af7` | 2026-11-18 18:59 | sheets (coordinating session): the neuronic sheet's order paragraph records D1 as decided (a′, E7 / E8) | 5 | AX1 green (33 passed) |
+| `ea9dc366` | 2026-11-18 19:42 | L2b: pin the f100 delta manifest `bcea7ffe…` (the manifest, force-added, + `exp46_registry.py` `F100_DELTA_SHA256`) | 2 (+ the manifest, binary) | L2a job 4274152: `c4flip_data_curve_l2a_delta_build_4274152.log` (exit 0) |
+| `98bd6c47` | 2026-11-18 19:42 | records (coordinating session): D1 / D2 verified, the L2a log, the L2b pin recorded | 34 (records) | — |
+| `5fce9097` | 2026-11-18 20:13 | records (coordinating session): L1 attempt 1 interrupted at collection (5 environment errors, identical in all three trees) | 259 (records) | — |
+| `68a92f3f` | 2026-11-19 08:07 | records (coordinating session): Yixun decides L1 option (A) (`--continue-on-collection-errors`); attempt 1's outputs kept under `l1/attempt1` | 16 (records) | — |
+| `e9658bf4` | 2026-11-19 08:12 | L1 option (A), test only: the L1 SUITE must end with `--continue-on-collection-errors src/tests` (every other assertion kept) | 2 | AY0 red (1 failed = exactly that node, 58 passed) |
+| `c850426e` | 2026-11-19 08:19 | L1 option (A), sheet: the SUITE line gains `--continue-on-collection-errors` + one comment line (nothing else) | 3 | AY0 red, AY1 green (59 passed); AY2 diagnostic: the unchanged compare exits 2 on attempt 1's junit (see the worklog) |
+| (this commit) | 2026-11-19 08:22 | records: L1 option (A) landed -- ledger rows, the Coder entry, the AY logs | records | — |

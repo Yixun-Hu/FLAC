@@ -710,3 +710,33 @@ files and gen_model_comparison.py unchanged).
   - The Codex cap is used up (3 / 3 code rounds), so per the standing rule it is fixed, covered by the test, and
     recorded here without re-review.
 - **Attempt 1's outputs:** the junit and rc files are kept under `l1/attempt1/`. They are never deleted.
+
+## 2026-11-19 08:10 → 08:22 EST — L1 option (A): `--continue-on-collection-errors` on the SUITE line, test-first (exp_46 Coder, Claude Opus 5.5)
+
+Yixun's "按推荐 (A) 重跑" (`68a92f3f`). Every run a CPU Slurm job (`pyt46.sh`, `JOBTMP=/tmp`). Only the L1 test and the
+neuronic sheet changed; nothing under `l1/` was touched (attempt 1's files were only read).
+
+- **Change:** `e9658bf4` (test only): `test_the_l1_comparison_runs_every_node_with_no_deselection_and_is_complete`
+  requires the SUITE to end with `-m pytest -q -p no:cacheprovider --continue-on-collection-errors src/tests`; every
+  other assertion kept. `c850426e` (sheet): the flag right before `src/tests`, plus one comment line under the SUITE
+  line; the `sbatch --wait` lines and everything else unchanged.
+- **Review:** the Codex cap is used up (3 / 3 code rounds), so this is fixed and covered by the test, without re-review.
+- **Validation / Result:**
+  - AY0 (red, `e9658bf4`, tracked-clean), sheet + provenance tests: 1 failed (exactly the L1 node; the SUITE still
+    ended `… no:cacheprovider src/tests`), 58 passed, EXIT 1.
+  - AY1 (green, `c850426e`, tracked-clean), the same two files: 59 passed, EXIT 0.
+- **Finding, blocks the L1 rerun as it stands:** `exp46_regression_compare.py` cannot read pytest's collection-error
+  records. pytest's junit writes each as `<testcase classname="" name="src.tests.test_raf_publish">` with
+  `<error message="collection failure">`; attempt 1's three junit files hold exactly these 5 records. `node_id()` finds
+  no `test_*` part in the empty classname, so `load()` raises and `main()` exits 2 ("unreadable input").
+  - AY2 (diagnostic, read-only, `c850426e`, tracked-clean): the unchanged compare over the kept attempt-1 junit files,
+    no `--out`: `EXP46 REGRESSION COMPARE: unreadable input: testcase classname '' names no test module`, EXIT 2.
+  - With the flag, the rerun's junit files carry the same 5 records next to every collected node, so L1 would stop at
+    the compare (exit 2) after the three suites ran.
+  - Second gap: such a record's signature is its message, `error: collection failure`, the same for every collection
+    error; the cause (the record's `E   …` line, e.g. `ModuleNotFoundError: No module named 'open3d'`) is not compared.
+  - So the new comment line states the intended policy; it holds only once the compare reads module-level records.
+    Not changed here (outside this task's files). Recommended before the rerun, test-first in
+    `exp46_regression_compare.py`: (1) an empty classname maps to the module's node id (`src/tests/test_raf_publish.py`);
+    (2) a collection failure's signature is its last `E   ` line, root-normalised. Tests: an identical record in a
+    parent is inherited; a merged-only record, or a different cause, is a problem.
