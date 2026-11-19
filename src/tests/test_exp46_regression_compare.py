@@ -445,3 +445,125 @@ def test_the_cli_reads_the_collection_records_and_still_refuses_an_unreadable_on
         bad = _xml(tmp_path / "bad.xml", BASE, [record])
         assert rc.main(["--merged", bad, "--exp38", trees[1], "--exp43", trees[2]] + roots) == 2
         assert why in capsys.readouterr().err, why
+
+
+# ------------------------------------------------------------------ L1 attempt 3 (Yixun 2026-11-19, "Approve as recommended")
+# 70 of the 79 problems were node-matching artefacts: (a) parametrize ids that embed each checkout's absolute root,
+# (b) time-valued parametrize ids, (c) a signature carrying a campaign timestamp and a sandbox HEAD. Each is normalised
+# narrowly; a different assertion, a really missing node, a must-pass failure and an ambiguous alignment still refuse.
+CLI = "src/tests/test_exp35_phase_ii_cli.py::test_one_final_newline_and_no_trailing_whitespace"
+PROV = "test_admission_validator_checks_provenance_fields"
+WANDB = ("error", 'failed on setup with "exp43_kit.Refused: the history extractor exited 2 (0 = written with a clean '
+                  'cadence): REFUSED: wandb 0.26.1 != the pinned 0.15.4 (private reader API)"')
+CAMPAIGN = "AssertionError: === exp_25 depth_canon eval campaign -- {ts} -- HEAD {sha} -- dry_run=0 -- harness=true ==="
+
+
+def _run_own(tmp_path, merged, p38=None, p43=None):
+    """_run, each tree loaded with its OWN checkout root as well (ROOTS: merged, 3593f34c, 4a7e3b3a)."""
+    files = [_xml(tmp_path / f"{n}.xml", c) for n, c in (("m", merged), ("p38", p38 or BASE), ("p43", p43 or BASE))]
+    return rc.compare(*(rc.load(f, roots=ROOTS, own_root=r) for f, r in zip(files, ROOTS)))
+
+
+def _in_root(root, *names):
+    return {f"{CLI}[{root}/src/tests/{n}]": "passed" for n in names}
+
+
+def test_a_trees_own_root_in_a_parametrize_id_is_normalised_and_a_really_missing_node_still_refuses(tmp_path):
+    """(a) the 34 test_exp35_phase_ii_cli.py ids: each tree's OWN root, at a parameter's start and before a path
+    boundary, becomes <checkout> in its node ids; nothing else in an id is touched."""
+    names = ("exp35_phase_ii_sandbox.py", "test_exp35_phase_ii.py")
+    trees = [dict(BASE, **_in_root(r, *names)) for r in ROOTS]
+    problems, _ = _run_own(tmp_path, *trees)
+    assert problems == []
+    loaded = rc.load(_xml(tmp_path / "one.xml", trees[1]), roots=ROOTS, own_root=ROOTS[1])
+    assert f"{CLI}[<checkout>/src/tests/exp35_phase_ii_sandbox.py]" in loaded
+    problems, _ = _run_own(tmp_path, trees[0], *(dict(t, **_in_root(r, "test_exp35_phase_ii_wrap.py"))
+                                                  for t, r in zip(trees[1:], ROOTS[1:])))
+    gone = f"{CLI}[<checkout>/src/tests/test_exp35_phase_ii_wrap.py]"
+    assert problems == [f"{gone}: present in 3593f34c, missing in the merged tree",
+                        f"{gone}: present in 4a7e3b3a, missing in the merged tree"], problems
+    r = ROOTS[0]
+    for raw, want in ((f"{CLI}[{r}/x.py]", f"{CLI}[<checkout>/x.py]"), (f"{CLI}[{r}]", f"{CLI}[<checkout>]"),
+                      (f"{CLI}[a-{r}/x.py]", f"{CLI}[a-<checkout>/x.py]"),
+                      (f"{CLI}[{ROOTS[1]}/x.py]", None),                         # another tree's root
+                      (f"{CLI}[{r}-old/x.py]", None), (f"{CLI}[{r}x/x.py]", None),  # a longer path, not the root
+                      (f"{CLI}[/z{r}/x.py]", None)):                             # not at a parameter's start
+        assert rc.strip_own_root(raw, [r]) == (want or raw), raw
+    clash = {f"{CLI}[{r}/x.py]": "passed", f"{CLI}[<checkout>/x.py]": "passed"}    # two ids, one after normalisation
+    with pytest.raises(rc.CompareError, match="one node after root normalisation"):
+        rc.load(_xml(tmp_path / "clash.xml", clash), roots=ROOTS, own_root=r)
+
+
+def test_time_valued_parametrize_ids_align_by_position_and_the_wandb_error_is_inherited(tmp_path):
+    """(b) [t-<unix time>-non-future] ids of one test align by position when every tree that has them has the same
+    number; then the merged tree's wandb error is the parent's identical error (inherited) and a passed one matches."""
+    t43 = lambda v: f"src/tests/test_exp43_kit.py::{PROV}[t-{v}-non-future]"   # noqa: E731
+    t40 = lambda v: f"src/tests/test_exp40_kit.py::{PROV}[t-{v}-non-future]"   # noqa: E731
+    merged = dict(BASE, **{t43("1795112610.504861"): WANDB, t40("1795112609.5210009"): "passed"})
+    p43 = dict(BASE, **{t43("1795099929.1330788"): WANDB, t40("1795099927.9082632"): "passed"})
+    problems, report = _run(tmp_path, merged, p43=p43)
+    assert problems == [], problems
+    assert report["allowed_failures"] == [f"src/tests/test_exp43_kit.py::{PROV}[t-<time:0>-non-future]: inherited "
+                                          f"from 4a7e3b3a ({rc.signature('error', _el(WANDB[1]))})"]
+    assert sorted(report["aligned_time_ids"]) == sorted([f"src/tests/test_exp43_kit.py::{PROV}[t-<time>-non-future]",
+                                                         f"src/tests/test_exp40_kit.py::{PROV}[t-<time>-non-future]"])
+    other = ("error", WANDB[1].replace("0.26.1", "0.27.0"))                        # another error: still refused
+    problems, _ = _run(tmp_path, dict(merged, **{t43("1795112610.504861"): other}), p43=p43)
+    assert len(problems) == 1 and problems[0].startswith(f"src/tests/test_exp43_kit.py::{PROV}[t-<time:0>-non-future]: "
+                                                         "error in the merged tree"), problems
+
+
+def test_an_ambiguous_time_id_alignment_is_refused_and_reported_not_dropped(tmp_path):
+    t43 = lambda v: f"src/tests/test_exp43_kit.py::{PROV}[t-{v}-non-future]"   # noqa: E731
+    p43 = dict(BASE, **{t43("1795099929.1330788"): WANDB})
+    two = dict(BASE, **{t43("1795112610.504861"): WANDB, t43("1795112611.25"): WANDB})   # 2 ids vs the parent's 1
+    problems, report = _run(tmp_path, two, p43=p43)
+    template = f"src/tests/test_exp43_kit.py::{PROV}[t-<time>-non-future]"
+    assert any(p.startswith(f"{template}: time-valued parametrize ids not aligned") for p in problems), problems
+    assert f"{t43('1795099929.1330788')}: present in 4a7e3b3a, missing in the merged tree" in problems  # raw ids kept
+    assert template not in report["aligned_time_ids"]
+    twice = f"src/tests/test_exp43_kit.py::{PROV}[t-1795112610.5-1795112611.5]"     # two time values in one id
+    problems, _ = _run(tmp_path, dict(BASE, **{twice: "passed"}), p43=dict(BASE, **{twice.replace("10.5", "20.5"): "passed"}))
+    assert any("not aligned" in p for p in problems), problems
+
+
+def _el(message):
+    import xml.etree.ElementTree as ET
+    return ET.Element("error", message=message)
+
+
+def test_a_campaign_timestamp_and_a_40_hex_head_are_normalised_in_signatures_only_and_another_assertion_refuses(tmp_path):
+    """(c) the 33 test_depth_canon_eval_run.py nodes: all three trees fail with one assertion whose first line names
+    the campaign's timestamp and the sandbox HEAD; a YYYY-MM-DD_HH-MM-SS stamp and a 40-hex sha become placeholders."""
+    node = "src/tests/test_depth_canon_eval_run.py::test_a_no_dump_block_completes_without_a_dump"
+    m, p38, p43 = (("failed", CAMPAIGN.format(ts=ts, sha=sha)) for ts, sha in (
+        ("2026-11-19_12-27-22", "7e9685fbb31c20e9a9c45f142f701d8e81df2613"),
+        ("2026-11-19_08-55-32", "b1531da662cd2887b7c0d149f0946a26589a359c"),
+        ("2026-11-19_08-55-20", "f9e2aa3ff3236b81eba0ec56456dcf52cbbfdfa7")))
+    problems, report = _run(tmp_path, dict(BASE, **{node: m}), p38=dict(BASE, **{node: p38}), p43=dict(BASE, **{node: p43}))
+    assert problems == [] and report["allowed_failures"] == [
+        f"{node}: inherited from 3593f34c, 4a7e3b3a (failed: {CAMPAIGN.format(ts='<time>', sha='<sha>')})"]
+    for other in (m[1].replace("dry_run=0", "dry_run=1"),                           # another assertion
+                  "AssertionError: digest " + "a" * 64,                              # a 64-hex digest stays exact
+                  m[1].replace("2026-11-19_12-27-22", "2026-11-19 12:27:22")):      # not the registered stamp shape
+        parent = ("failed", "AssertionError: digest " + "b" * 64) if "digest" in other else p38
+        problems, _ = _run(tmp_path, dict(BASE, **{node: ("failed", other)}), p38=dict(BASE, **{node: parent}),
+                           p43=dict(BASE, **{node: parent}))
+        assert len(problems) == 1 and problems[0].startswith(f"{node}: failed in the merged tree"), (other, problems)
+    assert rc.signature("failed", _el("x 0123456789abcdef0123456789abcdef01234567 y")) == "failed: x <sha> y"
+    assert rc.signature("failed", _el("x " + "c" * 41 + " y")) == "failed: x " + "c" * 41 + " y"   # not 40-hex
+
+
+def test_the_normalisations_never_admit_a_must_pass_failure(tmp_path):
+    """A declared-edited node and a new exp_46 node must PASS: a failure whose signature matches the parents' only after
+    normalisation (timestamp / sha / a time-valued id) is still a must-pass problem."""
+    node = DECLARED[0]
+    fail = lambda ts, sha: ("failed", CAMPAIGN.format(ts=ts, sha=sha))           # noqa: E731
+    problems, _ = _run(tmp_path, dict(BASE, **{node: fail("2026-11-19_12-27-22", "a" * 40)}),
+                       p38=dict(BASE, **{node: fail("2026-11-19_08-55-32", "b" * 40)}),
+                       p43=dict(BASE, **{node: fail("2026-11-19_08-55-20", "c" * 40)}))
+    assert len(problems) == 1 and problems[0].startswith(f"{node}: must pass"), problems
+    new = lambda v: f"src/tests/test_exp46_registry.py::{PROV}[t-{v}-non-future]"  # noqa: E731
+    problems, _ = _run(tmp_path, dict(BASE, **{new("1795112610.5"): WANDB}), p43=dict(BASE, **{new("1795099929.1"): WANDB}))
+    assert any(p.startswith(f"src/tests/test_exp46_registry.py::{PROV}[t-<time:0>-non-future]: must pass")
+               for p in problems), problems
