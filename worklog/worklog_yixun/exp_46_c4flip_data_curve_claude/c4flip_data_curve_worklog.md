@@ -935,3 +935,27 @@ and `..._pytest_BE*.log`; the diagnostic job scripts, the state tracker and the 
     probably new literals from today's E9 / compare edits. The Coder's BE4 run did not include this file.
 - **Stopped.** The ladder cron is deleted. Nothing is pushed. The parent junit files stay valid; only the merged
   suite is rerun after any fix.
+
+## 2026-11-19 18:11 EST — Yixun approves the fix batch for the 79 compare problems (coordinating session)
+
+- **Yixun, verbatim:** "Approve as recommended" — the answer to "Approve the Coder fixing the compare and the path
+  registry, and investigating DINOv3 first?".
+- **What that decides** (the exp_46 Coder, Claude Opus 5.5; test-first; no Codex round — the cap of 3 is used, so
+  each fix is covered by a test and recorded without re-review):
+  1. **Compare normalisation**, narrow, in `exp46_regression_compare.py`:
+     - strip each tree's checkout root from node ids (the 34 `test_exp35_phase_ii_cli.py` ids);
+     - align time-valued parametrize ids (`[t-<digits>-non-future]`) by position within their test, refusing any
+       ambiguity (3);
+     - strip timestamps and 40-hex HEADs from signatures (the 33 `test_depth_canon_eval_run.py` nodes).
+     - A real difference must still be refused.
+  2. **Fix the registry** behind `test_exp46_paths.py::test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition`.
+     The test is not weakened.
+  3. **Investigate the DINOv3 snapshot refusal**, read-only. Would the real neuronic SMOKE / FULL launch refuse too?
+     Report the options before any change.
+- **Attempt-3 evidence preserved** before any rerun: `l1/attempt3/` holds copies of `merged.junit.xml`
+  (sha256 `413e9b11…`), `merged.rc` and `regression_compare.json`. The rerun rewrites the originals in place.
+- **Next:**
+  - The Coder validates the fixed compare on the attempt-3 junit files. The expected result is the 8 DINOv3 problems
+    only, or none once that is decided.
+  - The DINOv3 options go to Yixun.
+  - After the last code change: one merged-suite rerun (≈ 80 min), reusing the parent junit files, then the compare.
