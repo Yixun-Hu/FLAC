@@ -901,3 +901,37 @@ and `..._pytest_BE*.log`; the diagnostic job scripts, the state tracker and the 
   - If the rerun hangs again, E10 / E11 are applied, and L1 is rerun.
   - Any later change under `src/tests` would need L1 again.
 - **Next:** the merged suite at this records commit, without `--wait`, with no commit until it ends. The parent junit files from 4280097 / 4280098 are reused.
+
+## 2026-11-19 13:55 EST — coordinator: L1 attempt 3: merged suite COMPLETED, compare FAIL (79 problems); stopped, asking Yixun (coordinating session)
+
+- **Merged suite:** 4281205 at `900f3a2b`, on neu313, COMPLETED in 1:19:11, rc 1, junit 3.12 MB. Summary,
+  verbatim: `363 failed, 9563 passed, 66 skipped, 1 xfailed, 114 warnings, 45 errors, 2 subtests passed in 4746.32s (1:19:06)`.
+  There was no hang, so E9 holds.
+- **Compare:** the sheet's command, run in a CPU job (`srun`). Log:
+  `c4flip_data_curve_2026-11-19_13-47-34_l1_regression_compare.log`; output `l1/regression_compare.json`. Verdict,
+  verbatim: `REGRESSION POLICY FAIL: 79 problem(s), 365 allowed failure(s)`, EXIT 1.
+- **The 79 problems.** 70 are artefacts of how the compare matches nodes, not regressions:
+  - **34:** `test_exp35_phase_ii_cli.py::test_one_final_newline_and_no_trailing_whitespace[<abs path>]`. Its
+    parametrize ids embed each checkout's absolute root. The 17 parent ids per parent are therefore "missing in the
+    merged tree". The compare normalises roots in signatures, not in node ids.
+  - **3:** time-valued parametrize ids, `[t-1795…-non-future]`, in `test_exp40_kit.py` and `test_exp43_kit.py`. Two
+    are "missing in the merged tree". The third is an "error in the merged tree" with no parent match. Its error,
+    `wandb 0.26.1 != the pinned 0.15.4 (private reader API)`, comes from the environment, and 4a7e3b3a has the same
+    errors.
+  - **33:** `test_depth_canon_eval_run.py`. All three trees fail with the same assertion, but its first line carries a
+    timestamp and a sandbox HEAD (`=== exp_25 depth_canon eval campaign -- 2026-11-19_12-27-22 -- HEAD 7e9685fb… ===`),
+    so the signatures differ.
+- **9 must-pass failures are real:**
+  - **8:** the exp_45 and exp_46 launcher tests (`test_sbatch_dry_run_prints_the_torchrun_lines` ×3 and
+    `test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools`, in each file). Verbatim:
+    `EXP38 LAUNCH REFUSED: DINOv3 snapshot files ['.gitattributes', 'LICENSE.md', 'README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']`
+    (the exp_46 copy reads `EXP46 LAUNCH REFUSED: …`).
+    - neuronic's `HF_HOME=/n/fs/gatrdp/hf_cache` snapshot `models--facebook--dinov3-vits16-pretrain-lvd1689m/snapshots/114c1379…`,
+      dated 08-05, holds six files. The launch gate wants exactly two.
+    - exp_38's own launcher tests fail the same way in the parents (inherited).
+    - Whether the real neuronic SMOKE / FULL launch would refuse too is not yet checked.
+  - **1:** `test_exp46_paths.py::test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition` fails
+    (AssertionError at `test_exp46_launchers.py:464`'s neighbour in the junit; the detail is not yet read). It is
+    probably new literals from today's E9 / compare edits. The Coder's BE4 run did not include this file.
+- **Stopped.** The ladder cron is deleted. Nothing is pushed. The parent junit files stay valid; only the merged
+  suite is rerun after any fix.
