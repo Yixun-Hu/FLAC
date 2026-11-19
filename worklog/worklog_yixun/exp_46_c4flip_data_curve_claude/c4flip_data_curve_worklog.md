@@ -760,3 +760,31 @@ neuronic sheet changed; nothing under `l1/` was touched (attempt 1's files were 
     `--wait`.
   - The merged suite runs after the compare fix lands, at that HEAD, with no commit until it ends. The sheet runs all
     three concurrently; the order does not change any node's outcome.
+
+## 2026-11-19 08:57 → 09:02 EST — the L1 compare reads pytest's collection-error records, test-first (exp_46 Coder, Claude Opus 5.5)
+
+Yixun's "Fix as recommended" (`3266a8c5`). Every run a CPU Slurm job (`pyt46.sh`, `JOBTMP=/tmp`). Only the compare
+and its test changed; nothing under `l1/` was touched (attempt 1's junit files were only read).
+
+- **Change:** `aba31beb` (tests only): five tests whose fixtures copy the shape of attempt 1's records (classname "",
+  the dotted module path as the name, `<error message="collection failure">`, the short traceback ending in its `E   `
+  line). They cover: (a) the module node id; (b) the last-`E   `-line signature, roots normalised, and inheritance of
+  an identical parent record; (c) a merged-only record, another cause and the same cause on another module are
+  problems; (d) a record of a file that holds a must-pass node, or of a new exp_45 / exp_46 file, is never inherited;
+  (e) any other empty-classname name refuses (exit 2). `76dc3226` (compare, +22 / −2): `node_id`, `signature` and
+  rule 3 applied per file.
+- **Review:** the Codex cap is used up (3 / 3 code rounds), so this is fixed and covered by the tests, without
+  re-review.
+- **Validation / Result:**
+  - AZ1 (red, `aba31beb`, tracked-clean), the compare, sheet and provenance tests: 5 failed, exactly the five new
+    tests (four on `CompareError: testcase classname '' names no test module`, the CLI test on exit 2 instead of 0);
+    76 passed; EXIT 1.
+  - AZ2 (green, `76dc3226`, tracked-clean), the same three files: 81 passed, EXIT 0.
+  - AZ3 (diagnostic, read-only; the AY2 command with the fixed compare, at `76dc3226`): `REGRESSION POLICY FAIL: 11
+    problem(s), 5 allowed failure(s)`, EXIT 1. The five records are read and inherited from both parents with their
+    causes (H35 `CalledProcessError` with `<checkout>`, `No module named 'open3d'`). The 11 problems are the 2
+    compat-edited and 9 declared-edited nodes, missing because attempt 1 collected no node. Diagnostic only.
+- **Beyond the listed tests:** a "collection failure" record with no `E   ` line refuses (exit 2) instead of falling
+  back to the generic message. An exp_46 file skipped whole (pytest's "collection skipped" record) is a problem, like
+  any unregistered skip of a new node. `node_id` accepts only dotted identifiers.
+- **Next (coordinator):** the merged L1 suite at this records commit.

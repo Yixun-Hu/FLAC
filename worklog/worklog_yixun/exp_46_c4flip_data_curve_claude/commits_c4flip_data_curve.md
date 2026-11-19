@@ -87,4 +87,8 @@ CPU Slurm job; a failed attempt keeps its log, renamed `..._ABORTED_<reason>.log
 | `68a92f3f` | 2026-11-19 08:07 | records (coordinating session): Yixun decides L1 option (A) (`--continue-on-collection-errors`); attempt 1's outputs kept under `l1/attempt1` | 16 (records) | — |
 | `e9658bf4` | 2026-11-19 08:12 | L1 option (A), test only: the L1 SUITE must end with `--continue-on-collection-errors src/tests` (every other assertion kept) | 2 | AY0 red (1 failed = exactly that node, 58 passed) |
 | `c850426e` | 2026-11-19 08:19 | L1 option (A), sheet: the SUITE line gains `--continue-on-collection-errors` + one comment line (nothing else) | 3 | AY0 red, AY1 green (59 passed); AY2 diagnostic: the unchanged compare exits 2 on attempt 1's junit (see the worklog) |
-| (this commit) | 2026-11-19 08:22 | records: L1 option (A) landed -- ledger rows, the Coder entry, the AY logs | records | — |
+| `e801b2f2` | 2026-11-19 08:22 | records: L1 option (A) landed -- ledger rows, the Coder entry, the AY logs | records | — |
+| `3266a8c5` | 2026-11-19 08:49 | records (coordinating session): Yixun approves the compare fix ("Fix as recommended"); parent L1 suites 4280097 / 4280098 started early | 20 (records) | — |
+| `aba31beb` | 2026-11-19 08:58 | L1 compare, tests only: pytest's collection-error records (fixtures shaped like attempt 1's) -- module node id, last `E   ` line signature, inheritance, the per-file must-pass rule, refusals | 153 | AZ1 red (5 failed = exactly the five new tests, 76 passed) |
+| `76dc3226` | 2026-11-19 09:00 | L1 compare: `exp46_regression_compare.py` reads and judges collection-error records (node id, signature, rule 3 per file) | 24 | AZ1 red, AZ2 green (81 passed); AZ3 diagnostic over attempt 1's junit: FAIL, 11 problems (missing nodes), 5 inherited records |
+| (this commit) | 2026-11-19 09:02 | records: the compare fix landed -- ledger rows, the Coder entry, the AZ logs | records | — |

@@ -1,0 +1,58 @@
+HEAD 76dc322619b95e6b7673948183f1b9492f30f040 tracked-clean=yes host neu331.neuronic.cs.princeton.edu start 2026-11-19T09:01:03-05:00
+input sha256:
+c8263f49c399cc52acb10be9936ca11b5bfa6d018eb50fbd901a88d86e1ce785  worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/l1/attempt1/merged.junit.xml
+63e70b330066f61f0fc70e3ba2300aed5067cec038b9f7025d96fb06bcac7097  worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/l1/attempt1/parent_3593f34c.junit.xml
+3a4d7d4dfbb5e881f3ba2da3460df53c4499b9020b2a5f378181c5704712ac96  worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/l1/attempt1/parent_4a7e3b3a.junit.xml
+testcase records of the merged junit:
+<testcase classname="" name="src.tests.test_exp35_phase_ii_checks" time="0.000">
+<testcase classname="" name="src.tests.test_exp35_phase_ii_schema" time="0.000">
+<testcase classname="" name="src.tests.test_raf_publish" time="0.000">
+<testcase classname="" name="src.tests.test_raf_readback" time="0.000">
+<testcase classname="" name="src.tests.test_raf_render_depth" time="0.000">
+cmd: env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 /n/fs/gatrdp/envs/flac/bin/python -B worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_regression_compare.py --merged worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/l1/attempt1/merged.junit.xml --exp38 worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/l1/attempt1/parent_3593f34c.junit.xml --exp43 worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/l1/attempt1/parent_4a7e3b3a.junit.xml --merged-root /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve --exp38-root /n/fs/gatrdp/codespace/exp-46-l1-parent-3593f34c --exp43-root /n/fs/gatrdp/codespace/exp-46-l1-parent-4a7e3b3a
+{
+ "allowed_failures": [
+  "src/tests/test_exp35_phase_ii_checks.py: inherited from 3593f34c, 4a7e3b3a (error: subprocess.CalledProcessError: Command '['git', '-C', '<checkout>', 'show', '5b065801e9d1c1844461ec84cd0558702c714326:worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py']' returned non-zero exit status 128.)",
+  "src/tests/test_exp35_phase_ii_schema.py: inherited from 3593f34c, 4a7e3b3a (error: subprocess.CalledProcessError: Command '['git', '-C', '<checkout>', 'show', '5b065801e9d1c1844461ec84cd0558702c714326:worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py']' returned non-zero exit status 128.)",
+  "src/tests/test_raf_publish.py: inherited from 3593f34c, 4a7e3b3a (error: ModuleNotFoundError: No module named 'open3d')",
+  "src/tests/test_raf_readback.py: inherited from 3593f34c, 4a7e3b3a (error: ModuleNotFoundError: No module named 'open3d')",
+  "src/tests/test_raf_render_depth.py: inherited from 3593f34c, 4a7e3b3a (error: ModuleNotFoundError: No module named 'open3d')"
+ ],
+ "counts": {
+  "3593f34c": {
+   "error": 5,
+   "failed": 0,
+   "passed": 0,
+   "skipped": 0
+  },
+  "4a7e3b3a": {
+   "error": 5,
+   "failed": 0,
+   "passed": 0,
+   "skipped": 0
+  },
+  "merged": {
+   "error": 5,
+   "failed": 0,
+   "passed": 0,
+   "skipped": 0
+  }
+ },
+ "new_node_skips": [],
+ "problems": [
+  "src/tests/test_exp40_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict: the compat-edited node is missing",
+  "src/tests/test_exp43_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict: the compat-edited node is missing",
+  "src/tests/test_exp38_sampler.py::test_both_launch_environments_give_the_same_rank_and_world: the declared-edited / replacement node is missing",
+  "src/tests/test_exp43_kit.py::test_config_contract_through_the_real_factory: the declared-edited / replacement node is missing",
+  "src/tests/test_exp45_merge_provenance.py::test_later_exp45_commits_touch_only_the_allowed_paths: the declared-edited / replacement node is missing",
+  "src/tests/test_exp45_sampler.py::test_both_launch_environments_give_the_same_rank_and_world: the declared-edited / replacement node is missing",
+  "src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically: the declared-edited / replacement node is missing",
+  "src/tests/test_yaw_aug_flip.py::test_constructor_refuses_flip_with_offset_step: the declared-edited / replacement node is missing",
+  "src/tests/test_yaw_aug_flip_factory.py::test_true_flip_with_offset_step_is_refused[1]: the declared-edited / replacement node is missing",
+  "src/tests/test_yaw_aug_flip_factory.py::test_true_flip_with_offset_step_is_refused[32]: the declared-edited / replacement node is missing",
+  "src/tests/test_yaw_aug_flip_factory.py::test_true_flip_with_offset_step_is_refused[4]: the declared-edited / replacement node is missing"
+ ],
+ "verdict": "FAIL"
+}
+REGRESSION POLICY FAIL: 11 problem(s), 5 allowed failure(s)
+EXIT 1 end 2026-11-19T09:01:03-05:00

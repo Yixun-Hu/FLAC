@@ -1,0 +1,160 @@
+HEAD aba31bebd6779db74419c501409791c878046f5d tracked-clean=yes host neu329.neuronic.cs.princeton.edu start 2026-11-19T08:59:03-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_regression_compare.py src/tests/test_exp46_command_sheets.py src/tests/test_exp46_provenance.py 
+.................FFFFF.................................................. [ 88%]
+.........                                                                [100%]
+=================================== FAILURES ===================================
+_ test_a_collection_record_is_its_module_and_any_other_empty_classname_still_refuses _
+
+    def test_a_collection_record_is_its_module_and_any_other_empty_classname_still_refuses():
+        """(a) an empty classname with a dotted test-module name is that module's node id; (e) any other name with an
+        empty classname still refuses (exit 2 in the CLI test below); a classname-ful node is unchanged."""
+>       assert rc.node_id({"classname": "", "name": "src.tests.test_x"}) == "src/tests/test_x.py"
+
+src/tests/test_exp46_regression_compare.py:357: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+case = {'classname': '', 'name': 'src.tests.test_x'}
+
+    def node_id(case):
+        """``src/tests/<file>.py::<name>`` of a junit testcase (pytest's classname is the dotted module path, plus a
+        class for methods)."""
+        cls, name = case.get("classname", ""), case.get("name", "")
+        parts = cls.split(".")
+        for i in range(len(parts), 0, -1):                      # the module is the longest prefix ending in test_*
+            if parts[i - 1].startswith("test_"):
+                return "/".join(parts[:i]) + ".py::" + "::".join(parts[i:] + [name])
+>       raise CompareError(f"testcase classname {cls!r} names no test module")
+E       exp46_regression_compare.CompareError: testcase classname '' names no test module
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_regression_compare.py:91: CompareError
+_ test_a_collection_failures_signature_is_its_last_e_line_and_an_identical_parent_record_is_inherited _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_collection_failures_sig0')
+
+    def test_a_collection_failures_signature_is_its_last_e_line_and_an_identical_parent_record_is_inherited(tmp_path):
+        """(b) pytest's message ("collection failure") is the same for every collection error: the signature is the
+        record's last "E   " line with the checkout roots normalised; the traceback above it is not part of it. A merged
+        record is inherited when a parent holds the identical node, outcome and signature."""
+        two = {"src/tests/test_exp35_phase_ii_checks.py": H35, "src/tests/test_raf_publish.py": OPEN3D}
+        for i, root in enumerate(ROOTS):                                # each tree names its own checkout
+            f = _xml(tmp_path / f"t{i}.xml", {}, [_collect(m, c, root) for m, c in two.items()])
+>           assert rc.load(f, roots=ROOTS) == {m: ("error", _sig(c)) for m, c in two.items()}
+
+src/tests/test_exp46_regression_compare.py:373: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_regression_compare.py:124: in load
+    node = node_id(case)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+case = <Element 'testcase' at 0x7f03325c0d60>
+
+    def node_id(case):
+        """``src/tests/<file>.py::<name>`` of a junit testcase (pytest's classname is the dotted module path, plus a
+        class for methods)."""
+        cls, name = case.get("classname", ""), case.get("name", "")
+        parts = cls.split(".")
+        for i in range(len(parts), 0, -1):                      # the module is the longest prefix ending in test_*
+            if parts[i - 1].startswith("test_"):
+                return "/".join(parts[:i]) + ".py::" + "::".join(parts[i:] + [name])
+>       raise CompareError(f"testcase classname {cls!r} names no test module")
+E       exp46_regression_compare.CompareError: testcase classname '' names no test module
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_regression_compare.py:91: CompareError
+_ test_a_merged_only_collection_error_another_cause_or_another_module_is_a_problem _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_merged_only_collection_0')
+
+    def test_a_merged_only_collection_error_another_cause_or_another_module_is_a_problem(tmp_path):
+        """(c) each of these is a problem: a merged-only collection error, a parent record with another "E   " cause, and
+        the same cause on another module."""
+        x, y = "src/tests/test_raf_publish.py", "src/tests/test_raf_readback.py"
+>       problems, _ = _runc(tmp_path, {x: OPEN3D})
+
+src/tests/test_exp46_regression_compare.py:391: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_regression_compare.py:347: in _runc
+    return rc.compare(*(rc.load(f, roots=roots) for f in files))
+src/tests/test_exp46_regression_compare.py:347: in <genexpr>
+    return rc.compare(*(rc.load(f, roots=roots) for f in files))
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_regression_compare.py:124: in load
+    node = node_id(case)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+case = <Element 'testcase' at 0x7f03325c3060>
+
+    def node_id(case):
+        """``src/tests/<file>.py::<name>`` of a junit testcase (pytest's classname is the dotted module path, plus a
+        class for methods)."""
+        cls, name = case.get("classname", ""), case.get("name", "")
+        parts = cls.split(".")
+        for i in range(len(parts), 0, -1):                      # the module is the longest prefix ending in test_*
+            if parts[i - 1].startswith("test_"):
+                return "/".join(parts[:i]) + ".py::" + "::".join(parts[i:] + [name])
+>       raise CompareError(f"testcase classname {cls!r} names no test module")
+E       exp46_regression_compare.CompareError: testcase classname '' names no test module
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_regression_compare.py:91: CompareError
+_ test_a_collection_error_in_a_must_pass_or_new_exp45_exp46_file_is_never_inherited _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_collection_error_in_a_m0')
+
+    def test_a_collection_error_in_a_must_pass_or_new_exp45_exp46_file_is_never_inherited(tmp_path):
+        """(d) must_pass is keyed by node, a collection record names a whole FILE: the record of a file that holds a
+        must-pass node (compat-edited / declared-edited / replacement) or of a new exp_45 / exp_46 file is never admitted
+        by inheritance -- a problem even when both parents hold the identical record."""
+        kit = "src/tests/test_exp43_kit.py"                                   # holds a compat-edited and a declared node
+        assert any(n.startswith(kit + "::") for n in rc.COMPAT_EDITED) and any(n.startswith(kit + "::") for n in DECLARED)
+        nowhere = {k: v for k, v in BASE.items() if not k.startswith(kit + "::")}   # the file collected in no tree
+>       problems, report = _runc(tmp_path, {kit: OPEN3D}, p38={kit: OPEN3D}, p43={kit: OPEN3D}, base=nowhere)
+
+src/tests/test_exp46_regression_compare.py:411: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp46_regression_compare.py:347: in _runc
+    return rc.compare(*(rc.load(f, roots=roots) for f in files))
+src/tests/test_exp46_regression_compare.py:347: in <genexpr>
+    return rc.compare(*(rc.load(f, roots=roots) for f in files))
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_regression_compare.py:124: in load
+    node = node_id(case)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+case = <Element 'testcase' at 0x7f03325c2840>
+
+    def node_id(case):
+        """``src/tests/<file>.py::<name>`` of a junit testcase (pytest's classname is the dotted module path, plus a
+        class for methods)."""
+        cls, name = case.get("classname", ""), case.get("name", "")
+        parts = cls.split(".")
+        for i in range(len(parts), 0, -1):                      # the module is the longest prefix ending in test_*
+            if parts[i - 1].startswith("test_"):
+                return "/".join(parts[:i]) + ".py::" + "::".join(parts[i:] + [name])
+>       raise CompareError(f"testcase classname {cls!r} names no test module")
+E       exp46_regression_compare.CompareError: testcase classname '' names no test module
+
+worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_regression_compare.py:91: CompareError
+_ test_the_cli_reads_the_collection_records_and_still_refuses_an_unreadable_one _
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_cli_reads_the_collect0')
+capsys = <_pytest.capture.CaptureFixture object at 0x7f033241fd60>
+
+    def test_the_cli_reads_the_collection_records_and_still_refuses_an_unreadable_one(tmp_path, capsys):
+        """Attempt 1's five records in all three trees: exit 0 with five inherited failures. (e) A record with an empty
+        classname whose name is not a dotted test module, or a collection failure with no "E   " line, refuses: exit 2."""
+        roots = ["--merged-root", ROOTS[0], "--exp38-root", ROOTS[1], "--exp43-root", ROOTS[2]]
+        trees = [_xml(tmp_path / f"{n}.xml", BASE, [_collect(m, c, r) for m, c in ATTEMPT1.items()])
+                 for n, r in zip(("m", "a", "b"), ROOTS)]
+>       assert rc.main(["--merged", trees[0], "--exp38", trees[1], "--exp43", trees[2]] + roots) == 0
+E       AssertionError: assert 2 == 0
+E        +  where 2 = <function main at 0x7f04183ef640>((['--merged', '/tmp/pytest-of-yh4742/pytest-0/test_the_cli_reads_the_collect0/m.xml', '--exp38', '/tmp/pytest-of-yh4742...t_the_cli_reads_the_collect0/a.xml', '--exp43', '/tmp/pytest-of-yh4742/pytest-0/test_the_cli_reads_the_collect0/b.xml'] + ['--merged-root', '/n/fs/gatrdp/codespace/exp-45-rf-data-curve', '--exp38-root', '/n/fs/gatrdp/codespace/_l1_parent_3593f34c', '--exp43-root', '/n/fs/gatrdp/codespace/_l1_parent_4a7e3b3a']))
+E        +    where <function main at 0x7f04183ef640> = rc.main
+
+src/tests/test_exp46_regression_compare.py:437: AssertionError
+----------------------------- Captured stderr call -----------------------------
+EXP46 REGRESSION COMPARE: unreadable input: testcase classname '' names no test module
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_regression_compare.py::test_a_collection_record_is_its_module_and_any_other_empty_classname_still_refuses
+FAILED src/tests/test_exp46_regression_compare.py::test_a_collection_failures_signature_is_its_last_e_line_and_an_identical_parent_record_is_inherited
+FAILED src/tests/test_exp46_regression_compare.py::test_a_merged_only_collection_error_another_cause_or_another_module_is_a_problem
+FAILED src/tests/test_exp46_regression_compare.py::test_a_collection_error_in_a_must_pass_or_new_exp45_exp46_file_is_never_inherited
+FAILED src/tests/test_exp46_regression_compare.py::test_the_cli_reads_the_collection_records_and_still_refuses_an_unreadable_one
+5 failed, 76 passed in 17.39s
+EXIT 1 end 2026-11-19T08:59:22-05:00
