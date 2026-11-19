@@ -299,7 +299,7 @@ AR_CONTENT_SHA256 = "369bd4fcf015f232f5dbd0561ea77ccc6b32e1dcc6a71788e264bd9825f
 # in the closure by exact path), pinned here by the sha256 of its uncompressed text. Until it is pinned every f100
 # launch refuses; the f100 FULL re-verifies it in the job before sealing and retains the sealed record in receipts/.
 F100_DELTA_FILES = 145_494
-F100_DELTA_SHA256 = None                              # pinned at L2 (exp46_content_manifest.py --build + --verify)
+F100_DELTA_SHA256 = "bcea7ffefb25d5a7604e35258a4297befd7bc441fed220ae21a638bbaf4ca054"  # pinned at L2 (exp46_content_manifest.py --build + --verify)
 F100_VERIFICATION = "f100_delta_verification.json"    # receipts/<this> (+ .sha256): the in-job re-verification
 F100_VERIFICATION_KEYS = frozenset({"schema", "kind", "verdict", "problems", "manifest", "manifest_sha256", "files",
                                     "bytes", "dataset_root", "host", "started_at", "finished_at"})
