@@ -1,0 +1,81 @@
+HEAD 2f7e228f36cafc9970d5162c9819e2aaca9032cb tracked-clean=yes host neu323.neuronic.cs.princeton.edu start 2026-11-19T18:46:53-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_command_sheets.py src/tests/test_exp46_paths.py src/tests/test_exp46_isolation.py src/tests/test_exp46_provenance.py 
+....F.............................F.......FF............................ [ 56%]
+........................................................                 [100%]
+=================================== FAILURES ===================================
+___ test_the_neuronic_sheet_exports_exp38s_curated_dinov3_hub_for_every_step ___
+
+    def test_the_neuronic_sheet_exports_exp38s_curated_dinov3_hub_for_every_step():
+        """Yixun 2026-11-19, option 1a: the variables block exports HF_HUB_CACHE = exp_38's curated two-file DINOv3 hub
+        (reg.EXP38_HF_HUB, the hub_cache exp_38's neuronic launch records name; read-only) next to the unchanged HF_HOME and
+        HF_HUB_OFFLINE=1, before any step, and nothing in the sheet sets, drops or overrides it: L1's suites, L3 and every
+        SMOKE / FULL job (sbatch passes the environment) see the snapshot vit_pin_check pins."""
+        lines = re.search(r"```bash\n(.*?)\n```", _text(NEURONIC), flags=re.S).group(1).split("\n")
+        code = [ln for ln in lines if not ln.lstrip().startswith("#")]
+        sets = [ln for ln in code if "HF_HUB_CACHE" in ln or "HF_HOME" in ln]
+>       want = (f"export PYTHONNOUSERSITE=1 HF_HOME=/n/fs/gatrdp/hf_cache HF_HUB_CACHE={reg.EXP38_HF_HUB} HF_HUB_OFFLINE=1; "
+                "unset PYTHONOPTIMIZE PYTHONPATH")
+E       AttributeError: module 'exp46_registry' has no attribute 'EXP38_HF_HUB'
+
+src/tests/test_exp46_command_sheets.py:173: AttributeError
+___ test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition ___
+
+    def test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition():
+        got = set(foreign_literals())
+        unregistered = sorted(got - set(REGISTERED))
+        stale = sorted(set(REGISTERED) - got)
+>       assert not unregistered and not stale, "\n" + "\n".join(f"{kind} {f} {s!r}" for kind, items in
+                                                           (("UNREGISTERED", unregistered), ("STALE", stale)) for f, s in items)
+E       AssertionError: 
+E         STALE exp46_registry.py '/n/fs/gatrdp/exp38_hf_hub'
+E       assert (not [] and not [('exp46_registry.py', '/n/fs/gatrdp/exp38_hf_hub')])
+
+src/tests/test_exp46_paths.py:80: AssertionError
+__________ test_the_protected_roots_are_exp38s_and_exp45s_own_values ___________
+
+    def test_the_protected_roots_are_exp38s_and_exp45s_own_values():
+        """The protected roots are read from exp_38's own registry / evaluator and from exp_45's own kit at X45f (never
+        retyped); exp_38's snapshot namespace is exp_45's inherited SNAPSHOT_ROOT, its SMOKE folder exp_45's supervisor's."""
+        src38 = open(os.path.join(REPO, reg.EXP38_DIR, "exp38_registry.py")).read()
+        ev38 = open(os.path.join(REPO, reg.EXP38_DIR, "exp38_eval.py")).read()
+        for root in reg.EXP38_SAVE_ROOTS:
+            assert f'"save_root": "{root}"' in src38, root
+        assert f'DUMP_ROOT = "{reg.EXP38_DUMP_ROOT}"' in ev38 and f'FARM = "{reg.EXP38_FARM}"' in ev38
+        assert len(reg.EXP38_SAVE_ROOTS) == 2 and reg.EXP38_DIR.endswith("exp_38_data_efficiency_claude")
+        e45 = "worklog/worklog_yixun/exp_45_rf_data_curve_claude"
+        assert reg.EXP45_DIR == e45
+        reg45, ev45, sv45 = (_at_x45f(f"{e45}/exp45_{n}.py") for n in ("registry", "eval", "supervise"))
+        for root in reg.EXP45_SAVE_ROOTS:
+            assert f'"save_root": "{root}"' in reg45, root
+        assert f'DUMP_ROOT = "{reg.EXP45_DUMP_ROOT}"' in ev45 and f'FARM = "{reg.EXP45_FARM}"' in ev45
+        assert f'SNAPSHOT_ROOT = "{reg.EXP38_SNAPSHOT_ROOT}"' in ev45 and f'"{reg.EXP38_SNAPSHOT_ROOT}"' in sv45
+        assert f'"{reg.EXP38_SMOKE_DIR.split("/")[1]}"' in sv45 and reg.EXP38_SMOKE_DIR == "outputs_FLAC/exp38_smoke"
+        assert f'CAMPAIGN_ROOT = {{"a6000": "{reg.EXP45_A6000_ROOTS[0]}"}}' in reg45
+        assert "~/codespace/exp-45-publish" in _at_x45f(f"{e45}/plan_rf_data_curve.md")
+        assert reg.EXP45_A6000_ROOTS[1] == "/home/yixunhu/codespace/exp-45-publish"
+        roots = reg.protected_roots([REPO])
+>       assert len(roots) == len(reg.PROTECTED_ABSOLUTE) + len(reg.PROTECTED_IN_TREE) == 10 + 5     # + exp_38's DINOv3 hub
+E       AssertionError: assert (9 + 5) == (10 + 5)
+E        +  where 9 = len(('/media/diskstation/yixunhu/FLAC/checkpoints/exp38_data_efficiency', '/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_...ion/yixunhu/FLAC/checkpoints/exp45_rf_data_curve', '/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve', ...))
+E        +    where ('/media/diskstation/yixunhu/FLAC/checkpoints/exp38_data_efficiency', '/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp38_...ion/yixunhu/FLAC/checkpoints/exp45_rf_data_curve', '/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve', ...) = reg.PROTECTED_ABSOLUTE
+E        +  and   5 = len(('outputs_FLAC/exp38_data_efficiency/eval', 'worklog/worklog_yixun/exp_38_data_efficiency_claude', 'outputs_FLAC/exp38_smoke', 'outputs_FLAC/exp45_rf_data_curve/eval', 'worklog/worklog_yixun/exp_45_rf_data_curve_claude'))
+E        +    where ('outputs_FLAC/exp38_data_efficiency/eval', 'worklog/worklog_yixun/exp_38_data_efficiency_claude', 'outputs_FLAC/exp38_smoke', 'outputs_FLAC/exp45_rf_data_curve/eval', 'worklog/worklog_yixun/exp_45_rf_data_curve_claude') = reg.PROTECTED_IN_TREE
+
+src/tests/test_exp46_isolation.py:79: AssertionError
+_ test_exp38s_curated_dinov3_hub_is_a_protected_root_and_nothing_at_or_below_it_can_be_written _
+
+    def test_exp38s_curated_dinov3_hub_is_a_protected_root_and_nothing_at_or_below_it_can_be_written():
+        """Yixun 2026-11-19, option 1a: exp_46 only READS exp_38's curated two-file DINOv3 hub (the neuronic sheet's
+        HF_HUB_CACHE). It is a protected root, so a destination at or below it refuses before any write -- checked against
+        the real path (nothing is written; every mutating entry point is covered on a stand-in, the kind below)."""
+>       hub = reg.EXP38_HF_HUB
+E       AttributeError: module 'exp46_registry' has no attribute 'EXP38_HF_HUB'
+
+src/tests/test_exp46_isolation.py:88: AttributeError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_command_sheets.py::test_the_neuronic_sheet_exports_exp38s_curated_dinov3_hub_for_every_step
+FAILED src/tests/test_exp46_paths.py::test_every_foreign_literal_of_the_kit_is_registered_with_its_disposition
+FAILED src/tests/test_exp46_isolation.py::test_the_protected_roots_are_exp38s_and_exp45s_own_values
+FAILED src/tests/test_exp46_isolation.py::test_exp38s_curated_dinov3_hub_is_a_protected_root_and_nothing_at_or_below_it_can_be_written
+4 failed, 124 passed in 13.40s
+EXIT 1 end 2026-11-19T18:47:08-05:00

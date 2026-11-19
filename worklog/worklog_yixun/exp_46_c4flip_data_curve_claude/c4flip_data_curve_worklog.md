@@ -1069,3 +1069,54 @@ by tests and recorded here without re-review.
   - The Coder applies 1a test-first.
   - The coordinator reruns the merged L1 suite at the clean HEAD, with the sheet's new export line, reusing the
     parent junit files. Then the compare.
+
+## 2026-11-19 18:42 → 18:52 EST — option 1a landed: the neuronic sheet exports exp_38's curated DINOv3 hub, test-first (exp_46 Coder, Claude Opus 5.5)
+
+Yixun's "Yes, use 1a" (`616769c7`). Every run was a CPU Slurm job. Nothing was written into `/n/fs/gatrdp/exp38_hf_hub`,
+`hf_cache`, the flac env, main, the parent worktrees or exp_38 / exp_45 files. `vit_pin_check`, the pinned hashes and
+`exp46_train.sbatch` are unchanged. The Codex cap is used up (3 / 3 code rounds), so this is fixed and covered by tests,
+without re-review.
+
+- **Change:**
+  - `2f7e228f` (tests): the sheet test, the paths registration and the isolation tests below.
+  - `47de8ac8` (registry): `EXP38_HF_HUB = "/n/fs/gatrdp/exp38_hf_hub"`, the one source of the path, joins
+    `PROTECTED_ABSOLUTE`. `check_isolation` / `check_destination` then refuse a destination at, below or aliased onto
+    it.
+  - `98b79dd6` (sheet): the variables block's export line, plus one comment line before it.
+    - New line: `export PYTHONNOUSERSITE=1 HF_HOME=/n/fs/gatrdp/hf_cache HF_HUB_CACHE=/n/fs/gatrdp/exp38_hf_hub HF_HUB_OFFLINE=1; unset PYTHONOPTIMIZE PYTHONPATH`.
+    - Comment line: `# HF_HUB_CACHE: exp_38's curated two-file DINOv3 hub, the hub_cache exp_38's neuronic launch records name; read-only`.
+- **Every step that reaches the hub runs under that line:**
+  - It is the sheet's only HF setting. No line uses `--export=NONE`, `env -i`, `-u HF_` or `unset HF_`.
+  - L1's suites: the `SUITE`'s `env -u` list drops only PYTHON* variables, and `sbatch` passes the environment.
+  - L3: `exp46_init_digest.py` in `sbatch --wrap` loads DINOv3 from the hub (the same bytes, so its prediction is unchanged).
+  - Every SMOKE / FULL job: the submitter's `sbatch --export=ALL`. The sbatch sets `HF_HOME`, never `HF_HUB_CACHE`,
+    and `child_env` passes it to the training.
+  - L4's `registry dry-run` and the submitter's `--dry-run` never reach `vit_pin_check`.
+  - The A6000 publication lines (L7) and the table / collect lines do not reach it either.
+- **Tests:**
+  - The sheet test: the export line carries `HF_HUB_CACHE={reg.EXP38_HF_HUB}` with `HF_HOME` and `HF_HUB_OFFLINE=1`
+    unchanged, and the comment line before it says why. It precedes every step, and nothing drops or overrides it.
+  - The paths sweep: the literal is registered in `exp46_registry.py` with its own disposition (read-only exp_38
+    dependency; a protected root).
+  - The isolation tests:
+    - 10 + 5 protected roots.
+    - `check_destination` refuses at and below the real hub path (pure checks, nothing written).
+    - The every-mutating-entry-point test gains the hub's stand-in kind (direct / nested / symlinked).
+- **Validation (tracked-clean at the commit under test):**
+  - BG1 red (`2f7e228f`), the sheet, paths, isolation and provenance tests: 4 failed (exactly the four new / changed
+    checks), 124 passed, EXIT 1.
+  - BG2 red (`2f7e228f`): the 8 exp_45 / exp_46 launcher nodes under the sheet's OWN export line (read from the sheet
+    and eval'd, the caller's HF variables dropped): 8 failed (the DINOv3 refusal), EXIT 1.
+  - BG3 green (`98b79dd6`), the same four files: 128 passed, EXIT 0.
+  - BG4 green (`98b79dd6`), the 8 launcher nodes under the NEW export line: 8 passed, EXIT 0.
+- **Launch records:** exp_46's at-launch record (`exp46_supervise.py:640–645`) stores `pins` from `common_gates`, and
+  `vit_pin_check` returns `{"vit_rev", "hub_cache"}`. So each record names the hub actually checked, exactly like
+  exp_38's `"hub_cache"`; the DRY_RUN prints it too (`:501`). Nothing added.
+- **The A6000 sheet (report only, nothing changed):** its export sets no `HF_HOME` / `HF_HUB_CACHE`, so the evaluator's
+  `eval_pins` → `vit_pin_check` reads the A6000 user's default hub.
+  - That is the cache the exp_07 / exp_25 pin came from. exp_38's A6000 dry runs passed against it:
+    `data_efficiency_2026-11-07_21-36-46_dry_run_all_paths.log` prints `"hub_cache": "/home/yixunhu/.cache/huggingface/hub"`
+    after the check.
+  - I cannot see the A6000 box from neuronic, so its current snapshot is unverified. A one-directory listing before
+    E0 would confirm it.
+- **Next (coordinator):** rerun the merged L1 suite at this records commit, with the sheet's new export line.

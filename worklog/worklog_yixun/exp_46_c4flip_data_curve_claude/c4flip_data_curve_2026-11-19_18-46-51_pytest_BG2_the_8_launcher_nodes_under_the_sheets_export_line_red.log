@@ -1,0 +1,228 @@
+HEAD 2f7e228f36cafc9970d5162c9819e2aaca9032cb tracked-clean=yes host neu325.neuronic.cs.princeton.edu start 2026-11-19T18:46:53-05:00
+job script (verbatim, prefix '#   '):
+#   #!/bin/bash
+#   # exp_46 option 1a check (its source is embedded in the log): the 8 exp_45 / exp_46 launcher nodes that refused in L1
+#   # attempt 3, run under the neuronic sheet's OWN variables-block export line -- read from the sheet at this HEAD and
+#   # eval'd; the caller's HF variables are dropped first -- with the L1 SUITE's interpreter flags.
+#   #SBATCH --partition=all
+#   #SBATCH --cpus-per-task=4
+#   #SBATCH --mem=16G
+#   #SBATCH --time=00:20:00
+#   WT=/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+#   E=worklog/worklog_yixun/exp_46_c4flip_data_curve_claude
+#   cd "$WT" || exit 9
+#   echo "HEAD $(git rev-parse HEAD) tracked-clean=$([ -z "$(git status --porcelain --untracked-files=no)" ] && echo yes || echo no) host $(hostname) start $(date -Iseconds)"
+#   echo "job script (verbatim, prefix '#   '):"; sed 's/^/#   /' "$0"
+#   unset HF_HOME HF_HUB_CACHE HF_HUB_OFFLINE
+#   LINE=$(grep -m1 '^export PYTHONNOUSERSITE=1 ' "$E/c4flip_data_curve_neuronic_commands.md")
+#   echo "the sheet's export line: $LINE"
+#   eval "$LINE"
+#   echo "after it: HF_HOME=${HF_HOME:-<unset>} HF_HUB_CACHE=${HF_HUB_CACHE:-<unset>} HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-<unset>}"
+#   K="test_sbatch_dry_run_prints_the_torchrun_lines or test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools"
+#   echo "cmd: pytest -q -rfE -p no:cacheprovider -k \"$K\" src/tests/test_exp45_launchers.py src/tests/test_exp46_launchers.py"
+#   env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 TMPDIR=/tmp \
+#     /n/fs/gatrdp/envs/flac/bin/python -B -I -m pytest -q -rfE -p no:cacheprovider -k "$K" \
+#     src/tests/test_exp45_launchers.py src/tests/test_exp46_launchers.py 2>&1
+#   rc=$?
+#   echo "EXIT $rc end $(date -Iseconds)"
+#   exit $rc
+the sheet's export line: export PYTHONNOUSERSITE=1 HF_HOME=/n/fs/gatrdp/hf_cache HF_HUB_OFFLINE=1; unset PYTHONOPTIMIZE PYTHONPATH
+after it: HF_HOME=/n/fs/gatrdp/hf_cache HF_HUB_CACHE=<unset> HF_HUB_OFFLINE=1
+cmd: pytest -q -rfE -p no:cacheprovider -k "test_sbatch_dry_run_prints_the_torchrun_lines or test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools" src/tests/test_exp45_launchers.py src/tests/test_exp46_launchers.py
+FFFFFFFF                                                                 [100%]
+=================================== FAILURES ===================================
+__ test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf025_l40_2x32-FULL] ___
+
+run = 'exp45_RFf025_l40_2x32', mode = 'FULL'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the0')
+
+    @pytest.mark.parametrize("run,mode", [("exp45_RFf025_l40_2x32", "FULL"), ("exp45_RFf050_l40_2x32", "SMOKE"), ("exp45_RFf075_l40_2x32", "FULL")])
+    def test_sbatch_dry_run_prints_the_torchrun_lines(run, mode, tmp_path):
+        """Codex code r1 finding 10: the sbatch test hook routes the dry run through an ISOLATED save root
+        (EXP38_DRY_SAVE_ROOT -> --dry-save-root), so the result does not depend on the live run directories."""
+        iso = tmp_path / "dry_save_root"
+        iso.mkdir()
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN=run, MODE=mode, EXPECT_SHA="a" * 40,
+                   EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR=str(tmp_path / run), ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(iso))
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+>       assert r.returncode == 0, r.stderr
+E       AssertionError: EXP38 LAUNCH REFUSED: DINOv3 snapshot files ['.gitattributes', 'LICENSE.md', 'README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['bash', '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_45_rf_data_c...README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']\n").returncode
+
+src/tests/test_exp45_launchers.py:75: AssertionError
+__ test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf050_l40_2x32-SMOKE] __
+
+run = 'exp45_RFf050_l40_2x32', mode = 'SMOKE'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the1')
+
+    @pytest.mark.parametrize("run,mode", [("exp45_RFf025_l40_2x32", "FULL"), ("exp45_RFf050_l40_2x32", "SMOKE"), ("exp45_RFf075_l40_2x32", "FULL")])
+    def test_sbatch_dry_run_prints_the_torchrun_lines(run, mode, tmp_path):
+        """Codex code r1 finding 10: the sbatch test hook routes the dry run through an ISOLATED save root
+        (EXP38_DRY_SAVE_ROOT -> --dry-save-root), so the result does not depend on the live run directories."""
+        iso = tmp_path / "dry_save_root"
+        iso.mkdir()
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN=run, MODE=mode, EXPECT_SHA="a" * 40,
+                   EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR=str(tmp_path / run), ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(iso))
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+>       assert r.returncode == 0, r.stderr
+E       AssertionError: EXP38 LAUNCH REFUSED: DINOv3 snapshot files ['.gitattributes', 'LICENSE.md', 'README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['bash', '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_45_rf_data_c...README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']\n").returncode
+
+src/tests/test_exp45_launchers.py:75: AssertionError
+__ test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf075_l40_2x32-FULL] ___
+
+run = 'exp45_RFf075_l40_2x32', mode = 'FULL'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the2')
+
+    @pytest.mark.parametrize("run,mode", [("exp45_RFf025_l40_2x32", "FULL"), ("exp45_RFf050_l40_2x32", "SMOKE"), ("exp45_RFf075_l40_2x32", "FULL")])
+    def test_sbatch_dry_run_prints_the_torchrun_lines(run, mode, tmp_path):
+        """Codex code r1 finding 10: the sbatch test hook routes the dry run through an ISOLATED save root
+        (EXP38_DRY_SAVE_ROOT -> --dry-save-root), so the result does not depend on the live run directories."""
+        iso = tmp_path / "dry_save_root"
+        iso.mkdir()
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN=run, MODE=mode, EXPECT_SHA="a" * 40,
+                   EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR=str(tmp_path / run), ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(iso))
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+>       assert r.returncode == 0, r.stderr
+E       AssertionError: EXP38 LAUNCH REFUSED: DINOv3 snapshot files ['.gitattributes', 'LICENSE.md', 'README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['bash', '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_45_rf_data_c...README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']\n").returncode
+
+src/tests/test_exp45_launchers.py:75: AssertionError
+_______ test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_launcher_writes_no_by0')
+
+    def test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools(tmp_path):
+        """Codex code r2 finding 13: the importing driver (the supervisor the sbatch execs) runs with bytecode writing
+        disabled, so a fresh launch checkout never acquires __pycache__ files under exp_38's folder. The dry-run hook
+        imports the reused exp_38 tools; with PYTHONPYCACHEPREFIX pointed at a scratch dir, any bytecode Python would
+        have written lands there instead of in the repo -- and none for exp_38's folder may appear (the supervisor's own
+        probe subprocesses, which import no exp_38 tool, may still cache stdlib bytecode there)."""
+        prefix = tmp_path / "pycache_prefix"
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN="exp45_RFf025_l40_2x32", MODE="FULL",
+                   EXPECT_SHA="a" * 40, EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR="/x", ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(tmp_path), PYTHONPYCACHEPREFIX=str(prefix))
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+>       assert r.returncode == 0, r.stderr[-2000:]
+E       AssertionError: EXP38 LAUNCH REFUSED: DINOv3 snapshot files ['.gitattributes', 'LICENSE.md', 'README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['bash', '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_45_rf_data_c...README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']\n").returncode
+
+src/tests/test_exp45_launchers.py:457: AssertionError
+__ test_sbatch_dry_run_prints_the_torchrun_lines[exp46_C4Ff025_l40_2x32-FULL] __
+
+run = 'exp46_C4Ff025_l40_2x32', mode = 'FULL'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the3')
+
+    @pytest.mark.parametrize("run,mode", [("exp46_C4Ff025_l40_2x32", "FULL"), ("exp46_C4Ff050_l40_2x32", "SMOKE"), ("exp46_C4Ff075_l40_2x32", "FULL")])
+    def test_sbatch_dry_run_prints_the_torchrun_lines(run, mode, tmp_path):
+        """Codex code r1 finding 10: the sbatch test hook routes the dry run through an ISOLATED save root
+        (EXP38_DRY_SAVE_ROOT -> --dry-save-root), so the result does not depend on the live run directories."""
+        iso = tmp_path / "dry_save_root"
+        iso.mkdir()
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN=run, MODE=mode, EXPECT_SHA="a" * 40,
+                   EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR=str(tmp_path / run), ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(iso))
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+>       assert r.returncode == 0, r.stderr
+E       AssertionError: EXP46 LAUNCH REFUSED: DINOv3 snapshot files ['.gitattributes', 'LICENSE.md', 'README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['bash', '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_da...README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']\n").returncode
+
+src/tests/test_exp46_launchers.py:82: AssertionError
+_ test_sbatch_dry_run_prints_the_torchrun_lines[exp46_C4Ff050_l40_2x32-SMOKE] __
+
+run = 'exp46_C4Ff050_l40_2x32', mode = 'SMOKE'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the4')
+
+    @pytest.mark.parametrize("run,mode", [("exp46_C4Ff025_l40_2x32", "FULL"), ("exp46_C4Ff050_l40_2x32", "SMOKE"), ("exp46_C4Ff075_l40_2x32", "FULL")])
+    def test_sbatch_dry_run_prints_the_torchrun_lines(run, mode, tmp_path):
+        """Codex code r1 finding 10: the sbatch test hook routes the dry run through an ISOLATED save root
+        (EXP38_DRY_SAVE_ROOT -> --dry-save-root), so the result does not depend on the live run directories."""
+        iso = tmp_path / "dry_save_root"
+        iso.mkdir()
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN=run, MODE=mode, EXPECT_SHA="a" * 40,
+                   EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR=str(tmp_path / run), ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(iso))
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+>       assert r.returncode == 0, r.stderr
+E       AssertionError: EXP46 LAUNCH REFUSED: DINOv3 snapshot files ['.gitattributes', 'LICENSE.md', 'README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['bash', '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_da...README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']\n").returncode
+
+src/tests/test_exp46_launchers.py:82: AssertionError
+__ test_sbatch_dry_run_prints_the_torchrun_lines[exp46_C4Ff075_l40_2x32-FULL] __
+
+run = 'exp46_C4Ff075_l40_2x32', mode = 'FULL'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_sbatch_dry_run_prints_the5')
+
+    @pytest.mark.parametrize("run,mode", [("exp46_C4Ff025_l40_2x32", "FULL"), ("exp46_C4Ff050_l40_2x32", "SMOKE"), ("exp46_C4Ff075_l40_2x32", "FULL")])
+    def test_sbatch_dry_run_prints_the_torchrun_lines(run, mode, tmp_path):
+        """Codex code r1 finding 10: the sbatch test hook routes the dry run through an ISOLATED save root
+        (EXP38_DRY_SAVE_ROOT -> --dry-save-root), so the result does not depend on the live run directories."""
+        iso = tmp_path / "dry_save_root"
+        iso.mkdir()
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN=run, MODE=mode, EXPECT_SHA="a" * 40,
+                   EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR=str(tmp_path / run), ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(iso))
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+>       assert r.returncode == 0, r.stderr
+E       AssertionError: EXP46 LAUNCH REFUSED: DINOv3 snapshot files ['.gitattributes', 'LICENSE.md', 'README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['bash', '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_da...README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']\n").returncode
+
+src/tests/test_exp46_launchers.py:82: AssertionError
+_______ test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_the_launcher_writes_no_by1')
+
+    def test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools(tmp_path):
+        """Codex code r2 finding 13: the importing driver (the supervisor the sbatch execs) runs with bytecode writing
+        disabled, so a fresh launch checkout never acquires __pycache__ files under exp_38's folder. The dry-run hook
+        imports the reused exp_38 tools; with PYTHONPYCACHEPREFIX pointed at a scratch dir, any bytecode Python would
+        have written lands there instead of in the repo -- and none for exp_38's folder may appear (the supervisor's own
+        probe subprocesses, which import no exp_38 tool, may still cache stdlib bytecode there)."""
+        prefix = tmp_path / "pycache_prefix"
+        env = _env(EXP38_SBATCH_DRYRUN=1, EXP38_ENV_PREFIX=ENV_PREFIX, RUN="exp46_C4Ff025_l40_2x32", MODE="FULL",
+                   EXPECT_SHA="a" * 40, EXP38_TOKEN="0" * 32, ATTN_BACKEND="flash", EXPECT_FLASH_VERSION=reg.FLASH_VERSION,
+                   SAVE_DIR="/x", ALLOW_NONMATCHED_RUNG=0, EXP38_DRY_SAVE_ROOT=str(tmp_path), PYTHONPYCACHEPREFIX=str(prefix))
+        env.pop("SLURM_JOB_ID", None)
+        r = subprocess.run(["bash", SBATCH], cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
+>       assert r.returncode == 0, r.stderr[-2000:]
+E       AssertionError: EXP46 LAUNCH REFUSED: DINOv3 snapshot files ['.gitattributes', 'LICENSE.md', 'README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['bash', '/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/worklog/worklog_yixun/exp_46_c4flip_da...README.md', 'config.json', 'model.safetensors', 'preprocessor_config.json'] != ['config.json', 'model.safetensors']\n").returncode
+
+src/tests/test_exp46_launchers.py:464: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf025_l40_2x32-FULL]
+FAILED src/tests/test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf050_l40_2x32-SMOKE]
+FAILED src/tests/test_exp45_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp45_RFf075_l40_2x32-FULL]
+FAILED src/tests/test_exp45_launchers.py::test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools
+FAILED src/tests/test_exp46_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp46_C4Ff025_l40_2x32-FULL]
+FAILED src/tests/test_exp46_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp46_C4Ff050_l40_2x32-SMOKE]
+FAILED src/tests/test_exp46_launchers.py::test_sbatch_dry_run_prints_the_torchrun_lines[exp46_C4Ff075_l40_2x32-FULL]
+FAILED src/tests/test_exp46_launchers.py::test_the_launcher_writes_no_bytecode_for_the_reused_exp38_tools
+8 failed, 80 deselected in 23.50s
+EXIT 1 end 2026-11-19T18:47:23-05:00
