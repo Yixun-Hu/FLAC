@@ -740,3 +740,23 @@ neuronic sheet changed; nothing under `l1/` was touched (attempt 1's files were 
     `exp46_regression_compare.py`: (1) an empty classname maps to the module's node id (`src/tests/test_raf_publish.py`);
     (2) a collection failure's signature is its last `E   ` line, root-normalised. Tests: an identical record in a
     parent is inherited; a merged-only record, or a different cause, is a problem.
+
+## 2026-11-19 08:55 EST — Yixun approves the compare fix; parent L1 suites started early (coordinating session)
+
+- **Yixun, verbatim:** "Fix as recommended".
+- **What that approves:** the Coder's test-first change to `exp46_regression_compare.py` (with
+  `test_exp46_regression_compare.py`). It makes pytest's collection-error junit records readable and comparable:
+  - A record with an empty classname and a dotted module name maps to that module's node id.
+  - A collection failure's signature is its last `E   ` line, with the checkout root normalised out.
+  - The new tests require two things. An identical record in a parent is inherited. A merged-only record, or one
+    with a different cause, is a problem.
+  - The Codex cap is used up, so the fix is made, covered by the test and recorded here without re-review.
+- **Correction:** under option (A) I had told Yixun that the compare needed no code change. That was wrong. The
+  Coder's AY2 diagnostic shows the compare exits 2 on the attempt-1 junit files.
+- **Parents run early:** the two parent suites were submitted at 08:53. Their trees are fixed detached commits, so
+  their junit does not depend on exp_46's HEAD or on the compare fix.
+  - Jobs: 4280097 (`3593f34c`) and 4280098 (`4a7e3b3a`).
+  - Command: the sheet's SUITE at `c850426e` (with `--continue-on-collection-errors`) and the sheet's wrap, without
+    `--wait`.
+  - The merged suite runs after the compare fix lands, at that HEAD, with no commit until it ends. The sheet runs all
+    three concurrently; the order does not change any node's outcome.
