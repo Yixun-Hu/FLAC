@@ -28,6 +28,11 @@ message "collection failure" -- is the node ``src/tests/<file>.py``; any other e
 Its signature is its last ``E   `` line (pytest's message is the same for every collection error; a record with no
 ``E   `` line refuses, exit 2). Rule 2 judges it like any failure, but rule 3 holds per file: the record of a file
 that holds a must-pass node, or of a new exp_45 / exp_46 file, is never admitted by inheritance.
+L1 attempt 3 (Yixun 2026-11-19, "Approve as recommended"), three narrow normalisations: (a) a tree's OWN checkout
+root inside a parametrize id -- at a parameter's start, before '/' or ']' -- is ``<checkout>`` (two ids that become
+one refuse, exit 2); (b) ids carrying a unix time (``[t-<time>-...]``) align by position within their template when
+every tree that has it has the same number of them, one time value each -- otherwise the template is a problem and
+its raw ids stay; (c) in signatures, a ``YYYY-MM-DD_HH-MM-SS`` stamp and a 40-hex sha are placeholders.
 
 Written by the exp_46 Coder (Claude Opus 5.5).
 """
@@ -84,6 +89,9 @@ ENV_SKIPS = frozenset({
 RANK = {"passed": 0, "skipped": 1, "failed": 2, "error": 3}
 NEW_FILE = re.compile(r"^src/tests/(test_exp4[56]_[^/]+|test_gen_model_comparison_exp4[56])\.py::")
 COLLECTION_FAILURE = "collection failure"            # pytest's junit message of EVERY collection-error record
+TIME_ID = re.compile(r"(?<=[\[-])\d{9,10}\.\d+(?=[-\]])")      # (b) a unix-time float in a parametrize id
+STAMP = re.compile(r"\b\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\b")  # (c) a campaign timestamp in a failure line
+SHA40 = re.compile(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])")    # (c) a 40-hex git sha; a 64-hex digest stays exact
 
 
 class CompareError(RuntimeError):
@@ -130,19 +138,32 @@ def signature(kind, element, roots=()):
     text = re.sub(r"/[^\s'\"]*pytest-of-[^\s'\"]*", "<tmp>", text)
     text = re.sub(r"0x[0-9a-fA-F]+", "<addr>", text)
     text = re.sub(r"\bpid \d+|\bat \d{5,}\b", "<id>", text)
+    text = SHA40.sub("<sha>", STAMP.sub("<time>", text))     # (c) L1 attempt 3: a campaign stamp, a sandbox HEAD
     return f"{kind}: {text}"
 
 
-def load(path, roots=()):
+def strip_own_root(node, roots):
+    """(a) the tree's OWN checkout root in a parametrize id -- at a parameter's start, before a path boundary ('/' or
+    ']') -- as ``<checkout>``; anything else in the id stays exact."""
+    for r in roots:
+        node = re.sub(r"(?<=[\[-])" + re.escape(r) + r"(?=[/\]])", "<checkout>", node)
+    return node
+
+
+def load(path, roots=(), own_root=None):
     """{node: (outcome, signature, or the skip reason, or None)} of one junit XML; outcome in passed / failed / error /
-    skipped; ``roots``: the checkout roots normalised out of every signature."""
+    skipped; ``roots``: the checkout roots normalised out of every signature; ``own_root``: this tree's checkout,
+    normalised out of its node ids (a)."""
     try:
         root = ET.parse(path).getroot()
     except (OSError, ET.ParseError) as err:
         raise CompareError(f"{path}: {err}")
-    out = {}
+    out, raw, own = {}, {}, _roots([own_root] if own_root else [])
     for case in root.iter("testcase"):
-        node = node_id(case)
+        first = node_id(case)
+        node = strip_own_root(first, own)
+        if raw.setdefault(node, first) != first:
+            raise CompareError(f"{path}: {first!r} and {raw[node]!r} are one node after root normalisation")
         kids = {k.tag: k for k in case}
         if "error" in kids:
             res = ("error", signature("error", kids["error"], roots))
@@ -159,9 +180,33 @@ def load(path, roots=()):
     return out
 
 
+def align_time_ids(trees, labels=("merged", "3593f34c", "4a7e3b3a")):
+    """(b) ids carrying a unix time (a new value every run) align by POSITION within their template (the id with the
+    time replaced) -- only when every tree that has the template has the same number of them, one time value each;
+    otherwise the template is refused: reported as a problem, its raw ids kept. -> (trees, problems, aligned)."""
+    groups = [{} for _ in trees]
+    for g, rec in zip(groups, trees):
+        for node in rec:
+            if TIME_ID.search(node):
+                g.setdefault(TIME_ID.sub("<time>", node), []).append(node)
+    problems, aligned, rename = [], [], [{} for _ in trees]
+    for t in sorted(set().union(*groups)):
+        counts = {lab: len(g[t]) for lab, g in zip(labels, groups) if t in g}
+        if len(set(counts.values())) > 1 or any(len(TIME_ID.findall(n)) != 1 for g in groups for n in g.get(t, ())):
+            problems.append(f"{t}: time-valued parametrize ids not aligned (ambiguous: {counts} per tree; one time "
+                            "value per id and the same number in every tree are required)")
+            continue
+        aligned.append(t)
+        for g, ren in zip(groups, rename):
+            for k, node in enumerate(g.get(t, ())):
+                ren[node] = t.replace("<time>", f"<time:{k}>", 1)
+    return [{ren.get(n, n): v for n, v in rec.items()} for rec, ren in zip(trees, rename)], problems, aligned
+
+
 def compare(merged, exp38, exp43):
     """(problems, report) of the registered node policy."""
-    problems, allowed, new_skips = [], [], []
+    (merged, exp38, exp43), problems, aligned = align_time_ids([merged, exp38, exp43])
+    allowed, new_skips = [], []
     must_pass = EDITED | set(REPLACED.values())
     must_files = {n.split("::", 1)[0] for n in must_pass}    # a collection record names a whole file (2026-11-19, (A))
     for name, parent in (("3593f34c", exp38), ("4a7e3b3a", exp43)):
@@ -198,7 +243,7 @@ def compare(merged, exp38, exp43):
     for node in sorted((DECLARED_EDITED | set(REPLACED.values())) - set(merged)):
         problems.append(f"{node}: the declared-edited / replacement node is missing")
     report = {"verdict": "PASS" if not problems else "FAIL", "problems": problems, "allowed_failures": allowed,
-              "new_node_skips": new_skips,
+              "new_node_skips": new_skips, "aligned_time_ids": aligned,
               "counts": {name: {o: sum(1 for v in rec.values() if v[0] == o) for o in ("passed", "failed", "error", "skipped")}
                          for name, rec in (("merged", merged), ("3593f34c", exp38), ("4a7e3b3a", exp43))}}
     return problems, report
@@ -224,7 +269,8 @@ def main(argv=None):
             return 2
     roots = (a.merged_root, a.exp38_root, a.exp43_root)
     try:
-        problems, report = compare(load(a.merged, roots), load(a.exp38, roots), load(a.exp43, roots))
+        problems, report = compare(load(a.merged, roots, a.merged_root), load(a.exp38, roots, a.exp38_root),
+                                   load(a.exp43, roots, a.exp43_root))
     except CompareError as err:
         print(f"EXP46 REGRESSION COMPARE: unreadable input: {err}", file=sys.stderr)
         return 2

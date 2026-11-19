@@ -350,8 +350,8 @@ def _runc(tmp_path, merged, p38=None, p43=None, base=BASE, roots=ROOTS):
     return rc.compare(*(rc.load(f, roots=roots) for f in files))
 
 
-def _sig(cause):
-    return "error: " + cause.replace("ROOT", "<checkout>")
+def _sig(cause):        # H35's 40-hex commit id is a placeholder since L1 attempt 3 (c)
+    return "error: " + cause.replace("ROOT", "<checkout>").replace("5b065801e9d1c1844461ec84cd0558702c714326", "<sha>")
 
 
 def test_a_collection_record_is_its_module_and_any_other_empty_classname_still_refuses():
