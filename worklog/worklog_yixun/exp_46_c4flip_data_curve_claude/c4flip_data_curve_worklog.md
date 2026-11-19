@@ -892,3 +892,12 @@ and `..._pytest_BE*.log`; the diagnostic job scripts, the state tracker and the 
     are the same before and after E9 (exp_38 eval / launchers / registry / receipts and exp_40 eval).
 - **Next (coordinator):** rerun the merged L1 suite at this records commit. The exp_45 / exp_46 copies are open for
   Yixun (above).
+
+## 2026-11-19 11:40 EST — Yixun: rerun the merged L1 suite now, without E10 / E11 (coordinating session)
+
+- **Yixun, verbatim:** "按推荐现在重跑".
+- **What that decides:** E9 (`e0d20b71`) is the only leak fix.
+  - The same unrestored signal handlers in `test_exp45_supervise.py` and `test_exp46_supervise.py` are left as they are, and recorded as a known issue. In the merged collection order, only exp_46's three fork-pool tests follow the exp_45 copy, and they passed 13 / 13 pinned runs after it. No fork test follows the exp_46 copy.
+  - If the rerun hangs again, E10 / E11 are applied, and L1 is rerun.
+  - Any later change under `src/tests` would need L1 again.
+- **Next:** the merged suite at this records commit, without `--wait`, with no commit until it ends. The parent junit files from 4280097 / 4280098 are reused.
