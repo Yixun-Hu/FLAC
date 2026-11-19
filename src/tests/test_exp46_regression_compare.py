@@ -3,7 +3,7 @@ forked from exp_45's test of exp45_regression_compare.py at X45f, plan_rf_data_c
 finding 6): synthetic junit records of the merged tree and both parents, one rule per case -- plus exp_46's
 extension: the declared edited nodes E1-E5 must pass, every new exp_46 node (the generator contract included) must
 pass, the exp_46 copies of exp_45's environment skips keep the same reasons, and a parent node may go only as a
-registered replacement.
+registered replacement. L1 option (A) (Yixun 2026-11-19): pytest's collection-error records (the tests at the end).
 
 Written by the exp_45 Coder (Claude Opus 5.5); exp_46 extension by the exp_46 Coder (Claude Opus 5.5).
 """
@@ -21,8 +21,9 @@ TIE = sorted(rc.TIE_AUDIT)
 COMPAT = sorted(rc.COMPAT_EDITED)
 
 
-def _xml(path, cases):
-    """cases: {node: outcome or (outcome, message)} -> a pytest-shaped junit file."""
+def _xml(path, cases, extra=()):
+    """cases: {node: outcome or (outcome, message)} -> a pytest-shaped junit file; ``extra``: raw testcase records
+    (pytest's collection records, below) written after them as given."""
     out = ['<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite name="pytest">']
     for node, res in cases.items():
         outcome, msg = (res, "NAS not mounted" if res == "skipped" else "AssertionError: assert 1 == 2") \
@@ -37,6 +38,7 @@ def _xml(path, cases):
         body = {"passed": "", "skipped": f'<skipped type="pytest.skip" message="{msg}">{mod}:1: {msg}</skipped>',
                 "failed": f'<failure message="{msg}">trace</failure>', "error": f'<error message="{msg}">trace</error>'}[outcome]
         out.append(f'<testcase classname="{cls}" name="{name}" time="0.1">{body}</testcase>')
+    out.extend(extra)
     out.append("</testsuite></testsuites>")
     open(path, "w").write("".join(out))
     return str(path)
@@ -295,3 +297,148 @@ def test_e7_e8_must_be_present_and_pass_even_if_absent_from_both_parents(tmp_pat
                 assert len(problems) == 1 and problems[0].startswith(f"{node}: must pass"), (node, outcome, problems)
         problems, _ = _run(tmp_path, parents, p38=parents, p43=parents)
         assert problems == [f"{node}: the declared-edited / replacement node is missing"], (node, problems)
+
+
+# ------------------------------------------------------------------ L1 option (A): pytest's collection-error records
+# Yixun 2026-11-19 ("Fix as recommended"): the L1 SUITE runs with --continue-on-collection-errors, so every junit holds
+# pytest's record of each module that failed to collect. The shape is copied from attempt 1's
+# l1/attempt1/merged.junit.xml (read only): an EMPTY classname, the dotted module path as the name, and
+# <error message="collection failure"> whose text is the short traceback with the cause on its last "E   " line.
+# RAISED / IMPORT are attempt 1's two kinds of text (an exception raised while the module ran; pytest's ImportError
+# text); ROOT, MODULE and CAUSE stand for the checkout the suite ran in, the file and the cause.
+H35 = ("subprocess.CalledProcessError: Command '['git', '-C', 'ROOT', 'show', '5b065801e9d1c1844461ec84cd0558702c714326:"
+       "worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py']' returned non-zero exit status 128.")
+OPEN3D = "ModuleNotFoundError: No module named 'open3d'"
+RAISED = ("MODULE:87: in <module>\n    SUP_SHA = SHA(SB.real_supervisor())\n"
+          "src/tests/exp35_phase_ii_sandbox.py:55: in real_supervisor\n"
+          '    return git_show(H35_REAL, f"{X35}/exp35_supervisor.py")\n'
+          "src/tests/exp35_phase_ii_sandbox.py:43: in git_show\n"
+          '    return subprocess.run(["git", "-C", REPO, "show", f"{rev}:{path}"], capture_output=True, check=True).stdout\n'
+          "../../envs/flac/lib/python3.10/subprocess.py:526: in run\n    raise CalledProcessError(retcode, process.args,\n"
+          "E   CAUSE")
+IMPORT = ("ImportError while importing test module 'ROOT/MODULE'.\n"
+          "Hint: make sure your test modules/packages have valid Python names.\nTraceback:\n"
+          "../../envs/flac/lib/python3.10/importlib/__init__.py:126: in import_module\n"
+          "    return _bootstrap._gcd_import(name[level:], package, level)\n"
+          "MODULE:25: in <module>\n    import render_depth as raf_render  # noqa: E402\n"
+          "data/RAF/render_depth.py:22: in <module>\n    import open3d as o3d\nE   CAUSE")
+ATTEMPT1 = {"src/tests/test_exp35_phase_ii_checks.py": H35, "src/tests/test_exp35_phase_ii_schema.py": H35,
+            "src/tests/test_raf_publish.py": OPEN3D, "src/tests/test_raf_readback.py": OPEN3D,
+            "src/tests/test_raf_render_depth.py": OPEN3D}
+MUST = "must pass (an edited / replacement node or a new exp_45 / exp_46 node), got error"
+
+
+def _collect(module, cause, root, text=None):
+    """One collection-error record as pytest's junit writes it (text escaped as pytest escapes it)."""
+    body = (text or (RAISED if cause.startswith("subprocess.") else IMPORT)).replace("CAUSE", cause)
+    body = body.replace("ROOT", root).replace("MODULE", module)
+    body = body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return (f'<testcase classname="" name="{module[:-3].replace("/", ".")}" time="0.000">'
+            f'<error message="collection failure">{body}</error></testcase>')
+
+
+def _runc(tmp_path, merged, p38=None, p43=None, base=BASE, roots=ROOTS):
+    """_run with collection records: merged / p38 / p43 map a module to its cause, or to (cause, text); each tree's
+    records name its own checkout root; ``base`` are the collected nodes of all three trees."""
+    files = []
+    for n, tree, root in (("m", merged, roots[0]), ("p38", p38, roots[1]), ("p43", p43, roots[2])):
+        pairs = {m: c if isinstance(c, tuple) else (c, None) for m, c in (tree or {}).items()}
+        files.append(_xml(tmp_path / f"{n}.xml", base, [_collect(m, c, root, t) for m, (c, t) in pairs.items()]))
+    return rc.compare(*(rc.load(f, roots=roots) for f in files))
+
+
+def _sig(cause):
+    return "error: " + cause.replace("ROOT", "<checkout>")
+
+
+def test_a_collection_record_is_its_module_and_any_other_empty_classname_still_refuses():
+    """(a) an empty classname with a dotted test-module name is that module's node id; (e) any other name with an
+    empty classname still refuses (exit 2 in the CLI test below); a classname-ful node is unchanged."""
+    assert rc.node_id({"classname": "", "name": "src.tests.test_x"}) == "src/tests/test_x.py"
+    assert rc.node_id({"classname": "", "name": "src.tests.test_raf_publish"}) == "src/tests/test_raf_publish.py"
+    assert rc.node_id({"classname": "src.tests.test_x", "name": "test_y"}) == "src/tests/test_x.py::test_y"
+    for name in ("", "conftest", "src.tests", "src.tests.helpers", "src.tests.test_x.TestK", "src..test_x",
+                 "src.tests.test_x.py"):
+        with pytest.raises(rc.CompareError, match="names no test module"):
+            rc.node_id({"classname": "", "name": name})
+
+
+def test_a_collection_failures_signature_is_its_last_e_line_and_an_identical_parent_record_is_inherited(tmp_path):
+    """(b) pytest's message ("collection failure") is the same for every collection error: the signature is the
+    record's last "E   " line with the checkout roots normalised; the traceback above it is not part of it. A merged
+    record is inherited when a parent holds the identical node, outcome and signature."""
+    two = {"src/tests/test_exp35_phase_ii_checks.py": H35, "src/tests/test_raf_publish.py": OPEN3D}
+    for i, root in enumerate(ROOTS):                                # each tree names its own checkout
+        f = _xml(tmp_path / f"t{i}.xml", {}, [_collect(m, c, root) for m, c in two.items()])
+        assert rc.load(f, roots=ROOTS) == {m: ("error", _sig(c)) for m, c in two.items()}
+    last = IMPORT.replace("E   CAUSE", "E   ImportError: first\nE   CAUSE")    # several E lines: the last one
+    f = _xml(tmp_path / "last.xml", {}, [_collect("src/tests/test_x.py", OPEN3D, ROOTS[0], last)])
+    assert rc.load(f, roots=ROOTS) == {"src/tests/test_x.py": ("error", _sig(OPEN3D))}
+    problems, report = _runc(tmp_path, ATTEMPT1, p38=ATTEMPT1, p43=ATTEMPT1)  # attempt 1's five, in all three trees
+    assert problems == [] and report["verdict"] == "PASS" and report["counts"]["merged"]["error"] == 5
+    assert report["allowed_failures"] == [f"{m}: inherited from 3593f34c, 4a7e3b3a ({_sig(ATTEMPT1[m])})"
+                                          for m in sorted(ATTEMPT1)]
+    x = "src/tests/test_raf_publish.py"
+    moved = IMPORT.replace("MODULE:25:", "MODULE:31:")                        # another traceback, the same cause
+    problems, report = _runc(tmp_path, {x: OPEN3D}, p43={x: (OPEN3D, moved)})
+    assert problems == [] and report["allowed_failures"] == [f"{x}: inherited from 4a7e3b3a ({_sig(OPEN3D)})"]
+
+
+def test_a_merged_only_collection_error_another_cause_or_another_module_is_a_problem(tmp_path):
+    """(c) each of these is a problem: a merged-only collection error, a parent record with another "E   " cause, and
+    the same cause on another module."""
+    x, y = "src/tests/test_raf_publish.py", "src/tests/test_raf_readback.py"
+    problems, _ = _runc(tmp_path, {x: OPEN3D})
+    assert len(problems) == 1 and problems[0].startswith(f"{x}: error in the merged tree ({_sig(OPEN3D)})"), problems
+    for other in ("ModuleNotFoundError: No module named 'trimesh'", "ImportError: cannot import name 'o3d'", H35):
+        problems, _ = _runc(tmp_path, {x: OPEN3D}, p38={x: other}, p43={x: other})
+        assert len(problems) == 1 and problems[0].startswith(f"{x}: error in the merged tree"), (other, problems)
+    for other in (H35.replace("status 128", "status 1"), H35.replace("exp35_supervisor.py", "exp35_kit.py")):
+        problems, _ = _runc(tmp_path, {x: H35}, p38={x: other}, p43={x: other})
+        assert len(problems) == 1 and problems[0].startswith(f"{x}: error in the merged tree"), (other, problems)
+    problems, report = _runc(tmp_path, {x: OPEN3D, y: OPEN3D}, p38={y: OPEN3D}, p43={y: OPEN3D})
+    assert len(problems) == 1 and problems[0].startswith(f"{x}: error in the merged tree"), problems
+    assert report["allowed_failures"] == [f"{y}: inherited from 3593f34c, 4a7e3b3a ({_sig(OPEN3D)})"]
+
+
+def test_a_collection_error_in_a_must_pass_or_new_exp45_exp46_file_is_never_inherited(tmp_path):
+    """(d) must_pass is keyed by node, a collection record names a whole FILE: the record of a file that holds a
+    must-pass node (compat-edited / declared-edited / replacement) or of a new exp_45 / exp_46 file is never admitted
+    by inheritance -- a problem even when both parents hold the identical record."""
+    kit = "src/tests/test_exp43_kit.py"                                   # holds a compat-edited and a declared node
+    assert any(n.startswith(kit + "::") for n in rc.COMPAT_EDITED) and any(n.startswith(kit + "::") for n in DECLARED)
+    nowhere = {k: v for k, v in BASE.items() if not k.startswith(kit + "::")}   # the file collected in no tree
+    problems, report = _runc(tmp_path, {kit: OPEN3D}, p38={kit: OPEN3D}, p43={kit: OPEN3D}, base=nowhere)
+    assert f"{kit}: {MUST} {_sig(OPEN3D)}" in problems, problems
+    assert not [a for a in report["allowed_failures"] if a.startswith(kit)]
+    for new in ("src/tests/test_exp46_l1_probe.py", "src/tests/test_exp45_l1_probe.py",
+                "src/tests/test_gen_model_comparison_exp46.py"):
+        problems, report = _runc(tmp_path, {new: OPEN3D}, p38={new: OPEN3D}, p43={new: OPEN3D})
+        assert problems == [f"{new}: {MUST} {_sig(OPEN3D)}"] and report["allowed_failures"] == [], (new, problems)
+        problems, _ = _runc(tmp_path, {new: OPEN3D})
+        assert problems == [f"{new}: {MUST} {_sig(OPEN3D)}"], (new, problems)
+    old = "src/tests/test_exp38_kit_l1_probe.py"                          # an old file: judged by inheritance
+    problems, report = _runc(tmp_path, {old: OPEN3D}, p38={old: OPEN3D})
+    assert problems == [] and report["allowed_failures"] == [f"{old}: inherited from 3593f34c ({_sig(OPEN3D)})"]
+    skipped = ('<testcase classname="" name="src.tests.test_exp46_l1_probe" time="0.000"><skipped message="collection '
+               "skipped\">('src/tests/test_exp46_l1_probe.py', 3, 'Skipped: no wandb')</skipped></testcase>")
+    files = [_xml(tmp_path / "s.xml", BASE, [skipped]), _xml(tmp_path / "s38.xml", BASE), _xml(tmp_path / "s43.xml", BASE)]
+    problems, _ = rc.compare(*(rc.load(f, roots=ROOTS) for f in files))      # an exp_46 file skipped whole
+    assert len(problems) == 1 and problems[0].startswith("src/tests/test_exp46_l1_probe.py: a new exp_45 / exp_46 node "
+                                                         "was skipped ('collection skipped')"), problems
+
+
+def test_the_cli_reads_the_collection_records_and_still_refuses_an_unreadable_one(tmp_path, capsys):
+    """Attempt 1's five records in all three trees: exit 0 with five inherited failures. (e) A record with an empty
+    classname whose name is not a dotted test module, or a collection failure with no "E   " line, refuses: exit 2."""
+    roots = ["--merged-root", ROOTS[0], "--exp38-root", ROOTS[1], "--exp43-root", ROOTS[2]]
+    trees = [_xml(tmp_path / f"{n}.xml", BASE, [_collect(m, c, r) for m, c in ATTEMPT1.items()])
+             for n, r in zip(("m", "a", "b"), ROOTS)]
+    assert rc.main(["--merged", trees[0], "--exp38", trees[1], "--exp43", trees[2]] + roots) == 0
+    assert "REGRESSION POLICY PASS: 0 problem(s), 5 allowed failure(s)" in capsys.readouterr().out
+    no_module = _collect("src/tests/test_x.py", OPEN3D, ROOTS[0]).replace('name="src.tests.test_x"', 'name="conftest"')
+    no_cause = _collect("src/tests/test_x.py", OPEN3D, ROOTS[0], text="src/tests/test_x.py:1: in <module>\n    boom()")
+    for record, why in ((no_module, "names no test module"), (no_cause, "no 'E   ' line")):
+        bad = _xml(tmp_path / "bad.xml", BASE, [record])
+        assert rc.main(["--merged", bad, "--exp38", trees[1], "--exp43", trees[2]] + roots) == 2
+        assert why in capsys.readouterr().err, why
