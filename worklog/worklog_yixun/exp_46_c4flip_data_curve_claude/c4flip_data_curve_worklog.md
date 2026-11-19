@@ -1053,3 +1053,19 @@ by tests and recorded here without re-review.
        - But `test_exp45_launchers.py` is an exp_45 file (a declared edit), and the real launch still needs 1 or 2.
   - **Recommendation: 1a.** It is exactly what exp_38's neuronic campaign did and recorded in every launch record. No
     gate change, no new write, no frozen file; L1 and the real launches then check the same two pinned files.
+
+## 2026-11-19 18:41 EST — Yixun picks option 1a for the DINOv3 snapshot refusal (coordinating session)
+
+- **Yixun, verbatim:** "Yes, use 1a" — the answer to "Fix the DINOv3 refusal with option 1a, exp_38's read-only
+  curated hub?".
+- **What that decides:** the neuronic sheet exports `HF_HUB_CACHE=/n/fs/gatrdp/exp38_hf_hub`. This is the curated
+  two-file hub that exp_38's neuronic launches used and recorded (`"hub_cache"` in every launch record).
+  - exp_46 reads it only, and it is registered as a read-only exp_38 dependency.
+  - The gate (`vit_pin_check`) and the pinned bytes are unchanged; the gate still refuses fail-closed without the
+    export.
+  - L1 and the real launches run from the same shell, so they check the same two files.
+- **Not chosen:** 1b (an exp_46-owned copy of the hub), 2 (loosening the gate), 3 (a hermetic test fixture).
+- **Next:**
+  - The Coder applies 1a test-first.
+  - The coordinator reruns the merged L1 suite at the clean HEAD, with the sheet's new export line, reusing the
+    parent junit files. Then the compare.
