@@ -62,7 +62,8 @@ git -C $M worktree add --detach $P38 3593f34cad4e6e4415a572e93d16ee83465f8ae8
 git -C $M worktree add --detach $P43 4a7e3b3a948388434bc102b8bd7e7aba94648d71
 for P in $P38 $P43; do ln -s "$(readlink -f $M/AcousticRooms)" $P/AcousticRooms; ln -s "$(readlink -f $M/weights/FLAC/VAE.safetensors)" $P/weights/FLAC/VAE.safetensors; done
 mkdir -p $L1
-SUITE="env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 TMPDIR=/tmp $PY -B -I -m pytest -q -p no:cacheprovider src/tests"
+SUITE="env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 TMPDIR=/tmp $PY -B -I -m pytest -q -p no:cacheprovider --continue-on-collection-errors src/tests"
+#    collection errors are recorded as junit error records and judged by exp46_regression_compare.py's inheritance rule (Yixun 2026-11-19, option (A))
 #    the three suites run concurrently; each job records pytest's own exit status in <name>.rc after the run (a suite
 #    with failing nodes exits 1 -- the policy below judges them). The sheet waits on each by its PID; a job that did
 #    not run to completion (killed / timed out / cancelled: sbatch --wait returns 1, no .rc) or a pytest rc above 1
