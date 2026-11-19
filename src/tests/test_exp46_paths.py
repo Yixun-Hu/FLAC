@@ -181,6 +181,12 @@ _register(["exp46_regression_compare.py"], [
     "src/tests/test_exp45_receipts.py::test_the_real_gpu0_smoke_evidence_passes_the_exact_gate[vanilla-de_yaw_f025]",
     "src/tests/test_exp45_registry.py::test_the_real_rf_100_percent_endpoint_satisfies_the_exact_schema",
     "src/tests/test_exp45_merge_provenance.py::test_later_exp45_commits_touch_only_the_allowed_paths"], L1_PARENT)
+DECLARED_NODES = ("a declared-edited node id of the L1 comparison (E7 / E8 / E9: read-only junit input names that must "
+                  "pass, never a path the kit opens or writes)")
+_register(["exp46_regression_compare.py"], [
+    "src/tests/test_exp45_sampler.py::test_both_launch_environments_give_the_same_rank_and_world",       # E7 (D1)
+    "src/tests/test_exp38_sampler.py::test_both_launch_environments_give_the_same_rank_and_world",       # E8 (D1)
+    "src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work"], DECLARED_NODES)  # E9
 _register(["exp46_table.py"], [
     "/c4flip_data_curve_exp38_import.json", "--exp38-commit", "exp38_commit", "--exp38-commit must be a full 40-hex "
     "commit id", "exp38_import_sha256", "exp46_exp38_import_", "import-exp38", "CODE: import json, os, sys",
