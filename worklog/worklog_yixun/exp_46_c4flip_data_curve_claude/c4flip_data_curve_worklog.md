@@ -694,3 +694,19 @@ files and gen_model_comparison.py unchanged).
   - **(B):** run L1 on the A6000 box.
   - **(C):** another way.
 - **Paused:** the ladder cron is deleted until Yixun decides. Nothing else changed; HEAD is `98bd6c47`.
+
+## 2026-11-19 07:05 EST — Yixun decides L1 option (A) (coordinating session)
+
+- **Yixun, verbatim:** "按推荐 (A) 重跑".
+- **Meaning:** add `--continue-on-collection-errors` to the sheet's L1 SUITE line and rerun the definitive L1 in all
+  three trees. Every node runs, with no deselection. The five collection errors (open item above) land in each junit as
+  error records. `exp46_regression_compare.py` admits them only when a parent has the identical node, outcome and
+  root-normalised signature.
+- **One correction to what I told Yixun:** I called (A) "a sheet change only". In fact
+  `test_the_l1_comparison_runs_every_node_with_no_deselection_and_is_complete` pins the SUITE line's ending
+  (`-m pytest -q -p no:cacheprovider src/tests`). So the flag needs a one-line change to that exp_46 test, made
+  test-first: it must now require the flag.
+  - The Coder (Claude Opus 5.5) does it.
+  - The Codex cap is used up (3 / 3 code rounds), so per the standing rule it is fixed, covered by the test, and
+    recorded here without re-review.
+- **Attempt 1's outputs:** the junit and rc files are kept under `l1/attempt1/`. They are never deleted.
