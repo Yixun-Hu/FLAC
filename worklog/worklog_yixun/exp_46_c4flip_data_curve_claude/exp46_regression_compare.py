@@ -55,7 +55,10 @@ DECLARED_EDITED = frozenset({
     # sampler copies restore lightning's global rank at teardown -- each node must be present and PASS, also when absent
     # from both parents; a failure, error, skip or inherited failure is never admitted (must_pass: no inheritance)
     "src/tests/test_exp45_sampler.py::test_both_launch_environments_give_the_same_rank_and_world",           # E7
-    "src/tests/test_exp38_sampler.py::test_both_launch_environments_give_the_same_rank_and_world"})          # E8
+    "src/tests/test_exp38_sampler.py::test_both_launch_environments_give_the_same_rank_and_world",           # E8
+    # L1 attempt 2 (Yixun 2026-11-19, "Fix as recommended"): exp_38's supervisor refusal node restores at teardown the
+    # process-wide signal handlers its sv.main() call installs -- the node must be present and PASS
+    "src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work"})                # E9
 EDITED = COMPAT_EDITED | DECLARED_EDITED
 REPLACED = {}          # {a parent node id: its registered replacement in the merged tree} -- none (E1-E5 keep ids)
 # the registered environment skips of new nodes in the L1 environment (a neuronic CPU Slurm job; reasons exactly as

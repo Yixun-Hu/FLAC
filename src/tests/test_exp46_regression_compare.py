@@ -198,7 +198,8 @@ def test_the_declared_edited_nodes_are_exactly_e1_to_e5_and_each_must_pass_and_b
         *(f"src/tests/test_yaw_aug_flip_factory.py::test_true_flip_with_offset_step_is_refused[{s}]" for s in (32, 1, 4)),
         "src/tests/test_exp43_kit.py::test_config_contract_through_the_real_factory",
         "src/tests/test_exp45_merge_provenance.py::test_later_exp45_commits_touch_only_the_allowed_paths",
-        "src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically", *E7_E8])
+        "src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically", *E7_E8,
+        E9])
     assert rc.EDITED == rc.COMPAT_EDITED | rc.DECLARED_EDITED and rc.REPLACED == {}
     problems, _ = _run(tmp_path, BASE)
     assert problems == []
@@ -280,6 +281,8 @@ def test_the_wandb_environment_failures_are_inherited_only_as_the_parents_exact_
 # ------------------------------------------------------------------ D1 (PREPARED): E7 / E8 registered as declared edits
 E7_E8 = ["src/tests/test_exp45_sampler.py::test_both_launch_environments_give_the_same_rank_and_world",
          "src/tests/test_exp38_sampler.py::test_both_launch_environments_give_the_same_rank_and_world"]
+# L1 attempt 2 (Yixun 2026-11-19): exp_38's supervisor refusal node restores the signal handlers sv.main() installs
+E9 = "src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work"
 
 
 def test_e7_e8_must_be_present_and_pass_even_if_absent_from_both_parents(tmp_path):

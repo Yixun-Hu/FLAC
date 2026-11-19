@@ -76,8 +76,36 @@ def rank_restore(tag):
             '    monkeypatch.setattr(rank_zero_only, "rank", rank_zero_only.rank)\n')
 
 
+# E9 (L1 attempt 2; Yixun 2026-11-19, "Fix as recommended"): test_exp38_supervise.py's refusal node calls sv.main() in
+# the pytest process, which installs process-wide SIGTERM / SIGINT / SIGHUP handlers that only record the signal, so
+# every later fork inherits them and a fork Pool's terminate() can hang (the merged L1 suite did, in test_exp40_kit.py).
+# The file may differ from X45f ONLY by exactly supervise_restore("E9", "exp38"), inserted right before the unique
+# anchor (the node's def line), the file mode unchanged (content-checked below)
+SUPERVISE_ANCHOR = "def test_unregistered_runs_are_refused_before_any_work(capsys):\n"
+SUPERVISE_EDITS = {"src/tests/test_exp38_supervise.py": ("E9", "exp38")}
+
+
+def supervise_restore(tag, kit):
+    """The eleven lines of E9, verbatim (the tag and the kit name are parameters): a fixture that restores SIGTERM /
+    SIGINT / SIGHUP at teardown, used by the one node of the file whose sv.main() call installs them."""
+    return ("@pytest.fixture\n"
+            f"def _exp46_{tag.lower()}_restore_signal_handlers():\n"
+            f"    # exp_46 {tag}: sv.main() installs process-wide SIGTERM / SIGINT / SIGHUP handlers "
+            f"({kit}_supervise._on_signal)\n"
+            "    # that only record the signal; restored at teardown so no later fork inherits them "
+            "(they swallow a Pool's SIGTERM)\n"
+            "    saved = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}\n"
+            "    yield\n"
+            "    for s, h in saved.items():\n"
+            "        signal.signal(s, h)\n"
+            "\n"
+            "\n"
+            f'@pytest.mark.usefixtures("_exp46_{tag.lower()}_restore_signal_handlers")\n')
+
+
 ALWAYS = (f"{EXPREL46}/*", "src/tests/test_exp46_*.py", "src/tests/exp46_fixtures.py", "src/tests/exp46_rank_probe.py",
-          "src/tests/test_gen_model_comparison_exp46.py", *E_EDITS, *E_INSERTIONS, GEN, FACTORY, DIFFUSION)
+          "src/tests/test_gen_model_comparison_exp46.py", *E_EDITS, *E_INSERTIONS, *SUPERVISE_EDITS, GEN, FACTORY,
+          DIFFUSION)
 RESULTS_ONLY = ("outputs_FLAC/exp46_c4flip_data_curve/eval/*", "worklog/worklog_yixun/model_comparison.md")
 RESULTS_SUBJECT = "exp_46 results publication"            # the subject prefix of a results-publication commit
 # the E0 publication commit Y46 (Codex plan r1 finding 6): ITS exact subject, and besides EXPREL46 ONLY the 24 files of
@@ -493,3 +521,43 @@ def test_the_insertion_check_admits_exactly_the_four_lines_and_nothing_else():
            "a line removed": ok.replace("        # torchrun --standalone --nproc_per_node=2\n", "", 1)}
     for name, new in bad.items():
         assert insertion_problems(old, new, "E7"), name
+
+
+# ------------------------------------------------------------------ E9: exp_38's supervisor refusal node, exact
+def supervise_problems(old, new, tag, kit):
+    """Problems of E9 under the D1 provenance rule: ``new`` must be ``old`` -- the WHOLE X45f file -- with exactly
+    supervise_restore(tag, kit) inserted right before the unique anchor; no other addition, deletion, assertion change
+    or node rename."""
+    if old.count(SUPERVISE_ANCHOR) != 1:
+        return ["the anchor is not unique in the X45f file"]
+    want = old.replace(SUPERVISE_ANCHOR, supervise_restore(tag, kit) + SUPERVISE_ANCHOR, 1)
+    return [] if new == want else [f"not the X45f file plus exactly the {tag} insertion before the anchor"]
+
+
+@pytest.mark.parametrize("path", sorted(SUPERVISE_EDITS))
+def test_e9_is_the_x45f_file_plus_exactly_the_signal_restore_insertion(path):
+    """The committed file (HEAD) AND the tracked working tree are the whole X45f file plus exactly the insertion right
+    before the refusal node, with X45f's mode. RED until E9 lands."""
+    tag, kit = SUPERVISE_EDITS[path]
+    old = _show(X45F, path)
+    assert supervise_problems(old, _show("HEAD", path), tag, kit) == [], (path, "HEAD")
+    assert supervise_problems(old, open(os.path.join(REPO, path)).read(), tag, kit) == [], (path, "working tree")
+    mode = tree_entry(X45F, path)[0]
+    assert tree_entry("HEAD", path)[0] == mode
+    assert bool(os.stat(os.path.join(REPO, path)).st_mode & 0o111) == (mode == "100755")
+
+
+def test_the_signal_restore_check_admits_exactly_the_insertion_and_nothing_else():
+    old = _show(X45F, "src/tests/test_exp38_supervise.py")
+    block = supervise_restore("E9", "exp38")
+    ok = old.replace(SUPERVISE_ANCHOR, block + SUPERVISE_ANCHOR, 1)
+    assert supervise_problems(old, ok, "E9", "exp38") == [] and ok.count("\n") == old.count("\n") + 11
+    bad = {"unchanged": old,
+           "another tag": old.replace(SUPERVISE_ANCHOR, supervise_restore("E10", "exp38") + SUPERVISE_ANCHOR, 1),
+           "the fixture without its use": ok.replace(block.split("\n")[-2] + "\n", "", 1),
+           "one handler not restored": ok.replace("signal.SIGINT, signal.SIGHUP)}", "signal.SIGINT)}", 1),
+           "an extra line elsewhere": ok + "# x\n", "an assertion changed": ok.replace("== sv.EXIT_GATE", "== 0", 1),
+           "the node renamed": ok.replace(SUPERVISE_ANCHOR, "def test_renamed(capsys):\n", 1),
+           "before another test": old.replace("def test_a6000_gpu_gate():\n", block + "def test_a6000_gpu_gate():\n", 1)}
+    for name, new in bad.items():
+        assert supervise_problems(old, new, "E9", "exp38"), name
