@@ -37,7 +37,8 @@ set -eo pipefail
 # variables for every step below
 PY=/n/fs/gatrdp/envs/flac/bin/python; E=worklog/worklog_yixun/exp_46_c4flip_data_curve_claude
 E38=worklog/worklog_yixun/exp_38_data_efficiency_claude
-export PYTHONNOUSERSITE=1 HF_HOME=/n/fs/gatrdp/hf_cache HF_HUB_OFFLINE=1; unset PYTHONOPTIMIZE PYTHONPATH
+# HF_HUB_CACHE: exp_38's curated two-file DINOv3 hub, the hub_cache exp_38's neuronic launch records name; read-only
+export PYTHONNOUSERSITE=1 HF_HOME=/n/fs/gatrdp/hf_cache HF_HUB_CACHE=/n/fs/gatrdp/exp38_hf_hub HF_HUB_OFFLINE=1; unset PYTHONOPTIMIZE PYTHONPATH
 M=/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
 RUNS="exp46_C4Ff025_l40_2x32 exp46_C4Ff050_l40_2x32 exp46_C4Ff075_l40_2x32 exp46_C4Ff100_l40_2x32"
 
