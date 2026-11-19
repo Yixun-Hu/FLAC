@@ -22,6 +22,12 @@ Inputs: the three junit-XML records of the SAME full-suite command run in a CPU 
 A signature is (kind, exception line) with the three checkout roots (Codex code r1 finding 8: an inherited failure
 names the checkout it ran in), pytest tmp paths, hex addresses and object ids normalised; the failing operation and
 the error text stay part of it.
+Collection records (Yixun 2026-11-19, L1 option (A): the SUITE runs with --continue-on-collection-errors): pytest's
+junit record of a module that failed to collect -- an EMPTY classname, the dotted module path as the name, the
+message "collection failure" -- is the node ``src/tests/<file>.py``; any other empty-classname name refuses (exit 2).
+Its signature is its last ``E   `` line (pytest's message is the same for every collection error; a record with no
+``E   `` line refuses, exit 2). Rule 2 judges it like any failure, but rule 3 holds per file: the record of a file
+that holds a must-pass node, or of a new exp_45 / exp_46 file, is never admitted by inheritance.
 
 Written by the exp_46 Coder (Claude Opus 5.5).
 """
@@ -74,6 +80,7 @@ ENV_SKIPS = frozenset({
     ("src/tests/test_exp46_receipts.py::test_mount_fstype_sees_the_nas_behind_autofs", "NAS not mounted")})
 RANK = {"passed": 0, "skipped": 1, "failed": 2, "error": 3}
 NEW_FILE = re.compile(r"^src/tests/(test_exp4[56]_[^/]+|test_gen_model_comparison_exp4[56])\.py::")
+COLLECTION_FAILURE = "collection failure"            # pytest's junit message of EVERY collection-error record
 
 
 class CompareError(RuntimeError):
@@ -82,8 +89,14 @@ class CompareError(RuntimeError):
 
 def node_id(case):
     """``src/tests/<file>.py::<name>`` of a junit testcase (pytest's classname is the dotted module path, plus a
-    class for methods)."""
+    class for methods); a collection record (an EMPTY classname, the dotted module path as the name) is the module
+    itself, ``src/tests/<file>.py``."""
     cls, name = case.get("classname", ""), case.get("name", "")
+    if not cls:                                             # Yixun 2026-11-19, (A): pytest's collection record
+        parts = name.split(".")
+        if all(p.isidentifier() for p in parts) and parts[-1].startswith("test_"):
+            return "/".join(parts) + ".py"
+        raise CompareError(f"a collection record's name {name!r} names no test module")
     parts = cls.split(".")
     for i in range(len(parts), 0, -1):                      # the module is the longest prefix ending in test_*
         if parts[i - 1].startswith("test_"):
@@ -104,6 +117,11 @@ def _roots(roots):
 
 def signature(kind, element, roots=()):
     text = (element.get("message") or element.text or "").strip().split("\n")[0]
+    if element.get("message") == COLLECTION_FAILURE:        # Yixun 2026-11-19, (A): the cause is the last "E   " line
+        causes = [ln[1:].strip() for ln in (element.text or "").split("\n") if ln.startswith("E   ") and ln[1:].strip()]
+        if not causes:
+            raise CompareError(f"a {COLLECTION_FAILURE!r} record has no 'E   ' line (no cause to compare)")
+        text = causes[-1]
     for r in _roots(roots):                                  # the checkout a failure names (finding 8)
         text = re.sub(re.escape(r) + r"(?![\w.-])", "<checkout>", text)
     text = re.sub(r"/[^\s'\"]*pytest-of-[^\s'\"]*", "<tmp>", text)
@@ -142,6 +160,7 @@ def compare(merged, exp38, exp43):
     """(problems, report) of the registered node policy."""
     problems, allowed, new_skips = [], [], []
     must_pass = EDITED | set(REPLACED.values())
+    must_files = {n.split("::", 1)[0] for n in must_pass}    # a collection record names a whole file (2026-11-19, (A))
     for name, parent in (("3593f34c", exp38), ("4a7e3b3a", exp43)):
         for n in sorted(set(parent) - set(merged)):
             if n in REPLACED and REPLACED[n] in merged:
@@ -149,7 +168,8 @@ def compare(merged, exp38, exp43):
             else:
                 problems.append(f"{n}: present in {name}, missing in the merged tree")
     for node, (outcome, sig) in sorted(merged.items()):
-        if node in must_pass or NEW_FILE.match(node):
+        whole = "::" not in node and (node in must_files or NEW_FILE.match(node + "::"))
+        if node in must_pass or NEW_FILE.match(node) or whole:
             if outcome in ("failed", "error") or (node in must_pass and outcome != "passed"):
                 problems.append(f"{node}: must pass (an edited / replacement node or a new exp_45 / exp_46 node), got "
                                 f"{outcome} {sig or ''}")
