@@ -643,3 +643,29 @@ files and gen_model_comparison.py unchanged).
     `bc3a35b6`, tracked-clean): the sheet and provenance tests -- 59 passed, EXIT 0.
 - **Analysis:** the leak is closed at its two sources; the whole-suite isolation Codex asked for is now registered (E7,
   E8 in DECLARED_EDITED: present and passed in L1). Next per the coordinator: verification, then L2a.
+
+## 2026-11-18 19:50 EST — coordinator: D1 / D2 verified; L2a built, L2b pinned (coordinating session)
+
+- **D1 / D2 (Coder, `42cdb52f` … `296ae826`) verified:**
+  - Against X45f, each sampler file gains exactly the four lines (`+4 / −0`).
+  - Since `a6b679e6` nothing changed outside EXPREL46 and `src/tests`. The exp_38 / 40 / 43 / 45 folders, `src/data`,
+    `src/training` and `gen_model_comparison.py` are untouched.
+  - AT1 (red at `42cdb52f`): 4 failed / 25 passed, exactly the expected four: the two rank-isolation nodes and the
+    two exact-insertion checks.
+  - AT2 (green at `12aa8805`): 93 passed. AT3 (ordered, one process, both samplers then the 16 formerly silenced
+    banner nodes): 30 passed. AW1 / AW2 (D2 markers): red, then green with 59 passed. Every green is tracked-clean.
+  - The coordinator updated the sheet's stale "waits for Yixun's D1" sentence (`74914af7`, "Yixun's D1" kept for the
+    order test). Sheet test AX1 at `74914af7`: 33 passed, EXIT 0.
+  - `wip-exp46-d1-e7-e8` was deleted.
+- **L2a:** job 4274152 (neu303) started 18:59:20 at HEAD `74914af7` and exited 0 at 19:32:34 (33 min 14 s).
+  - Result: 145,494 files, 2,984,888,403 bytes, 486 directory digests (exp_38's manifest format); the file count
+    equals `F100_DELTA_FILES`.
+  - sha256(text) = `bcea7ffefb25d5a7604e35258a4297befd7bc441fed220ae21a638bbaf4ca054`.
+  - The measured wall time (≈ 0.55 h) sizes f100's extra FULL hour: the sheet's + 1 h covers it.
+  - **Deviation from the sheet's letter:** the job was submitted WITHOUT `sbatch --wait`. The cluster policy forbids
+    long-running processes on the login node, so the barrier is the coordinator's check of `sacct` State /
+    ExitCode plus the log's `EXIT` line before the next step. This holds for every later ladder step.
+- **L2b:** `ea9dc366` "exp_46 L2: pin the f100 delta manifest bcea7ffe…". It contains exactly the manifest (force-added)
+  and `exp46_registry.py` (`F100_DELTA_SHA256`: None → the value above).
+- **Next:** this records commit, then the definitive L1 at it: three full CPU suites (merged tip + the parents
+  `3593f34c` / `4a7e3b3a`), then `exp46_regression_compare.py`.
