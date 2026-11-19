@@ -1,0 +1,78 @@
+
+==================================== ERRORS ====================================
+___________ ERROR collecting src/tests/test_exp35_phase_ii_checks.py ___________
+src/tests/test_exp35_phase_ii_checks.py:87: in <module>
+    SUP_SHA = SHA(SB.real_supervisor())
+src/tests/exp35_phase_ii_sandbox.py:55: in real_supervisor
+    return git_show(H35_REAL, f"{X35}/exp35_supervisor.py")
+src/tests/exp35_phase_ii_sandbox.py:43: in git_show
+    return subprocess.run(["git", "-C", REPO, "show", f"{rev}:{path}"], capture_output=True, check=True).stdout
+../../envs/flac/lib/python3.10/subprocess.py:526: in run
+    raise CalledProcessError(retcode, process.args,
+E   subprocess.CalledProcessError: Command '['git', '-C', '/n/fs/gatrdp/codespace/exp-46-l1-parent-3593f34c', 'show', '5b065801e9d1c1844461ec84cd0558702c714326:worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py']' returned non-zero exit status 128.
+___________ ERROR collecting src/tests/test_exp35_phase_ii_schema.py ___________
+src/tests/test_exp35_phase_ii_schema.py:28: in <module>
+    SUP_SHA = hashlib.sha256(SB.real_supervisor()).hexdigest()
+src/tests/exp35_phase_ii_sandbox.py:55: in real_supervisor
+    return git_show(H35_REAL, f"{X35}/exp35_supervisor.py")
+src/tests/exp35_phase_ii_sandbox.py:43: in git_show
+    return subprocess.run(["git", "-C", REPO, "show", f"{rev}:{path}"], capture_output=True, check=True).stdout
+../../envs/flac/lib/python3.10/subprocess.py:526: in run
+    raise CalledProcessError(retcode, process.args,
+E   subprocess.CalledProcessError: Command '['git', '-C', '/n/fs/gatrdp/codespace/exp-46-l1-parent-3593f34c', 'show', '5b065801e9d1c1844461ec84cd0558702c714326:worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py']' returned non-zero exit status 128.
+________________ ERROR collecting src/tests/test_raf_publish.py ________________
+ImportError while importing test module '/n/fs/gatrdp/codespace/exp-46-l1-parent-3593f34c/src/tests/test_raf_publish.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../envs/flac/lib/python3.10/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+src/tests/test_raf_publish.py:25: in <module>
+    import render_depth as raf_render  # noqa: E402
+data/RAF/render_depth.py:22: in <module>
+    import open3d as o3d
+E   ModuleNotFoundError: No module named 'open3d'
+_______________ ERROR collecting src/tests/test_raf_readback.py ________________
+ImportError while importing test module '/n/fs/gatrdp/codespace/exp-46-l1-parent-3593f34c/src/tests/test_raf_readback.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../envs/flac/lib/python3.10/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+src/tests/test_raf_readback.py:28: in <module>
+    import render_depth as raf_render  # noqa: E402
+data/RAF/render_depth.py:22: in <module>
+    import open3d as o3d
+E   ModuleNotFoundError: No module named 'open3d'
+_____________ ERROR collecting src/tests/test_raf_render_depth.py ______________
+ImportError while importing test module '/n/fs/gatrdp/codespace/exp-46-l1-parent-3593f34c/src/tests/test_raf_render_depth.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../envs/flac/lib/python3.10/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+src/tests/test_raf_render_depth.py:31: in <module>
+    import open3d as o3d
+E   ModuleNotFoundError: No module named 'open3d'
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR src/tests/test_exp35_phase_ii_checks.py - subprocess.CalledProcessError...
+ERROR src/tests/test_exp35_phase_ii_schema.py - subprocess.CalledProcessError...
+ERROR src/tests/test_raf_publish.py
+ERROR src/tests/test_raf_readback.py
+ERROR src/tests/test_raf_render_depth.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 5 errors during collection !!!!!!!!!!!!!!!!!!!!
+4 warnings, 5 errors in 147.47s (0:02:27)

@@ -669,3 +669,28 @@ files and gen_model_comparison.py unchanged).
   and `exp46_registry.py` (`F100_DELTA_SHA256`: None → the value above).
 - **Next:** this records commit, then the definitive L1 at it: three full CPU suites (merged tip + the parents
   `3593f34c` / `4a7e3b3a`), then `exp46_regression_compare.py`.
+
+## 2026-11-18 20:20 EST — coordinator: definitive L1 attempt 1 INTERRUPTED at collection in all three trees; stopped, asking Yixun (coordinating session)
+
+- **Jobs:** 4274332 (merged, at `98bd6c47`, neu302), 4274333 (`3593f34c`, neu310) and 4274334 (`4a7e3b3a`, neu310).
+  The command is the sheet's L1 SUITE exactly (`pytest -q -p no:cacheprovider src/tests`), submitted without `--wait`.
+  Each ran about 2.5 min. The pytest rc is 2 / 2 / 2, so the sheet's `rc <= 1` check stops here.
+- **Verbatim, identical in all three trees:** `Interrupted: 5 errors during collection`:
+  - `src/tests/test_exp35_phase_ii_checks.py` and `src/tests/test_exp35_phase_ii_schema.py` raise
+    `subprocess.CalledProcessError: Command '['git', '-C', '<root>', 'show',
+    '5b065801e9d1c1844461ec84cd0558702c714326:worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py']'`.
+    exp_35's run pin H35 `5b065801` is not in the neuronic clone (`git cat-file`: no such object).
+  - `src/tests/test_raf_publish.py`, `test_raf_readback.py` and `test_raf_render_depth.py` raise
+    `ModuleNotFoundError: No module named 'open3d'`. open3d is not installed in the pinned `flac` env, which is never
+    modified.
+- **Not exp_46's change:** the five modules are byte-identical in `HEAD`, `3593f34c`, `4a7e3b3a` and `X45f`. The
+  earlier exp_46 runs were targeted file lists, so they never collected them. The sheet's L1 command has never run
+  on neuronic before.
+- **Options for Yixun:**
+  - **(A), recommended:** add `--continue-on-collection-errors` to the SUITE line and rerun L1. Every node still runs,
+    with no deselection. The five collection errors land in each junit as error records.
+    `exp46_regression_compare.py` already admits a merged-tree error only when a parent has the identical node,
+    outcome and root-normalised signature, so no code changes.
+  - **(B):** run L1 on the A6000 box.
+  - **(C):** another way.
+- **Paused:** the ladder cron is deleted until Yixun decides. Nothing else changed; HEAD is `98bd6c47`.
