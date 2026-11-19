@@ -1024,14 +1024,18 @@ EXP38_DUMP_ROOT = "/media/diskstation/yixunhu/FLAC/exp38_pred_waveforms"
 EXP38_FARM = "outputs_FLAC/exp38_data_efficiency/eval"
 EXP38_SNAPSHOT_ROOT = "/home/yixunhu/codespace/exp-38-snapshots"
 EXP38_SMOKE_DIR = "outputs_FLAC/exp38_smoke"
+# exp_38's curated two-file DINOv3 hub (2026-11-09: config.json + model.safetensors, the pinned bytes), the hub_cache
+# exp_38's neuronic launch records name: the neuronic sheet's HF_HUB_CACHE (Yixun 2026-11-19, option 1a). exp_46 only
+# reads it (vit_pin_check, unchanged) -- a protected root, so nothing of the kit can write there.
+EXP38_HF_HUB = "/n/fs/gatrdp/exp38_hf_hub"
 EXP45_DIR = "worklog/worklog_yixun/exp_45_rf_data_curve_claude"
 EXP45_SAVE_ROOTS = ("/media/diskstation/yixunhu/FLAC/checkpoints/exp45_rf_data_curve",
                     "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp45_rf_data_curve")
 EXP45_DUMP_ROOT = "/media/diskstation/yixunhu/FLAC/exp45_pred_waveforms"
 EXP45_FARM = "outputs_FLAC/exp45_rf_data_curve/eval"
 EXP45_A6000_ROOTS = ("/home/yixunhu/codespace/exp-45-campaign", "/home/yixunhu/codespace/exp-45-publish")
-PROTECTED_ABSOLUTE = (*EXP38_SAVE_ROOTS, EXP38_DUMP_ROOT, EXP38_SNAPSHOT_ROOT, *EXP45_SAVE_ROOTS, EXP45_DUMP_ROOT,
-                      *EXP45_A6000_ROOTS)
+PROTECTED_ABSOLUTE = (*EXP38_SAVE_ROOTS, EXP38_DUMP_ROOT, EXP38_SNAPSHOT_ROOT, EXP38_HF_HUB, *EXP45_SAVE_ROOTS,
+                      EXP45_DUMP_ROOT, *EXP45_A6000_ROOTS)
 PROTECTED_IN_TREE = (EXP38_FARM, EXP38_DIR, EXP38_SMOKE_DIR, EXP45_FARM, EXP45_DIR)
 
 
