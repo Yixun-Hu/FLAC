@@ -194,6 +194,17 @@ def test_cli_refusals(argv):
         sv.parse(argv)
 
 
+@pytest.fixture
+def _exp46_e9_restore_signal_handlers():
+    # exp_46 E9: sv.main() installs process-wide SIGTERM / SIGINT / SIGHUP handlers (exp38_supervise._on_signal)
+    # that only record the signal; restored at teardown so no later fork inherits them (they swallow a Pool's SIGTERM)
+    saved = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+    yield
+    for s, h in saved.items():
+        signal.signal(s, h)
+
+
+@pytest.mark.usefixtures("_exp46_e9_restore_signal_handlers")
 def test_unregistered_runs_are_refused_before_any_work(capsys):
     assert sv.main(["--platform", "a6000", "--mode", "DRY_RUN", "--run", "de_p1_f050"]) == sv.EXIT_GATE
     assert "not a registered exp_38 run id" in capsys.readouterr().err
