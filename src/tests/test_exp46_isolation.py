@@ -76,13 +76,27 @@ def test_the_protected_roots_are_exp38s_and_exp45s_own_values():
     assert "~/codespace/exp-45-publish" in _at_x45f(f"{e45}/plan_rf_data_curve.md")
     assert reg.EXP45_A6000_ROOTS[1] == "/home/yixunhu/codespace/exp-45-publish"
     roots = reg.protected_roots([REPO])
-    assert len(roots) == len(reg.PROTECTED_ABSOLUTE) + len(reg.PROTECTED_IN_TREE) == 9 + 5
+    assert len(roots) == len(reg.PROTECTED_ABSOLUTE) + len(reg.PROTECTED_IN_TREE) == 10 + 5     # + exp_38's DINOv3 hub
     assert os.path.realpath(os.path.join(REPO, reg.EXP45_DIR)) in roots
     assert os.path.realpath(os.path.join(REPO, reg.EXP38_DIR)) in roots
 
 
+def test_exp38s_curated_dinov3_hub_is_a_protected_root_and_nothing_at_or_below_it_can_be_written():
+    """Yixun 2026-11-19, option 1a: exp_46 only READS exp_38's curated two-file DINOv3 hub (the neuronic sheet's
+    HF_HUB_CACHE). It is a protected root, so a destination at or below it refuses before any write -- checked against
+    the real path (nothing is written; every mutating entry point is covered on a stand-in, the kind below)."""
+    hub = reg.EXP38_HF_HUB
+    assert hub in reg.PROTECTED_ABSOLUTE and os.path.realpath(hub) in reg.protected_roots([REPO])
+    for path, root in ((hub, os.path.dirname(hub)), (os.path.join(hub, "models--x", "snapshots", "y.json"), hub),
+                       (os.path.join(hub, "z"), os.path.dirname(hub))):
+        with pytest.raises(reg.GateError, match="exp_38 / exp_45"):
+            reg.check_destination(path, root, "a destination at or below exp_38's DINOv3 hub")
+    assert reg.isolation_problems(os.path.join(hub, "blobs"), "a write")
+
+
 ABS_KINDS = ("exp38 NAS save root", "exp38 neuronic save root", "exp38 dump root", "exp38 snapshots",
-             "exp45 NAS save root", "exp45 neuronic save root", "exp45 dump root", "exp45 campaign", "exp45 publish")
+             "exp45 NAS save root", "exp45 neuronic save root", "exp45 dump root", "exp45 campaign", "exp45 publish",
+             "exp38 DINOv3 hub")
 
 
 @pytest.fixture

@@ -39,6 +39,8 @@ SHARED_LOCK = "the shared A6000 card lock (the only intentional sharing)"
 REFUSAL = "refusal text (the A6000 SMOKE destination is never written)"
 EXP38_IMPORT = "exp_38 results import (plan r3 §3.2, the approved r2-6 materialisation into the generator root)"
 FOREIGN_LEDGER = "exp_45's reservation ledger, read read-only by C3 (plan r3 §3.2 \"Storage\"; never written or locked)"
+EXP38_HUB = ("exp_38's curated two-file DINOv3 hub, the neuronic sheet's HF_HUB_CACHE (Yixun 2026-11-19, option 1a): "
+             "read-only, and a protected root of the isolation guard (refused as a destination)")
 REGISTERED = {}            # filled below: {(file, literal): disposition}
 
 
@@ -170,6 +172,7 @@ _register(["exp46_registry.py"], ["/home/yixunhu/codespace/exp-38-snapshots", "o
                                   "outputs_FLAC/exp45_rf_data_curve/eval", "/home/yixunhu/codespace/exp-45-campaign",
                                   "/home/yixunhu/codespace/exp-45-publish"], PROTECTED)
 _register(["exp46_registry.py"], ["/.exp45_storage.json", "exp45_ledger"], FOREIGN_LEDGER)
+_register(["exp46_registry.py"], ["/n/fs/gatrdp/exp38_hf_hub"], EXP38_HUB)
 _register(["exp46_eval.py", "exp46_supervise.py"], [".exp38_card"], SHARED_LOCK)
 _register(["exp46_supervise.py"], [" is refused (the inherited SMOKE destination outputs_FLAC/exp38_smoke is never "
                                    "written); SMOKE runs on neuronic only"], REFUSAL)

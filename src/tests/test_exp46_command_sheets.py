@@ -162,6 +162,26 @@ def test_the_l1_comparison_runs_every_node_with_no_deselection_and_is_complete()
     assert rc.main(tail) == 2                            # parsed (the placeholder inputs are unreadable: exit 2)
 
 
+def test_the_neuronic_sheet_exports_exp38s_curated_dinov3_hub_for_every_step():
+    """Yixun 2026-11-19, option 1a: the variables block exports HF_HUB_CACHE = exp_38's curated two-file DINOv3 hub
+    (reg.EXP38_HF_HUB, the hub_cache exp_38's neuronic launch records name; read-only) next to the unchanged HF_HOME and
+    HF_HUB_OFFLINE=1, before any step, and nothing in the sheet sets, drops or overrides it: L1's suites, L3 and every
+    SMOKE / FULL job (sbatch passes the environment) see the snapshot vit_pin_check pins."""
+    lines = re.search(r"```bash\n(.*?)\n```", _text(NEURONIC), flags=re.S).group(1).split("\n")
+    code = [ln for ln in lines if not ln.lstrip().startswith("#")]
+    sets = [ln for ln in code if "HF_HUB_CACHE" in ln or "HF_HOME" in ln]
+    want = (f"export PYTHONNOUSERSITE=1 HF_HOME=/n/fs/gatrdp/hf_cache HF_HUB_CACHE={reg.EXP38_HF_HUB} HF_HUB_OFFLINE=1; "
+            "unset PYTHONOPTIMIZE PYTHONPATH")
+    assert sets == [want], sets
+    i = lines.index(want)
+    why = lines[i - 1]
+    assert why.startswith("#") and all(w in why for w in ("exp_38", "two-file", "hub_cache", "read-only")), why
+    assert i < min(j for j, ln in enumerate(lines) if ln.startswith(("cd ", "sbatch ", "$PY ", "git ")))
+    assert not re.search(r"--export=NONE|env -i|-u HF_|unset [^\n#]*HF_", "\n".join(code))
+    suite = re.search(r'^SUITE="([^"]+)"', "\n".join(lines), flags=re.M).group(1)
+    assert "HF_" not in suite and reg.EXP38_HF_HUB == "/n/fs/gatrdp/exp38_hf_hub"
+
+
 def _submits(body, mode):
     """The REAL submissions of ``mode`` in a loop body (L4's and the inspection dry-runs submit nothing)."""
     return [ln for ln in body.split("\n") if f"--mode {mode}" in ln and "--dry-run" not in ln]
