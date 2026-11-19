@@ -788,3 +788,28 @@ and its test changed; nothing under `l1/` was touched (attempt 1's junit files w
   back to the generic message. An exp_46 file skipped whole (pytest's "collection skipped" record) is a problem, like
   any unregistered skip of a new node. `node_id` accepts only dotted identifiers.
 - **Next (coordinator):** the merged L1 suite at this records commit.
+
+## 2026-11-19 10:21 EST — coordinator: L1 attempt 2: parents done, merged suite HUNG at a fork test and cancelled; asking Yixun (coordinating session)
+
+- **Time correction:** the parents were submitted at about 08:49, not 08:53 as the previous entry says.
+- **Parents, both COMPLETED on neu313:**
+  - 4280097 (`3593f34c`): rc 1, 34:36, junit 2.49 MB. Summary, verbatim: `344 failed, 6469 passed, 47 skipped, 1 xfailed, 86 warnings, 5 errors, 2 subtests passed in 2070.54s (0:34:30)`.
+  - 4280098 (`4a7e3b3a`): rc 1, 40:28, junit 2.67 MB. Summary, verbatim: `339 failed, 6890 passed, 50 skipped, 1 xfailed, 87 warnings, 45 errors, 2 subtests passed in 2422.47s (0:40:22)`.
+  - Their trees are fixed detached commits, so these junit files stay valid for the comparison.
+- **Merged suite, 4280337 at `a8f18a98` on neu314: hung, then CANCELLED by me at 10:21 after 1:18.** It produced no junit and no rc. Its log shows it reached about 33 % by about 09:17; the log then stopped growing.
+- **Evidence from the live job,** gathered read-only with `srun --overlap` in our own allocation (`ps`, `/proc`, `gdb -batch` backtraces):
+  - The main pytest process sat in `do_wait` with no CPU time for over an hour. Its forked children were:
+    - 3590606: a multiprocessing Manager server, with one thread in `accept4` and its main thread waiting on a lock;
+    - 3590611: an idle Pool worker waiting in `_multiprocessing_SemLock_acquire_impl`;
+    - 3590613: a defunct worker.
+  - The children had `/dev/nvidiactl` open, so CUDA had been initialised in the process before the fork.
+  - The newest pytest tmp dir on the node was `test_concurrent_submitters_fro…`. That is
+    `src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir`, which uses
+    `mp.get_context("fork")`, `Manager().Barrier(2)` and `Pool(2)`.
+- **The same node PASSED in parent `4a7e3b3a`,** in 0.632 s. `3593f34c` does not have the file.
+  - Only in the merged run did the test hang. The likely cause is state left behind by a test that runs before it in
+    the merged tree's one process and is absent from `4a7e3b3a`, for example the exp_38 test files.
+  - This is a cross-test leak, of the same kind as D1. It is not yet pinned down.
+- **Next:** ask Yixun. The proposal is that the Coder reproduces it in CPU jobs, finds the leaking test, and fixes it as a
+  D1-style declared edit (restore the leaked state at teardown), test-first. Then only the merged suite is rerun; the
+  parent junit files are kept.
