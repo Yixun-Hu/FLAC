@@ -1,0 +1,49 @@
+HEAD e0d20b71c0e365ef5c6842e4d722850129f8195a tracked-clean=yes host neu305.neuronic.cs.princeton.edu start 2026-11-19T11:10:35-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_e9_signal_isolation.py src/tests/test_exp46_provenance.py src/tests/test_exp46_regression_compare.py src/tests/test_exp46_command_sheets.py src/tests/test_exp40_kit.py src/tests/test_exp38_supervise.py 
+........................................................................ [ 22%]
+........................................................................ [ 44%]
+........................................................................ [ 66%]
+................................ss..s.....s............................. [ 88%]
+....................................                                     [100%]
+=============================== warnings summary ===============================
+src/tests/test_exp40_kit.py::test_save_hook_fails_every_rank_when_publication_fails
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp40_kit.py::test_save_hook_fails_every_rank_when_publication_fails
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp40_kit.py::test_save_hook_fails_every_rank_when_publication_fails
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp40_kit.py::test_counted_checkpoint_separates_reentrant_and_default
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/plugins/environments/slurm.py:191: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/ ...
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:268: DeprecationWarning: Read the `app_url` setting from the appropriate Settings object.
+    app_url = wandb.util.app_url(tags["base_url"])  # type: ignore[index]
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py:54: Detected KeyboardInterrupt, attempting graceful shutdown...
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loggers/wandb.py:389: There is a wandb run already in progress and newly created instances of `WandbLogger` will reuse this run. If this is not desired, call `wandb.finish()` before instantiating `WandbLogger`.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+320 passed, 4 skipped, 16 warnings in 410.84s (0:06:50)
+EXIT 0 end 2026-11-19T11:17:28-05:00

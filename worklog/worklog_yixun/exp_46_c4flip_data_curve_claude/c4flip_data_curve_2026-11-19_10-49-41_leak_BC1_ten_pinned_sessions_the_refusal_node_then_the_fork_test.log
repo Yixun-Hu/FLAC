@@ -1,0 +1,206 @@
+HEAD 54487f1f76a1810387aba3f2488f7a5e5b725c60 tracked-clean=yes host neu321.neuronic.cs.princeton.edu start 2026-11-19T10:49:42-05:00 job 4280812 sessions 10 pin 1 stall 30s
+job script (verbatim, prefix '#   '):
+#   #!/bin/bash
+#   # exp_46 L1 leak diagnostics (not committed; this script is embedded verbatim in every log it writes): N sessions in a
+#   # row, each ONE pytest process with the L1 SUITE's interpreter flags and environment (-B -I, PYTHON* unset,
+#   # PYTHONNOUSERSITE=1, TMPDIR=/tmp) over the same args. PIN=1 pins every session to ONE cpu (taskset), which widens the
+#   # race in Pool's terminate (the parent can then take the task queue's lock before an idle worker does). A session in
+#   # which WATCH's node is not done STALL s after it started is recorded from /proc and killed as a process group.
+#   #SBATCH --partition=all
+#   #SBATCH --cpus-per-task=4
+#   #SBATCH --mem=16G
+#   #SBATCH --time=00:20:00
+#   WT=/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+#   SP=<scratchpad>
+#   : "${LOG:?}" "${N:=10}" "${PIN:=1}" "${STALL:=30}" "${LIMIT:=900}"
+#   : "${WATCH:=test_concurrent_submitters_from_two_checkouts_share_one_control_dir}"
+#   cd "$WT" || exit 9
+#   say() { echo "$*" >> "$LOG"; }
+#   say "HEAD $(git rev-parse HEAD) tracked-clean=$([ -z "$(git status --porcelain --untracked-files=no)" ] && echo yes || echo no) host $(hostname) start $(date -Iseconds) job ${SLURM_JOB_ID:-?} sessions ${N} pin ${PIN} stall ${STALL}s"
+#   say "job script (verbatim, prefix '#   '):"
+#   sed "s/^/#   /; s#$SP#<scratchpad>#g" "$0" >> "$LOG"
+#   CPU=$(taskset -cp $$ | sed 's/.*: //; s/[,-].*//')
+#   PREFIX=(); [ "$PIN" = 1 ] && PREFIX=(taskset -c "$CPU")
+#   ARGS=()
+#   for a in "$@"; do                                # @PROBE@: the probe, copied to a fresh /tmp dir of this job
+#     if [ "$a" = "@PROBE@" ]; then
+#       PD=$(mktemp -d /tmp/exp46probe.XXXXXX); cp "$SP/leak46_probe.py" "$PD/test_exp46_signal_probe.py"
+#       say "probe $PD/test_exp46_signal_probe.py (verbatim, prefix '#   '):"
+#       sed 's/^/#   /' "$SP/leak46_probe.py" >> "$LOG"
+#       ARGS+=("--rootdir=$WT" "$PD/test_exp46_signal_probe.py")
+#     else
+#       ARGS+=("$a")
+#     fi
+#   done
+#   set -- "${ARGS[@]}"
+#   say "cmd: ${PREFIX[*]} python -B -I -u -m pytest $*"
+#   pass=0; hang=0; other=0; t0=$SECONDS
+#   for i in $(seq 1 "$N"); do
+#     [ $((SECONDS - t0)) -ge "$LIMIT" ] && { say "LIMIT reached before session $i"; break; }
+#     mark=$(wc -l < "$LOG")
+#     say "SESSION $i start $(date -Iseconds)"
+#     setsid "${PREFIX[@]}" env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 \
+#       TMPDIR=/tmp /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest "$@" >> "$LOG" 2>&1 &
+#     pid=$!; started=""; verdict=""
+#     while kill -0 "$pid" 2>/dev/null; do
+#       if [ -z "$started" ] && tail -n +"$mark" "$LOG" | grep -qE "^src/tests/[^ ]*::${WATCH} "; then started=$SECONDS; fi
+#       if [ -n "$started" ] && ! tail -n +"$mark" "$LOG" | grep -qE "::${WATCH} (PASSED|FAILED|ERROR|SKIPPED)" \
+#          && [ $((SECONDS - started)) -ge "$STALL" ]; then
+#         say ""
+#         say "HANG in session $i: ${WATCH} not done ${STALL}s after it started; the process group $pid (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):"
+#         for t in $(pgrep -g "$pid"); do
+#           say "  pid $t ppid $(awk '/^PPid:/{print $2}' /proc/$t/status 2>/dev/null) state $(awk '/^State:/{print $2}' /proc/$t/status 2>/dev/null) wchan $(cat /proc/$t/wchan 2>/dev/null) $(grep -E '^(SigBlk|SigIgn|SigCgt):' /proc/$t/status 2>/dev/null | tr '\t\n' '  ')cmd $(tr '\0' ' ' < /proc/$t/cmdline 2>/dev/null | cut -c1-100)"
+#         done
+#         kill -KILL -- "-$pid" 2>/dev/null; verdict=HANG; break
+#       fi
+#       sleep 1
+#     done
+#     wait "$pid" 2>/dev/null; rc=$?
+#     if [ "$verdict" = HANG ]; then hang=$((hang + 1)); elif [ "$rc" = 0 ]; then verdict=PASS; pass=$((pass + 1)); else verdict="rc=$rc"; other=$((other + 1)); fi
+#     say "SESSION $i verdict $verdict end $(date -Iseconds)"
+#   done
+#   say "TALLY pass $pass hang $hang other $other"
+#   say "EXIT $([ $hang = 0 ] && [ $other = 0 ] && echo 0 || echo 1) end $(date -Iseconds)"
+cmd: taskset -c 38 python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection-errors src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir
+SESSION 1 start 2026-11-19T10:49:42-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 2 items
+
+src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work PASSED [ 50%]
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir 
+HANG in session 1: test_concurrent_submitters_from_two_checkouts_share_one_control_dir not done 30s after it started; the process group 914419 (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):
+  pid 914419 ppid 914394 state S wchan do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000001080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 914443 ppid 914419 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001006 SigCgt: 00000001080044e9 cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 914449 ppid 914419 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000000080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+SESSION 1 verdict HANG end 2026-11-19T10:50:18-05:00
+SESSION 2 start 2026-11-19T10:50:18-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 2 items
+
+src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work PASSED [ 50%]
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir 
+HANG in session 2: test_concurrent_submitters_from_two_checkouts_share_one_control_dir not done 30s after it started; the process group 914612 (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):
+  pid 914612 ppid 914394 state S wchan do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000001080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 914625 ppid 914612 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001006 SigCgt: 00000001080044e9 cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 914631 ppid 914612 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000000080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+SESSION 2 verdict HANG end 2026-11-19T10:50:52-05:00
+SESSION 3 start 2026-11-19T10:50:52-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 2 items
+
+src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work PASSED [ 50%]
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir 
+HANG in session 3: test_concurrent_submitters_from_two_checkouts_share_one_control_dir not done 30s after it started; the process group 915104 (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):
+  pid 915104 ppid 914394 state S wchan do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000001080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 915287 ppid 915104 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001006 SigCgt: 00000001080044e9 cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 915293 ppid 915104 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000000080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+SESSION 3 verdict HANG end 2026-11-19T10:51:26-05:00
+SESSION 4 start 2026-11-19T10:51:26-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 2 items
+
+src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work PASSED [ 50%]
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir 
+HANG in session 4: test_concurrent_submitters_from_two_checkouts_share_one_control_dir not done 30s after it started; the process group 915498 (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):
+  pid 915498 ppid 914394 state S wchan do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000001080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 915511 ppid 915498 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001006 SigCgt: 00000001080044e9 cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 915517 ppid 915498 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000000080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+SESSION 4 verdict HANG end 2026-11-19T10:52:00-05:00
+SESSION 5 start 2026-11-19T10:52:00-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 2 items
+
+src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work PASSED [ 50%]
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir 
+HANG in session 5: test_concurrent_submitters_from_two_checkouts_share_one_control_dir not done 30s after it started; the process group 915833 (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):
+  pid 915833 ppid 914394 state S wchan do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000001080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 915858 ppid 915833 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001006 SigCgt: 00000001080044e9 cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 915864 ppid 915833 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000000080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+SESSION 5 verdict HANG end 2026-11-19T10:52:35-05:00
+SESSION 6 start 2026-11-19T10:52:35-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 2 items
+
+src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work PASSED [ 50%]
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir 
+HANG in session 6: test_concurrent_submitters_from_two_checkouts_share_one_control_dir not done 30s after it started; the process group 916119 (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):
+  pid 916119 ppid 914394 state S wchan do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000001080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 916133 ppid 916119 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001006 SigCgt: 00000001080044e9 cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 916139 ppid 916119 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000000080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+SESSION 6 verdict HANG end 2026-11-19T10:53:10-05:00
+SESSION 7 start 2026-11-19T10:53:10-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 2 items
+
+src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work PASSED [ 50%]
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir 
+HANG in session 7: test_concurrent_submitters_from_two_checkouts_share_one_control_dir not done 30s after it started; the process group 916405 (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):
+  pid 916405 ppid 914394 state S wchan do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000001080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 916477 ppid 916405 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001006 SigCgt: 00000001080044e9 cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 916483 ppid 916405 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000000080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+SESSION 7 verdict HANG end 2026-11-19T10:53:44-05:00
+SESSION 8 start 2026-11-19T10:53:44-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 2 items
+
+src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work PASSED [ 50%]
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir 
+HANG in session 8: test_concurrent_submitters_from_two_checkouts_share_one_control_dir not done 30s after it started; the process group 916744 (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):
+  pid 916744 ppid 914394 state S wchan do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000001080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 916757 ppid 916744 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001006 SigCgt: 00000001080044e9 cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 916763 ppid 916744 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000000080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+SESSION 8 verdict HANG end 2026-11-19T10:54:18-05:00
+SESSION 9 start 2026-11-19T10:54:18-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 2 items
+
+src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work PASSED [ 50%]
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir 
+HANG in session 9: test_concurrent_submitters_from_two_checkouts_share_one_control_dir not done 30s after it started; the process group 916917 (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):
+  pid 916917 ppid 914394 state S wchan do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000001080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 916989 ppid 916917 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001006 SigCgt: 00000001080044e9 cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 916995 ppid 916917 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000000080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+SESSION 9 verdict HANG end 2026-11-19T10:54:52-05:00
+SESSION 10 start 2026-11-19T10:54:52-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 2 items
+
+src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work PASSED [ 50%]
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir 
+HANG in session 10: test_concurrent_submitters_from_two_checkouts_share_one_control_dir not done 30s after it started; the process group 917250 (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):
+  pid 917250 ppid 914394 state S wchan do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000001080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 917267 ppid 917250 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001006 SigCgt: 00000001080044e9 cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+  pid 917273 ppid 917250 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000000080044eb cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection
+SESSION 10 verdict HANG end 2026-11-19T10:55:26-05:00
+TALLY pass 0 hang 10 other 0
+EXIT 1 end 2026-11-19T10:55:26-05:00

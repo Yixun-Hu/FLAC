@@ -1,0 +1,176 @@
+HEAD 54487f1f76a1810387aba3f2488f7a5e5b725c60 tracked-clean=yes host neu331.neuronic.cs.princeton.edu start 2026-11-19T10:49:44-05:00 job 4280813 sessions 10 pin 1 stall 30s
+job script (verbatim, prefix '#   '):
+#   #!/bin/bash
+#   # exp_46 L1 leak diagnostics (not committed; this script is embedded verbatim in every log it writes): N sessions in a
+#   # row, each ONE pytest process with the L1 SUITE's interpreter flags and environment (-B -I, PYTHON* unset,
+#   # PYTHONNOUSERSITE=1, TMPDIR=/tmp) over the same args. PIN=1 pins every session to ONE cpu (taskset), which widens the
+#   # race in Pool's terminate (the parent can then take the task queue's lock before an idle worker does). A session in
+#   # which WATCH's node is not done STALL s after it started is recorded from /proc and killed as a process group.
+#   #SBATCH --partition=all
+#   #SBATCH --cpus-per-task=4
+#   #SBATCH --mem=16G
+#   #SBATCH --time=00:20:00
+#   WT=/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+#   SP=<scratchpad>
+#   : "${LOG:?}" "${N:=10}" "${PIN:=1}" "${STALL:=30}" "${LIMIT:=900}"
+#   : "${WATCH:=test_concurrent_submitters_from_two_checkouts_share_one_control_dir}"
+#   cd "$WT" || exit 9
+#   say() { echo "$*" >> "$LOG"; }
+#   say "HEAD $(git rev-parse HEAD) tracked-clean=$([ -z "$(git status --porcelain --untracked-files=no)" ] && echo yes || echo no) host $(hostname) start $(date -Iseconds) job ${SLURM_JOB_ID:-?} sessions ${N} pin ${PIN} stall ${STALL}s"
+#   say "job script (verbatim, prefix '#   '):"
+#   sed "s/^/#   /; s#$SP#<scratchpad>#g" "$0" >> "$LOG"
+#   CPU=$(taskset -cp $$ | sed 's/.*: //; s/[,-].*//')
+#   PREFIX=(); [ "$PIN" = 1 ] && PREFIX=(taskset -c "$CPU")
+#   ARGS=()
+#   for a in "$@"; do                                # @PROBE@: the probe, copied to a fresh /tmp dir of this job
+#     if [ "$a" = "@PROBE@" ]; then
+#       PD=$(mktemp -d /tmp/exp46probe.XXXXXX); cp "$SP/leak46_probe.py" "$PD/test_exp46_signal_probe.py"
+#       say "probe $PD/test_exp46_signal_probe.py (verbatim, prefix '#   '):"
+#       sed 's/^/#   /' "$SP/leak46_probe.py" >> "$LOG"
+#       ARGS+=("--rootdir=$WT" "$PD/test_exp46_signal_probe.py")
+#     else
+#       ARGS+=("$a")
+#     fi
+#   done
+#   set -- "${ARGS[@]}"
+#   say "cmd: ${PREFIX[*]} python -B -I -u -m pytest $*"
+#   pass=0; hang=0; other=0; t0=$SECONDS
+#   for i in $(seq 1 "$N"); do
+#     [ $((SECONDS - t0)) -ge "$LIMIT" ] && { say "LIMIT reached before session $i"; break; }
+#     mark=$(wc -l < "$LOG")
+#     say "SESSION $i start $(date -Iseconds)"
+#     setsid "${PREFIX[@]}" env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 \
+#       TMPDIR=/tmp /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest "$@" >> "$LOG" 2>&1 &
+#     pid=$!; started=""; verdict=""
+#     while kill -0 "$pid" 2>/dev/null; do
+#       if [ -z "$started" ] && tail -n +"$mark" "$LOG" | grep -qE "^src/tests/[^ ]*::${WATCH} "; then started=$SECONDS; fi
+#       if [ -n "$started" ] && ! tail -n +"$mark" "$LOG" | grep -qE "::${WATCH} (PASSED|FAILED|ERROR|SKIPPED)" \
+#          && [ $((SECONDS - started)) -ge "$STALL" ]; then
+#         say ""
+#         say "HANG in session $i: ${WATCH} not done ${STALL}s after it started; the process group $pid (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):"
+#         for t in $(pgrep -g "$pid"); do
+#           say "  pid $t ppid $(awk '/^PPid:/{print $2}' /proc/$t/status 2>/dev/null) state $(awk '/^State:/{print $2}' /proc/$t/status 2>/dev/null) wchan $(cat /proc/$t/wchan 2>/dev/null) $(grep -E '^(SigBlk|SigIgn|SigCgt):' /proc/$t/status 2>/dev/null | tr '\t\n' '  ')cmd $(tr '\0' ' ' < /proc/$t/cmdline 2>/dev/null | cut -c1-100)"
+#         done
+#         kill -KILL -- "-$pid" 2>/dev/null; verdict=HANG; break
+#       fi
+#       sleep 1
+#     done
+#     wait "$pid" 2>/dev/null; rc=$?
+#     if [ "$verdict" = HANG ]; then hang=$((hang + 1)); elif [ "$rc" = 0 ]; then verdict=PASS; pass=$((pass + 1)); else verdict="rc=$rc"; other=$((other + 1)); fi
+#     say "SESSION $i verdict $verdict end $(date -Iseconds)"
+#   done
+#   say "TALLY pass $pass hang $hang other $other"
+#   say "EXIT $([ $hang = 0 ] && [ $other = 0 ] && echo 0 || echo 1) end $(date -Iseconds)"
+cmd: taskset -c 27 python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection-errors src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir
+SESSION 1 start 2026-11-19T10:49:44-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir PASSED [100%]
+
+============================== 1 passed in 4.48s ===============================
+SESSION 1 verdict PASS end 2026-11-19T10:49:50-05:00
+SESSION 2 start 2026-11-19T10:49:50-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir PASSED [100%]
+
+============================== 1 passed in 3.56s ===============================
+SESSION 2 verdict PASS end 2026-11-19T10:49:55-05:00
+SESSION 3 start 2026-11-19T10:49:55-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir PASSED [100%]
+
+============================== 1 passed in 3.65s ===============================
+SESSION 3 verdict PASS end 2026-11-19T10:50:00-05:00
+SESSION 4 start 2026-11-19T10:50:00-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir PASSED [100%]
+
+============================== 1 passed in 3.52s ===============================
+SESSION 4 verdict PASS end 2026-11-19T10:50:05-05:00
+SESSION 5 start 2026-11-19T10:50:05-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir PASSED [100%]
+
+============================== 1 passed in 3.62s ===============================
+SESSION 5 verdict PASS end 2026-11-19T10:50:10-05:00
+SESSION 6 start 2026-11-19T10:50:10-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir PASSED [100%]
+
+============================== 1 passed in 3.73s ===============================
+SESSION 6 verdict PASS end 2026-11-19T10:50:15-05:00
+SESSION 7 start 2026-11-19T10:50:15-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir PASSED [100%]
+
+============================== 1 passed in 3.55s ===============================
+SESSION 7 verdict PASS end 2026-11-19T10:50:20-05:00
+SESSION 8 start 2026-11-19T10:50:20-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir PASSED [100%]
+
+============================== 1 passed in 3.69s ===============================
+SESSION 8 verdict PASS end 2026-11-19T10:50:25-05:00
+SESSION 9 start 2026-11-19T10:50:25-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir PASSED [100%]
+
+============================== 1 passed in 3.75s ===============================
+SESSION 9 verdict PASS end 2026-11-19T10:50:30-05:00
+SESSION 10 start 2026-11-19T10:50:30-05:00
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir PASSED [100%]
+
+============================== 1 passed in 3.62s ===============================
+SESSION 10 verdict PASS end 2026-11-19T10:50:35-05:00
+TALLY pass 10 hang 0 other 0
+EXIT 0 end 2026-11-19T10:50:35-05:00

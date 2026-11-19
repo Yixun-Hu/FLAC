@@ -1,0 +1,105 @@
+HEAD 54487f1f76a1810387aba3f2488f7a5e5b725c60 tracked-clean=yes host neu331.neuronic.cs.princeton.edu start 2026-11-19T10:49:44-05:00 job 4280814 limit 600s stall 60s track 0
+job script (verbatim, prefix '#   '):
+#   #!/bin/bash
+#   # exp_46 L1 leak diagnostics (not committed; this script is embedded verbatim in every log it writes): ONE pytest
+#   # process with the L1 SUITE's interpreter flags and environment (-B -I, PYTHON* unset, PYTHONNOUSERSITE=1,
+#   # TMPDIR=/tmp), over the given args in order, optionally through the state tracker (TRACK=1). A hang is ended either
+#   # way: WATCH's node not done STALL s after it started, or LIMIT s overall -- then the process group (pytest and
+#   # every forked child) is recorded from /proc and killed with SIGKILL.
+#   #SBATCH --partition=all
+#   #SBATCH --cpus-per-task=4
+#   #SBATCH --mem=16G
+#   #SBATCH --time=00:20:00
+#   WT=/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+#   SP=<scratchpad>
+#   : "${LOG:?}" "${LIMIT:=1080}" "${STALL:=60}" "${TRACK:=0}"
+#   : "${WATCH:=test_concurrent_submitters_from_two_checkouts_share_one_control_dir}"
+#   cd "$WT" || exit 9
+#   say() { echo "$*" >> "$LOG"; }
+#   say "HEAD $(git rev-parse HEAD) tracked-clean=$([ -z "$(git status --porcelain --untracked-files=no)" ] && echo yes || echo no) host $(hostname) start $(date -Iseconds) job ${SLURM_JOB_ID:-?} limit ${LIMIT}s stall ${STALL}s track ${TRACK}"
+#   say "job script (verbatim, prefix '#   '):"
+#   sed "s/^/#   /; s#$SP#<scratchpad>#g" "$0" >> "$LOG"
+#   if [ "$TRACK" = 1 ]; then
+#     RUN=(/n/fs/gatrdp/envs/flac/bin/python -B -I -u "$SP/leak46_track.py")
+#     say "tracker (verbatim, prefix '#   '):"
+#     sed 's/^/#   /' "$SP/leak46_track.py" >> "$LOG"
+#   else
+#     RUN=(/n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest)
+#   fi
+#   ARGS=()
+#   for a in "$@"; do                                # @PROBE@: the probe, copied to a fresh /tmp dir of this job
+#     if [ "$a" = "@PROBE@" ]; then
+#       PD=$(mktemp -d /tmp/exp46probe.XXXXXX); cp "$SP/leak46_probe.py" "$PD/test_exp46_signal_probe.py"
+#       say "probe $PD/test_exp46_signal_probe.py (verbatim, prefix '#   '):"
+#       sed 's/^/#   /' "$SP/leak46_probe.py" >> "$LOG"
+#       ARGS+=("--rootdir=$WT" "$PD/test_exp46_signal_probe.py")
+#     else
+#       ARGS+=("$a")
+#     fi
+#   done
+#   say "cmd: $(echo "${RUN[*]} ${ARGS[*]}" | sed "s#$SP#<scratchpad>#g")"
+#   setsid env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 TMPDIR=/tmp \
+#     "${RUN[@]}" "${ARGS[@]}" >> "$LOG" 2>&1 &
+#   pid=$!
+#   dump_and_kill() {
+#     say ""
+#     say "HANG: $1 ($(date -Iseconds)); the process group $pid as it hangs (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):"
+#     for t in $(pgrep -g "$pid"); do
+#       say "  pid $t ppid $(awk '/^PPid:/{print $2}' /proc/$t/status 2>/dev/null) state $(awk '/^State:/{print $2}' /proc/$t/status 2>/dev/null) wchan $(cat /proc/$t/wchan 2>/dev/null) $(grep -E '^(SigBlk|SigIgn|SigCgt):' /proc/$t/status 2>/dev/null | tr '\t\n' '  ')nvidia-fds $(ls -l /proc/$t/fd 2>/dev/null | grep -c '/dev/nvidia') cmd $(tr '\0' ' ' < /proc/$t/cmdline 2>/dev/null | cut -c1-140 | sed "s#$SP#<scratchpad>#g")"
+#     done
+#     kill -KILL -- "-$pid" 2>/dev/null
+#     wait "$pid" 2>/dev/null
+#     say "EXIT hang-killed end $(date -Iseconds)"
+#     exit 124
+#   }
+#   end=$((SECONDS + LIMIT)); started=""
+#   while kill -0 "$pid" 2>/dev/null; do
+#     if [ -z "$started" ] && grep -qE "^src/tests/[^ ]*::${WATCH} " "$LOG"; then started=$SECONDS; fi
+#     if [ -n "$started" ] && ! grep -qE "::${WATCH} (PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)" "$LOG" \
+#        && [ $((SECONDS - started)) -ge "$STALL" ]; then
+#       dump_and_kill "${WATCH} not done ${STALL}s after it started"
+#     fi
+#     [ "$SECONDS" -ge "$end" ] && dump_and_kill "the ${LIMIT}s limit"
+#     sleep 2
+#   done
+#   wait "$pid"; rc=$?
+#   say "EXIT $rc end $(date -Iseconds)"
+#   exit $rc
+probe /tmp/exp46probe.ZDy7kb/test_exp46_signal_probe.py (verbatim, prefix '#   '):
+#   """exp_46 E9 probe (diagnostic copy; written to a fresh /tmp dir per job and embedded in the log): run in the same
+#   pytest process after the node under suspicion. Pool.terminate() relies on SIGTERM ending each forked worker; this
+#   checks exactly that on a forked child, and that SIGTERM / SIGINT / SIGHUP are back at their collection-time handlers."""
+#   import multiprocessing
+#   import signal
+#   import time
+#   
+#   BEFORE = {s.name: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}     # at collection
+#   
+#   
+#   def test_sigterm_still_stops_a_forked_child_and_the_handlers_are_back():
+#       now = {s.name: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+#       p = multiprocessing.get_context("fork").Process(target=time.sleep, args=(60,))
+#       p.start()
+#       time.sleep(0.5)
+#       p.terminate()                                  # what Pool.terminate() sends each worker
+#       p.join(10)
+#       survived = p.exitcode is None
+#       if survived:
+#           p.kill()
+#           p.join()
+#       assert not survived and p.exitcode == -signal.SIGTERM, ("a forked child survived SIGTERM", now)
+#       assert now == BEFORE, now
+cmd: /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection-errors src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work --rootdir=/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve /tmp/exp46probe.ZDy7kb/test_exp46_signal_probe.py src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+collecting ... collected 3 items
+
+src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work PASSED [ 33%]
+::test_sigterm_still_stops_a_forked_child_and_the_handlers_are_back FAILED [ 66%]
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir 
+HANG: test_concurrent_submitters_from_two_checkouts_share_one_control_dir not done 60s after it started (2026-11-19T10:51:00-05:00); the process group 3093525 as it hangs (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):
+  pid 3093525 ppid 3093451 state S wchan do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000001080044eb nvidia-fds 0 cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection-errors src/tests/test_exp38_supervise.p
+  pid 3096369 ppid 3093525 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001006 SigCgt: 00000001080044e9 nvidia-fds 0 cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection-errors src/tests/test_exp38_supervise.p
+  pid 3096376 ppid 3093525 state S wchan futex_do_wait SigBlk: 0000000000000000 SigIgn: 0000000001001004 SigCgt: 00000001080044eb nvidia-fds 0 cmd /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection-errors src/tests/test_exp38_supervise.p
+EXIT hang-killed end 2026-11-19T10:51:00-05:00

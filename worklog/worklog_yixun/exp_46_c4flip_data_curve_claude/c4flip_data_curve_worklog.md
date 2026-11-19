@@ -827,3 +827,68 @@ and its test changed; nothing under `l1/` was touched (attempt 1's junit files w
   3. Only the merged suite is rerun; the parent junit files are kept.
 - **Limit:** if the leak cannot be undone by a teardown restore (for example, CUDA initialised in the process), the
   Coder stops and reports, and Yixun is asked again.
+
+## 2026-11-19 10:36 → 11:22 EST — the merged-suite hang: exp_38's supervisor refusal node leaks process-wide signal handlers; fixed as E9, test-first (exp_46 Coder, Claude Opus 5.5)
+
+Yixun's "Fix as recommended" (`54487f1f`). Every run was a CPU Slurm job (4 CPUs, a hard limit under 20 min). A hung
+pytest process group was recorded from /proc and killed by the job itself, 60 s (30 s pinned) after the fork test
+started. Nothing under `l1/` or in the parent worktrees was touched. Logs: `c4flip_data_curve_2026-11-19_*_leak_B*.log`
+and `..._pytest_BE*.log`; the diagnostic job scripts, the state tracker and the probe are embedded verbatim in each.
+
+- **The leaking node and the leaked state:**
+  - `src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work` calls `sv.main(...)` in
+    the pytest process. `main()` runs `install_signal_handlers()`, which sets SIGTERM, SIGINT and SIGHUP to
+    `exp38_supervise._on_signal`; that handler only appends the signal to `_PENDING`. Nothing restores them, so every
+    later fork of the process inherits the handler. The BB6 tracker shows this node is the only signal change in the
+    file.
+  - **How it hangs the fork test:** `with ctx.Pool(2)` exits through `terminate()`. The parent takes the task queue's
+    read lock (`_help_stuff_finish`), sends SIGTERM to the workers and joins them. A worker still blocked on that lock
+    swallows the SIGTERM, so the join waits forever.
+  - The recorded state is L1's exactly: the parent in `do_wait`; the worker in a futex with SIGTERM caught (SigCgt bit
+    0x4000); the other worker defunct; the Manager server idle.
+  - **Timing:** whether the parent wins that lock race depends on scheduling. Unpinned, the refusal node + fork test
+    passed once (BB1). Pinned to one CPU they hung 10 / 10 (BC1), while the fork test alone passed 10 / 10 (BC2).
+  - **Not CUDA:** the pinned pair hangs with no `/dev/nvidia*` fd (BC1, BC3), so a teardown restore undoes the leak.
+    In BA6's chunk, an eval test had initialised CUDA (2 fds) and torch inductor compile workers were running.
+    Neither is needed for the hang.
+- **Bisect (one pytest process each, with the L1 SUITE's interpreter flags):** each chunk of the 59 files that collect
+  before `test_exp40_kit.py` ran, then the fork test.
+  - 01–10 PASS (BA1). 11–19 PASS (BA2a). 20 PASS (BA2b). 21–30 PASS (BA3). 31–40 PASS (BA4). 41–50 PASS (BA5).
+  - **51–59 HANG (BA6).**
+  - BA2 (11–20 in one job) hit its 18-min limit inside `test_eval_localization.py`'s NFS-bound integration test, before
+    the fork test; it is kept as `..._ABORTED_limit_in_an_nfs_bound_integration_test_not_a_fork_hang.log`.
+  - Inside `test_exp38_supervise.py`: the file without the refusal node, then the fork test, PASS (BB3). The refusal
+    node, then a probe, then the fork test: the probe fails at once (a forked child survives SIGTERM) and the fork
+    test hangs (BC3).
+- **The same node in the exp_45 / exp_46 copies leaks the same way (NOT edited; for Yixun):**
+  - `test_exp45_supervise.py` and `test_exp46_supervise.py` carry the same refusal node. Each installs its own
+    `_on_signal` (BB6).
+  - The exp_45 copy hangs the same fork test 3 / 3 when it runs before it, pinned (BD5).
+  - In the merged order it precedes only exp_46's fork-Pool tests: eval Pool(4), launchers Pool(6) and storage Pool(3).
+    These did not hang in 13 pinned sessions after it (BD1, BD3, BD4; BD2 is the control). The exp_46 copy precedes no
+    fork-Pool test.
+  - Recommendation: the same restore as E10 (an exp_45 file, so a declared edit) and E11 (exp_46's own copy).
+- **Fix, test-first:**
+  - `b8cf181e` was the three-copy regression. Its red run (BE1) was cancelled when the scope was reduced to the
+    approved E9 (`4ae86b20`).
+  - `4ae86b20` is the E9 regression, `test_exp46_e9_signal_isolation.py`. It runs ONE pytest process pinned to one
+    CPU, in its own session, and kills it as a group at 120 s. That process runs the refusal node, then a probe written
+    to tmp, then the fork test, and must finish with "3 passed".
+  - `663fecc7` adds the provenance rule (`supervise_restore`, `supervise_problems`: the X45f file plus exactly the
+    eleven lines right before the node, mode unchanged; the file joins ALWAYS) and registers the node in
+    DECLARED_EDITED (must be present and PASS).
+  - `e0d20b71` is E9: the eleven lines, a fixture that saves SIGTERM / SIGINT / SIGHUP and restores them at teardown,
+    used by that node only. No other line changes.
+- **Review:** the Codex cap is used up (3 / 3 code rounds), so E9 is fixed and covered by the tests, without re-review.
+- **Validation / Result (every log tracked-clean at the commit under test):**
+  - BE2 red (`4ae86b20`): 1 failed (the E9 case: `('E9', 'hung: killed after 120 s', '.F')`), 317 passed, EXIT 1.
+  - BE3 red (`663fecc7`): 2 failed (the E9 case and the E9 provenance check), 82 passed, EXIT 1.
+  - BE4 green (`e0d20b71`): the regression, provenance, compare, sheet, exp_40 kit and exp_38 supervise tests: 320
+    passed, 4 skipped, EXIT 0.
+  - BE5a (`e0d20b71`): the whole `test_exp38_supervise.py`, then the whole `test_exp40_kit.py`, in one process: 236
+    passed, 4 skipped, EXIT 0. The fork test and `test_claim_is_exclusive_under_true_concurrency` (Pool(8)) pass.
+  - BE5b (`e0d20b71`): the refusal node + fork test pinned to one CPU: 5 / 5 PASS (10 / 10 hung before, BC1).
+  - BE6 (`e0d20b71`): files 51–59 + the fork test: the fork test PASSES (it hung in BA6). The chunk's other failures
+    are the same before and after E9 (exp_38 eval / launchers / registry / receipts and exp_40 eval).
+- **Next (coordinator):** rerun the merged L1 suite at this records commit. The exp_45 / exp_46 copies are open for
+  Yixun (above).

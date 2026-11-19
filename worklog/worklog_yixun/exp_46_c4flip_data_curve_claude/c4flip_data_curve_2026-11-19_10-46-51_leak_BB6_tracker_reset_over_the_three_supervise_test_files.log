@@ -1,0 +1,188 @@
+HEAD 54487f1f76a1810387aba3f2488f7a5e5b725c60 tracked-clean=yes host neu313.neuronic.cs.princeton.edu start 2026-11-19T10:46:53-05:00 job 4280808 limit 1080s stall 60s track 1
+job script (verbatim, prefix '#   '):
+#   #!/bin/bash
+#   # exp_46 L1 leak diagnostics (not committed; this script is embedded verbatim in every log it writes): ONE pytest
+#   # process with the L1 SUITE's interpreter flags and environment (-B -I, PYTHON* unset, PYTHONNOUSERSITE=1,
+#   # TMPDIR=/tmp), over the given args in order, optionally through the state tracker (TRACK=1). A hang is ended either
+#   # way: WATCH's node not done STALL s after it started, or LIMIT s overall -- then the process group (pytest and
+#   # every forked child) is recorded from /proc and killed with SIGKILL.
+#   #SBATCH --partition=all
+#   #SBATCH --cpus-per-task=4
+#   #SBATCH --mem=16G
+#   #SBATCH --time=00:20:00
+#   WT=/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+#   SP=<scratchpad>
+#   : "${LOG:?}" "${LIMIT:=1080}" "${STALL:=60}" "${TRACK:=0}"
+#   : "${WATCH:=test_concurrent_submitters_from_two_checkouts_share_one_control_dir}"
+#   cd "$WT" || exit 9
+#   say() { echo "$*" >> "$LOG"; }
+#   say "HEAD $(git rev-parse HEAD) tracked-clean=$([ -z "$(git status --porcelain --untracked-files=no)" ] && echo yes || echo no) host $(hostname) start $(date -Iseconds) job ${SLURM_JOB_ID:-?} limit ${LIMIT}s stall ${STALL}s track ${TRACK}"
+#   say "job script (verbatim, prefix '#   '):"
+#   sed "s/^/#   /; s#$SP#<scratchpad>#g" "$0" >> "$LOG"
+#   if [ "$TRACK" = 1 ]; then
+#     RUN=(/n/fs/gatrdp/envs/flac/bin/python -B -I -u "$SP/leak46_track.py")
+#     say "tracker (verbatim, prefix '#   '):"
+#     sed 's/^/#   /' "$SP/leak46_track.py" >> "$LOG"
+#   else
+#     RUN=(/n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest)
+#   fi
+#   say "cmd: $(echo "${RUN[*]} $*" | sed "s#$SP#<scratchpad>#g")"
+#   setsid env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 TMPDIR=/tmp \
+#     "${RUN[@]}" "$@" >> "$LOG" 2>&1 &
+#   pid=$!
+#   dump_and_kill() {
+#     say ""
+#     say "HANG: $1 ($(date -Iseconds)); the process group $pid as it hangs (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):"
+#     for t in $(pgrep -g "$pid"); do
+#       say "  pid $t ppid $(awk '/^PPid:/{print $2}' /proc/$t/status 2>/dev/null) state $(awk '/^State:/{print $2}' /proc/$t/status 2>/dev/null) wchan $(cat /proc/$t/wchan 2>/dev/null) $(grep -E '^(SigBlk|SigIgn|SigCgt):' /proc/$t/status 2>/dev/null | tr '\t\n' '  ')nvidia-fds $(ls -l /proc/$t/fd 2>/dev/null | grep -c '/dev/nvidia') cmd $(tr '\0' ' ' < /proc/$t/cmdline 2>/dev/null | cut -c1-140 | sed "s#$SP#<scratchpad>#g")"
+#     done
+#     kill -KILL -- "-$pid" 2>/dev/null
+#     wait "$pid" 2>/dev/null
+#     say "EXIT hang-killed end $(date -Iseconds)"
+#     exit 124
+#   }
+#   end=$((SECONDS + LIMIT)); started=""
+#   while kill -0 "$pid" 2>/dev/null; do
+#     if [ -z "$started" ] && grep -qE "^src/tests/[^ ]*::${WATCH} " "$LOG"; then started=$SECONDS; fi
+#     if [ -n "$started" ] && ! grep -qE "::${WATCH} (PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)" "$LOG" \
+#        && [ $((SECONDS - started)) -ge "$STALL" ]; then
+#       dump_and_kill "${WATCH} not done ${STALL}s after it started"
+#     fi
+#     [ "$SECONDS" -ge "$end" ] && dump_and_kill "the ${LIMIT}s limit"
+#     sleep 2
+#   done
+#   wait "$pid"; rc=$?
+#   say "EXIT $rc end $(date -Iseconds)"
+#   exit $rc
+tracker (verbatim, prefix '#   '):
+#   """exp_46 L1 leak tracker (diagnostic only; its source is embedded verbatim in every log it writes): ONE in-process
+#   pytest run over the given args, with a plugin that prints -- after collection and after every test (its teardown
+#   included) -- each change of the process-global state that a later fork inherits: the signal handlers and the signal
+#   mask, Python and OS threads, /dev/nvidia* fds (CUDA initialised), torch.cuda's initialised flag, multiprocessing's
+#   start method and unjoined children, lightning's global rank, cwd, umask, and the NAMES (never the values) of changed
+#   environment variables. With --reset, a changed signal handler or mask is put back to the baseline after it is
+#   reported, so that EVERY node that changes it shows (diagnostic only: --reset changes what later tests inherit)."""
+#   import json
+#   import os
+#   import signal
+#   import sys
+#   import threading
+#   
+#   import pytest
+#   
+#   RESET = "--reset" in sys.argv
+#   ARGS = [a for a in sys.argv[1:] if a != "--reset"]
+#   SIGS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGCHLD, signal.SIGUSR1, signal.SIGUSR2,
+#           signal.SIGALRM, signal.SIGPIPE, signal.SIGQUIT)
+#   
+#   
+#   def _name(h):
+#       if h is None:
+#           return "None (not installed from Python)"
+#       if isinstance(h, int):                                   # signal.Handlers.SIG_DFL / SIG_IGN
+#           return signal.Handlers(h).name if h in (0, 1) else str(h)
+#       return f"{getattr(h, '__module__', '?')}.{getattr(h, '__qualname__', type(h).__qualname__)}"
+#   
+#   
+#   def state():
+#       st = {f"sig.{s.name}": _name(signal.getsignal(s)) for s in SIGS}
+#       st["sigmask"] = sorted(getattr(x, "name", str(x)) for x in signal.pthread_sigmask(signal.SIG_BLOCK, []))
+#       st["py_threads"] = sorted(t.name for t in threading.enumerate())
+#       st["os_threads"] = len(os.listdir("/proc/self/task"))
+#       nv = set()
+#       for fd in os.listdir("/proc/self/fd"):
+#           try:
+#               target = os.readlink(f"/proc/self/fd/{fd}")
+#           except OSError:
+#               continue
+#           if target.startswith("/dev/nvidia"):
+#               nv.add(target)
+#       st["nvidia_fds"] = sorted(nv)
+#       torch = sys.modules.get("torch")
+#       cuda = getattr(torch, "cuda", None) if torch is not None else None
+#       if cuda is not None:
+#           try:
+#               st["torch.cuda.initialized"] = bool(cuda.is_initialized())
+#           except Exception as err:                             # a half-imported torch
+#               st["torch.cuda.initialized"] = f"error {type(err).__name__}"
+#       if "multiprocessing" in sys.modules:
+#           import multiprocessing
+#           import multiprocessing.process as mpp
+#           st["mp.start_method"] = multiprocessing.get_start_method(allow_none=True)
+#           st["mp.unjoined_children"] = len(mpp._children)
+#       rz = sys.modules.get("lightning_fabric.utilities.rank_zero")
+#       if rz is not None:
+#           st["rank_zero_only.rank"] = getattr(rz.rank_zero_only, "rank", None)
+#       try:
+#           st["cwd"] = os.getcwd()
+#       except OSError as err:
+#           st["cwd"] = f"error {type(err).__name__}"
+#       with open("/proc/self/status") as fh:
+#           st["umask"] = next((ln.split()[1] for ln in fh if ln.startswith("Umask:")), "?")
+#       st["env"] = dict(os.environ)
+#       return st
+#   
+#   
+#   def _env_names(a, b):
+#       return sorted(k for k in set(a) | set(b) if a.get(k) != b.get(k))
+#   
+#   
+#   class Tracker:
+#       def __init__(self):
+#           self.handlers = {s: signal.getsignal(s) for s in SIGS}
+#           self.mask = signal.pthread_sigmask(signal.SIG_BLOCK, [])
+#           self.prev = state()
+#           print("TRACK baseline " + json.dumps({k: v for k, v in self.prev.items() if k != "env"}), flush=True)
+#   
+#       def check(self, where):
+#           cur = state()
+#           diff = {k: [self.prev.get(k), cur.get(k)] for k in sorted(set(cur) | set(self.prev))
+#                   if k != "env" and self.prev.get(k) != cur.get(k)}
+#           env = _env_names(self.prev["env"], cur["env"])
+#           if diff or env:
+#               print(f"\nTRACK after {where}: {json.dumps(diff)}" + (f" env-changed {env}" if env else ""), flush=True)
+#           if RESET:
+#               for s, h in self.handlers.items():
+#                   if h is not None and signal.getsignal(s) is not h:
+#                       signal.signal(s, h)
+#               signal.pthread_sigmask(signal.SIG_SETMASK, self.mask)
+#               cur = state()
+#           self.prev = cur
+#   
+#       def pytest_collection_finish(self, session):
+#           self.check("collection")
+#   
+#       @pytest.hookimpl(trylast=True)
+#       def pytest_runtest_logfinish(self, nodeid, location):
+#           self.check(nodeid)
+#   
+#   
+#   if __name__ == "__main__":
+#       tracker = Tracker()
+#       code = pytest.main(ARGS, plugins=[tracker])
+#       tracker.check("the session end")
+#       print("\nTRACK final " + json.dumps({k: v for k, v in tracker.prev.items() if k != "env"}), flush=True)
+#       sys.exit(int(code))
+cmd: /n/fs/gatrdp/envs/flac/bin/python -B -I -u <scratchpad>/leak46_track.py --reset -q -p no:cacheprovider --continue-on-collection-errors src/tests/test_exp38_supervise.py src/tests/test_exp45_supervise.py src/tests/test_exp46_supervise.py
+TRACK baseline {"sig.SIGTERM": "SIG_DFL", "sig.SIGINT": "SIG_IGN", "sig.SIGHUP": "SIG_DFL", "sig.SIGCHLD": "SIG_DFL", "sig.SIGUSR1": "SIG_DFL", "sig.SIGUSR2": "SIG_DFL", "sig.SIGALRM": "SIG_DFL", "sig.SIGPIPE": "SIG_IGN", "sig.SIGQUIT": "SIG_IGN", "sigmask": [], "py_threads": ["MainThread"], "os_threads": 1, "nvidia_fds": [], "cwd": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve", "umask": "0022"}
+
+TRACK after collection: {} env-changed ['PYTEST_VERSION']
+.
+TRACK after src/tests/test_exp38_supervise.py::test_the_child_exit_status_passes_through: {"mp.unjoined_children": [null, 0], "os_threads": [1, 4], "torch.cuda.initialized": [null, false]}
+...................
+TRACK after src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work: {"sig.SIGHUP": ["SIG_DFL", "exp38_supervise._on_signal"], "sig.SIGINT": ["SIG_IGN", "exp38_supervise._on_signal"], "sig.SIGTERM": ["SIG_DFL", "exp38_supervise._on_signal"]}
+.................................................... [ 40%]
+
+TRACK after src/tests/test_exp45_supervise.py::test_unregistered_runs_are_refused_before_any_work: {"sig.SIGHUP": ["SIG_DFL", "exp45_supervise._on_signal"], "sig.SIGINT": ["SIG_IGN", "exp45_supervise._on_signal"], "sig.SIGTERM": ["SIG_DFL", "exp45_supervise._on_signal"]}
+.........................................
+TRACK after src/tests/test_exp45_supervise.py::test_three_concurrent_first_smokes_create_exactly_one_environment_receipt: {"os_threads": [4, 1]}
+......................
+TRACK after src/tests/test_exp46_supervise.py::test_unregistered_runs_are_refused_before_any_work: {"sig.SIGHUP": ["SIG_DFL", "exp46_supervise._on_signal"], "sig.SIGINT": ["SIG_IGN", "exp46_supervise._on_signal"], "sig.SIGTERM": ["SIG_DFL", "exp46_supervise._on_signal"]}
+......... [ 80%]
+....................................                                     [100%]
+180 passed in 243.11s (0:04:03)
+
+TRACK after the session end: {} env-changed ['PYTEST_VERSION']
+
+TRACK final {"sig.SIGTERM": "SIG_DFL", "sig.SIGINT": "SIG_IGN", "sig.SIGHUP": "SIG_DFL", "sig.SIGCHLD": "SIG_DFL", "sig.SIGUSR1": "SIG_DFL", "sig.SIGUSR2": "SIG_DFL", "sig.SIGALRM": "SIG_DFL", "sig.SIGPIPE": "SIG_IGN", "sig.SIGQUIT": "SIG_IGN", "sigmask": [], "py_threads": ["MainThread"], "os_threads": 1, "nvidia_fds": [], "torch.cuda.initialized": false, "mp.start_method": null, "mp.unjoined_children": 0, "cwd": "/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve", "umask": "0022"}
+EXIT 0 end 2026-11-19T10:50:58-05:00

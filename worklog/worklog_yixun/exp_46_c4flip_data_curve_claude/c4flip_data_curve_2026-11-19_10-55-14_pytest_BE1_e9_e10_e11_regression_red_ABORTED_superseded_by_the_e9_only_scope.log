@@ -1,0 +1,3 @@
+HEAD b8cf181ed105e62da65b06da4e6fdc8c626448a1 tracked-clean=yes host neu331.neuronic.cs.princeton.edu start 2026-11-19T10:55:15-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_e9_signal_isolation.py src/tests/test_exp46_provenance.py src/tests/test_exp46_regression_compare.py src/tests/test_exp46_command_sheets.py src/tests/test_exp40_kit.py src/tests/test_exp38_supervise.py src/tests/test_exp45_supervise.py src/tests/test_exp46_supervise.py 
+[2026-11-19T10:56:55.107] error: *** JOB 4280844 ON neu331 CANCELLED AT 2026-11-19T10:56:55 DUE to SIGNAL Terminated ***

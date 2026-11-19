@@ -1,0 +1,357 @@
+HEAD e0d20b71c0e365ef5c6842e4d722850129f8195a tracked-clean=yes host neu305.neuronic.cs.princeton.edu start 2026-11-19T11:10:35-05:00 job 4280884 limit 1080s stall 60s track 0
+job script (verbatim, prefix '#   '):
+#   #!/bin/bash
+#   # exp_46 L1 leak diagnostics (not committed; this script is embedded verbatim in every log it writes): ONE pytest
+#   # process with the L1 SUITE's interpreter flags and environment (-B -I, PYTHON* unset, PYTHONNOUSERSITE=1,
+#   # TMPDIR=/tmp), over the given args in order, optionally through the state tracker (TRACK=1). A hang is ended either
+#   # way: WATCH's node not done STALL s after it started, or LIMIT s overall -- then the process group (pytest and
+#   # every forked child) is recorded from /proc and killed with SIGKILL.
+#   #SBATCH --partition=all
+#   #SBATCH --cpus-per-task=4
+#   #SBATCH --mem=16G
+#   #SBATCH --time=00:20:00
+#   WT=/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+#   SP=<scratchpad>
+#   : "${LOG:?}" "${LIMIT:=1080}" "${STALL:=60}" "${TRACK:=0}"
+#   : "${WATCH:=test_concurrent_submitters_from_two_checkouts_share_one_control_dir}"
+#   cd "$WT" || exit 9
+#   say() { echo "$*" >> "$LOG"; }
+#   say "HEAD $(git rev-parse HEAD) tracked-clean=$([ -z "$(git status --porcelain --untracked-files=no)" ] && echo yes || echo no) host $(hostname) start $(date -Iseconds) job ${SLURM_JOB_ID:-?} limit ${LIMIT}s stall ${STALL}s track ${TRACK}"
+#   say "job script (verbatim, prefix '#   '):"
+#   sed "s/^/#   /; s#$SP#<scratchpad>#g" "$0" >> "$LOG"
+#   if [ "$TRACK" = 1 ]; then
+#     RUN=(/n/fs/gatrdp/envs/flac/bin/python -B -I -u "$SP/leak46_track.py")
+#     say "tracker (verbatim, prefix '#   '):"
+#     sed 's/^/#   /' "$SP/leak46_track.py" >> "$LOG"
+#   else
+#     RUN=(/n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest)
+#   fi
+#   ARGS=()
+#   for a in "$@"; do                                # @PROBE@: the probe, copied to a fresh /tmp dir of this job
+#     if [ "$a" = "@PROBE@" ]; then
+#       PD=$(mktemp -d /tmp/exp46probe.XXXXXX); cp "$SP/leak46_probe.py" "$PD/test_exp46_signal_probe.py"
+#       say "probe $PD/test_exp46_signal_probe.py (verbatim, prefix '#   '):"
+#       sed 's/^/#   /' "$SP/leak46_probe.py" >> "$LOG"
+#       ARGS+=("--rootdir=$WT" "$PD/test_exp46_signal_probe.py")
+#     else
+#       ARGS+=("$a")
+#     fi
+#   done
+#   say "cmd: $(echo "${RUN[*]} ${ARGS[*]}" | sed "s#$SP#<scratchpad>#g")"
+#   setsid env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 TMPDIR=/tmp \
+#     "${RUN[@]}" "${ARGS[@]}" >> "$LOG" 2>&1 &
+#   pid=$!
+#   dump_and_kill() {
+#     say ""
+#     say "HANG: $1 ($(date -Iseconds)); the process group $pid as it hangs (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):"
+#     for t in $(pgrep -g "$pid"); do
+#       say "  pid $t ppid $(awk '/^PPid:/{print $2}' /proc/$t/status 2>/dev/null) state $(awk '/^State:/{print $2}' /proc/$t/status 2>/dev/null) wchan $(cat /proc/$t/wchan 2>/dev/null) $(grep -E '^(SigBlk|SigIgn|SigCgt):' /proc/$t/status 2>/dev/null | tr '\t\n' '  ')nvidia-fds $(ls -l /proc/$t/fd 2>/dev/null | grep -c '/dev/nvidia') cmd $(tr '\0' ' ' < /proc/$t/cmdline 2>/dev/null | cut -c1-140 | sed "s#$SP#<scratchpad>#g")"
+#     done
+#     kill -KILL -- "-$pid" 2>/dev/null
+#     wait "$pid" 2>/dev/null
+#     say "EXIT hang-killed end $(date -Iseconds)"
+#     exit 124
+#   }
+#   end=$((SECONDS + LIMIT)); started=""
+#   while kill -0 "$pid" 2>/dev/null; do
+#     if [ -z "$started" ] && grep -qE "^src/tests/[^ ]*::${WATCH} " "$LOG"; then started=$SECONDS; fi
+#     if [ -n "$started" ] && ! grep -qE "::${WATCH} (PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)" "$LOG" \
+#        && [ $((SECONDS - started)) -ge "$STALL" ]; then
+#       dump_and_kill "${WATCH} not done ${STALL}s after it started"
+#     fi
+#     [ "$SECONDS" -ge "$end" ] && dump_and_kill "the ${LIMIT}s limit"
+#     sleep 2
+#   done
+#   wait "$pid"; rc=$?
+#   say "EXIT $rc end $(date -Iseconds)"
+#   exit $rc
+cmd: /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection-errors src/tests/test_exp38_supervise.py src/tests/test_exp40_kit.py
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 240 items
+
+src/tests/test_exp38_supervise.py::test_the_child_exit_status_passes_through PASSED [  0%]
+src/tests/test_exp38_supervise.py::test_a_signal_killed_child_maps_to_128_plus_n PASSED [  0%]
+src/tests/test_exp38_supervise.py::test_sigterm_stops_our_group_including_grandchildren PASSED [  1%]
+src/tests/test_exp38_supervise.py::test_int_and_hup_are_forwarded_too[Signals.SIGINT] PASSED [  1%]
+src/tests/test_exp38_supervise.py::test_int_and_hup_are_forwarded_too[Signals.SIGHUP] PASSED [  2%]
+src/tests/test_exp38_supervise.py::test_a_term_ignoring_child_is_killed_after_the_bounded_grace PASSED [  2%]
+src/tests/test_exp38_supervise.py::test_a_failed_start_gate_terminates_our_group[fail-cmd0-bad first step] PASSED [  2%]
+src/tests/test_exp38_supervise.py::test_a_failed_start_gate_terminates_our_group[never-cmd1-no start gate result within 1 s] PASSED [  3%]
+src/tests/test_exp38_supervise.py::test_a_failed_start_gate_terminates_our_group[never-cmd2-exited before the start gate] PASSED [  3%]
+src/tests/test_exp38_supervise.py::test_the_card_lock_outlives_a_killed_supervisor PASSED [  4%]
+src/tests/test_exp38_supervise.py::test_a_second_lock_holder_is_refused PASSED [  4%]
+src/tests/test_exp38_supervise.py::test_a_reaped_child_is_never_signalled PASSED [  5%]
+src/tests/test_exp38_supervise.py::test_the_record_is_rewritten_atomically PASSED [  5%]
+src/tests/test_exp38_supervise.py::test_cli_refusals[argv0] PASSED       [  5%]
+src/tests/test_exp38_supervise.py::test_cli_refusals[argv1] PASSED       [  6%]
+src/tests/test_exp38_supervise.py::test_cli_refusals[argv2] PASSED       [  6%]
+src/tests/test_exp38_supervise.py::test_cli_refusals[argv3] PASSED       [  7%]
+src/tests/test_exp38_supervise.py::test_cli_refusals[argv4] PASSED       [  7%]
+src/tests/test_exp38_supervise.py::test_cli_refusals[argv5] PASSED       [  7%]
+src/tests/test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work PASSED [  8%]
+src/tests/test_exp38_supervise.py::test_a6000_gpu_gate PASSED            [  8%]
+src/tests/test_exp38_supervise.py::test_neuronic_allocation_gate_refusals PASSED [  9%]
+src/tests/test_exp38_supervise.py::test_child_env_is_exact PASSED        [  9%]
+src/tests/test_exp38_supervise.py::test_inherited_launcher_variables_refuse_the_launch[GROUP_RANK] PASSED [ 10%]
+src/tests/test_exp38_supervise.py::test_inherited_launcher_variables_refuse_the_launch[LIGHTNING_X] PASSED [ 10%]
+src/tests/test_exp38_supervise.py::test_inherited_launcher_variables_refuse_the_launch[LOCAL_RANK] PASSED [ 10%]
+src/tests/test_exp38_supervise.py::test_inherited_launcher_variables_refuse_the_launch[LOCAL_WORLD_SIZE] PASSED [ 11%]
+src/tests/test_exp38_supervise.py::test_inherited_launcher_variables_refuse_the_launch[MASTER_ADDR] PASSED [ 11%]
+src/tests/test_exp38_supervise.py::test_inherited_launcher_variables_refuse_the_launch[MASTER_PORT] PASSED [ 12%]
+src/tests/test_exp38_supervise.py::test_inherited_launcher_variables_refuse_the_launch[NODE_RANK] PASSED [ 12%]
+src/tests/test_exp38_supervise.py::test_inherited_launcher_variables_refuse_the_launch[PL_GLOBAL_SEED] PASSED [ 12%]
+src/tests/test_exp38_supervise.py::test_inherited_launcher_variables_refuse_the_launch[PL_TRAINER_DEVICES] PASSED [ 13%]
+src/tests/test_exp38_supervise.py::test_inherited_launcher_variables_refuse_the_launch[RANK] PASSED [ 13%]
+src/tests/test_exp38_supervise.py::test_inherited_launcher_variables_refuse_the_launch[TORCHELASTIC_RUN_ID] PASSED [ 14%]
+src/tests/test_exp38_supervise.py::test_inherited_launcher_variables_refuse_the_launch[WORLD_SIZE] PASSED [ 14%]
+src/tests/test_exp38_supervise.py::test_inherited_launcher_variables_refuse_the_launch[SLURM_PROCID] PASSED [ 15%]
+src/tests/test_exp38_supervise.py::test_the_lock_holder_outlives_a_rank_that_did_not_inherit_the_lock PASSED [ 15%]
+src/tests/test_exp38_supervise.py::test_the_authoritative_record_must_be_written PASSED [ 15%]
+src/tests/test_exp38_supervise.py::test_backend_gate_resolves_like_the_child PASSED [ 16%]
+src/tests/test_exp38_supervise.py::test_a_full_run_launches_from_the_snapshot_gates_and_publishes PASSED [ 16%]
+src/tests/test_exp38_supervise.py::test_a_failed_full_run_keeps_its_crash_marker[crash-True-1] PASSED [ 17%]
+src/tests/test_exp38_supervise.py::test_a_failed_full_run_keeps_its_crash_marker[badstart-True-4] PASSED [ 17%]
+src/tests/test_exp38_supervise.py::test_a_failed_full_run_keeps_its_crash_marker[ok-False-5] PASSED [ 17%]
+src/tests/test_exp38_supervise.py::test_a_smoke_ddp_seals_its_receipt_from_the_snapshot[True-0] PASSED [ 18%]
+src/tests/test_exp38_supervise.py::test_a_smoke_ddp_seals_its_receipt_from_the_snapshot[False-5] PASSED [ 18%]
+src/tests/test_exp38_supervise.py::test_a_full_run_refuses_an_e0_receipt_of_another_head PASSED [ 19%]
+src/tests/test_exp38_supervise.py::test_a_full_run_refuses_unverified_ar_content PASSED [ 19%]
+src/tests/test_exp38_supervise.py::test_ar_content_changed_during_the_run_publishes_nothing PASSED [ 20%]
+src/tests/test_exp38_supervise.py::test_an_exception_after_spawn_stops_our_group[holder] PASSED [ 20%]
+src/tests/test_exp38_supervise.py::test_an_exception_after_spawn_stops_our_group[record] PASSED [ 20%]
+src/tests/test_exp38_supervise.py::test_d2_full_refuses_off_the_training_platform PASSED [ 21%]
+src/tests/test_exp40_kit.py::test_full_argv_is_the_exp15_shape_with_the_c16_config PASSED [ 21%]
+src/tests/test_exp40_kit.py::test_ddp_smoke_differs_from_full_only_in_steps_and_namespace PASSED [ 22%]
+src/tests/test_exp40_kit.py::test_identity_refusals[args0-platform] PASSED [ 22%]
+src/tests/test_exp40_kit.py::test_identity_refusals[args1-rung] PASSED   [ 22%]
+src/tests/test_exp40_kit.py::test_identity_refusals[args2-mode] PASSED   [ 23%]
+src/tests/test_exp40_kit.py::test_identity_refusals[args3-mode] PASSED   [ 23%]
+src/tests/test_exp40_kit.py::test_identity_refusals[args4-names] PASSED  [ 24%]
+src/tests/test_exp40_kit.py::test_identity_refusals[args5-does not match] PASSED [ 24%]
+src/tests/test_exp40_kit.py::test_relative_save_root_refused PASSED      [ 25%]
+src/tests/test_exp40_kit.py::test_prefigure_parse_matches_the_expected_values_type_strict PASSED [ 25%]
+src/tests/test_exp40_kit.py::test_runtree_verifies PASSED                [ 25%]
+src/tests/test_exp40_kit.py::test_runtree_refuses_rebuild_and_wrong_links PASSED [ 26%]
+src/tests/test_exp40_kit.py::test_runtree_detects_a_modified_file PASSED [ 26%]
+src/tests/test_exp40_kit.py::test_runtree_detects_an_extra_file_and_a_retargeted_link PASSED [ 27%]
+src/tests/test_exp40_kit.py::test_start_gate_pass_and_pending PASSED     [ 27%]
+src/tests/test_exp40_kit.py::test_start_gate_failures[Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2\nInitializing distributed: GLOBAL_RANK: 1, MEMBER: 2/2\nEpoch 0:   0%|          | 1/4550 [00:04<6:16:50,  0.20it/s, train/loss=2.3]\nyaw_aug ENABLED img_w=512 seed=42 offset_step=32] PASSED [ 27%]
+src/tests/test_exp40_kit.py::test_start_gate_failures[Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2\nyaw_aug ENABLED img_w=512 seed=42\nEpoch 0:   0%|          | 1/4550 [00:04<6:16:50,  0.20it/s, train/loss=2.3]] PASSED [ 28%]
+src/tests/test_exp40_kit.py::test_start_gate_failures[Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2\nyaw_aug ENABLED img_w=512 seed=42 offset_step=32\nEpoch 0:   0%|          | 1/4550 [00:04<6:16:50,  0.20it/s, train/loss=2.3]] PASSED [ 28%]
+src/tests/test_exp40_kit.py::test_start_gate_failures[Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/8\nyaw_aug ENABLED img_w=512 seed=42 offset_step=32\nEpoch 0:   0%|          | 1/4550 [00:04<6:16:50,  0.20it/s, train/loss=2.3]] PASSED [ 29%]
+src/tests/test_exp40_kit.py::test_watch_terminates_only_its_own_session PASSED [ 29%]
+src/tests/test_exp40_kit.py::test_gpu_gate PASSED                        [ 30%]
+src/tests/test_exp40_kit.py::test_gpu_locks_race_rollback_and_owner PASSED [ 30%]
+src/tests/test_exp40_kit.py::test_claim_is_per_execution_and_exclusive PASSED [ 30%]
+src/tests/test_exp40_kit.py::test_a_second_control_namespace_cannot_admit_the_same_execution PASSED [ 31%]
+src/tests/test_exp40_kit.py::test_submit_records_the_attempt_boundary PASSED [ 31%]
+src/tests/test_exp40_kit.py::test_control_dir_must_be_canonical_absolute PASSED [ 32%]
+src/tests/test_exp40_kit.py::test_live_or_ambiguous_execution_blocks_any_new_one PASSED [ 32%]
+src/tests/test_exp40_kit.py::test_post_sbatch_crash_is_adopted_not_resubmitted PASSED [ 32%]
+src/tests/test_exp40_kit.py::test_delayed_accounting_then_completed_owner PASSED [ 33%]
+src/tests/test_exp40_kit.py::test_claim_owner_completed_with_a_refused_duplicate_is_completed PASSED [ 33%]
+src/tests/test_exp40_kit.py::test_owner_unknown_to_the_scheduler_or_completed_without_claim_is_ambiguous PASSED [ 34%]
+src/tests/test_exp40_kit.py::test_failed_before_claiming_is_terminal_failed PASSED [ 34%]
+src/tests/test_exp40_kit.py::test_malformed_or_truncated_state_is_an_explicit_ambiguous_refusal[{trunc] PASSED [ 35%]
+src/tests/test_exp40_kit.py::test_malformed_or_truncated_state_is_an_explicit_ambiguous_refusal[[]] PASSED [ 35%]
+src/tests/test_exp40_kit.py::test_malformed_or_truncated_state_is_an_explicit_ambiguous_refusal[{"run_id": "exp40_C16_neuronic_2x32"}] PASSED [ 35%]
+src/tests/test_exp40_kit.py::test_malformed_or_truncated_state_is_an_explicit_ambiguous_refusal[{"run_id": "x", "mode": "PILOT", "execution_id": "e", "status": "weird", "intent": "i", "job_ids": []}] PASSED [ 36%]
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir PASSED [ 36%]
+src/tests/test_exp40_kit.py::test_claim_is_exclusive_under_true_concurrency PASSED [ 37%]
+src/tests/test_exp40_kit.py::test_state_normalisation[OUT_OF_ME+-OUT_OF_MEMORY] PASSED [ 37%]
+src/tests/test_exp40_kit.py::test_state_normalisation[COMPLETED-COMPLETED] PASSED [ 37%]
+src/tests/test_exp40_kit.py::test_state_normalisation[CANCELLED by 1-CANCELLED] PASSED [ 38%]
+src/tests/test_exp40_kit.py::test_state_normalisation[PEND-PENDING] PASSED [ 38%]
+src/tests/test_exp40_kit.py::test_state_normalisation_ambiguous_is_fatal[C] PASSED [ 39%]
+src/tests/test_exp40_kit.py::test_state_normalisation_ambiguous_is_fatal[CO] PASSED [ 39%]
+src/tests/test_exp40_kit.py::test_state_normalisation_ambiguous_is_fatal[] PASSED [ 40%]
+src/tests/test_exp40_kit.py::test_state_normalisation_ambiguous_is_fatal[WEIRD] PASSED [ 40%]
+src/tests/test_exp40_kit.py::test_query_failure_is_fatal PASSED          [ 40%]
+src/tests/test_exp40_kit.py::test_full_gates_relaxation_probe_and_completion PASSED [ 41%]
+src/tests/test_exp40_kit.py::test_time_request_and_partition_limit PASSED [ 41%]
+src/tests/test_exp40_kit.py::test_publish_saved_acknowledges_and_is_idempotent PASSED [ 42%]
+src/tests/test_exp40_kit.py::test_publish_adopts_an_identical_orphan_and_refuses_a_clobber PASSED [ 42%]
+src/tests/test_exp40_kit.py::test_publish_refuses_a_changed_source_and_noreplace_holds PASSED [ 42%]
+src/tests/test_exp40_kit.py::test_pulled_manifest_publication PASSED     [ 43%]
+src/tests/test_exp40_kit.py::test_save_hook_fails_every_rank_when_publication_fails PASSED [ 43%]
+src/tests/test_exp40_kit.py::test_checkpoint_owner_classification PASSED [ 44%]
+src/tests/test_exp40_kit.py::test_counted_checkpoint_separates_reentrant_and_default PASSED [ 44%]
+src/tests/test_exp40_kit.py::test_loss_observer_has_no_per_step_host_sync PASSED [ 45%]
+src/tests/test_exp40_kit.py::test_loss_observer_returns_the_original_object_and_changes_nothing PASSED [ 45%]
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning PASSED [ 45%]
+src/tests/test_exp40_kit.py::test_evidence_pass PASSED                   [ 46%]
+src/tests/test_exp40_kit.py::test_evidence_failures[<lambda>-ckpt_reentrant] PASSED [ 46%]
+src/tests/test_exp40_kit.py::test_evidence_failures[<lambda>-ckpt_unclassified] PASSED [ 47%]
+src/tests/test_exp40_kit.py::test_evidence_failures[<lambda>-ckpt_dinov3] PASSED [ 47%]
+src/tests/test_exp40_kit.py::test_evidence_failures[<lambda>-flash_calls] PASSED [ 47%]
+src/tests/test_exp40_kit.py::test_evidence_failures[<lambda>-all_losses_finite] PASSED [ 48%]
+src/tests/test_exp40_kit.py::test_evidence_failures[<lambda>-offset stream] PASSED [ 48%]
+src/tests/test_exp40_kit.py::test_evidence_failures[<lambda>-verbatim] PASSED [ 49%]
+src/tests/test_exp40_kit.py::test_evidence_failures[<lambda>-state_signature] PASSED [ 49%]
+src/tests/test_exp40_kit.py::test_evidence_failures[<lambda>-SyncBatchNorm] PASSED [ 50%]
+src/tests/test_exp40_kit.py::test_evidence_failures[<lambda>-yaw_aug] PASSED [ 50%]
+src/tests/test_exp40_kit.py::test_evidence_failures[<lambda>-ranks] PASSED [ 50%]
+src/tests/test_exp40_kit.py::test_evidence_reference_and_banner PASSED   [ 51%]
+src/tests/test_exp40_kit.py::test_checkpoint_state_pass PASSED           [ 51%]
+src/tests/test_exp40_kit.py::test_checkpoint_state_failures[<lambda>-global_step] PASSED [ 52%]
+src/tests/test_exp40_kit.py::test_checkpoint_state_failures[<lambda>-model_config] PASSED [ 52%]
+src/tests/test_exp40_kit.py::test_checkpoint_state_failures[<lambda>-InverseLR] PASSED [ 52%]
+src/tests/test_exp40_kit.py::test_checkpoint_state_failures[<lambda>-EMA state] PASSED [ 53%]
+src/tests/test_exp40_kit.py::test_checkpoint_state_failures[<lambda>-callbacks] PASSED [ 53%]
+src/tests/test_exp40_kit.py::test_checkpoint_state_failures[<lambda>-AdamW] PASSED [ 54%]
+src/tests/test_exp40_kit.py::test_checkpoint_state_failures[<lambda>-optimizer state] PASSED [ 54%]
+src/tests/test_exp40_kit.py::test_checkpoint_state_failures[<lambda>-scheduled InverseLR0] PASSED [ 55%]
+src/tests/test_exp40_kit.py::test_checkpoint_state_failures[<lambda>-scheduled InverseLR1] PASSED [ 55%]
+src/tests/test_exp40_kit.py::test_checkpoint_state_failures[<lambda>-initial_lr0] PASSED [ 55%]
+src/tests/test_exp40_kit.py::test_checkpoint_state_failures[<lambda>-initial_lr1] PASSED [ 56%]
+src/tests/test_exp40_kit.py::test_scheduled_lr_is_the_real_inverselr_after_40000_steps PASSED [ 56%]
+src/tests/test_exp40_kit.py::test_no_grad_params_are_the_seven_pinned_names PASSED [ 57%]
+src/tests/test_exp40_kit.py::test_only_never_gradient_parameters_may_lack_optimizer_state PASSED [ 57%]
+src/tests/test_exp40_kit.py::test_frozen_param_reasons PASSED            [ 57%]
+src/tests/test_exp40_kit.py::test_admission_state_subprocess_runs_the_live_kit_on_the_tree PASSED [ 58%]
+src/tests/test_exp40_kit.py::test_sealed_hub_build_and_tamper PASSED     [ 58%]
+src/tests/test_exp40_kit.py::test_ar_counts_and_verify_receipt PASSED    [ 59%]
+src/tests/test_exp40_kit.py::test_driver_pin_is_enforced_on_a6000_and_recorded_on_neuronic PASSED [ 59%]
+src/tests/test_exp40_kit.py::test_ckpt_names_are_the_lightning_epoch_step_names PASSED [ 60%]
+src/tests/test_exp40_kit.py::test_admission_validator_accepts_the_exact_record_and_rehashes PASSED [ 60%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[admitted-1] PASSED [ 60%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[arm-YAW] PASSED [ 61%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[kind-admission] PASSED [ 61%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[run_id-exp40_C16_neuronic_2x32] PASSED [ 62%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[platform-neuronic] PASSED [ 62%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[rung-8x8] PASSED [ 62%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[train_sha-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] PASSED [ 63%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[sha256-0000000000000000000000000000000000000000000000000000000000000000] PASSED [ 63%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[ckpt_path-/elsewhere/epoch=8-step=40000.ckpt] PASSED [ 64%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[global_step-40000.0] PASSED [ 64%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[global_step-True] PASSED [ 65%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[bytes-0] PASSED [ 65%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[model_config-x.json] PASSED [ 65%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[strict_load-False] PASSED [ 66%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[audit_sha256-ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ] PASSED [ 66%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[trajectory_equivalence_claim_allowed-None] PASSED [ 67%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[note-None] PASSED [ 67%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_every_field_mutation[t-True] PASSED [ 67%]
+src/tests/test_exp40_kit.py::test_admission_validator_rejects_schema_and_nas_mutations PASSED [ 68%]
+src/tests/test_exp40_kit.py::test_slurm_gate_inspects_only_the_allocated_devices_by_uuid PASSED [ 68%]
+src/tests/test_exp40_kit.py::test_claim_probe_barrier_rounds_and_receipt_validation PASSED [ 69%]
+src/tests/test_exp40_kit.py::test_claim_probe_verdict_fails_on_one_host_two_winners_or_outside_dir PASSED [ 69%]
+src/tests/test_exp40_kit.py::test_terminate_group_escalates_to_sigkill_for_a_term_ignoring_group PASSED [ 70%]
+src/tests/test_exp40_kit.py::test_gpu_lock_record_failure_releases_the_locks PASSED [ 70%]
+src/tests/test_exp40_kit.py::test_launchers_install_signal_safe_cleanup_before_taking_locks PASSED [ 70%]
+src/tests/test_exp40_kit.py::test_local_launcher_interrupt_releases_locks_and_kills_only_its_group PASSED [ 71%]
+src/tests/test_exp40_kit.py::test_an_already_manifested_but_mutated_nas_file_is_not_acknowledged PASSED [ 71%]
+src/tests/test_exp40_kit.py::test_orphan_adoption_rehashes_the_source PASSED [ 72%]
+src/tests/test_exp40_kit.py::test_publication_timeout_kills_the_copy_process_group PASSED [ 72%]
+src/tests/test_exp40_kit.py::test_nas_capability_probe_and_receipt_validation PASSED [ 72%]
+src/tests/test_exp40_kit.py::test_mount_identity_takes_the_innermost_mount_of_an_autofs_path PASSED [ 73%]
+src/tests/test_exp40_kit.py::test_atomic_write_json_leaves_no_temp_on_failure PASSED [ 73%]
+src/tests/test_exp40_kit.py::test_the_reference_receipt_validator_is_exact PASSED [ 74%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_accepts_the_bound_record PASSED [ 74%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-verdict] PASSED [ 75%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-kind] PASSED [ 75%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-mode] PASSED [ 75%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-platform] PASSED [ 76%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-rung] PASSED [ 76%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-40-hex] PASSED [ 77%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-tree_digest] PASSED [ 77%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-train_rc] PASSED [ 77%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-watcher_rc] PASSED [ 78%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-publisher_rc] PASSED [ 78%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-evidence] PASSED [ 79%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-recipe projection] PASSED [ 79%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-checkpoints_published0] PASSED [ 80%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-checkpoints_published1] PASSED [ 80%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-ckpt_reentrant] PASSED [ 80%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-flash_calls] PASSED [ 81%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-apply_yaw_aug] PASSED [ 81%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-all_losses_finite] PASSED [ 82%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-contiguous] PASSED [ 82%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-recomputation] PASSED [ 82%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-exactly ranks] PASSED [ 83%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-yaw_aug] PASSED [ 83%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-rng_signature] PASSED [ 84%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-reference receipt is not the one] PASSED [ 84%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-check record is not the one] PASSED [ 85%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-exact schema0] PASSED [ 85%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-exact schema1] PASSED [ 85%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-stamp] PASSED [ 86%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-fit_start keys0] PASSED [ 86%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-fit_start keys1] PASSED [ 87%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-gpu_name] PASSED [ 87%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-fit_start rank] PASSED [ 87%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-summary keys0] PASSED [ 88%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-summary keys1] PASSED [ 88%]
+src/tests/test_exp40_kit.py::test_full_evidence_validator_rejects_every_critical_mutation[<lambda>-counters] PASSED [ 89%]
+src/tests/test_exp40_kit.py::test_full_evidence_binding_to_check_and_reference PASSED [ 89%]
+src/tests/test_exp40_kit.py::test_full_audit_and_derived_admission_end_to_end SKIPPED [ 90%]
+src/tests/test_exp40_kit.py::test_admission_refuses_unbound_or_altered_records SKIPPED [ 90%]
+src/tests/test_exp40_kit.py::test_audit_refuses_wrong_names_markers_and_strays PASSED [ 90%]
+src/tests/test_exp40_kit.py::test_admission_tree_reproduces_the_training_tree_digest_or_refuses PASSED [ 91%]
+src/tests/test_exp40_kit.py::test_admission_state_runs_in_the_admission_trees_own_kit SKIPPED [ 91%]
+src/tests/test_exp40_kit.py::test_an_already_manifested_name_rehashes_the_source_too PASSED [ 92%]
+src/tests/test_exp40_kit.py::test_neuronic_time_request_binds_independent_identity PASSED [ 92%]
+src/tests/test_exp40_kit.py::test_reference_receipt_rng_schema_bins_and_recomputed_stream PASSED [ 92%]
+src/tests/test_exp40_kit.py::test_probe_preflight_refuses_queued_checkout_drift PASSED [ 93%]
+src/tests/test_exp40_kit.py::test_sealed_env_removes_every_competing_hf_variable PASSED [ 93%]
+src/tests/test_exp40_kit.py::test_admission_state_resolves_dinov3_only_under_the_sealed_hub SKIPPED [ 94%]
+src/tests/test_exp40_kit.py::test_admit_requires_a_valid_sealed_hub PASSED [ 94%]
+src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[historical-val0-historical] PASSED [ 95%]
+src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[historical-val1-historical] PASSED [ 95%]
+src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[current_assets-val2-current_assets keys] PASSED [ 95%]
+src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[dinov3_revision-0000000000000000000000000000000000000000-dinov3_revision] PASSED [ 96%]
+src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[dinov3_config_sha256-0000000000000000000000000000000000000000000000000000000000000000-dinov3_config_sha256] PASSED [ 96%]
+src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[dinov3_weights_sha256-0000000000000000000000000000000000000000000000000000000000000000-dinov3_weights_sha256] PASSED [ 97%]
+src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[vae_sha256-0000000000000000000000000000000000000000000000000000000000000000-vae_sha256] PASSED [ 97%]
+src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[acousticrooms_manifest_digest-0000000000000000000000000000000000000000000000000000000000000000-acousticrooms_manifest_digest] PASSED [ 97%]
+src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[hf_sealed_hub-relative/hub-hf_sealed_hub] PASSED [ 98%]
+src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[dinov3_resolved-val9-dinov3_resolved] PASSED [ 98%]
+src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[t-1795108237.762129-non-future] PASSED [ 99%]
+src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[t-nan-non-future] PASSED [ 99%]
+src/tests/test_exp40_kit.py::test_admission_validator_checks_provenance_fields[t-0-non-future] PASSED [100%]
+
+=============================== warnings summary ===============================
+src/tests/test_exp40_kit.py::test_save_hook_fails_every_rank_when_publication_fails
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp40_kit.py::test_save_hook_fails_every_rank_when_publication_fails
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp40_kit.py::test_save_hook_fails_every_rank_when_publication_fails
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp40_kit.py::test_counted_checkpoint_separates_reentrant_and_default
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/plugins/environments/slurm.py:191: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/ ...
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:268: DeprecationWarning: Read the `app_url` setting from the appropriate Settings object.
+    app_url = wandb.util.app_url(tags["base_url"])  # type: ignore[index]
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py:54: Detected KeyboardInterrupt, attempting graceful shutdown...
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loggers/wandb.py:389: There is a wandb run already in progress and newly created instances of `WandbLogger` will reuse this run. If this is not desired, call `wandb.finish()` before instantiating `WandbLogger`.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========== 236 passed, 4 skipped, 16 warnings in 354.63s (0:05:54) ============
+EXIT 0 end 2026-11-19T11:16:34-05:00

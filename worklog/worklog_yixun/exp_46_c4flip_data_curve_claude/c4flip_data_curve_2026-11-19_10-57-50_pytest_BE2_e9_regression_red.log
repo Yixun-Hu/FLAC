@@ -1,0 +1,68 @@
+HEAD 4ae86b2047f2e80c40a176bfa11966a7eed1e608 tracked-clean=yes host neu331.neuronic.cs.princeton.edu start 2026-11-19T10:57:51-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_e9_signal_isolation.py src/tests/test_exp46_provenance.py src/tests/test_exp46_regression_compare.py src/tests/test_exp46_command_sheets.py src/tests/test_exp40_kit.py src/tests/test_exp38_supervise.py 
+F....................................................................... [ 22%]
+........................................................................ [ 44%]
+........................................................................ [ 67%]
+..............................ss..s.....s............................... [ 89%]
+..................................                                       [100%]
+=================================== FAILURES ===================================
+_ test_a_supervisor_refusal_node_then_the_fork_pool_test_finish_and_pass_in_one_process[E9] _
+
+tag = 'E9'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_supervisor_refusal_node0')
+
+    @pytest.mark.parametrize("tag", sorted(SUPERVISE))
+    def test_a_supervisor_refusal_node_then_the_fork_pool_test_finish_and_pass_in_one_process(tag, tmp_path):
+        probe = tmp_path / "test_exp46_signal_probe.py"
+        probe.write_text(PROBE)
+        rc, out = _session(f"{SUPERVISE[tag]}::{NODE}", str(probe), FORK)
+>       assert rc == 0 and "3 passed" in out, (tag, rc if rc is not None else f"hung: killed after {TIMEOUT_S} s",
+                                               out[-3000:])
+E       AssertionError: ('E9', 'hung: killed after 120 s', '.F')
+E       assert (None == 0)
+
+src/tests/test_exp46_e9_signal_isolation.py:80: AssertionError
+=============================== warnings summary ===============================
+src/tests/test_exp40_kit.py::test_save_hook_fails_every_rank_when_publication_fails
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_exp40_kit.py::test_save_hook_fails_every_rank_when_publication_fails
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp40_kit.py::test_save_hook_fails_every_rank_when_publication_fails
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_exp40_kit.py::test_counted_checkpoint_separates_reentrant_and_default
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/plugins/environments/slurm.py:191: The `srun` command is available on your system but is not used. HINT: If your intention is to run Lightning on SLURM, prepend your python command with `srun` like so: srun python /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/ ...
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:268: DeprecationWarning: Read the `app_url` setting from the appropriate Settings object.
+    app_url = wandb.util.app_url(tags["base_url"])  # type: ignore[index]
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py:54: Detected KeyboardInterrupt, attempting graceful shutdown...
+
+src/tests/test_exp40_kit.py::test_init_signature_parity_through_lightning
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loggers/wandb.py:389: There is a wandb run already in progress and newly created instances of `WandbLogger` will reuse this run. If this is not desired, call `wandb.finish()` before instantiating `WandbLogger`.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_e9_signal_isolation.py::test_a_supervisor_refusal_node_then_the_fork_pool_test_finish_and_pass_in_one_process[E9]
+1 failed, 317 passed, 4 skipped, 16 warnings in 498.23s (0:08:18)
+EXIT 1 end 2026-11-19T11:06:12-05:00

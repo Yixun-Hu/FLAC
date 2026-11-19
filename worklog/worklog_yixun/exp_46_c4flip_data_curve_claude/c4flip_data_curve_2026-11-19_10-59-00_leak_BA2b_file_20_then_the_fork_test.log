@@ -1,0 +1,899 @@
+HEAD 4ae86b2047f2e80c40a176bfa11966a7eed1e608 tracked-clean=yes host neu321.neuronic.cs.princeton.edu start 2026-11-19T10:59:04-05:00 job 4280859 limit 1080s stall 60s track 0
+job script (verbatim, prefix '#   '):
+#   #!/bin/bash
+#   # exp_46 L1 leak diagnostics (not committed; this script is embedded verbatim in every log it writes): ONE pytest
+#   # process with the L1 SUITE's interpreter flags and environment (-B -I, PYTHON* unset, PYTHONNOUSERSITE=1,
+#   # TMPDIR=/tmp), over the given args in order, optionally through the state tracker (TRACK=1). A hang is ended either
+#   # way: WATCH's node not done STALL s after it started, or LIMIT s overall -- then the process group (pytest and
+#   # every forked child) is recorded from /proc and killed with SIGKILL.
+#   #SBATCH --partition=all
+#   #SBATCH --cpus-per-task=4
+#   #SBATCH --mem=16G
+#   #SBATCH --time=00:20:00
+#   WT=/n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+#   SP=<scratchpad>
+#   : "${LOG:?}" "${LIMIT:=1080}" "${STALL:=60}" "${TRACK:=0}"
+#   : "${WATCH:=test_concurrent_submitters_from_two_checkouts_share_one_control_dir}"
+#   cd "$WT" || exit 9
+#   say() { echo "$*" >> "$LOG"; }
+#   say "HEAD $(git rev-parse HEAD) tracked-clean=$([ -z "$(git status --porcelain --untracked-files=no)" ] && echo yes || echo no) host $(hostname) start $(date -Iseconds) job ${SLURM_JOB_ID:-?} limit ${LIMIT}s stall ${STALL}s track ${TRACK}"
+#   say "job script (verbatim, prefix '#   '):"
+#   sed "s/^/#   /; s#$SP#<scratchpad>#g" "$0" >> "$LOG"
+#   if [ "$TRACK" = 1 ]; then
+#     RUN=(/n/fs/gatrdp/envs/flac/bin/python -B -I -u "$SP/leak46_track.py")
+#     say "tracker (verbatim, prefix '#   '):"
+#     sed 's/^/#   /' "$SP/leak46_track.py" >> "$LOG"
+#   else
+#     RUN=(/n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest)
+#   fi
+#   ARGS=()
+#   for a in "$@"; do                                # @PROBE@: the probe, copied to a fresh /tmp dir of this job
+#     if [ "$a" = "@PROBE@" ]; then
+#       PD=$(mktemp -d /tmp/exp46probe.XXXXXX); cp "$SP/leak46_probe.py" "$PD/test_exp46_signal_probe.py"
+#       say "probe $PD/test_exp46_signal_probe.py (verbatim, prefix '#   '):"
+#       sed 's/^/#   /' "$SP/leak46_probe.py" >> "$LOG"
+#       ARGS+=("--rootdir=$WT" "$PD/test_exp46_signal_probe.py")
+#     else
+#       ARGS+=("$a")
+#     fi
+#   done
+#   say "cmd: $(echo "${RUN[*]} ${ARGS[*]}" | sed "s#$SP#<scratchpad>#g")"
+#   setsid env -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONOPTIMIZE PYTHONNOUSERSITE=1 TMPDIR=/tmp \
+#     "${RUN[@]}" "${ARGS[@]}" >> "$LOG" 2>&1 &
+#   pid=$!
+#   dump_and_kill() {
+#     say ""
+#     say "HANG: $1 ($(date -Iseconds)); the process group $pid as it hangs (SigCgt bits: 1 SIGHUP, 2 SIGINT, 4000 SIGTERM):"
+#     for t in $(pgrep -g "$pid"); do
+#       say "  pid $t ppid $(awk '/^PPid:/{print $2}' /proc/$t/status 2>/dev/null) state $(awk '/^State:/{print $2}' /proc/$t/status 2>/dev/null) wchan $(cat /proc/$t/wchan 2>/dev/null) $(grep -E '^(SigBlk|SigIgn|SigCgt):' /proc/$t/status 2>/dev/null | tr '\t\n' '  ')nvidia-fds $(ls -l /proc/$t/fd 2>/dev/null | grep -c '/dev/nvidia') cmd $(tr '\0' ' ' < /proc/$t/cmdline 2>/dev/null | cut -c1-140 | sed "s#$SP#<scratchpad>#g")"
+#     done
+#     kill -KILL -- "-$pid" 2>/dev/null
+#     wait "$pid" 2>/dev/null
+#     say "EXIT hang-killed end $(date -Iseconds)"
+#     exit 124
+#   }
+#   end=$((SECONDS + LIMIT)); started=""
+#   while kill -0 "$pid" 2>/dev/null; do
+#     if [ -z "$started" ] && grep -qE "^src/tests/[^ ]*::${WATCH} " "$LOG"; then started=$SECONDS; fi
+#     if [ -n "$started" ] && ! grep -qE "::${WATCH} (PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)" "$LOG" \
+#        && [ $((SECONDS - started)) -ge "$STALL" ]; then
+#       dump_and_kill "${WATCH} not done ${STALL}s after it started"
+#     fi
+#     [ "$SECONDS" -ge "$end" ] && dump_and_kill "the ${LIMIT}s limit"
+#     sleep 2
+#   done
+#   wait "$pid"; rc=$?
+#   say "EXIT $rc end $(date -Iseconds)"
+#   exit $rc
+cmd: /n/fs/gatrdp/envs/flac/bin/python -B -I -u -m pytest -v -p no:cacheprovider --continue-on-collection-errors src/tests/test_eval_localization.py src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-9.1.1, pluggy-1.6.0 -- /n/fs/gatrdp/envs/flac/bin/python
+rootdir: /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve
+configfile: pyproject.toml
+collecting ... collected 368 items
+
+src/tests/test_eval_localization.py::test_expected_split_identities_mirrors_the_loader_without_reading_audio PASSED [  0%]
+src/tests/test_eval_localization.py::test_expected_split_identities_falls_back_to_the_absolute_path PASSED [  0%]
+src/tests/test_eval_localization.py::test_split_hash_is_the_pinned_serialization PASSED [  0%]
+src/tests/test_eval_localization.py::test_audit_split_identities_clean_pass_returns_the_split_hash PASSED [  1%]
+src/tests/test_eval_localization.py::test_audit_split_identities_aborts_on_an_injected_substitution PASSED [  1%]
+src/tests/test_eval_localization.py::test_audit_split_identities_aborts_on_a_short_or_long_stream PASSED [  1%]
+src/tests/test_eval_localization.py::test_audit_split_identities_accepts_a_plain_metadata_iterable PASSED [  1%]
+src/tests/test_eval_localization.py::test_build_noise_bank_shape_and_dtype PASSED [  2%]
+src/tests/test_eval_localization.py::test_build_noise_bank_is_keyed_by_scoring_noise_key PASSED [  2%]
+src/tests/test_eval_localization.py::test_build_noise_bank_is_reproducible_and_query_specific PASSED [  2%]
+src/tests/test_eval_localization.py::test_build_noise_bank_never_touches_the_global_rng PASSED [  2%]
+src/tests/test_eval_localization.py::test_build_noise_bank_prefix_is_stable_in_k PASSED [  3%]
+src/tests/test_eval_localization.py::test_build_noise_bank_rejects_bad_arguments PASSED [  3%]
+src/tests/test_eval_localization.py::test_run_query_layout_is_candidate_major PASSED [  3%]
+src/tests/test_eval_localization.py::test_run_query_is_invariant_to_batch_splitting PASSED [  4%]
+src/tests/test_eval_localization.py::test_run_query_per_candidate_results_do_not_depend_on_the_other_candidates PASSED [  4%]
+src/tests/test_eval_localization.py::test_run_query_permuting_the_noise_bank_permutes_the_sample_axis PASSED [  4%]
+src/tests/test_eval_localization.py::test_run_query_constant_source_control_passes_one_identical_position PASSED [  4%]
+src/tests/test_eval_localization.py::test_run_query_enforces_the_gt_geometry_invariant PASSED [  5%]
+src/tests/test_eval_localization.py::test_run_query_does_not_mutate_the_base_metadata PASSED [  5%]
+src/tests/test_eval_localization.py::test_run_query_returns_candidate_camera_positions PASSED [  5%]
+src/tests/test_eval_localization.py::test_encode_decode_sims_round_trips_bitwise PASSED [  5%]
+src/tests/test_eval_localization.py::test_encode_sims_survives_a_json_round_trip PASSED [  6%]
+src/tests/test_eval_localization.py::test_encode_sims_captures_awkward_values_exactly PASSED [  6%]
+src/tests/test_eval_localization.py::test_room_id_from_relpath PASSED    [  6%]
+src/tests/test_eval_localization.py::test_context_membership_mask_matches_the_eval_flac_fingerprint PASSED [  7%]
+src/tests/test_eval_localization.py::test_context_membership_mask_normalizes_negative_zero PASSED [  7%]
+src/tests/test_eval_localization.py::test_gt_reciprocal_rank_uses_lowest_index_tie_break PASSED [  7%]
+src/tests/test_eval_localization.py::test_build_row_has_the_full_schema_and_correct_derived_fields PASSED [  7%]
+src/tests/test_eval_localization.py::test_build_row_scores_and_error_follow_the_registered_aggregation PASSED [  8%]
+src/tests/test_eval_localization.py::test_build_row_gt_only_and_substitution_flags PASSED [  8%]
+src/tests/test_eval_localization.py::test_build_row_restricts_the_prediction_to_available_candidates PASSED [  8%]
+src/tests/test_eval_localization.py::test_build_row_rejects_an_empty_available_set PASSED [  8%]
+src/tests/test_eval_localization.py::test_jsonl_round_trip_is_bitwise_exact PASSED [  9%]
+src/tests/test_eval_localization.py::test_write_row_appends_and_flushes_per_row PASSED [  9%]
+src/tests/test_eval_localization.py::test_summarize_run_flac_block_equals_scoring_summarize_on_the_same_rows PASSED [  9%]
+src/tests/test_eval_localization.py::test_summarize_run_baselines_use_identical_weighting PASSED [ 10%]
+src/tests/test_eval_localization.py::test_summarize_run_reports_the_gt_only_room_separately_and_excludes_it PASSED [ 10%]
+src/tests/test_eval_localization.py::test_summarize_run_reports_eligible_sizes_and_context_prediction_rate PASSED [ 10%]
+src/tests/test_eval_localization.py::test_summarize_run_nearest_context_control_when_rows_carry_context_evidence PASSED [ 10%]
+src/tests/test_eval_localization.py::test_summarize_run_control_is_none_without_context_evidence PASSED [ 11%]
+src/tests/test_eval_localization.py::test_summarize_run_refuses_empty_rows PASSED [ 11%]
+src/tests/test_eval_localization.py::test_build_provenance_records_every_protocol_quantity PASSED [ 11%]
+src/tests/test_eval_localization.py::test_build_provenance_records_frame_avg_angles_when_symmetrized PASSED [ 11%]
+src/tests/test_eval_localization.py::test_build_provenance_stamps_smoke PASSED [ 12%]
+src/tests/test_eval_localization.py::test_artifact_stem_carries_every_cell_defining_field PASSED [ 12%]
+src/tests/test_eval_localization.py::test_artifact_stems_are_unique_across_differing_cells PASSED [ 12%]
+src/tests/test_eval_localization.py::test_artifact_stem_marks_smoke_registered_and_dev PASSED [ 13%]
+src/tests/test_eval_localization.py::test_artifact_paths_refuse_existing_targets_unless_overwrite PASSED [ 13%]
+src/tests/test_eval_localization.py::test_write_summary_round_trips PASSED [ 13%]
+src/tests/test_eval_localization.py::test_measured_rir_paths_match_numerically_and_report_gaps PASSED [ 13%]
+src/tests/test_eval_localization.py::test_run_query_gt_rir_scores_measured_files_and_marks_the_identity PASSED [ 14%]
+src/tests/test_eval_localization.py::test_run_query_gt_rir_row_keeps_the_candidate_set_and_shrinks_only_eligibility PASSED [ 14%]
+src/tests/test_eval_localization.py::test_load_measured_rirs_refuses_a_wrong_sample_rate PASSED [ 14%]
+src/tests/test_eval_localization.py::test_load_measured_rirs_pads_and_truncates_to_max_len PASSED [ 14%]
+src/tests/test_eval_localization.py::test_parse_args_defaults_match_the_registered_protocol PASSED [ 15%]
+src/tests/test_eval_localization.py::test_num_samples_is_required_for_generation_and_optional_for_the_oracle PASSED [ 15%]
+src/tests/test_eval_localization.py::test_parse_args_rejects_unknown_choices[--agg-median] PASSED [ 15%]
+src/tests/test_eval_localization.py::test_parse_args_rejects_unknown_choices[--cond-method-canon] PASSED [ 16%]
+src/tests/test_eval_localization.py::test_parse_args_rejects_unknown_choices[--score-source-measured] PASSED [ 16%]
+src/tests/test_eval_localization.py::test_parse_args_rejects_unknown_choices[--control-shuffle] PASSED [ 16%]
+src/tests/test_eval_localization.py::test_parse_args_rejects_unknown_choices[--cond-autocast-fp8] PASSED [ 16%]
+src/tests/test_eval_localization.py::test_validate_args_refuses_nonzero_rotation PASSED [ 17%]
+src/tests/test_eval_localization.py::test_validate_args_refuses_max_queries_without_smoke PASSED [ 17%]
+src/tests/test_eval_localization.py::test_validate_args_refuses_nonpositive_tau_for_lme[0] PASSED [ 17%]
+src/tests/test_eval_localization.py::test_validate_args_refuses_nonpositive_tau_for_lme[-0.02] PASSED [ 17%]
+src/tests/test_eval_localization.py::test_validate_args_accepts_the_registered_configuration PASSED [ 18%]
+src/tests/test_eval_localization.py::test_assert_rectified_flow_guard PASSED [ 18%]
+src/tests/test_eval_localization.py::test_assert_no_are_guard PASSED     [ 18%]
+src/tests/test_eval_localization.py::test_prepare_state_dict_strips_the_diffusion_prefix_and_folds_ema PASSED [ 19%]
+src/tests/test_eval_localization.py::test_prepare_state_dict_keeps_online_weights_when_no_ema_present PASSED [ 19%]
+src/tests/test_eval_localization.py::test_prepare_state_dict_keeps_online_weights_when_config_disables_ema PASSED [ 19%]
+src/tests/test_eval_localization.py::test_prepare_state_dict_reports_the_resolved_source_like_eval_flac PASSED [ 19%]
+src/tests/test_eval_localization.py::test_prepare_state_dict_on_the_released_export_shape_reports_online PASSED [ 20%]
+src/tests/test_eval_localization.py::test_prepare_state_dict_flips_use_ema_off_in_the_training_config PASSED [ 20%]
+src/tests/test_eval_localization.py::test_generation_asset_detection_is_repo_root_anchored PASSED [ 20%]
+src/tests/test_eval_localization.py::test_integration_build_engine_follows_the_reference_construction SKIPPED [ 20%]
+src/tests/test_eval_localization.py::test_integration_parity_one_query_matches_the_eval_flac_path SKIPPED [ 21%]
+src/tests/test_eval_localization.py::test_integration_generation_is_reproducible_for_a_fixed_noise_key SKIPPED [ 21%]
+src/tests/test_eval_localization.py::test_dataset_folder_from_md_mirrors_the_release_derivation PASSED [ 21%]
+src/tests/test_eval_localization.py::test_query_candidate_set_builds_from_the_metadata_authority PASSED [ 22%]
+src/tests/test_eval_localization.py::test_context_evidence_scores_the_measured_context_rirs PASSED [ 22%]
+src/tests/test_eval_localization.py::test_context_evidence_is_none_without_context_metadata PASSED [ 22%]
+src/tests/test_eval_localization.py::test_build_row_carries_optional_context_evidence PASSED [ 22%]
+src/tests/test_eval_localization.py::test_run_evaluation_end_to_end_writes_rows_and_summary PASSED [ 23%]
+src/tests/test_eval_localization.py::test_run_evaluation_row_is_reproducible_across_runs PASSED [ 23%]
+src/tests/test_eval_localization.py::test_run_evaluation_smoke_truncates_after_auditing_the_truncated_enumeration PASSED [ 23%]
+src/tests/test_eval_localization.py::test_run_evaluation_aborts_before_writing_when_the_audit_fails PASSED [ 23%]
+src/tests/test_eval_localization.py::test_run_evaluation_constant_source_control_is_recorded PASSED [ 24%]
+src/tests/test_eval_localization.py::test_run_evaluation_gt_rir_mode_scores_measured_files PASSED [ 24%]
+src/tests/test_eval_localization.py::test_main_refuses_a_missing_checkpoint_only_for_the_generative_mode PASSED [ 24%]
+src/tests/test_eval_localization.py::test_scoring_only_engine_embeds_but_refuses_to_generate PASSED [ 25%]
+src/tests/test_eval_localization.py::test_main_is_wired_and_validates_before_touching_assets PASSED [ 25%]
+src/tests/test_eval_localization.py::test_run_query_control_keeps_candidate_geometry_and_only_moves_conditioning PASSED [ 25%]
+src/tests/test_eval_localization.py::test_run_query_control_leaves_context_membership_intact PASSED [ 25%]
+src/tests/test_eval_localization.py::test_run_query_without_control_reports_identical_position_arrays PASSED [ 26%]
+src/tests/test_eval_localization.py::test_context_membership_mask_aborts_on_an_unresolvable_context_id PASSED [ 26%]
+src/tests/test_eval_localization.py::test_context_membership_mask_aborts_on_candidate_fingerprint_collision PASSED [ 26%]
+src/tests/test_eval_localization.py::test_context_membership_mask_aborts_when_the_gt_is_a_context_member PASSED [ 26%]
+src/tests/test_eval_localization.py::test_context_membership_mask_allows_a_context_drawn_with_replacement PASSED [ 27%]
+src/tests/test_eval_localization.py::test_process_query_aborts_before_generation_on_a_bad_context PASSED [ 27%]
+src/tests/test_eval_localization.py::test_validate_args_rejects_degenerate_numbers[--tau-nan] PASSED [ 27%]
+src/tests/test_eval_localization.py::test_validate_args_rejects_degenerate_numbers[--tau-inf] PASSED [ 27%]
+src/tests/test_eval_localization.py::test_validate_args_rejects_degenerate_numbers[--cfg-scale-nan] PASSED [ 28%]
+src/tests/test_eval_localization.py::test_validate_args_rejects_degenerate_numbers[--cfg-scale--inf] PASSED [ 28%]
+src/tests/test_eval_localization.py::test_validate_args_rejects_degenerate_numbers[--steps-0] PASSED [ 28%]
+src/tests/test_eval_localization.py::test_validate_args_rejects_degenerate_numbers[--steps--1] PASSED [ 29%]
+src/tests/test_eval_localization.py::test_validate_args_rejects_degenerate_numbers[--num-workers--1] PASSED [ 29%]
+src/tests/test_eval_localization.py::test_validate_args_rejects_degenerate_numbers[--num-workers-0] PASSED [ 29%]
+src/tests/test_eval_localization.py::test_validate_args_rejects_degenerate_numbers[--batch-size-0] PASSED [ 29%]
+src/tests/test_eval_localization.py::test_validate_args_rejects_degenerate_numbers[--num-samples-0] PASSED [ 30%]
+src/tests/test_eval_localization.py::test_validate_args_rejects_a_non_positive_smoke_limit PASSED [ 30%]
+src/tests/test_eval_localization.py::test_load_and_validate_artifacts_refuses_a_foreign_objective PASSED [ 30%]
+src/tests/test_eval_localization.py::test_load_and_validate_artifacts_runs_before_the_scorer_is_built PASSED [ 30%]
+src/tests/test_eval_localization.py::test_load_and_validate_artifacts_skips_the_checkpoint_for_the_oracle PASSED [ 31%]
+src/tests/test_eval_localization.py::test_measured_rir_paths_reject_duplicate_numeric_matches PASSED [ 31%]
+src/tests/test_eval_localization.py::test_run_query_gt_rir_aborts_when_the_identity_candidate_is_missing PASSED [ 31%]
+src/tests/test_eval_localization.py::test_gt_reciprocal_rank_ranks_over_available_candidates_only PASSED [ 32%]
+src/tests/test_eval_localization.py::test_build_row_rank_uses_the_available_set PASSED [ 32%]
+src/tests/test_eval_localization.py::test_validate_args_refuses_irrelevant_flags_in_oracle_mode[extra0] PASSED [ 32%]
+src/tests/test_eval_localization.py::test_validate_args_refuses_irrelevant_flags_in_oracle_mode[extra1] PASSED [ 32%]
+src/tests/test_eval_localization.py::test_validate_args_refuses_irrelevant_flags_in_oracle_mode[extra2] PASSED [ 33%]
+src/tests/test_eval_localization.py::test_provenance_records_the_oracle_as_k1 PASSED [ 33%]
+src/tests/test_eval_localization.py::test_validate_dataset_split_refuses_smoke_on_the_unseen_split PASSED [ 33%]
+src/tests/test_eval_localization.py::test_validate_dataset_split_allows_smoke_and_parity_on_the_seen_split PASSED [ 33%]
+src/tests/test_eval_localization.py::test_validate_dataset_split_leaves_registered_unseen_runs_alone PASSED [ 34%]
+src/tests/test_eval_localization.py::test_validate_dataset_split_refuses_a_split_that_declares_neither PASSED [ 34%]
+src/tests/test_eval_localization.py::test_expected_split_identities_come_from_the_split_json_not_the_loader PASSED [ 34%]
+src/tests/test_eval_localization.py::test_expected_split_identities_follow_the_split_order PASSED [ 35%]
+src/tests/test_eval_localization.py::test_assert_scored_stream_gates_count_and_rooms PASSED [ 35%]
+src/tests/test_eval_localization.py::test_run_evaluation_aborts_when_the_scoring_pass_substitutes PASSED [ 35%]
+src/tests/test_eval_localization.py::test_run_evaluation_aborts_at_the_end_gate_when_the_scoring_pass_truncates PASSED [ 35%]
+src/tests/test_eval_localization.py::test_run_evaluation_hashes_the_scored_stream_and_publishes_atomically PASSED [ 36%]
+src/tests/test_eval_localization.py::test_run_evaluation_checks_identity_before_generating PASSED [ 36%]
+src/tests/test_eval_localization.py::test_build_provenance_records_the_environment_and_config_contents PASSED [ 36%]
+src/tests/test_eval_localization.py::test_build_provenance_defaults_unavailable_fields_to_na PASSED [ 36%]
+src/tests/test_eval_localization.py::test_assert_registration_sha_is_required_for_a_registered_unseen_run PASSED [ 37%]
+src/tests/test_eval_localization.py::test_assert_registration_sha_is_not_required_for_smoke_seen_or_oracle_runs PASSED [ 37%]
+src/tests/test_eval_localization.py::test_context_stream_digest_is_order_sensitive_and_uses_the_fingerprints PASSED [ 37%]
+src/tests/test_eval_localization.py::test_build_row_records_the_per_query_power_statistic PASSED [ 38%]
+src/tests/test_eval_localization.py::test_summarize_run_matches_flac_to_the_same_retained_subset PASSED [ 38%]
+src/tests/test_eval_localization.py::test_summarize_run_includes_the_clustered_ci_on_the_primary PASSED [ 38%]
+src/tests/test_eval_localization.py::test_summarize_run_includes_the_paired_room_clustered_tests PASSED [ 38%]
+src/tests/test_eval_localization.py::test_summarize_run_paired_control_is_none_without_context_evidence PASSED [ 39%]
+src/tests/test_eval_localization.py::test_summarize_run_aggregates_the_power_statistic_distribution PASSED [ 39%]
+src/tests/test_eval_localization.py::test_run_query_matches_a_candidate_major_replay_with_full_conditioning[64] FAILED [ 39%]
+src/tests/test_eval_localization.py::test_run_query_matches_a_candidate_major_replay_with_full_conditioning[4] FAILED [ 39%]
+src/tests/test_eval_localization.py::test_run_query_mk_replay_is_stable_across_the_batch_split FAILED [ 40%]
+src/tests/test_eval_localization.py::test_integration_real_mk_parity_is_exact_without_conditioning_autocast SKIPPED [ 40%]
+src/tests/test_eval_localization.py::test_integration_real_mk_batch_split_is_bitwise_irrelevant SKIPPED [ 40%]
+src/tests/test_eval_localization.py::test_module_runs_as_a_script_with_every_symbol_defined PASSED [ 41%]
+src/tests/test_eval_localization.py::test_build_room_manifest_freezes_nodes_coordinates_and_wav_availability PASSED [ 41%]
+src/tests/test_eval_localization.py::test_build_room_manifest_is_deterministic_and_hashable PASSED [ 41%]
+src/tests/test_eval_localization.py::test_build_room_manifest_is_json_serializable PASSED [ 41%]
+src/tests/test_eval_localization.py::test_build_room_manifest_aborts_on_a_missing_room PASSED [ 42%]
+src/tests/test_eval_localization.py::test_candidate_set_from_manifest_equals_the_on_disk_construction PASSED [ 42%]
+src/tests/test_eval_localization.py::test_candidate_set_from_manifest_aborts_on_an_unknown_room_or_receiver PASSED [ 42%]
+src/tests/test_eval_localization.py::test_integration_every_unseen_room_has_ten_metadata_sources PASSED [ 42%]
+src/tests/test_eval_localization.py::test_run_evaluation_records_the_frozen_manifest_hash PASSED [ 43%]
+src/tests/test_eval_localization.py::test_process_query_refuses_to_run_without_a_frozen_manifest PASSED [ 43%]
+src/tests/test_eval_localization.py::test_frame_avg_angles_reject_non_finite_values_at_parse_time[nan] PASSED [ 43%]
+src/tests/test_eval_localization.py::test_frame_avg_angles_reject_non_finite_values_at_parse_time[inf] PASSED [ 44%]
+src/tests/test_eval_localization.py::test_frame_avg_angles_reject_non_finite_values_at_parse_time[-inf] PASSED [ 44%]
+src/tests/test_eval_localization.py::test_device_provenance_block_on_cpu PASSED [ 44%]
+src/tests/test_eval_localization.py::test_device_provenance_resolves_the_requested_cuda_index SKIPPED [ 44%]
+src/tests/test_eval_localization.py::test_provenance_carries_the_resolved_device_block PASSED [ 45%]
+src/tests/test_eval_localization.py::test_main_validates_registration_before_loading_any_model PASSED [ 45%]
+src/tests/test_eval_localization.py::test_resolve_context_k_reads_the_registered_context_size PASSED [ 45%]
+src/tests/test_eval_localization.py::test_resolve_context_k_refuses_a_run_that_cannot_produce_the_control[config0] PASSED [ 45%]
+src/tests/test_eval_localization.py::test_resolve_context_k_refuses_a_run_that_cannot_produce_the_control[config1] PASSED [ 46%]
+src/tests/test_eval_localization.py::test_resolve_context_k_refuses_a_run_that_cannot_produce_the_control[config2] PASSED [ 46%]
+src/tests/test_eval_localization.py::test_resolve_context_k_refuses_a_run_that_cannot_produce_the_control[config3] PASSED [ 46%]
+src/tests/test_eval_localization.py::test_assert_query_context_accepts_the_loader_shapes PASSED [ 47%]
+src/tests/test_eval_localization.py::test_assert_query_context_aborts_on_missing_or_mis_shaped_context PASSED [ 47%]
+src/tests/test_eval_localization.py::test_process_query_aborts_before_generation_when_context_is_short PASSED [ 47%]
+src/tests/test_eval_localization.py::test_assert_context_evidence_complete_gates_publication PASSED [ 47%]
+src/tests/test_eval_localization.py::test_run_evaluation_publishes_a_full_length_context_digest PASSED [ 48%]
+src/tests/test_eval_localization.py::test_verify_registration_commit_accepts_a_committed_manifest PASSED [ 48%]
+src/tests/test_eval_localization.py::test_verify_registration_commit_refuses_a_sha_that_is_not_a_commit PASSED [ 48%]
+src/tests/test_eval_localization.py::test_verify_registration_commit_refuses_content_drift PASSED [ 48%]
+src/tests/test_eval_localization.py::test_verify_registration_commit_refuses_an_uncommitted_manifest PASSED [ 49%]
+src/tests/test_eval_localization.py::test_check_registration_fields_passes_on_an_exact_match PASSED [ 49%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_any_protocol_override[drift0] PASSED [ 49%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_any_protocol_override[drift1] PASSED [ 50%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_any_protocol_override[drift2] PASSED [ 50%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_any_protocol_override[drift3] PASSED [ 50%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_any_protocol_override[drift4] PASSED [ 50%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_any_protocol_override[drift5] PASSED [ 51%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_any_protocol_override[drift6] PASSED [ 51%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_any_protocol_override[drift7] PASSED [ 51%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_any_protocol_override[drift8] PASSED [ 51%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_any_protocol_override[drift9] PASSED [ 52%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_any_protocol_override[drift10] PASSED [ 52%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_any_protocol_override[drift11] PASSED [ 52%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_any_protocol_override[drift12] PASSED [ 52%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_a_seed_outside_the_registered_list PASSED [ 53%]
+src/tests/test_eval_localization.py::test_check_registration_fields_refuses_a_missing_lock PASSED [ 53%]
+src/tests/test_eval_localization.py::test_check_registration_fields_allows_tbd_manifest_hash_only_outside_registered_mode PASSED [ 53%]
+src/tests/test_eval_localization.py::test_registered_unseen_run_requires_both_registration_flags PASSED [ 54%]
+src/tests/test_eval_localization.py::test_verify_registration_end_to_end_on_a_real_commit PASSED [ 54%]
+src/tests/test_eval_localization.py::test_readback_mode_reports_a_clean_room PASSED [ 54%]
+src/tests/test_eval_localization.py::test_readback_mode_records_a_metadata_only_source_as_a_warning PASSED [ 54%]
+src/tests/test_eval_localization.py::test_readback_mode_fails_on_a_wav_without_metadata PASSED [ 55%]
+src/tests/test_eval_localization.py::test_readback_mode_fails_on_a_missing_split_file_or_depth_map PASSED [ 55%]
+src/tests/test_eval_localization.py::test_readback_mode_needs_no_checkpoint_or_scorer PASSED [ 55%]
+src/tests/test_eval_localization.py::test_run_query_reports_per_component_timings PASSED [ 55%]
+src/tests/test_eval_localization.py::test_run_query_gt_rir_reports_timings PASSED [ 56%]
+src/tests/test_eval_localization.py::test_build_row_carries_the_timings PASSED [ 56%]
+src/tests/test_eval_localization.py::test_probe_summary_aggregates_components_and_memory PASSED [ 56%]
+src/tests/test_eval_localization.py::test_probe_summary_is_none_without_timings PASSED [ 57%]
+src/tests/test_eval_localization.py::test_peak_memory_helpers_are_cpu_safe PASSED [ 57%]
+src/tests/test_eval_localization.py::test_peak_memory_helpers_measure_on_cuda SKIPPED [ 57%]
+src/tests/test_eval_localization.py::test_run_evaluation_summary_carries_the_probe_block PASSED [ 57%]
+src/tests/test_eval_localization.py::test_measure_scorer_noise_on_identical_draws_is_degenerate PASSED [ 58%]
+src/tests/test_eval_localization.py::test_measure_scorer_noise_detects_spread PASSED [ 58%]
+src/tests/test_eval_localization.py::test_measure_scorer_noise_needs_two_draws PASSED [ 58%]
+src/tests/test_eval_localization.py::test_integration_scorer_noise_mode_measures_the_sampled_readout SKIPPED [ 58%]
+src/tests/test_eval_localization.py::test_scorer_noise_refuses_wavs_outside_the_configured_split PASSED [ 59%]
+src/tests/test_eval_localization.py::test_scorer_noise_accepts_wavs_from_the_configured_split PASSED [ 59%]
+src/tests/test_eval_localization.py::test_integration_scorer_noise_draws_are_seeded_and_reproducible SKIPPED [ 59%]
+src/tests/test_eval_localization.py::test_reaggregate_mode_writes_a_report PASSED [ 60%]
+src/tests/test_eval_localization.py::test_reaggregate_mode_requires_rows PASSED [ 60%]
+src/tests/test_eval_localization.py::test_the_main_guard_is_the_last_statement_in_the_module PASSED [ 60%]
+src/tests/test_eval_localization.py::test_resolve_cuda_index_reads_the_requested_device PASSED [ 60%]
+src/tests/test_eval_localization.py::test_timed_brackets_every_interval_with_leading_and_trailing_sync PASSED [ 61%]
+src/tests/test_eval_localization.py::test_run_query_syncs_around_every_timed_component PASSED [ 61%]
+src/tests/test_eval_localization.py::test_process_query_times_context_evidence_and_the_whole_query PASSED [ 61%]
+src/tests/test_eval_localization.py::test_probe_summary_reports_both_component_sum_and_measured_wall PASSED [ 61%]
+src/tests/test_eval_localization.py::test_timed_waits_for_the_requested_cuda_device_not_device_zero SKIPPED [ 62%]
+src/tests/test_eval_localization.py::test_readback_passes_the_registered_unseen_shape PASSED [ 62%]
+src/tests/test_eval_localization.py::test_readback_fails_when_the_lrh_metadata_only_source_disappears PASSED [ 62%]
+src/tests/test_eval_localization.py::test_readback_fails_on_an_unregistered_metadata_only_source PASSED [ 63%]
+src/tests/test_eval_localization.py::test_readback_fails_on_a_wrong_room_count PASSED [ 63%]
+src/tests/test_eval_localization.py::test_readback_loads_and_validates_every_depth_map[shape] PASSED [ 63%]
+src/tests/test_eval_localization.py::test_readback_loads_and_validates_every_depth_map[dtype] PASSED [ 63%]
+src/tests/test_eval_localization.py::test_readback_loads_and_validates_every_depth_map[nonfinite] PASSED [ 64%]
+src/tests/test_eval_localization.py::test_readback_loads_and_validates_every_depth_map[missing] PASSED [ 64%]
+src/tests/test_eval_localization.py::test_readback_decodes_one_wav_per_room_and_source[rate] PASSED [ 64%]
+src/tests/test_eval_localization.py::test_readback_decodes_one_wav_per_room_and_source[stereo] PASSED [ 64%]
+src/tests/test_eval_localization.py::test_readback_decodes_one_wav_per_room_and_source[empty] PASSED [ 65%]
+src/tests/test_eval_localization.py::test_integration_readback_gate_passes_on_the_real_unseen_split PASSED [ 65%]
+src/tests/test_eval_localization.py::test_write_json_atomic_refuses_an_existing_target PASSED [ 65%]
+src/tests/test_eval_localization.py::test_write_json_atomic_refuses_a_stale_partial PASSED [ 66%]
+src/tests/test_eval_localization.py::test_readback_refuses_to_overwrite_its_own_report PASSED [ 66%]
+src/tests/test_eval_localization.py::test_auxiliary_stems_are_content_addressed PASSED [ 66%]
+src/tests/test_eval_localization.py::test_reaggregate_mode_refuses_to_clobber PASSED [ 66%]
+src/tests/test_eval_localization.py::test_run_evaluation_leaves_no_partial_files PASSED [ 67%]
+src/tests/test_eval_localization.py::test_verify_registration_commit_refuses_symbolic_or_abbreviated_ids[HEAD] PASSED [ 67%]
+src/tests/test_eval_localization.py::test_verify_registration_commit_refuses_symbolic_or_abbreviated_ids[master] PASSED [ 67%]
+src/tests/test_eval_localization.py::test_verify_registration_commit_refuses_symbolic_or_abbreviated_ids[main] PASSED [ 67%]
+src/tests/test_eval_localization.py::test_verify_registration_commit_refuses_symbolic_or_abbreviated_ids[v1.0] PASSED [ 68%]
+src/tests/test_eval_localization.py::test_verify_registration_commit_refuses_symbolic_or_abbreviated_ids[abc123] PASSED [ 68%]
+src/tests/test_eval_localization.py::test_verify_registration_commit_requires_an_ancestor_of_head PASSED [ 68%]
+src/tests/test_eval_localization.py::test_verify_registration_commit_refuses_a_manifest_outside_the_repository PASSED [ 69%]
+src/tests/test_eval_localization.py::test_verify_registration_records_the_resolved_sha PASSED [ 69%]
+src/tests/test_eval_localization.py::test_main_runs_every_cheap_validation_before_any_deserialization PASSED [ 69%]
+src/tests/test_eval_localization.py::test_read_model_config_and_checkpoint_validation_are_separable PASSED [ 69%]
+src/tests/test_eval_localization.py::test_registered_split_constants_match_the_committed_split PASSED [ 70%]
+src/tests/test_eval_localization.py::test_verify_registered_split_passes_on_the_canonical_split PASSED [ 70%]
+src/tests/test_eval_localization.py::test_verify_registered_split_fails_on_a_truncated_split PASSED [ 70%]
+src/tests/test_eval_localization.py::test_verify_registered_split_fails_on_a_same_count_wrong_room_split PASSED [ 70%]
+src/tests/test_eval_localization.py::test_verify_registered_split_fails_on_a_substituted_source_list PASSED [ 71%]
+src/tests/test_eval_localization.py::test_verify_registered_split_is_inert_for_non_unseen_configs PASSED [ 71%]
+src/tests/test_eval_localization.py::test_readback_fails_on_a_noncanonical_unseen_split PASSED [ 71%]
+src/tests/test_eval_localization.py::test_run_startup_refuses_a_noncanonical_unseen_split PASSED [ 72%]
+src/tests/test_eval_localization.py::test_registration_locks_the_split_digest PASSED [ 72%]
+src/tests/test_eval_localization.py::test_readback_refuses_a_wav_shorter_than_the_scored_prefix PASSED [ 72%]
+src/tests/test_eval_localization.py::test_scorer_noise_stem_includes_the_selected_wav_set PASSED [ 72%]
+src/tests/test_eval_localization.py::test_probe_wall_documents_what_it_excludes PASSED [ 73%]
+src/tests/test_eval_localization.py::test_build_room_manifest_merges_duplicate_positions PASSED [ 73%]
+src/tests/test_eval_localization.py::test_clean_rooms_have_an_empty_merge_map_and_unchanged_candidates PASSED [ 73%]
+src/tests/test_eval_localization.py::test_candidate_set_resolves_a_gt_that_is_a_non_canonical_member PASSED [ 73%]
+src/tests/test_eval_localization.py::test_candidate_set_still_refuses_a_node_outside_every_group PASSED [ 74%]
+src/tests/test_eval_localization.py::test_merged_room_resolves_duplicate_context_poses_to_one_index PASSED [ 74%]
+src/tests/test_eval_localization.py::test_manifest_merge_summary_and_row_field PASSED [ 74%]
+src/tests/test_eval_localization.py::test_run_evaluation_records_the_merge_groups PASSED [ 75%]
+src/tests/test_eval_localization.py::test_measured_rir_paths_prefer_the_canonical_node_then_fall_back PASSED [ 75%]
+src/tests/test_eval_localization.py::test_load_measured_rirs_records_which_member_supplied_each_file PASSED [ 75%]
+src/tests/test_eval_localization.py::test_run_query_gt_rir_uses_the_merged_group_for_the_identity PASSED [ 75%]
+src/tests/test_eval_localization.py::test_build_row_records_the_oracle_source_nodes PASSED [ 76%]
+src/tests/test_eval_localization.py::test_survey_reports_a_dirty_and_a_clean_room PASSED [ 76%]
+src/tests/test_eval_localization.py::test_survey_cli_writes_a_report PASSED [ 76%]
+src/tests/test_eval_localization.py::test_integration_survey_finds_exactly_the_two_known_seen_rooms PASSED [ 76%]
+src/tests/test_eval_localization.py::test_integration_survey_finds_no_duplicates_in_the_unseen_split PASSED [ 77%]
+src/tests/test_eval_localization.py::test_dump_waveforms_writes_pred_and_obs_arrays PASSED [ 77%]
+src/tests/test_eval_localization.py::test_dumped_arrays_are_bitwise_the_scored_tensors PASSED [ 77%]
+src/tests/test_eval_localization.py::test_dump_manifest_carries_the_geometry_for_external_analysis PASSED [ 77%]
+src/tests/test_eval_localization.py::test_dump_dir_gets_a_self_describing_readme PASSED [ 78%]
+src/tests/test_eval_localization.py::test_dump_waveforms_refuses_a_non_empty_directory_unless_overwrite PASSED [ 78%]
+src/tests/test_eval_localization.py::test_dump_waveforms_is_refused_for_the_oracle PASSED [ 78%]
+src/tests/test_eval_localization.py::test_waveform_filename_is_position_prefixed_and_sanitized PASSED [ 79%]
+src/tests/test_eval_localization.py::test_verify_against_replays_and_matches_a_completed_run PASSED [ 79%]
+src/tests/test_eval_localization.py::test_verify_against_aborts_on_a_perturbed_similarity PASSED [ 79%]
+src/tests/test_eval_localization.py::test_verify_against_never_touches_the_original_artifacts PASSED [ 79%]
+src/tests/test_eval_localization.py::test_verify_against_requires_a_waveform_dump PASSED [ 80%]
+src/tests/test_eval_localization.py::test_verify_against_aborts_on_a_missing_query PASSED [ 80%]
+src/tests/test_eval_localization.py::test_clean_room_row_is_computation_identical_and_schema_explicit PASSED [ 80%]
+src/tests/test_eval_localization.py::test_readback_decode_all_finds_a_silent_wav PASSED [ 80%]
+src/tests/test_eval_localization.py::test_readback_decode_all_passes_on_a_healthy_split PASSED [ 81%]
+src/tests/test_eval_localization.py::test_metrics_require_the_waveform_snapshot PASSED [ 81%]
+src/tests/test_eval_localization.py::test_metric_delta_max_must_be_on_the_registered_grid PASSED [ 81%]
+src/tests/test_eval_localization.py::test_run_evaluation_streams_a_metrics_row_per_query PASSED [ 82%]
+src/tests/test_eval_localization.py::test_metrics_rows_round_trip_at_full_precision PASSED [ 82%]
+src/tests/test_eval_localization.py::test_metrics_and_dump_consume_one_immutable_snapshot PASSED [ 82%]
+src/tests/test_eval_localization.py::test_snapshot_mutation_is_refused_by_the_integrity_guard PASSED [ 82%]
+src/tests/test_eval_localization.py::test_metrics_publish_atomically_with_the_run PASSED [ 83%]
+src/tests/test_eval_localization.py::test_replay_preflight_accepts_a_matching_reference PASSED [ 83%]
+src/tests/test_eval_localization.py::test_replay_preflight_refuses_a_protocol_that_differs[--tau-0.5] PASSED [ 83%]
+src/tests/test_eval_localization.py::test_replay_preflight_refuses_a_protocol_that_differs[--agg-mean] PASSED [ 83%]
+src/tests/test_eval_localization.py::test_replay_preflight_refuses_a_protocol_that_differs[--num-samples-4] PASSED [ 84%]
+src/tests/test_eval_localization.py::test_replay_preflight_refuses_a_protocol_that_differs[--control-constant_source] PASSED [ 84%]
+src/tests/test_eval_localization.py::test_replay_preflight_refuses_wrong_cardinality_or_duplicates PASSED [ 84%]
+src/tests/test_eval_localization.py::test_replay_preflight_checks_the_sibling_summary_provenance PASSED [ 85%]
+src/tests/test_eval_localization.py::test_metric_registration_is_required_for_unseen_metrics PASSED [ 85%]
+src/tests/test_eval_localization.py::test_metric_registration_accepts_a_committed_matching_manifest PASSED [ 85%]
+src/tests/test_eval_localization.py::test_metric_registration_refuses_a_constant_that_drifted PASSED [ 85%]
+src/tests/test_eval_localization.py::test_metric_registration_reuses_the_r2_commit_machinery PASSED [ 86%]
+src/tests/test_eval_localization.py::test_metric_registration_refuses_a_run_config_key_that_differs PASSED [ 86%]
+src/tests/test_eval_localization.py::test_seen_metrics_run_records_the_registerable_payload_without_a_manifest PASSED [ 86%]
+src/tests/test_eval_localization.py::test_metrics_calibrate_selects_delta_max_by_dev_top1 PASSED [ 86%]
+src/tests/test_eval_localization.py::test_metrics_calibrate_breaks_ties_towards_the_smallest_delta PASSED [ 87%]
+src/tests/test_eval_localization.py::test_metrics_calibrate_freezes_m4_statistics PASSED [ 87%]
+src/tests/test_eval_localization.py::test_metrics_calibrate_emits_a_draft_manifest_and_diagnostics PASSED [ 87%]
+src/tests/test_eval_localization.py::test_metrics_calibrate_is_deterministic_and_seen_only PASSED [ 88%]
+src/tests/test_eval_localization.py::test_calibration_reports_only_the_sensitivity_it_actually_has PASSED [ 88%]
+src/tests/test_eval_localization.py::test_calibration_refuses_a_battery_that_does_not_cover_what_it_declares[missing_family] PASSED [ 88%]
+src/tests/test_eval_localization.py::test_calibration_refuses_a_battery_that_does_not_cover_what_it_declares[missing_variant] PASSED [ 88%]
+src/tests/test_eval_localization.py::test_metric_secondaries_help_names_every_declared_secondary PASSED [ 89%]
+src/tests/test_eval_localization.py::test_metrics_calibrate_requires_rows PASSED [ 89%]
+src/tests/test_eval_localization.py::test_metrics_retrieval_mode_needs_no_checkpoint_and_refuses_generation_flags PASSED [ 89%]
+src/tests/test_eval_localization.py::test_metrics_retrieval_scores_context_and_oracle_per_query PASSED [ 89%]
+src/tests/test_eval_localization.py::test_metrics_retrieval_publishes_atomically_and_records_provenance PASSED [ 90%]
+src/tests/test_eval_localization.py::test_metrics_off_dump_is_byte_identical_to_the_r7_route PASSED [ 90%]
+src/tests/test_eval_localization.py::test_metrics_off_provenance_schema_is_unchanged_from_r7 PASSED [ 90%]
+src/tests/test_eval_localization.py::test_metrics_off_row_schema_is_unchanged_from_r7 PASSED [ 91%]
+src/tests/test_eval_localization.py::test_metrics_on_adds_the_r4_provenance_fields PASSED [ 91%]
+src/tests/test_eval_localization.py::test_metric_registration_verifies_the_registered_source_blob PASSED [ 91%]
+src/tests/test_eval_localization.py::test_metric_registration_refuses_a_source_blob_that_drifted_on_disk PASSED [ 91%]
+src/tests/test_eval_localization.py::test_metric_registration_refuses_a_source_sha_whose_blob_differs PASSED [ 92%]
+src/tests/test_eval_localization.py::test_metric_registration_refuses_an_unusable_source_sha[None] PASSED [ 92%]
+src/tests/test_eval_localization.py::test_metric_registration_refuses_an_unusable_source_sha[HEAD] PASSED [ 92%]
+src/tests/test_eval_localization.py::test_metric_registration_refuses_an_unusable_source_sha[abc1234] PASSED [ 92%]
+src/tests/test_eval_localization.py::test_metric_registration_refuses_an_unusable_source_sha[0000000000000000000000000000000000000000] PASSED [ 93%]
+src/tests/test_eval_localization.py::test_metric_registration_verifies_the_r2_manifest_digests PASSED [ 93%]
+src/tests/test_eval_localization.py::test_metric_registration_refuses_r2_digests_that_are_not_committed_paths PASSED [ 93%]
+src/tests/test_eval_localization.py::test_metric_registration_refuses_missing_r2_manifest_digests PASSED [ 94%]
+src/tests/test_eval_localization.py::test_registered_metric_config_comes_from_the_manifest_not_the_cli PASSED [ 94%]
+src/tests/test_eval_localization.py::test_registered_metric_config_refuses_a_mismatched_run_state PASSED [ 94%]
+src/tests/test_eval_localization.py::test_registered_manifest_must_lock_every_config_field PASSED [ 94%]
+src/tests/test_eval_localization.py::test_metrics_retrieval_on_unseen_requires_the_metric_registration PASSED [ 95%]
+src/tests/test_eval_localization.py::test_calibration_refuses_to_run_without_its_identity_stream PASSED [ 95%]
+src/tests/test_eval_localization.py::test_calibration_authenticates_its_identity_stream PASSED [ 95%]
+src/tests/test_eval_localization.py::test_calibration_refuses_duplicate_rows_and_a_missing_grid PASSED [ 95%]
+src/tests/test_eval_localization.py::test_calibration_draft_carries_seeds_and_the_registration_digests PASSED [ 96%]
+src/tests/test_eval_localization.py::test_unseen_metrics_retrieval_requires_the_paired_context_digest PASSED [ 96%]
+src/tests/test_eval_localization.py::test_build_metrics_row_has_no_vestigial_parameter PASSED [ 96%]
+src/tests/test_eval_localization.py::test_metrics_rows_serialize_the_declared_secondaries_and_sensitivities PASSED [ 97%]
+src/tests/test_eval_localization.py::test_oracle_prediction_maps_through_the_compact_available_array PASSED [ 97%]
+src/tests/test_eval_localization.py::test_oracle_prediction_refuses_a_length_mismatch PASSED [ 97%]
+src/tests/test_eval_localization.py::test_context_split_is_defined_by_the_prediction_not_the_gt PASSED [ 97%]
+src/tests/test_eval_localization.py::test_context_coverage_counts_are_reported_per_query PASSED [ 98%]
+src/tests/test_eval_localization.py::test_metrics_retrieval_records_oracle_source_nodes_and_seed_in_the_stem PASSED [ 98%]
+src/tests/test_eval_localization.py::test_metrics_retrieval_verifies_the_paired_context_stream_digest PASSED [ 98%]
+src/tests/test_eval_localization.py::test_metrics_jsonl_stays_partial_when_the_run_aborts_inside_the_loop PASSED [ 98%]
+src/tests/test_eval_localization.py::test_metrics_jsonl_stays_partial_when_a_gate_after_the_loop_fires PASSED [ 99%]
+src/tests/test_eval_localization.py::test_metrics_jsonl_stays_partial_when_the_context_end_gate_fires PASSED [ 99%]
+src/tests/test_eval_localization.py::test_metrics_retrieval_rows_stay_partial_until_the_gates_pass PASSED [ 99%]
+src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir PASSED [100%]
+
+=================================== FAILURES ===================================
+__ test_run_query_matches_a_candidate_major_replay_with_full_conditioning[64] __
+
+batch_size = 64
+
+    @pytest.mark.parametrize("batch_size", [64, 4])
+    def test_run_query_matches_a_candidate_major_replay_with_full_conditioning(batch_size):
+        """M=3, K=2 through run_query vs an explicit per-(m, k) replay: identical
+        waveforms, and every conditioning key -- including the cross-attention mask --
+        on row m*K+k is candidate m's."""
+        module = _tiny_module()
+        cand = _cand_set()
+        base_md = _tiny_query(module, cand)
+        noise = el.build_noise_bank(42, "mk_parity", 2, (4, 64))
+        seen = []
+        engine = _tiny_engine(module, recorder=seen)
+    
+>       out = el.run_query(engine, base_md, cand, noise, _OBS, batch_size=batch_size,
+                           return_wavs=True)
+
+src/tests/test_eval_localization.py:1979: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+eval_localization.py:368: in run_query
+    latents = engine.sampler(chunk_noise, chunk_cond)
+src/tests/test_eval_localization.py:1943: in sampler
+    return sample_discrete_euler(dit, noise, 1, **cond_inputs, cfg_scale=1.0,
+../../envs/flac/lib/python3.10/site-packages/torch/utils/_contextlib.py:116: in decorate_context
+    return func(*args, **kwargs)
+src/inference/sampling.py:129: in sample_discrete_euler
+    v = model(x, t_curr_tensor, **extra_args)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/diffusion.py:252: in forward
+    return self.model(
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/dit.py:415: in forward
+    return self._forward(
+src/models/dit.py:205: in _forward
+    output = self.transformer(x, prepend_embeds=prepend_inputs, context=cross_attn_cond, return_info=return_info, exit_layer_ix=exit_layer_ix, **extra_args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:843: in forward
+    x = checkpoint(layer, x, rotary_pos_emb = rotary_pos_emb, global_cond=global_cond, self_attention_flash_sliding_window = self.sliding_window, **kwargs)
+src/models/transformer.py:30: in checkpoint
+    return torch.utils.checkpoint.checkpoint(function, *args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/_compile.py:51: in inner
+    return disable_fn(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py:838: in _fn
+    return fn(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/utils/checkpoint.py:495: in checkpoint
+    ret = function(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:683: in forward
+    x = self.self_attn(x, rotary_pos_emb = rotary_pos_emb, flex_attention_block_mask = self_attention_block_mask, flex_attention_score_mod = self_attention_score_mod, flash_attn_sliding_window = self_attention_flash_sliding_window)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:523: in forward
+    out = self.apply_attn(q, k, v, causal = causal, flex_attention_block_mask = flex_attention_block_mask, flex_attention_score_mod = flex_attention_score_mod, flash_attn_sliding_window = flash_attn_sliding_window)
+src/models/transformer.py:436: in apply_attn
+    out = flash_attn_func(q, k, v, causal = causal, window_size=flash_attn_sliding_window if (flash_attn_sliding_window is not None) else [-1,-1])
+../../envs/flac/lib/python3.10/site-packages/flash_attn/flash_attn_interface.py:1201: in flash_attn_func
+    return FlashAttnFunc.apply(
+../../envs/flac/lib/python3.10/site-packages/torch/autograd/function.py:575: in apply
+    return super().apply(*args, **kwargs)  # type: ignore[misc]
+../../envs/flac/lib/python3.10/site-packages/flash_attn/flash_attn_interface.py:839: in forward
+    out_padded, softmax_lse, S_dmask, rng_state = _wrapped_flash_attn_forward(
+../../envs/flac/lib/python3.10/site-packages/torch/_ops.py:1158: in __call__
+    return self._op(*args, **(kwargs or {}))
+../../envs/flac/lib/python3.10/site-packages/torch/_library/autograd.py:113: in autograd_impl
+    result = forward_no_grad(*args, Metadata(keyset, keyword_only_args))
+../../envs/flac/lib/python3.10/site-packages/torch/_library/autograd.py:40: in forward_no_grad
+    result = op.redispatch(keyset & _C._after_autograd_keyset, *args, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <OpOverload(op='flash_attn._flash_attn_forward', overload='default')>
+keyset = DispatchKeySet(CPU)
+args = (tensor([[[[-0.0440,  0.1561, -0.6797,  ...,  0.0260, -0.1705,  0.8003],
+          [ 0.0958, -1.5977,  0.1648,  ..., -...  ..., -3.7231e-01,
+            5.3564e-01,  4.6289e-01]]]], dtype=torch.float16), 0.0, 0.1767766952966369, False, ...)
+kwargs = {}
+
+    def redispatch(self, /, keyset, *args, **kwargs):
+>       return self._handle.redispatch_boxed(keyset, *args, **kwargs)
+E       NotImplementedError: Could not run 'flash_attn::_flash_attn_forward' with arguments from the 'CPU' backend. This could be because the operator doesn't exist for this backend, or was omitted during the selective/custom build process (if using custom build). If you are a Facebook employee using PyTorch on mobile, please visit https://fburl.com/ptmfixes for possible resolutions. 'flash_attn::_flash_attn_forward' is only available for these backends: [CUDA, Meta, BackendSelect, Python, FuncTorchDynamicLayerBackMode, Functionalize, Named, Conjugate, Negative, ZeroTensor, ADInplaceOrView, AutogradOther, AutogradCPU, AutogradCUDA, AutogradHIP, AutogradXLA, AutogradMPS, AutogradIPU, AutogradXPU, AutogradHPU, AutogradVE, AutogradLazy, AutogradMTIA, AutogradPrivateUse1, AutogradPrivateUse2, AutogradPrivateUse3, AutogradMeta, AutogradNestedTensor, Tracer, AutocastCPU, AutocastMTIA, AutocastXPU, AutocastMPS, AutocastCUDA, FuncTorchBatched, BatchedNestedTensor, FuncTorchVmapMode, Batched, VmapMode, FuncTorchGradWrapper, PythonTLSSnapshot, FuncTorchDynamicLayerFrontMode, PreDispatch, PythonDispatcher].
+E       
+E       CUDA: registered at /dev/null:203 [kernel]
+E       Meta: registered at /dev/null:214 [kernel]
+E       BackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]
+E       Python: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:194 [backend fallback]
+E       FuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:479 [backend fallback]
+E       Functionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:349 [backend fallback]
+E       Named: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:7 [backend fallback]
+E       Conjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]
+E       Negative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]
+E       ZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:86 [backend fallback]
+E       ADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:100 [backend fallback]
+E       AutogradOther: registered at /dev/null:203 [autograd kernel]
+E       AutogradCPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradCUDA: registered at /dev/null:203 [autograd kernel]
+E       AutogradHIP: registered at /dev/null:203 [autograd kernel]
+E       AutogradXLA: registered at /dev/null:203 [autograd kernel]
+E       AutogradMPS: registered at /dev/null:203 [autograd kernel]
+E       AutogradIPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradXPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradHPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradVE: registered at /dev/null:203 [autograd kernel]
+E       AutogradLazy: registered at /dev/null:203 [autograd kernel]
+E       AutogradMTIA: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse1: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse2: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse3: registered at /dev/null:203 [autograd kernel]
+E       AutogradMeta: registered at /dev/null:203 [autograd kernel]
+E       AutogradNestedTensor: registered at /dev/null:203 [autograd kernel]
+E       Tracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:294 [backend fallback]
+E       AutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:322 [backend fallback]
+E       AutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:466 [backend fallback]
+E       AutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:504 [backend fallback]
+E       AutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]
+E       AutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]
+E       FuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:731 [backend fallback]
+E       BatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:758 [backend fallback]
+E       FuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:27 [backend fallback]
+E       Batched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1075 [backend fallback]
+E       VmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:33 [backend fallback]
+E       FuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:208 [backend fallback]
+E       PythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]
+E       FuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:475 [backend fallback]
+E       PreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]
+E       PythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]
+
+../../envs/flac/lib/python3.10/site-packages/torch/_ops.py:761: NotImplementedError
+__ test_run_query_matches_a_candidate_major_replay_with_full_conditioning[4] ___
+
+batch_size = 4
+
+    @pytest.mark.parametrize("batch_size", [64, 4])
+    def test_run_query_matches_a_candidate_major_replay_with_full_conditioning(batch_size):
+        """M=3, K=2 through run_query vs an explicit per-(m, k) replay: identical
+        waveforms, and every conditioning key -- including the cross-attention mask --
+        on row m*K+k is candidate m's."""
+        module = _tiny_module()
+        cand = _cand_set()
+        base_md = _tiny_query(module, cand)
+        noise = el.build_noise_bank(42, "mk_parity", 2, (4, 64))
+        seen = []
+        engine = _tiny_engine(module, recorder=seen)
+    
+>       out = el.run_query(engine, base_md, cand, noise, _OBS, batch_size=batch_size,
+                           return_wavs=True)
+
+src/tests/test_eval_localization.py:1979: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+eval_localization.py:368: in run_query
+    latents = engine.sampler(chunk_noise, chunk_cond)
+src/tests/test_eval_localization.py:1943: in sampler
+    return sample_discrete_euler(dit, noise, 1, **cond_inputs, cfg_scale=1.0,
+../../envs/flac/lib/python3.10/site-packages/torch/utils/_contextlib.py:116: in decorate_context
+    return func(*args, **kwargs)
+src/inference/sampling.py:129: in sample_discrete_euler
+    v = model(x, t_curr_tensor, **extra_args)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/diffusion.py:252: in forward
+    return self.model(
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/dit.py:415: in forward
+    return self._forward(
+src/models/dit.py:205: in _forward
+    output = self.transformer(x, prepend_embeds=prepend_inputs, context=cross_attn_cond, return_info=return_info, exit_layer_ix=exit_layer_ix, **extra_args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:843: in forward
+    x = checkpoint(layer, x, rotary_pos_emb = rotary_pos_emb, global_cond=global_cond, self_attention_flash_sliding_window = self.sliding_window, **kwargs)
+src/models/transformer.py:30: in checkpoint
+    return torch.utils.checkpoint.checkpoint(function, *args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/_compile.py:51: in inner
+    return disable_fn(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py:838: in _fn
+    return fn(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/utils/checkpoint.py:495: in checkpoint
+    ret = function(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:683: in forward
+    x = self.self_attn(x, rotary_pos_emb = rotary_pos_emb, flex_attention_block_mask = self_attention_block_mask, flex_attention_score_mod = self_attention_score_mod, flash_attn_sliding_window = self_attention_flash_sliding_window)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:523: in forward
+    out = self.apply_attn(q, k, v, causal = causal, flex_attention_block_mask = flex_attention_block_mask, flex_attention_score_mod = flex_attention_score_mod, flash_attn_sliding_window = flash_attn_sliding_window)
+src/models/transformer.py:436: in apply_attn
+    out = flash_attn_func(q, k, v, causal = causal, window_size=flash_attn_sliding_window if (flash_attn_sliding_window is not None) else [-1,-1])
+../../envs/flac/lib/python3.10/site-packages/flash_attn/flash_attn_interface.py:1201: in flash_attn_func
+    return FlashAttnFunc.apply(
+../../envs/flac/lib/python3.10/site-packages/torch/autograd/function.py:575: in apply
+    return super().apply(*args, **kwargs)  # type: ignore[misc]
+../../envs/flac/lib/python3.10/site-packages/flash_attn/flash_attn_interface.py:839: in forward
+    out_padded, softmax_lse, S_dmask, rng_state = _wrapped_flash_attn_forward(
+../../envs/flac/lib/python3.10/site-packages/torch/_ops.py:1158: in __call__
+    return self._op(*args, **(kwargs or {}))
+../../envs/flac/lib/python3.10/site-packages/torch/_library/autograd.py:113: in autograd_impl
+    result = forward_no_grad(*args, Metadata(keyset, keyword_only_args))
+../../envs/flac/lib/python3.10/site-packages/torch/_library/autograd.py:40: in forward_no_grad
+    result = op.redispatch(keyset & _C._after_autograd_keyset, *args, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <OpOverload(op='flash_attn._flash_attn_forward', overload='default')>
+keyset = DispatchKeySet(CPU)
+args = (tensor([[[[ 2.5537e-01,  1.7383e-01, -3.6987e-01,  ...,  1.5771e-01,
+           -8.6621e-01,  7.4023e-01],
+          ...  ...,  9.1455e-01,
+           -1.4082e+00, -6.8506e-01]]]], dtype=torch.float16), 0.0, 0.1767766952966369, False, ...)
+kwargs = {}
+
+    def redispatch(self, /, keyset, *args, **kwargs):
+>       return self._handle.redispatch_boxed(keyset, *args, **kwargs)
+E       NotImplementedError: Could not run 'flash_attn::_flash_attn_forward' with arguments from the 'CPU' backend. This could be because the operator doesn't exist for this backend, or was omitted during the selective/custom build process (if using custom build). If you are a Facebook employee using PyTorch on mobile, please visit https://fburl.com/ptmfixes for possible resolutions. 'flash_attn::_flash_attn_forward' is only available for these backends: [CUDA, Meta, BackendSelect, Python, FuncTorchDynamicLayerBackMode, Functionalize, Named, Conjugate, Negative, ZeroTensor, ADInplaceOrView, AutogradOther, AutogradCPU, AutogradCUDA, AutogradHIP, AutogradXLA, AutogradMPS, AutogradIPU, AutogradXPU, AutogradHPU, AutogradVE, AutogradLazy, AutogradMTIA, AutogradPrivateUse1, AutogradPrivateUse2, AutogradPrivateUse3, AutogradMeta, AutogradNestedTensor, Tracer, AutocastCPU, AutocastMTIA, AutocastXPU, AutocastMPS, AutocastCUDA, FuncTorchBatched, BatchedNestedTensor, FuncTorchVmapMode, Batched, VmapMode, FuncTorchGradWrapper, PythonTLSSnapshot, FuncTorchDynamicLayerFrontMode, PreDispatch, PythonDispatcher].
+E       
+E       CUDA: registered at /dev/null:203 [kernel]
+E       Meta: registered at /dev/null:214 [kernel]
+E       BackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]
+E       Python: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:194 [backend fallback]
+E       FuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:479 [backend fallback]
+E       Functionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:349 [backend fallback]
+E       Named: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:7 [backend fallback]
+E       Conjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]
+E       Negative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]
+E       ZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:86 [backend fallback]
+E       ADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:100 [backend fallback]
+E       AutogradOther: registered at /dev/null:203 [autograd kernel]
+E       AutogradCPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradCUDA: registered at /dev/null:203 [autograd kernel]
+E       AutogradHIP: registered at /dev/null:203 [autograd kernel]
+E       AutogradXLA: registered at /dev/null:203 [autograd kernel]
+E       AutogradMPS: registered at /dev/null:203 [autograd kernel]
+E       AutogradIPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradXPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradHPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradVE: registered at /dev/null:203 [autograd kernel]
+E       AutogradLazy: registered at /dev/null:203 [autograd kernel]
+E       AutogradMTIA: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse1: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse2: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse3: registered at /dev/null:203 [autograd kernel]
+E       AutogradMeta: registered at /dev/null:203 [autograd kernel]
+E       AutogradNestedTensor: registered at /dev/null:203 [autograd kernel]
+E       Tracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:294 [backend fallback]
+E       AutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:322 [backend fallback]
+E       AutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:466 [backend fallback]
+E       AutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:504 [backend fallback]
+E       AutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]
+E       AutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]
+E       FuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:731 [backend fallback]
+E       BatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:758 [backend fallback]
+E       FuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:27 [backend fallback]
+E       Batched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1075 [backend fallback]
+E       VmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:33 [backend fallback]
+E       FuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:208 [backend fallback]
+E       PythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]
+E       FuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:475 [backend fallback]
+E       PreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]
+E       PythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]
+
+../../envs/flac/lib/python3.10/site-packages/torch/_ops.py:761: NotImplementedError
+__________ test_run_query_mk_replay_is_stable_across_the_batch_split ___________
+
+    def test_run_query_mk_replay_is_stable_across_the_batch_split():
+        module = _tiny_module()
+        cand = _cand_set()
+        base_md = _tiny_query(module, cand)
+        noise = el.build_noise_bank(42, "mk_parity", 2, (4, 64))
+>       whole = el.run_query(_tiny_engine(module), base_md, cand, noise, _OBS, batch_size=64,
+                             return_wavs=True)
+
+src/tests/test_eval_localization.py:2018: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+eval_localization.py:368: in run_query
+    latents = engine.sampler(chunk_noise, chunk_cond)
+src/tests/test_eval_localization.py:1943: in sampler
+    return sample_discrete_euler(dit, noise, 1, **cond_inputs, cfg_scale=1.0,
+../../envs/flac/lib/python3.10/site-packages/torch/utils/_contextlib.py:116: in decorate_context
+    return func(*args, **kwargs)
+src/inference/sampling.py:129: in sample_discrete_euler
+    v = model(x, t_curr_tensor, **extra_args)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/diffusion.py:252: in forward
+    return self.model(
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/dit.py:415: in forward
+    return self._forward(
+src/models/dit.py:205: in _forward
+    output = self.transformer(x, prepend_embeds=prepend_inputs, context=cross_attn_cond, return_info=return_info, exit_layer_ix=exit_layer_ix, **extra_args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:843: in forward
+    x = checkpoint(layer, x, rotary_pos_emb = rotary_pos_emb, global_cond=global_cond, self_attention_flash_sliding_window = self.sliding_window, **kwargs)
+src/models/transformer.py:30: in checkpoint
+    return torch.utils.checkpoint.checkpoint(function, *args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/_compile.py:51: in inner
+    return disable_fn(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py:838: in _fn
+    return fn(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/utils/checkpoint.py:495: in checkpoint
+    ret = function(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:683: in forward
+    x = self.self_attn(x, rotary_pos_emb = rotary_pos_emb, flex_attention_block_mask = self_attention_block_mask, flex_attention_score_mod = self_attention_score_mod, flash_attn_sliding_window = self_attention_flash_sliding_window)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1751: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+../../envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py:1762: in _call_impl
+    return forward_call(*args, **kwargs)
+src/models/transformer.py:523: in forward
+    out = self.apply_attn(q, k, v, causal = causal, flex_attention_block_mask = flex_attention_block_mask, flex_attention_score_mod = flex_attention_score_mod, flash_attn_sliding_window = flash_attn_sliding_window)
+src/models/transformer.py:436: in apply_attn
+    out = flash_attn_func(q, k, v, causal = causal, window_size=flash_attn_sliding_window if (flash_attn_sliding_window is not None) else [-1,-1])
+../../envs/flac/lib/python3.10/site-packages/flash_attn/flash_attn_interface.py:1201: in flash_attn_func
+    return FlashAttnFunc.apply(
+../../envs/flac/lib/python3.10/site-packages/torch/autograd/function.py:575: in apply
+    return super().apply(*args, **kwargs)  # type: ignore[misc]
+../../envs/flac/lib/python3.10/site-packages/flash_attn/flash_attn_interface.py:839: in forward
+    out_padded, softmax_lse, S_dmask, rng_state = _wrapped_flash_attn_forward(
+../../envs/flac/lib/python3.10/site-packages/torch/_ops.py:1158: in __call__
+    return self._op(*args, **(kwargs or {}))
+../../envs/flac/lib/python3.10/site-packages/torch/_library/autograd.py:113: in autograd_impl
+    result = forward_no_grad(*args, Metadata(keyset, keyword_only_args))
+../../envs/flac/lib/python3.10/site-packages/torch/_library/autograd.py:40: in forward_no_grad
+    result = op.redispatch(keyset & _C._after_autograd_keyset, *args, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <OpOverload(op='flash_attn._flash_attn_forward', overload='default')>
+keyset = DispatchKeySet(CPU)
+args = (tensor([[[[ 1.1318e+00,  2.8394e-01, -5.2979e-01,  ...,  9.2090e-01,
+           -6.3379e-01, -2.3865e-02],
+          ...  ..., -9.4092e-01,
+            8.7646e-01, -4.6509e-01]]]], dtype=torch.float16), 0.0, 0.1767766952966369, False, ...)
+kwargs = {}
+
+    def redispatch(self, /, keyset, *args, **kwargs):
+>       return self._handle.redispatch_boxed(keyset, *args, **kwargs)
+E       NotImplementedError: Could not run 'flash_attn::_flash_attn_forward' with arguments from the 'CPU' backend. This could be because the operator doesn't exist for this backend, or was omitted during the selective/custom build process (if using custom build). If you are a Facebook employee using PyTorch on mobile, please visit https://fburl.com/ptmfixes for possible resolutions. 'flash_attn::_flash_attn_forward' is only available for these backends: [CUDA, Meta, BackendSelect, Python, FuncTorchDynamicLayerBackMode, Functionalize, Named, Conjugate, Negative, ZeroTensor, ADInplaceOrView, AutogradOther, AutogradCPU, AutogradCUDA, AutogradHIP, AutogradXLA, AutogradMPS, AutogradIPU, AutogradXPU, AutogradHPU, AutogradVE, AutogradLazy, AutogradMTIA, AutogradPrivateUse1, AutogradPrivateUse2, AutogradPrivateUse3, AutogradMeta, AutogradNestedTensor, Tracer, AutocastCPU, AutocastMTIA, AutocastXPU, AutocastMPS, AutocastCUDA, FuncTorchBatched, BatchedNestedTensor, FuncTorchVmapMode, Batched, VmapMode, FuncTorchGradWrapper, PythonTLSSnapshot, FuncTorchDynamicLayerFrontMode, PreDispatch, PythonDispatcher].
+E       
+E       CUDA: registered at /dev/null:203 [kernel]
+E       Meta: registered at /dev/null:214 [kernel]
+E       BackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]
+E       Python: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:194 [backend fallback]
+E       FuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:479 [backend fallback]
+E       Functionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:349 [backend fallback]
+E       Named: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:7 [backend fallback]
+E       Conjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]
+E       Negative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]
+E       ZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:86 [backend fallback]
+E       ADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:100 [backend fallback]
+E       AutogradOther: registered at /dev/null:203 [autograd kernel]
+E       AutogradCPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradCUDA: registered at /dev/null:203 [autograd kernel]
+E       AutogradHIP: registered at /dev/null:203 [autograd kernel]
+E       AutogradXLA: registered at /dev/null:203 [autograd kernel]
+E       AutogradMPS: registered at /dev/null:203 [autograd kernel]
+E       AutogradIPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradXPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradHPU: registered at /dev/null:203 [autograd kernel]
+E       AutogradVE: registered at /dev/null:203 [autograd kernel]
+E       AutogradLazy: registered at /dev/null:203 [autograd kernel]
+E       AutogradMTIA: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse1: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse2: registered at /dev/null:203 [autograd kernel]
+E       AutogradPrivateUse3: registered at /dev/null:203 [autograd kernel]
+E       AutogradMeta: registered at /dev/null:203 [autograd kernel]
+E       AutogradNestedTensor: registered at /dev/null:203 [autograd kernel]
+E       Tracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:294 [backend fallback]
+E       AutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:322 [backend fallback]
+E       AutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:466 [backend fallback]
+E       AutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:504 [backend fallback]
+E       AutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]
+E       AutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]
+E       FuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:731 [backend fallback]
+E       BatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:758 [backend fallback]
+E       FuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:27 [backend fallback]
+E       Batched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1075 [backend fallback]
+E       VmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:33 [backend fallback]
+E       FuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:208 [backend fallback]
+E       PythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]
+E       FuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:475 [backend fallback]
+E       PreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]
+E       PythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]
+
+../../envs/flac/lib/python3.10/site-packages/torch/_ops.py:761: NotImplementedError
+=============================== warnings summary ===============================
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_eval_localization.py::test_run_evaluation_streams_a_metrics_row_per_query
+  /n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+  Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+    return _VF.stft(  # type: ignore[attr-defined]
+
+src/tests/test_eval_localization.py: 11 warnings
+  /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/src/metrics/modules/C50.py:52: RuntimeWarning: divide by zero encountered in float_scalars
+    c50 = 10*np.log10((np.sum(h2[:t])/np.sum(h2[t:])) + 1e-10)
+
+src/tests/test_eval_localization.py::test_metrics_rows_serialize_the_declared_secondaries_and_sensitivities
+  /n/fs/gatrdp/codespace/exp-46-c4flip-data-curve/src/metrics/modules/C50.py:52: RuntimeWarning: invalid value encountered in float_scalars
+    c50 = 10*np.log10((np.sum(h2[:t])/np.sum(h2[t:])) + 1e-10)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_eval_localization.py::test_run_query_matches_a_candidate_major_replay_with_full_conditioning[64]
+FAILED src/tests/test_eval_localization.py::test_run_query_matches_a_candidate_major_replay_with_full_conditioning[4]
+FAILED src/tests/test_eval_localization.py::test_run_query_mk_replay_is_stable_across_the_batch_split
+====== 3 failed, 355 passed, 10 skipped, 17 warnings in 206.19s (0:03:26) ======
+EXIT 1 end 2026-11-19T11:02:35-05:00

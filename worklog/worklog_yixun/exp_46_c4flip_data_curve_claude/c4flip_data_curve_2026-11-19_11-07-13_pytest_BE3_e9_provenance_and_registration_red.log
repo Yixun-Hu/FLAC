@@ -1,0 +1,44 @@
+HEAD 663fecc764868dfc85c64b69346b826bfcb486a3 tracked-clean=yes host neu305.neuronic.cs.princeton.edu start 2026-11-19T11:07:14-05:00
+cmd: pytest -q -rfE src/tests/test_exp46_e9_signal_isolation.py src/tests/test_exp46_provenance.py src/tests/test_exp46_regression_compare.py src/tests/test_exp46_command_sheets.py 
+F..........................F............................................ [ 85%]
+............                                                             [100%]
+=================================== FAILURES ===================================
+_ test_a_supervisor_refusal_node_then_the_fork_pool_test_finish_and_pass_in_one_process[E9] _
+
+tag = 'E9'
+tmp_path = PosixPath('/tmp/pytest-of-yh4742/pytest-0/test_a_supervisor_refusal_node0')
+
+    @pytest.mark.parametrize("tag", sorted(SUPERVISE))
+    def test_a_supervisor_refusal_node_then_the_fork_pool_test_finish_and_pass_in_one_process(tag, tmp_path):
+        probe = tmp_path / "test_exp46_signal_probe.py"
+        probe.write_text(PROBE)
+        rc, out = _session(f"{SUPERVISE[tag]}::{NODE}", str(probe), FORK)
+>       assert rc == 0 and "3 passed" in out, (tag, rc if rc is not None else f"hung: killed after {TIMEOUT_S} s",
+                                               out[-3000:])
+E       AssertionError: ('E9', 'hung: killed after 120 s', '.F')
+E       assert (None == 0)
+
+src/tests/test_exp46_e9_signal_isolation.py:80: AssertionError
+_ test_e9_is_the_x45f_file_plus_exactly_the_signal_restore_insertion[src/tests/test_exp38_supervise.py] _
+
+path = 'src/tests/test_exp38_supervise.py'
+
+    @pytest.mark.parametrize("path", sorted(SUPERVISE_EDITS))
+    def test_e9_is_the_x45f_file_plus_exactly_the_signal_restore_insertion(path):
+        """The committed file (HEAD) AND the tracked working tree are the whole X45f file plus exactly the insertion right
+        before the refusal node, with X45f's mode. RED until E9 lands."""
+        tag, kit = SUPERVISE_EDITS[path]
+        old = _show(X45F, path)
+>       assert supervise_problems(old, _show("HEAD", path), tag, kit) == [], (path, "HEAD")
+E       AssertionError: ('src/tests/test_exp38_supervise.py', 'HEAD')
+E       assert ['not the X45...e the anchor'] == []
+E         
+E         Left contains one more item: 'not the X45f file plus exactly the E9 insertion before the anchor'
+E         Use -v to get more diff
+
+src/tests/test_exp46_provenance.py:543: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp46_e9_signal_isolation.py::test_a_supervisor_refusal_node_then_the_fork_pool_test_finish_and_pass_in_one_process[E9]
+FAILED src/tests/test_exp46_provenance.py::test_e9_is_the_x45f_file_plus_exactly_the_signal_restore_insertion[src/tests/test_exp38_supervise.py]
+2 failed, 82 passed in 150.07s (0:02:30)
+EXIT 1 end 2026-11-19T11:09:46-05:00
