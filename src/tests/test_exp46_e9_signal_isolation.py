@@ -1,20 +1,18 @@
-"""exp_46 E9 / E10 / E11 (L1 attempt 2; Yixun 2026-11-19, "Fix as recommended"): the cross-test leak that hung the
-merged L1 suite.
+"""exp_46 E9 (L1 attempt 2; Yixun 2026-11-19, "Fix as recommended"): the cross-test leak that hung the merged L1 suite.
 
-The supervisor tests' test_unregistered_runs_are_refused_before_any_work -- in test_exp38_supervise.py (E9),
-test_exp45_supervise.py (E10) and test_exp46_supervise.py (E11) -- calls sv.main() in the pytest process. main()
-installs process-wide SIGTERM / SIGINT / SIGHUP handlers (<kit>_supervise._on_signal, which only record the signal)
-and nothing restored them. Every later fork of the process inherits them. A fork Pool's terminate() relies on SIGTERM
-to end a worker that is still blocked on the task queue's lock (the parent has taken that lock); the inherited
+test_exp38_supervise.py::test_unregistered_runs_are_refused_before_any_work calls sv.main() in the pytest process.
+main() installs process-wide SIGTERM / SIGINT / SIGHUP handlers (exp38_supervise._on_signal, which only record the
+signal) and nothing restored them. Every later fork of the process inherits them. A fork Pool's terminate() relies on
+SIGTERM to end a worker that is still blocked on the task queue's lock (the parent has taken that lock); the inherited
 handler swallows the signal and the pool's join waits for the worker forever. The merged suite hung exactly so in
-test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir; on one CPU the parent wins
-that lock race almost every time. Each edit (test_exp46_provenance.supervise_restore) restores the three handlers at
-that node's teardown.
+test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir; on one CPU the parent wins that
+lock race almost every time. E9 (test_exp46_provenance.supervise_restore) restores the three handlers at that node's
+teardown. (The exp_45 / exp_46 copies of the node do the same; they are not edited here -- see the worklog.)
 
-* test_a_supervisor_refusal_node_then_the_fork_pool_test_finish_and_pass_in_one_process -- RED until each edit lands:
-  ONE pytest process, pinned to one CPU, in its own session and killed as a group at the timeout, runs the refusal
-  node, then a probe (SIGTERM still stops a forked child; the three handlers are back at their collection-time
-  values), then the fork Pool test. Unfixed, the probe fails at once and the fork test hangs.
+* test_a_supervisor_refusal_node_then_the_fork_pool_test_finish_and_pass_in_one_process -- RED until E9 lands: ONE
+  pytest process, pinned to one CPU, in its own session and killed as a group at the timeout, runs the refusal node,
+  then a probe (SIGTERM still stops a forked child; the three handlers are back at their collection-time values), then
+  the fork Pool test. Unfixed, the probe fails at once and the fork test hangs.
 
 Written by the exp_46 Coder (Claude Opus 5.5).
 """
@@ -26,15 +24,14 @@ import sys
 import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SUPERVISE = {"E9": "src/tests/test_exp38_supervise.py", "E10": "src/tests/test_exp45_supervise.py",
-             "E11": "src/tests/test_exp46_supervise.py"}
+SUPERVISE = {"E9": "src/tests/test_exp38_supervise.py"}
 NODE = "test_unregistered_runs_are_refused_before_any_work"
 FORK = "src/tests/test_exp40_kit.py::test_concurrent_submitters_from_two_checkouts_share_one_control_dir"
 TIMEOUT_S = 120
 PIN = ("import os, sys; os.sched_setaffinity(0, {int(sys.argv[1])}); "
        "os.execv(sys.executable, [sys.executable, *sys.argv[2:]])")
-PROBE = '''"""exp_46 E9 / E10 / E11 probe (written by test_exp46_e9_signal_isolation.py): Pool.terminate() relies on SIGTERM
-ending each forked worker; check exactly that on a forked child, and that SIGTERM / SIGINT / SIGHUP are back at their
+PROBE = '''"""exp_46 E9 probe (written by test_exp46_e9_signal_isolation.py): Pool.terminate() relies on SIGTERM ending each
+forked worker; check exactly that on a forked child, and that SIGTERM / SIGINT / SIGHUP are back at their
 collection-time handlers."""
 import multiprocessing
 import signal
