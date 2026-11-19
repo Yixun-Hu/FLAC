@@ -142,7 +142,7 @@ def test_the_l1_comparison_runs_every_node_with_no_deselection_and_is_complete()
     assert re.search(r"git -C \$M worktree add --detach \$P38 3593f34cad4e6e4415a572e93d16ee83465f8ae8", b)
     assert re.search(r"git -C \$M worktree add --detach \$P43 4a7e3b3a948388434bc102b8bd7e7aba94648d71", b)
     suite = re.search(r'^SUITE="([^"]+)"', b, flags=re.M).group(1)
-    assert suite.endswith("-m pytest -q -p no:cacheprovider src/tests") and " -B -I " in suite
+    assert suite.endswith("-m pytest -q -p no:cacheprovider --continue-on-collection-errors src/tests") and " -B -I " in suite
     for flag in ("--deselect", " -k ", " -m not", "--ignore", "-x"):
         assert flag not in suite, flag
     runs = re.findall(r"--junitxml=\$L1/(\S+)\.junit\.xml", b)
