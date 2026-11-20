@@ -1120,3 +1120,24 @@ without re-review.
   - I cannot see the A6000 box from neuronic, so its current snapshot is unverified. A one-directory listing before
     E0 would confirm it.
 - **Next (coordinator):** rerun the merged L1 suite at this records commit, with the sheet's new export line.
+
+## 2026-11-19 20:26 EST — coordinator: L1 attempt 4 (definitive): merged suite COMPLETED, compare PASS (coordinating session)
+
+- **Merged suite:** 4283437 at `a48dc663` (tracked-clean), on neu325, COMPLETED in 1:22:45, rc 1.
+  - The environment was the sheet's export line (line 41) verbatim, with `HF_HUB_CACHE=/n/fs/gatrdp/exp38_hf_hub`
+    (option 1a), and the sheet's `SUITE`, without `--wait`.
+  - Summary, verbatim: `346 failed, 9590 passed, 66 skipped, 1 xfailed, 114 warnings, 45 errors, 2 subtests passed in 4959.57s (1:22:39)`.
+  - Attempt 3 had 363 failed. The 17 fewer are the 8 exp_45 / exp_46 launcher tests and the paths sweep, which now
+    pass, plus exp_38's own launcher tests, which pass under the curated hub.
+  - There was no hang (E9).
+- **Compare:** the sheet's command (line 86), in a CPU job (`srun`), with the attempt-3 parent junit files reused.
+  - Log: `c4flip_data_curve_2026-11-19_20-25-07_l1_regression_compare.log`.
+  - Verdict, verbatim: `REGRESSION POLICY PASS: 0 problem(s), 391 allowed failure(s)`, EXIT 0.
+- **Evidence** (sha256, first 16 hex): the three junit files are untracked, as in attempt 3; the compare JSON is
+  committed here.
+  - `l1/merged.junit.xml` `e58a6e776205ffe4…`;
+  - `l1/parent_3593f34c.junit.xml` `76e9822b2ee1c7f4…`;
+  - `l1/parent_4a7e3b3a.junit.xml` `d8b5e93fff6108bb…`;
+  - `l1/regression_compare.json` `d8254f46e8b81a7b…`.
+- **L1 is closed.** Any later change under `src/` or to the kit code would need L1 again; records commits do not.
+- **Next:** L2c, the union verification, in one CPU job (8 h limit), then the f100 static check. Then L3, then L4.
