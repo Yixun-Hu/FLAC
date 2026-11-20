@@ -1177,3 +1177,30 @@ without re-review.
   This is exp_38's prediction. DINOv3 was loaded from the curated hub (option 1a), which holds the same bytes.
 - **Logs:** `c4flip_data_curve_l3_init_digest_<run>_<job>.log`. **JSONs:** `c4flip_data_curve_l3_init_digest_<run>.json`.
 - **Next:** L4, the dry-runs at the clean tip, in one CPU job. Then Yixun's go to push X46.
+
+## 2026-11-19 21:47 → 2026-11-20 00:52 EST — coordinator: L4 PASS; X46 = `553fc89f` pushed on Yixun's go (coordinating session)
+
+- **L4** ran in one CPU srun job (4284056) at `553fc89f`, tracked-clean: the sheet's L4 lines (the registry's
+  four-run dry-run, then per run the submitter's SMOKE and FULL dry-runs). Last lines of the log, verbatim:
+  `L4 ALL DRY-RUNS PASSED`, `EXIT 0`.
+  - **Registry dry-run:** all four runs pass, config `4b854bcd`, subset audit bound at `7f43f8ea`; f025 / f050 /
+    f075 / f100 = 73,473 / 145,665 / 218,463 / 291,210 items, 40,000 steps each.
+  - **Submitter dry-runs:** 8 of 8 pass (SMOKE and FULL per run), each with `"dry_run": true`; the FULL `--time`
+    7-00:00:00 is within the partition's MaxTime 7-00:00:00.
+  - Nothing was submitted (checked with sacct and squeue).
+  - **Log:** `c4flip_data_curve_2026-11-19_21-47-25_l4_dry_runs.log` (sha256 `b082bb9af84801f0…`). It was kept
+    untracked until the push, so that X46 is exactly the commit the dry-runs checked.
+- **Yixun's go** (2026-11-20, verbatim): "Yes, push X46".
+- **Push** at 00:52 EST: `git push origin 553fc89f523d6fe68f80db7539ee67460fa8472e:refs/heads/exp-46-c4flip-data-curve`
+  created the remote branch (`[new branch]`). `git ls-remote` returns `553fc89f523d6fe68f80db7539ee67460fa8472e`.
+  - **X46 = `553fc89f523d6fe68f80db7539ee67460fa8472e`.**
+  - The push published 165 commits that were not on origin, including exp_45's unpushed commits (the oldest is
+    `738a5de7`), as plan M4 says.
+- **This records commit** sits on top of X46 and stays local (not pushed). It touches only files in this folder, so
+  it does not change the closure. The A6000 sheet builds Y46 on X46 from origin. This commit is then rebased onto
+  Y46 before any push.
+- **Next (A6000):**
+  1. List the DINOv3 snapshot in the default hub (`/home/yixunhu/.cache/huggingface/hub`) and confirm it still holds
+     exactly the two pinned files.
+  2. Run the A6000 sheet: seal E0 at X46 and push Y46 ("exp_46 records: E0 PASS at $X46").
+- **Then (neuronic):** the launch checkout at Y46 (sheet step 0), then the L5 SMOKEs. FULL needs Yixun's go.

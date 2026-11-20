@@ -110,4 +110,8 @@ CPU Slurm job; a failed attempt keeps its log, renamed `..._ABORTED_<reason>.log
 | `2f7e228f` | 2026-11-19 18:46 | option 1a tests: the sheet's export line carries `reg.EXP38_HF_HUB`; the hub registered read-only in the paths sweep; a protected root (10 + 5), refused at / below the real path, plus its stand-in kind | 41 | BG1 red (4 failed, 124 passed); BG2 red (the 8 launcher nodes under the sheet's export line: 8 failed) |
 | `47de8ac8` | 2026-11-19 18:47 | registry: `EXP38_HF_HUB` joins `PROTECTED_ABSOLUTE` | 8 | BG1 red, BG3 green |
 | `98b79dd6` | 2026-11-19 18:48 | neuronic sheet: the export line gains `HF_HUB_CACHE=/n/fs/gatrdp/exp38_hf_hub`, with its comment line | 3 | BG3 green (128 passed); BG4 green (the 8 launcher nodes under the new export line: 8 passed) |
-| (this commit) | 2026-11-19 18:52 | records: option 1a landed -- ledger rows, the Coder entry, the BG logs | records | — |
+| `a48dc663` | 2026-11-19 18:51 | records: option 1a landed -- ledger rows, the Coder entry, the BG logs | records | — |
+| `8fe04cb6` | 2026-11-19 20:26 | records (coordinating session): L1 attempt 4 (definitive) -- merged suite at `a48dc663` COMPLETED, regression compare PASS (0 problems) | records | `l1/merged_4283437.log` |
+| `eda85fdd` | 2026-11-19 21:25 | records (coordinating session): L2c PASS -- union verification (job 4283806) and the f100 static check | records | — |
+| `553fc89f` | 2026-11-19 21:47 | records (coordinating session): L3 PASS -- init-digest prediction, all four runs. **X46**: the L4 dry-runs ran at this commit; pushed 2026-11-20 00:52 EST on Yixun's go | records | — |
+| (this commit) | 2026-11-20 00:55 | records (coordinating session): L4 PASS and the X46 push -- the L4 log, the worklog entry, these ledger rows (local only; not pushed) | records | — |
