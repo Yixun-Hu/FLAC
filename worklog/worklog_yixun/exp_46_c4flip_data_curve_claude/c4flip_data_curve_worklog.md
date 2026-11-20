@@ -1160,3 +1160,20 @@ without re-review.
     neuronic (`registry.py:2690`); its grandparent `outputs_FLAC` does.
 - **Next:** L3, one CPU job per run, concurrently (the sheet's line without `--wait`; each job's exit status
   decides). Then L4.
+
+## 2026-11-19 21:47 EST — coordinator: L3 PASS (init-digest prediction, all four runs) (coordinating session)
+
+- Four CPU jobs, submitted together at 21:26 at `eda85fdd` (tracked-clean), with `CUDA_VISIBLE_DEVICES=` and the
+  sheet's L3 line without `--wait`. All four COMPLETED, exit 0:0.
+
+  | Job | Run | Elapsed | Verdict line, verbatim |
+  |---|---|---|---|
+  | 4283988 | exp46_C4Ff025_l40_2x32 | 00:01:35 | `INIT DIGEST PREDICTION PASS` |
+  | 4283989 | exp46_C4Ff050_l40_2x32 | 00:01:40 | `INIT DIGEST PREDICTION PASS` |
+  | 4283990 | exp46_C4Ff075_l40_2x32 | 00:01:35 | `INIT DIGEST PREDICTION PASS` |
+  | 4283991 | exp46_C4Ff100_l40_2x32 | 00:01:35 | `INIT DIGEST PREDICTION PASS` |
+
+- All four runs measure `state_dict_sha256` `378440d09589c8901f43bdb9e4da97b7401e7e51534d02d00488676cec9ccf95`.
+  This is exp_38's prediction. DINOv3 was loaded from the curated hub (option 1a), which holds the same bytes.
+- **Logs:** `c4flip_data_curve_l3_init_digest_<run>_<job>.log`. **JSONs:** `c4flip_data_curve_l3_init_digest_<run>.json`.
+- **Next:** L4, the dry-runs at the clean tip, in one CPU job. Then Yixun's go to push X46.
