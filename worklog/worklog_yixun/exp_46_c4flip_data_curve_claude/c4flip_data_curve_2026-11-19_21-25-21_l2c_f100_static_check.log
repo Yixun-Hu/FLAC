@@ -1,0 +1,40 @@
+=== exp_46 L2c f100 static check; HEAD 8fe04cb62dc7d214f4e5f6e828dd1b30c77b64b6; after L2c job 4283806; 2026-11-19T21:25:21-05:00
+CMD: /n/fs/gatrdp/envs/flac/bin/python -B worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_registry.py check exp46_C4Ff100_l40_2x32 --platform neuronic
+{
+ "run": "exp46_C4Ff100_l40_2x32",
+ "arm": "c4f",
+ "fraction": "100",
+ "rung": "2x32",
+ "platform": "neuronic",
+ "model_config": "worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_FLAC_AR_YAWAUG_C4FLIP.json",
+ "model_config_sha256": "4b854bcd2a97768089e981f0775de6d1615bdb0177ffa78b0591ae885a028fb5",
+ "subset": {
+  "split": "data/AR/train.json",
+  "split_sha256": "aa4e52d616fc42e88d5e4952c7e7ff266347615a60f93a0590b707f5eeaead03",
+  "n_items": 291210,
+  "rooms": 243,
+  "dataset_config": "src/configs/dataset_configs/AR/train/acousticroom_train.json",
+  "restrict_to_split": false,
+  "context_policy": "unrestricted (full train config; audited equivalent: full_split outside 0, removed 0)",
+  "full_split_audit": {
+   "split": "data/AR/train.json",
+   "split_sha256": "aa4e52d616fc42e88d5e4952c7e7ff266347615a60f93a0590b707f5eeaead03",
+   "n_targets": 291210,
+   "rooms": 243,
+   "restricted": false,
+   "on_disk_candidates_outside_split": 0,
+   "candidates_removed_by_restriction": 0,
+   "empty_restricted_pools": 0,
+   "subset_audit": "worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_subset_audit.json"
+  }
+ },
+ "subset_audit": {
+  "subset_audit": "worklog/worklog_yixun/exp_38_data_efficiency_claude/data_efficiency_subset_audit.json",
+  "sha256": "7f43f8ea972016e74afb359e2523d9aa204090a18f4d23e8d08f7505b3a3686a"
+ },
+ "chunk_plan": null,
+ "run_dir_state": "not verifiable on this host",
+ "final_ckpt": "epoch=8-step=40000.ckpt"
+}
+EXIT 0
+=== end 2026-11-19T21:25:21-05:00

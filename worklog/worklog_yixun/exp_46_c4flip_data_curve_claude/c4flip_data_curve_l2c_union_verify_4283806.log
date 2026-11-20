@@ -1,0 +1,4 @@
+SUBSET AUDIT VERIFY PASS
+AR CONTENT VERIFY PASS
+{"bytes": 2984888403, "dataset_root": "/n/fs/gatrdp/datasets/AcousticRooms", "files": 145494, "finished_at": "2026-11-19T21:17:19-0500", "host": "neu301.neuronic.cs.princeton.edu", "kind": "exp46_f100_delta_verification", "manifest": "worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_f100_delta_manifest.txt.gz", "manifest_sha256": "bcea7ffefb25d5a7604e35258a4297befd7bc441fed220ae21a638bbaf4ca054", "problems": [], "schema": 1, "started_at": "2026-11-19T20:31:21-0500", "verdict": "PASS"}
+F100 DELTA VERIFY PASS

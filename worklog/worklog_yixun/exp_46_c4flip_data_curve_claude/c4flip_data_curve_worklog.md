@@ -1141,3 +1141,22 @@ without re-review.
   - `l1/regression_compare.json` `d8254f46e8b81a7b…`.
 - **L1 is closed.** Any later change under `src/` or to the kit code would need L1 again; records commits do not.
 - **Next:** L2c, the union verification, in one CPU job (8 h limit), then the f100 static check. Then L3, then L4.
+
+## 2026-11-19 21:25 EST — coordinator: L2c PASS (union verification and the f100 static check) (coordinating session)
+
+- **Union verification:** job 4283806 at `8fe04cb6` (tracked-clean), on neu301, COMPLETED, exit 0:0, in 00:50:56.
+  - The sheet's L2c command, without `--wait`; the job's exit status decides.
+  - Log: `c4flip_data_curve_l2c_union_verify_4283806.log`.
+  - Its verdict lines, verbatim: `SUBSET AUDIT VERIFY PASS`, `AR CONTENT VERIFY PASS`, `F100 DELTA VERIFY PASS`.
+  - The f100 delta record: 145,494 files, 2,984,888,403 bytes, `dataset_root` `/n/fs/gatrdp/datasets/AcousticRooms`,
+    finished 2026-11-19T21:17:19-0500.
+- **f100 static binding:** `exp46_registry.py check exp46_C4Ff100_l40_2x32 --platform neuronic`, in a CPU job
+  (`srun`), with the sheet's export line. EXIT 0.
+  - Log: `c4flip_data_curve_2026-11-19_21-25-21_l2c_f100_static_check.log`.
+  - It binds the subset audit at sha256 `7f43f8ea…`, with `candidates_removed_by_restriction` 0 and
+    `empty_restricted_pools` 0.
+  - It reports `"run_dir_state": "not verifiable on this host"`. This is expected before the first launch: the run
+    dir's parent, `/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve`, does not exist yet on
+    neuronic (`registry.py:2690`); its grandparent `outputs_FLAC` does.
+- **Next:** L3, one CPU job per run, concurrently (the sheet's line without `--wait`; each job's exit status
+  decides). Then L4.
