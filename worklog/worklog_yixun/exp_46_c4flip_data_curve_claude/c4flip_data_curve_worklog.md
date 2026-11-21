@@ -1275,3 +1275,34 @@ without re-review.
   - Recovery follows sheet step 3, and only after telling Yixun.
 - **Next:** L7. Stage and publish each sealed run to the NAS, from a machine that sees both: the neuronic sheet,
   step 4.
+
+## 2026-11-21 15:40 EST — coordinator: model change (Opus 5.5 → Fable 5.2); in-flight state for a fresh session (coordinating session)
+
+Yixun switched the coordinating session's model with `/model` at about 15:30. The four repo-level handoff files
+(`CLAUDE.md`, the tracker, the issue report, `HANDOFF.md`) are outside this folder. The provenance rule
+(`test_exp46_provenance.py`) forbids touching them on this branch, so the working state is recorded here instead.
+
+- **Role split from now on:** the coordinating session (Fable) plans, analyses and writes records. Anything that
+  writes or runs code goes to an Opus 5.5 subagent (`model: "opus"`).
+- **In flight:** the four FULLs, all RUNNING at Y46 = `77ecdaa2` from `/n/fs/gatrdp/codespace/exp-46-launch`.
+
+  | Run | Job | Node | Start (11-21) | Step at 15:26 | Projected end (11-22) |
+  |---|---|---|---|---|---|
+  | f025 | 4290216 | neu330 | 13:58 | 3,667 | ≈ 03:55 |
+  | f050 | 4290217 | neu317 | 14:08 | 3,650 | ≈ 04:05 |
+  | f075 | 4290218 | neu306 | 14:21 | 2,914 | ≈ 04:50 |
+  | f100 | 4290219 | neu318 | 14:34 | 2,345 | ≈ 04:40, then the delta re-verification, sealed ≈ 05:40 |
+
+  Measured rate 0.77–0.81 it/s; no NaN or error line in any train log. `--time` is 2-00:00:00 (f100: 2-01:00:00).
+- **Session crons** (session-only; they die with the session):
+  - `1ac27453`, hourly at :23: the read-only FULL check. It reports starts, 10,000-step milestones, errors and ends.
+  - `3d44451c`, every 2 h at :41: the exp_38 runner / quota check.
+- **Rules:**
+  - Never commit in or touch the launch checkout while the FULLs run.
+  - A failed job: report it verbatim and ask Yixun before any recovery (sheet step 3).
+  - No push without Yixun's go. `origin/exp-46-c4flip-data-curve` = `587be463` (pushed 11-21 14:09 on his go).
+- **When all four FULLs are sealed:** L7, the NAS publication (sheet step 4), from a machine that sees both the NAS
+  and neuronic. Then L8 on the A6000 (40 eval cells), run by the A6000 session.
+- **exp_45** stays on hold (C3) until every exp_46 storage reservation has cleared; resuming it is Yixun's decision.
+- **The A6000 session** must `git pull --rebase` in `~/codespace/exp-46-publish` before its next records commit:
+  origin moved from Y46 to `587be463`.
