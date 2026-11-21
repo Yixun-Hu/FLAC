@@ -1204,3 +1204,48 @@ without re-review.
      exactly the two pinned files.
   2. Run the A6000 sheet: seal E0 at X46 and push Y46 ("exp_46 records: E0 PASS at $X46").
 - **Then (neuronic):** the launch checkout at Y46 (sheet step 0), then the L5 SMOKEs. FULL needs Yixun's go.
+
+## 2026-11-21 12:05 → 12:40 EST — coordinator: Y46 verified, launch checkout, step-0 checks, L5 SMOKEs 4 / 4 PASS (coordinating session)
+
+- **Y46** = `77ecdaa28cff5a71c75896bb99d655ccaafc4598`, pushed from the A6000 publication worktree on 2026-11-21 12:01 EST
+  on Yixun's go. Checked here:
+  - its parent is X46, and its subject is `exp_46 records: E0 PASS at 553fc89f523d6fe68f80db7539ee67460fa8472e`;
+  - it adds 26 files: 24 E0-cell files outside this folder, plus the E0 receipt and its `.sha256`.
+  - The A6000 report (relayed by Yixun): the 8 cells ran 11-20 14:42 → 16:27, `E0 PASS`, `e0-check` exit 0.
+- **Local records:** the L4 records commit was rebased onto Y46 (`e8caaf61` → `f1c3bf40`). Not pushed.
+- **Launch checkout:** `/n/fs/gatrdp/codespace/exp-46-launch`, detached at Y46, made with the sheet's step-0 lines. It
+  holds two links: `AcousticRooms` → `/n/fs/gatrdp/datasets/AcousticRooms`, and the VAE weights. HEAD = Y46, tracked-clean.
+- **Step-0 checks:** CPU job 4289931 (neu316), 6 s, EXIT 0.
+  - `closure` = `356a621ec16e8bfaf6e0d56cb258e4985f557cc88d7a73adf2d57a5a3ab05ad0`, equal to the E0 receipt's
+    `closure_sha256`;
+  - `e0-check --platform neuronic` exit 0;
+  - `UNTRACKED PASS`;
+  - `DRY-RUN OK: 4 run(s) on neuronic`.
+  - Log: `c4flip_data_curve_2026-11-21_12-13-10_y46_step0_checks.log`.
+- **SMOKE dry-runs:** 4 / 4 pass. Each projects `--gres=gpu:l40:2 --time=01:00:00`, with `EXPECT_SHA` = Y46 and
+  `ALLOW_NONMATCHED_RUNG=0`. Log: `c4flip_data_curve_2026-11-21_12-13-42_l5_smoke_dry_runs.log`.
+- **SMOKEs:** submitted 12:14 from the launch checkout. All four COMPLETED, exit 0:0. Log:
+  `c4flip_data_curve_2026-11-21_12-14-07_l5_smoke_submit.log`.
+
+  | Run | Job | Node | Elapsed | Supervisor verdict | Loader | Loss at step 30 | s/step, steps 10→30 | tqdm overall |
+  |---|---|---|---|---|---|---|---|---|
+  | f025 | 4289934 | neu326 | 00:12:52 | `EXP46 exp46_C4Ff025_l40_2x32 SMOKE PASS` | 1148 | 2.280 | 1.50 | 0.42 it/s |
+  | f050 | 4289935 | neu318 | 00:09:55 | `EXP46 exp46_C4Ff050_l40_2x32 SMOKE PASS` | 2276 | 2.400 | 1.75 | 0.40 it/s |
+  | f075 | 4289936 | neu329 | 00:04:59 | `EXP46 exp46_C4Ff075_l40_2x32 SMOKE PASS` | 3413 | 2.260 | 1.90 | 0.40 it/s |
+  | f100 | 4289937 | neu324 | 00:03:55 | `EXP46 exp46_C4Ff100_l40_2x32 SMOKE PASS` | 4550 | 2.450 | 1.90 | 0.38 it/s |
+
+  - Each train log has exactly one banner `yaw_aug ENABLED img_w=512 seed=42 offset_step=128 flip=0.5` and no
+    NaN / inf.
+  - Each sealed SMOKE record (`c4flip_data_curve_smoke_<run>_neuronic_<ts>.json`, launch checkout, untracked) shows:
+    - `verdict` PASS, with `log_gate`, `logger_gate` and `evidence_gate` all PASS;
+    - `backend` flash, and per rank 48 flash calls / 0 SDPA calls;
+    - `checkpoints_written` 0, and `head` = Y46.
+  - Every smoke dir holds only `lightning_logs/version_0/hparams.yaml`.
+  - The environment receipt `c4flip_data_curve_env_receipt_neuronic.json` (sha256 `84b50471…`) was written by the first
+    SMOKE. All four records bind it.
+  - The s/step from steps 10→30 has a ±0.1 s/step granularity (tqdm prints whole seconds).
+- **FULL `--time`** by the sheet's rule, (40,000 × s/step + 1 h) × 1.2, rounded up, at least 2-00:00:00. Even the
+  conservative tqdm-overall rate gives 33 / 35 / 35 / 37 h, under the 2-day floor. So f025 / f050 / f075 =
+  `2-00:00:00` and f100 = `2-01:00:00` (+ 1 h for its in-job delta re-verification).
+  - Expected wall at the 10→30 rate: about 17 / 19.5 / 21 / 21 h, plus f100's re-verification.
+- **Next:** Yixun's go for the four FULLs (sheet step 2).

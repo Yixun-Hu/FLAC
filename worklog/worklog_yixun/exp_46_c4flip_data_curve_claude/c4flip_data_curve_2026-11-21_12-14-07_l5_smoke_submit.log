@@ -1,0 +1,34 @@
+HEAD = Y46, tracked-clean 2026-11-21 12:14:07 EST
+=== exp46_C4Ff025_l40_2x32 SMOKE submit
+{
+ "run_dir": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff025_l40_2x32_smoke",
+ "owner": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/.exp46_owners/exp46_C4Ff025_l40_2x32__SMOKE",
+ "job_id": "4289934",
+ "token": "fd32518280af4cdabe0b9bf2055eea29",
+ "storage": null
+}
+=== exp46_C4Ff050_l40_2x32 SMOKE submit
+{
+ "run_dir": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff050_l40_2x32_smoke",
+ "owner": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/.exp46_owners/exp46_C4Ff050_l40_2x32__SMOKE",
+ "job_id": "4289935",
+ "token": "1446301674854aad8bf84f504b8b6be8",
+ "storage": null
+}
+=== exp46_C4Ff075_l40_2x32 SMOKE submit
+{
+ "run_dir": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff075_l40_2x32_smoke",
+ "owner": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/.exp46_owners/exp46_C4Ff075_l40_2x32__SMOKE",
+ "job_id": "4289936",
+ "token": "5ba4f658ac7a4aad8790dc3e51d04d92",
+ "storage": null
+}
+=== exp46_C4Ff100_l40_2x32 SMOKE submit
+{
+ "run_dir": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff100_l40_2x32_smoke",
+ "owner": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/.exp46_owners/exp46_C4Ff100_l40_2x32__SMOKE",
+ "job_id": "4289937",
+ "token": "d9baefcbcdff46119e7f8f842451bd2d",
+ "storage": null
+}
+EXIT 0
