@@ -1,0 +1,90 @@
+HEAD = Y46, tracked-clean 2026-11-21 13:54:10 EST
+=== exp46_C4Ff025_l40_2x32 FULL dry-run --time 2-00:00:00
+{
+ "dry_run": true,
+ "run_dir": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff025_l40_2x32",
+ "owner": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/.exp46_owners/exp46_C4Ff025_l40_2x32__FULL",
+ "argv": [
+  "sbatch",
+  "--parsable",
+  "--job-name=exp46-exp46_C4Ff025_l40_2x32-full-37fc3dee",
+  "--comment=exp46:37fc3deef3554fe69dcfcbd69454b358",
+  "--gres=gpu:l40:2",
+  "--cpus-per-task=22",
+  "--mem=64G",
+  "--time=2-00:00:00",
+  "--no-requeue",
+  "--chdir=/n/fs/gatrdp/codespace/exp-46-launch",
+  "--output=/n/fs/gatrdp/codespace/exp-46-launch/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/slurm_train_%x_%j.out",
+  "--export=ALL,RUN=exp46_C4Ff025_l40_2x32,MODE=FULL,EXPECT_SHA=77ecdaa28cff5a71c75896bb99d655ccaafc4598,EXP38_TOKEN=37fc3deef3554fe69dcfcbd69454b358,ATTN_BACKEND=flash,EXPECT_FLASH_VERSION=2.7.4.post1,ALLOW_NONMATCHED_RUNG=0,SAVE_DIR=/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff025_l40_2x32",
+  "/n/fs/gatrdp/codespace/exp-46-launch/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_train.sbatch"
+ ],
+ "partition_max_time": "7-00:00:00"
+}
+=== exp46_C4Ff050_l40_2x32 FULL dry-run --time 2-00:00:00
+{
+ "dry_run": true,
+ "run_dir": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff050_l40_2x32",
+ "owner": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/.exp46_owners/exp46_C4Ff050_l40_2x32__FULL",
+ "argv": [
+  "sbatch",
+  "--parsable",
+  "--job-name=exp46-exp46_C4Ff050_l40_2x32-full-6e602aa6",
+  "--comment=exp46:6e602aa6ad8740c79d354b2c891b9103",
+  "--gres=gpu:l40:2",
+  "--cpus-per-task=22",
+  "--mem=64G",
+  "--time=2-00:00:00",
+  "--no-requeue",
+  "--chdir=/n/fs/gatrdp/codespace/exp-46-launch",
+  "--output=/n/fs/gatrdp/codespace/exp-46-launch/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/slurm_train_%x_%j.out",
+  "--export=ALL,RUN=exp46_C4Ff050_l40_2x32,MODE=FULL,EXPECT_SHA=77ecdaa28cff5a71c75896bb99d655ccaafc4598,EXP38_TOKEN=6e602aa6ad8740c79d354b2c891b9103,ATTN_BACKEND=flash,EXPECT_FLASH_VERSION=2.7.4.post1,ALLOW_NONMATCHED_RUNG=0,SAVE_DIR=/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff050_l40_2x32",
+  "/n/fs/gatrdp/codespace/exp-46-launch/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_train.sbatch"
+ ],
+ "partition_max_time": "7-00:00:00"
+}
+=== exp46_C4Ff075_l40_2x32 FULL dry-run --time 2-00:00:00
+{
+ "dry_run": true,
+ "run_dir": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff075_l40_2x32",
+ "owner": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/.exp46_owners/exp46_C4Ff075_l40_2x32__FULL",
+ "argv": [
+  "sbatch",
+  "--parsable",
+  "--job-name=exp46-exp46_C4Ff075_l40_2x32-full-682fd454",
+  "--comment=exp46:682fd454b5564c56a4fd334acbb9d3e0",
+  "--gres=gpu:l40:2",
+  "--cpus-per-task=22",
+  "--mem=64G",
+  "--time=2-00:00:00",
+  "--no-requeue",
+  "--chdir=/n/fs/gatrdp/codespace/exp-46-launch",
+  "--output=/n/fs/gatrdp/codespace/exp-46-launch/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/slurm_train_%x_%j.out",
+  "--export=ALL,RUN=exp46_C4Ff075_l40_2x32,MODE=FULL,EXPECT_SHA=77ecdaa28cff5a71c75896bb99d655ccaafc4598,EXP38_TOKEN=682fd454b5564c56a4fd334acbb9d3e0,ATTN_BACKEND=flash,EXPECT_FLASH_VERSION=2.7.4.post1,ALLOW_NONMATCHED_RUNG=0,SAVE_DIR=/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff075_l40_2x32",
+  "/n/fs/gatrdp/codespace/exp-46-launch/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_train.sbatch"
+ ],
+ "partition_max_time": "7-00:00:00"
+}
+=== exp46_C4Ff100_l40_2x32 FULL dry-run --time 2-01:00:00
+{
+ "dry_run": true,
+ "run_dir": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff100_l40_2x32",
+ "owner": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/.exp46_owners/exp46_C4Ff100_l40_2x32__FULL",
+ "argv": [
+  "sbatch",
+  "--parsable",
+  "--job-name=exp46-exp46_C4Ff100_l40_2x32-full-4c7c7eb2",
+  "--comment=exp46:4c7c7eb2a02b42fcb8b8cb9545133a99",
+  "--gres=gpu:l40:2",
+  "--cpus-per-task=22",
+  "--mem=64G",
+  "--time=2-01:00:00",
+  "--no-requeue",
+  "--chdir=/n/fs/gatrdp/codespace/exp-46-launch",
+  "--output=/n/fs/gatrdp/codespace/exp-46-launch/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/slurm_train_%x_%j.out",
+  "--export=ALL,RUN=exp46_C4Ff100_l40_2x32,MODE=FULL,EXPECT_SHA=77ecdaa28cff5a71c75896bb99d655ccaafc4598,EXP38_TOKEN=4c7c7eb2a02b42fcb8b8cb9545133a99,ATTN_BACKEND=flash,EXPECT_FLASH_VERSION=2.7.4.post1,ALLOW_NONMATCHED_RUNG=0,SAVE_DIR=/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff100_l40_2x32",
+  "/n/fs/gatrdp/codespace/exp-46-launch/worklog/worklog_yixun/exp_46_c4flip_data_curve_claude/exp46_train.sbatch"
+ ],
+ "partition_max_time": "7-00:00:00"
+}
+EXIT 0

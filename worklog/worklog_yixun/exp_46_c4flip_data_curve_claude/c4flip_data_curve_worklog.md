@@ -1249,3 +1249,29 @@ without re-review.
   `2-00:00:00` and f100 = `2-01:00:00` (+ 1 h for its in-job delta re-verification).
   - Expected wall at the 10→30 rate: about 17 / 19.5 / 21 / 21 h, plus f100's re-verification.
 - **Next:** Yixun's go for the four FULLs (sheet step 2).
+
+## 2026-11-21 13:54 EST — coordinator: L6 the four FULLs submitted on Yixun's go (coordinating session)
+
+- **Yixun's go** (2026-11-21, verbatim): "启动 FULL".
+- **Dry-runs** (the sheet's step 2) passed 4 / 4 from the launch checkout at Y46, which was tracked-clean. Each one:
+  - `MODE=FULL`, with `EXPECT_SHA=77ecdaa28cff5a71c75896bb99d655ccaafc4598` and `ALLOW_NONMATCHED_RUNG=0`;
+  - `--gres=gpu:l40:2 --cpus-per-task=22 --mem=64G`;
+  - partition MaxTime 7-00:00:00.
+
+  Log: `c4flip_data_curve_2026-11-21_13-54-10_l6_full_dry_runs.log`.
+- **Submitted** at 13:54. All four were PENDING (Priority) right after. Log:
+  `c4flip_data_curve_2026-11-21_13-54-29_l6_full_submit.log`.
+
+  | Run | Job | --time | Expected wall at the SMOKE 10→30 rate |
+  |---|---|---|---|
+  | f025 | 4290216 | 2-00:00:00 | ≈ 17 h |
+  | f050 | 4290217 | 2-00:00:00 | ≈ 19.5 h |
+  | f075 | 4290218 | 2-00:00:00 | ≈ 21 h |
+  | f100 | 4290219 | 2-01:00:00 | ≈ 21 h + the in-job delta re-verification |
+
+- **Rules while they queue or run:**
+  - Never commit in or touch the launch checkout `/n/fs/gatrdp/codespace/exp-46-launch`.
+  - Records go here, in the records worktree, and are not pushed without Yixun's go.
+  - Recovery follows sheet step 3, and only after telling Yixun.
+- **Next:** L7. Stage and publish each sealed run to the NAS, from a machine that sees both: the neuronic sheet,
+  step 4.

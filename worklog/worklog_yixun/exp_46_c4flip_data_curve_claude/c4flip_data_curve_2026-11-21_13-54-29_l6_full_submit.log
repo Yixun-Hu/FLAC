@@ -1,0 +1,50 @@
+HEAD = Y46, tracked-clean 2026-11-21 13:54:29 EST
+=== exp46_C4Ff025_l40_2x32 FULL submit --time 2-00:00:00
+{
+ "run_dir": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff025_l40_2x32",
+ "owner": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/.exp46_owners/exp46_C4Ff025_l40_2x32__FULL",
+ "job_id": "4290216",
+ "token": "62501b39c5324b1098c13538786a136c",
+ "storage": {
+  "reserved_bytes": 13731483648,
+  "free_bytes": 1259708874752,
+  "outstanding_bytes": 0
+ }
+}
+=== exp46_C4Ff050_l40_2x32 FULL submit --time 2-00:00:00
+{
+ "run_dir": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff050_l40_2x32",
+ "owner": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/.exp46_owners/exp46_C4Ff050_l40_2x32__FULL",
+ "job_id": "4290217",
+ "token": "d9992c90b02c4066b6e9fdc9c065a66e",
+ "storage": {
+  "reserved_bytes": 13731483648,
+  "free_bytes": 1259708874752,
+  "outstanding_bytes": 13731483648
+ }
+}
+=== exp46_C4Ff075_l40_2x32 FULL submit --time 2-00:00:00
+{
+ "run_dir": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff075_l40_2x32",
+ "owner": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/.exp46_owners/exp46_C4Ff075_l40_2x32__FULL",
+ "job_id": "4290218",
+ "token": "2b367f506266455e9578c27eb432d12f",
+ "storage": {
+  "reserved_bytes": 13731483648,
+  "free_bytes": 1259708874752,
+  "outstanding_bytes": 27462967296
+ }
+}
+=== exp46_C4Ff100_l40_2x32 FULL submit --time 2-01:00:00
+{
+ "run_dir": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/exp46_C4Ff100_l40_2x32",
+ "owner": "/n/fs/gatrdp/codespace/FLAC/outputs_FLAC/exp46_c4flip_data_curve/.exp46_owners/exp46_C4Ff100_l40_2x32__FULL",
+ "job_id": "4290219",
+ "token": "2470248d57954c8c82ba73978215ceb2",
+ "storage": {
+  "reserved_bytes": 13731483648,
+  "free_bytes": 1259708874752,
+  "outstanding_bytes": 41194450944
+ }
+}
+EXIT 0
