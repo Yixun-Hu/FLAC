@@ -1327,3 +1327,17 @@ Yixun switched the coordinating session's model with `/model` at about 15:30. Th
 - The session cron `1ac27453` (FULL check) is deleted.
 - **Next:** L7, the staged NAS publication of the four runs (neuronic sheet, step 4). It runs on a machine that sees
   both the NAS and neuronic, i.e. the A6000 box. Then L8 there (40 eval cells). Both need Yixun to start them.
+
+## 2026-11-22 11:48 EST — coordinator: records pushed; L7 + L8 brief written for the A6000 session (coordinating session)
+
+- **Yixun, verbatim:** "写 L7 + L8 的 brief，2 个记录提交也 push".
+- **Push:** `474df819` and `1ea2897f` pushed at 11:47 EST (fast-forward, worklog only); origin moved from `587be463`
+  to `1ea2897f`.
+- **Brief:** `c4flip_data_curve_a6000_l7_l8_brief.md` in this folder. Yixun pastes it into the A6000 session.
+  - L7: step 4 of the neuronic sheet, from tree 46, one run after another (stage → rsync → checksums →
+    `training-check` → publish); about 46 GB.
+  - L8: step 2 of the A6000 sheet, 10 cells per run in two lanes, then `exp46_collect.py` and its `verify`.
+  - It stops after `verify`. The results commit R46 and its push each need Yixun's word.
+- Checked before writing: neither command sheet and none of the exp_46 tools changed between X46 and `1ea2897f`
+  (`git diff --name-only 553fc89f..HEAD` on those six files: 0), and each run dir holds 16 checkpoints, 11.6 GB.
+- The launch checkout was not touched. Nothing was started on neuronic or on the A6000 box by this session.
