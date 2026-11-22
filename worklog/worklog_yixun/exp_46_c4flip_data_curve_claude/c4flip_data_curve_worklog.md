@@ -1306,3 +1306,24 @@ Yixun switched the coordinating session's model with `/model` at about 15:30. Th
 - **exp_45** stays on hold (C3) until every exp_46 storage reservation has cleared; resuming it is Yixun's decision.
 - **The A6000 session** must `git pull --rebase` in `~/codespace/exp-46-publish` before its next records commit:
   origin moved from Y46 to `587be463`.
+
+## 2026-11-22 04:56 EST — coordinator: L6 the four FULLs COMPLETED and SEALED (coordinating session)
+
+- All four jobs ended COMPLETED, exit 0:0, at Y46 = `77ecdaa2`. Each run dir holds `TRAINING_COMPLETE.json` and
+  `TRAINING_COMMITTED.json` (with sidecars), `CHECKPOINTS.sha256` and 16 checkpoints (every 2,500 steps to 40,000).
+
+  | Run | Job | Node | Start (11-21) | End (11-22) | Elapsed | Final checkpoint | Supervisor's last line, verbatim |
+  |---|---|---|---|---|---|---|---|
+  | f025 | 4290216 | neu330 | 13:58:31 | 04:04:12 | 14:05:41 | `epoch=34-step=40000.ckpt` | `EXP46 exp46_C4Ff025_l40_2x32 FULL COMPLETE` |
+  | f050 | 4290217 | neu317 | 14:08:31 | 04:14:40 | 14:06:09 | `epoch=17-step=40000.ckpt` | `EXP46 exp46_C4Ff050_l40_2x32 FULL COMPLETE` |
+  | f075 | 4290218 | neu306 | 14:21:31 | 04:43:56 | 14:22:25 | `epoch=11-step=40000.ckpt` | `EXP46 exp46_C4Ff075_l40_2x32 FULL COMPLETE` |
+  | f100 | 4290219 | neu318 | 14:34:31 | 04:37:24 | 14:02:53 | `epoch=8-step=40000.ckpt` | `EXP46 exp46_C4Ff100_l40_2x32 FULL COMPLETE` |
+
+- **Storage:** every run's reservation was released with reason `sealed` (`.exp46_storage.json`: four releases).
+- **f100:** its `TRAINING_COMPLETE.json` carries `f100_delta_sha256` `bcea7ffe…` and
+  `f100_delta_verification_sha256` `365e9e1d…`; final checkpoint sha256 `b4bcb7dc…`, 723,922,667 bytes.
+- **Train logs:** no NaN, Traceback or error line in any of the four. Measured rate 0.75–0.82 it/s throughout.
+- The hourly checks were read-only. The launch checkout is still tracked-clean at Y46 and was not touched.
+- The session cron `1ac27453` (FULL check) is deleted.
+- **Next:** L7, the staged NAS publication of the four runs (neuronic sheet, step 4). It runs on a machine that sees
+  both the NAS and neuronic, i.e. the A6000 box. Then L8 there (40 eval cells). Both need Yixun to start them.
