@@ -1341,3 +1341,16 @@ Yixun switched the coordinating session's model with `/model` at about 15:30. Th
 - Checked before writing: neither command sheet and none of the exp_46 tools changed between X46 and `1ea2897f`
   (`git diff --name-only 553fc89f..HEAD` on those six files: 0), and each run dir holds 16 checkpoints, 11.6 GB.
 - The launch checkout was not touched. Nothing was started on neuronic or on the A6000 box by this session.
+
+## 2026-11-23 20:17 EST — coordinator: model change (Fable 5.2 -> Opus 5.5); exp_46 state unchanged (coordinating session)
+
+- `487083ac` (L7 + L8 brief + worklog) was pushed on 2026-11-22 13:16 EST on Yixun's go ("push"); origin = `487083ac`.
+- Yixun switched this session to Opus 5.5 (`claude-opus-5-5`) on 2026-11-23 at about 20:00 EST. Commit trailer is now
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. The repo-level handoff docs (CLAUDE.md, tracker, issue report,
+  HANDOFF.md) are not updated from this branch (exp_46 provenance rule: commits here touch only the exp_46 folder);
+  this entry is the handoff record.
+- **exp_46 in-flight state:** nothing runs. L6 is complete (four FULLs SEALED, 2026-11-22 04:04–04:44). L7 (NAS
+  publication) and L8 (40 eval cells) wait for Yixun to paste `c4flip_data_curve_a6000_l7_l8_brief.md` into the A6000
+  session. The launch checkout `/n/fs/gatrdp/codespace/exp-46-launch` is untouched at Y46.
+- **Next on Yixun's word only:** L7 then L8 on the A6000 box; then the results commit R46 (push needs his go); then
+  neuronic sheet step 5.
